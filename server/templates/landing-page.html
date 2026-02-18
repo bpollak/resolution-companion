@@ -1,0 +1,3019 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Resolution Companion - Your AI-Powered Partner for Achieving Resolutions</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Transform your resolutions into reality with AI-powered coaching, daily habit tracking, and personalized persona-driven growth." />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Structured Data for SEO -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "MobileApplication",
+      "name": "Resolution Companion",
+      "description": "An AI-powered personal growth app using identity-based behavior change. Define your Target Persona through AI interviews, track daily Elemental Actions, and receive personalized coaching to become who you want to be.",
+      "applicationCategory": "LifestyleApplication",
+      "operatingSystem": "iOS, Android",
+      "offers": {
+        "@type": "AggregateOffer",
+        "lowPrice": "0",
+        "highPrice": "24.99",
+        "priceCurrency": "USD",
+        "offerCount": "3"
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.8",
+        "ratingCount": "150"
+      },
+      "featureList": [
+        "AI-Powered Target Persona Definition",
+        "Daily Elemental Action Tracking",
+        "120-Second Kickstart Versions",
+        "Momentum Chain Visualization",
+        "Monthly AI Coaching Check-ins",
+        "Progress Analytics Dashboard"
+      ],
+      "author": {
+        "@type": "Organization",
+        "name": "Resolution Companion"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is identity-based behavior change?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Instead of focusing on goals, identity-based change focuses on who you want to become. You define a Target Persona and align your daily actions with that identity, making habits sustainable because they become part of who you are."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does AI coaching work in Resolution Companion?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Our AI coach provides personalized guidance through real-time chat conversations. You can have monthly reflection check-ins where the AI analyzes your progress, identifies patterns, and offers adaptive coaching to help you overcome obstacles."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is my data private?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, all your personal data stays on your device. We do not collect, store, or track your personal information. AI conversations are processed in real-time but not stored on our servers."
+          }
+        }
+      ]
+    }
+    </script>
+    <style>
+      :root {
+        --accent: #00D9FF;
+        --accent-secondary: #8B5CF6;
+        --accent-tertiary: #F472B6;
+        --accent-green: #10B981;
+        --accent-orange: #F59E0B;
+        --accent-glow: rgba(0, 217, 255, 0.3);
+        --purple-glow: rgba(139, 92, 246, 0.3);
+        --pink-glow: rgba(244, 114, 182, 0.3);
+        --bg-root: #0F0F1A;
+        --bg-card: rgba(20, 20, 35, 0.8);
+        --bg-elevated: rgba(30, 30, 50, 0.9);
+        --text-primary: #FFFFFF;
+        --text-secondary: #A0A0B0;
+        --text-muted: #6A6A7A;
+        --border: rgba(255, 255, 255, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--bg-root);
+        color: var(--text-primary);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+      }
+
+      /* Animated gradient background */
+      .gradient-bg {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: 
+          radial-gradient(ellipse at 20% 20%, rgba(139, 92, 246, 0.25) 0%, transparent 50%),
+          radial-gradient(ellipse at 80% 30%, rgba(0, 217, 255, 0.2) 0%, transparent 45%),
+          radial-gradient(ellipse at 40% 80%, rgba(244, 114, 182, 0.2) 0%, transparent 50%),
+          radial-gradient(ellipse at 90% 80%, rgba(16, 185, 129, 0.15) 0%, transparent 40%),
+          linear-gradient(180deg, #0F0F1A 0%, #1A1025 50%, #0F1A1A 100%);
+        z-index: -1;
+        animation: gradientShift 20s ease infinite;
+      }
+
+      @keyframes gradientShift {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.85; }
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 24px;
+        position: relative;
+        z-index: 1;
+      }
+
+      /* Navigation */
+      nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        background: rgba(15, 15, 26, 0.85);
+        backdrop-filter: blur(20px);
+        border-bottom: 1px solid var(--border);
+      }
+
+      nav .container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        height: 64px;
+      }
+
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 700;
+        font-size: 18px;
+        color: var(--text-primary);
+        text-decoration: none;
+      }
+
+      .logo-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+
+      .logo-icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .nav-links {
+        display: flex;
+        gap: 32px;
+        align-items: center;
+      }
+
+      .nav-links a {
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 500;
+        transition: color 0.2s;
+      }
+
+      .nav-links a:hover {
+        color: var(--text-primary);
+      }
+
+      .nav-links a.nav-cta {
+        background: #8B5CF6;
+        color: #FFFFFF !important;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 14px;
+        text-decoration: none;
+        transition: all 0.2s;
+      }
+
+      .nav-links a.nav-cta:hover {
+        transform: translateY(-1px);
+        background: #7C3AED;
+        color: #FFFFFF !important;
+        box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
+      }
+
+      /* Mobile Menu */
+      .mobile-menu-btn {
+        display: none;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 8px;
+        color: var(--text-primary);
+      }
+
+      .mobile-menu-btn svg {
+        width: 24px;
+        height: 24px;
+      }
+
+      .mobile-nav {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(10, 10, 18, 0.98);
+        z-index: 1000;
+        flex-direction: column;
+        padding: 80px 24px 24px;
+      }
+
+      .mobile-nav.open {
+        display: flex;
+      }
+
+      .mobile-nav-close {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 8px;
+        color: var(--text-primary);
+      }
+
+      .mobile-nav-close svg {
+        width: 28px;
+        height: 28px;
+      }
+
+      .mobile-nav a {
+        color: var(--text-primary);
+        text-decoration: none;
+        font-size: 24px;
+        font-weight: 600;
+        padding: 16px 0;
+        border-bottom: 1px solid var(--border);
+        transition: color 0.2s;
+      }
+
+      .mobile-nav a:hover {
+        color: var(--accent);
+      }
+
+      .mobile-nav a.mobile-cta {
+        margin-top: 24px;
+        background: #8B5CF6;
+        color: #FFFFFF !important;
+        text-align: center;
+        padding: 16px 24px;
+        border-radius: 12px;
+        border: none;
+      }
+
+      /* Hero Section */
+      .hero {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        padding: 80px 0 40px;
+        position: relative;
+      }
+
+      .hero .container {
+        display: grid;
+        grid-template-columns: 1fr 1.2fr;
+        gap: 40px;
+        align-items: center;
+      }
+
+      .hero-content {
+        position: relative;
+        z-index: 1;
+      }
+
+      .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        padding: 8px 16px;
+        border-radius: 100px;
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-bottom: 24px;
+      }
+
+      .hero-badge span {
+        background: linear-gradient(90deg, var(--accent), var(--accent-secondary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 600;
+      }
+
+      .hero h1 {
+        font-size: 52px;
+        font-weight: 800;
+        line-height: 1.1;
+        margin-bottom: 24px;
+        letter-spacing: -0.02em;
+      }
+
+      .hero h1 .gradient-text {
+        background: linear-gradient(135deg, var(--accent), var(--accent-secondary), var(--accent-tertiary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .hero-subtitle {
+        font-size: 18px;
+        color: var(--text-secondary);
+        margin-bottom: 40px;
+        max-width: 480px;
+        line-height: 1.7;
+      }
+
+      .hero-buttons {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        background: #8B5CF6;
+        color: #FFFFFF !important;
+        padding: 16px 32px;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 16px;
+        text-decoration: none;
+        transition: all 0.2s;
+        border: none;
+        cursor: pointer;
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        background: #7C3AED;
+        box-shadow: 0 8px 30px rgba(139, 92, 246, 0.4);
+      }
+
+      .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        background: transparent;
+        color: var(--text-primary);
+        padding: 16px 32px;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 16px;
+        text-decoration: none;
+        transition: all 0.2s;
+        border: 1px solid var(--border);
+      }
+
+      .btn-secondary:hover {
+        background: var(--bg-elevated);
+        border-color: var(--accent);
+      }
+
+      .hero-note {
+        margin-top: 16px;
+        font-size: 14px;
+        color: var(--text-muted);
+      }
+
+      /* Hero Phones Display */
+      .hero-phones {
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+        gap: 20px;
+        perspective: 1000px;
+      }
+
+      .phone-mockup {
+        width: 220px;
+        height: 460px;
+        background: var(--bg-card);
+        border-radius: 32px;
+        border: 2px solid var(--border);
+        overflow: hidden;
+        box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+        position: relative;
+        flex-shrink: 0;
+      }
+
+      .phone-mockup.featured {
+        width: 260px;
+        height: 530px;
+        z-index: 2;
+        border-color: var(--accent);
+        box-shadow: 0 40px 80px rgba(0, 0, 0, 0.5), 0 0 40px var(--accent-glow);
+      }
+
+      .phone-mockup.side {
+        transform: perspective(1000px) rotateY(10deg);
+        opacity: 0.9;
+      }
+
+      .phone-mockup.side.right {
+        transform: perspective(1000px) rotateY(-10deg);
+      }
+
+      /* Phone notch removed - real screenshots have their own UI */
+
+      .phone-screen {
+        padding: 40px 16px 16px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        background: linear-gradient(180deg, rgba(15, 15, 26, 1) 0%, rgba(20, 20, 35, 1) 100%);
+      }
+
+      .phone-screen-image {
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+        border-radius: 30px;
+      }
+
+      .phone-screen-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: top center;
+      }
+
+      /* Today Screen Mock */
+      .screen-today .screen-header {
+        text-align: center;
+        margin-bottom: 16px;
+      }
+
+      .screen-today .screen-header h4 {
+        font-size: 11px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 4px;
+      }
+
+      .screen-today .screen-header h3 {
+        font-size: 16px;
+        font-weight: 700;
+        background: linear-gradient(90deg, var(--accent), var(--accent-secondary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .progress-ring {
+        width: 90px;
+        height: 90px;
+        margin: 0 auto 16px;
+        position: relative;
+      }
+
+      .progress-ring svg {
+        transform: rotate(-90deg);
+      }
+
+      .progress-ring circle {
+        fill: none;
+        stroke-width: 6;
+      }
+
+      .progress-ring .bg {
+        stroke: rgba(255, 255, 255, 0.1);
+      }
+
+      .progress-ring .progress {
+        stroke: url(#gradient);
+        stroke-linecap: round;
+        stroke-dasharray: 251;
+        stroke-dashoffset: 63;
+      }
+
+      .progress-ring .percentage {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--accent);
+      }
+
+      .mock-task-list {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .mock-task {
+        background: var(--bg-elevated);
+        padding: 12px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border: 1px solid var(--border);
+      }
+
+      .mock-checkbox {
+        width: 20px;
+        height: 20px;
+        border-radius: 5px;
+        border: 2px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .mock-checkbox.checked {
+        background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+        border-color: transparent;
+      }
+
+      .mock-checkbox.checked svg {
+        width: 12px;
+        height: 12px;
+        color: #000;
+      }
+
+      .mock-task-content h5 {
+        font-size: 11px;
+        font-weight: 600;
+        margin-bottom: 2px;
+      }
+
+      .mock-task-content p {
+        font-size: 9px;
+        color: var(--text-muted);
+      }
+
+      /* Calendar Screen Mock */
+      .screen-calendar .screen-title {
+        font-size: 14px;
+        font-weight: 700;
+        text-align: center;
+        margin-bottom: 12px;
+        color: var(--accent-tertiary);
+      }
+
+      .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
+        margin-bottom: 12px;
+      }
+
+      .calendar-day {
+        aspect-ratio: 1;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        font-weight: 500;
+        background: var(--bg-elevated);
+      }
+
+      .calendar-day.completed {
+        background: linear-gradient(135deg, var(--accent-green), #059669);
+        color: #000;
+      }
+
+      .calendar-day.partial {
+        background: linear-gradient(135deg, var(--accent-orange), #D97706);
+        color: #000;
+      }
+
+      .calendar-day.today {
+        border: 2px solid var(--accent);
+      }
+
+      .streak-info {
+        background: var(--bg-elevated);
+        border-radius: 10px;
+        padding: 12px;
+        text-align: center;
+        border: 1px solid var(--border);
+      }
+
+      .streak-info .streak-number {
+        font-size: 28px;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--accent-orange), var(--accent-tertiary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .streak-info .streak-label {
+        font-size: 10px;
+        color: var(--text-secondary);
+      }
+
+      /* Coach Screen Mock */
+      .screen-coach .screen-title {
+        font-size: 14px;
+        font-weight: 700;
+        text-align: center;
+        margin-bottom: 12px;
+        color: var(--accent-secondary);
+      }
+
+      .chat-messages {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .chat-bubble {
+        max-width: 85%;
+        padding: 10px 12px;
+        border-radius: 12px;
+        font-size: 10px;
+        line-height: 1.4;
+      }
+
+      .chat-bubble.ai {
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        align-self: flex-start;
+        border-bottom-left-radius: 4px;
+      }
+
+      .chat-bubble.user {
+        background: linear-gradient(135deg, var(--accent-secondary), var(--accent-tertiary));
+        color: #fff;
+        align-self: flex-end;
+        border-bottom-right-radius: 4px;
+      }
+
+      .ai-indicator {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 8px;
+        color: var(--accent-secondary);
+        margin-bottom: 4px;
+      }
+
+      /* Progress Screen Mock */
+      .screen-progress .screen-title {
+        font-size: 14px;
+        font-weight: 700;
+        text-align: center;
+        margin-bottom: 12px;
+        color: var(--accent-green);
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .stat-card {
+        background: var(--bg-elevated);
+        border-radius: 10px;
+        padding: 12px;
+        text-align: center;
+        border: 1px solid var(--border);
+      }
+
+      .stat-card .stat-value {
+        font-size: 20px;
+        font-weight: 800;
+      }
+
+      .stat-card .stat-value.cyan { color: var(--accent); }
+      .stat-card .stat-value.purple { color: var(--accent-secondary); }
+      .stat-card .stat-value.pink { color: var(--accent-tertiary); }
+      .stat-card .stat-value.green { color: var(--accent-green); }
+
+      .stat-card .stat-label {
+        font-size: 9px;
+        color: var(--text-muted);
+        margin-top: 2px;
+      }
+
+      .persona-card {
+        background: var(--bg-elevated);
+        border-radius: 10px;
+        padding: 12px;
+        border: 1px solid var(--accent-secondary);
+      }
+
+      .persona-card h5 {
+        font-size: 10px;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+      }
+
+      .persona-card h4 {
+        font-size: 12px;
+        font-weight: 700;
+        background: linear-gradient(90deg, var(--accent), var(--accent-secondary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 8px;
+      }
+
+      .alignment-bar {
+        height: 6px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+        overflow: hidden;
+      }
+
+      .alignment-bar .fill {
+        height: 100%;
+        width: 78%;
+        background: linear-gradient(90deg, var(--accent), var(--accent-secondary));
+        border-radius: 3px;
+      }
+
+      /* Features Section */
+      .features {
+        padding: 60px 0;
+        position: relative;
+      }
+
+      .section-header {
+        text-align: center;
+        max-width: 600px;
+        margin: 0 auto 40px;
+      }
+
+      .section-label {
+        background: linear-gradient(90deg, var(--accent), var(--accent-secondary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 14px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 16px;
+      }
+
+      .section-title {
+        font-size: 42px;
+        font-weight: 700;
+        margin-bottom: 20px;
+        letter-spacing: -0.02em;
+      }
+
+      .section-subtitle {
+        font-size: 18px;
+        color: var(--text-secondary);
+        line-height: 1.7;
+      }
+
+      .features-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 24px;
+      }
+
+      .feature-card {
+        background: var(--bg-card);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 32px;
+        transition: all 0.3s;
+      }
+
+      .feature-card:hover {
+        border-color: var(--accent);
+        transform: translateY(-4px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      }
+
+      .feature-card:nth-child(2):hover { border-color: var(--accent-secondary); }
+      .feature-card:nth-child(3):hover { border-color: var(--accent-tertiary); }
+      .feature-card:nth-child(4):hover { border-color: var(--accent-green); }
+      .feature-card:nth-child(5):hover { border-color: var(--accent-orange); }
+
+      .feature-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 20px;
+      }
+
+      .feature-icon.cyan { background: linear-gradient(135deg, var(--accent), #0099CC); }
+      .feature-icon.purple { background: linear-gradient(135deg, var(--accent-secondary), #6D28D9); }
+      .feature-icon.pink { background: linear-gradient(135deg, var(--accent-tertiary), #DB2777); }
+      .feature-icon.green { background: linear-gradient(135deg, var(--accent-green), #059669); }
+      .feature-icon.orange { background: linear-gradient(135deg, var(--accent-orange), #D97706); }
+      .feature-icon.blue { background: linear-gradient(135deg, #3B82F6, #1D4ED8); }
+
+      .feature-icon svg {
+        width: 28px;
+        height: 28px;
+        color: #000;
+      }
+
+      .feature-card h3 {
+        font-size: 20px;
+        font-weight: 600;
+        margin-bottom: 12px;
+      }
+
+      .feature-card p {
+        font-size: 15px;
+        color: var(--text-secondary);
+        line-height: 1.6;
+      }
+
+      .feature-problem {
+        font-size: 13px;
+        color: var(--text-muted);
+        margin-bottom: 8px;
+        font-style: italic;
+      }
+
+      .feature-benefit {
+        font-size: 14px;
+        color: var(--text-secondary);
+        line-height: 1.6;
+      }
+
+      /* App Screenshots Section */
+      .screenshots {
+        padding: 60px 0;
+        overflow: hidden;
+      }
+
+      .screenshots-scroll {
+        display: flex;
+        gap: 24px;
+        padding: 20px 0;
+        animation: scrollScreenshots 30s linear infinite;
+      }
+
+      @keyframes scrollScreenshots {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
+      }
+
+      .screenshot-card {
+        flex-shrink: 0;
+        width: 280px;
+        background: var(--bg-card);
+        border-radius: 24px;
+        padding: 20px;
+        border: 1px solid var(--border);
+      }
+
+      .screenshot-phone {
+        width: 100%;
+        height: 400px;
+        background: linear-gradient(180deg, var(--bg-root), var(--bg-elevated));
+        border-radius: 20px;
+        margin-bottom: 16px;
+        display: flex;
+        flex-direction: column;
+        padding: 30px 16px 16px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .screenshot-phone::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 80px;
+        height: 20px;
+        background: #000;
+        border-radius: 0 0 12px 12px;
+      }
+
+      .screenshot-card h4 {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      .screenshot-card p {
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+
+      /* Quotes Section */
+      .quotes {
+        padding: 60px 0;
+      }
+
+      .quotes-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 24px;
+      }
+
+      .quote-card {
+        background: var(--bg-card);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 32px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .quote-card::before {
+        content: '"';
+        position: absolute;
+        top: 10px;
+        left: 20px;
+        font-size: 80px;
+        font-weight: 800;
+        opacity: 0.1;
+        line-height: 1;
+      }
+
+      .quote-card:nth-child(1) { border-top: 3px solid var(--accent); }
+      .quote-card:nth-child(2) { border-top: 3px solid var(--accent-secondary); }
+      .quote-card:nth-child(3) { border-top: 3px solid var(--accent-tertiary); }
+
+      .quote-card blockquote {
+        font-size: 17px;
+        font-style: italic;
+        line-height: 1.7;
+        margin-bottom: 20px;
+        color: var(--text-primary);
+        position: relative;
+        z-index: 1;
+      }
+
+      .quote-card cite {
+        font-size: 14px;
+        font-style: normal;
+        font-weight: 600;
+      }
+
+      .quote-card:nth-child(1) cite { color: var(--accent); }
+      .quote-card:nth-child(2) cite { color: var(--accent-secondary); }
+      .quote-card:nth-child(3) cite { color: var(--accent-tertiary); }
+
+      .quote-card .quote-context {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+      }
+
+      /* Mission Section */
+      .mission {
+        padding: 60px 0;
+      }
+
+      .mission .container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 80px;
+        align-items: center;
+      }
+
+      .mission-content h2 {
+        font-size: 42px;
+        font-weight: 700;
+        margin-bottom: 24px;
+        letter-spacing: -0.02em;
+      }
+
+      .mission-content h2 .gradient-text {
+        background: linear-gradient(135deg, var(--accent), var(--accent-secondary), var(--accent-tertiary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .mission-content p {
+        font-size: 17px;
+        color: var(--text-secondary);
+        line-height: 1.8;
+        margin-bottom: 20px;
+      }
+
+      .mission-list {
+        list-style: none;
+        margin-top: 32px;
+      }
+
+      .mission-list li {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 16px;
+        font-size: 16px;
+      }
+
+      .mission-list li svg {
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
+
+      .mission-list li:nth-child(1) svg { color: var(--accent); }
+      .mission-list li:nth-child(2) svg { color: var(--accent-secondary); }
+      .mission-list li:nth-child(3) svg { color: var(--accent-tertiary); }
+      .mission-list li:nth-child(4) svg { color: var(--accent-green); }
+
+      .mission-visual {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+      }
+
+      .mission-visual::before {
+        content: '';
+        position: absolute;
+        width: 400px;
+        height: 400px;
+        background: radial-gradient(circle, var(--purple-glow) 0%, transparent 70%);
+        border-radius: 50%;
+        z-index: 0;
+        animation: pulse 4s ease-in-out infinite;
+      }
+
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 0.6; }
+        50% { transform: scale(1.1); opacity: 0.8; }
+      }
+
+      .mission-phone {
+        width: 320px;
+        height: 640px;
+        background: var(--bg-card);
+        border-radius: 44px;
+        border: 3px solid rgba(139, 92, 246, 0.5);
+        overflow: hidden;
+        box-shadow: 0 50px 100px rgba(0, 0, 0, 0.5), 0 0 80px var(--purple-glow), 0 0 120px rgba(139, 92, 246, 0.3);
+        position: relative;
+        z-index: 1;
+      }
+
+      .mission-phone .phone-screen-image {
+        border-radius: 41px;
+      }
+
+      /* Support Section */
+      .support-section {
+        padding: 80px 0;
+        background: linear-gradient(180deg, rgba(0, 217, 255, 0.02) 0%, transparent 100%);
+      }
+
+      .support-content {
+        display: grid;
+        grid-template-columns: 1fr 2fr;
+        gap: 60px;
+        margin-top: 40px;
+      }
+
+      @media (max-width: 768px) {
+        .support-content {
+          grid-template-columns: 1fr;
+          gap: 40px;
+        }
+      }
+
+      .support-contact {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 16px;
+        padding: 32px;
+        height: fit-content;
+      }
+
+      .support-contact h3 {
+        font-size: 20px;
+        margin-bottom: 16px;
+        color: var(--text-primary);
+      }
+
+      .support-contact > p {
+        color: var(--text-secondary);
+        margin-bottom: 20px;
+        line-height: 1.6;
+      }
+
+      .support-email {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--cyan);
+        text-decoration: none;
+        font-size: 16px;
+        font-weight: 500;
+        padding: 16px;
+        background: rgba(0, 217, 255, 0.1);
+        border-radius: 12px;
+        transition: all 0.3s ease;
+      }
+
+      .support-email:hover {
+        background: rgba(0, 217, 255, 0.2);
+      }
+
+      .support-email svg {
+        flex-shrink: 0;
+      }
+
+      .response-time {
+        margin-top: 16px;
+        font-size: 14px;
+        color: var(--text-muted);
+      }
+
+      .support-faq h3 {
+        font-size: 20px;
+        margin-bottom: 24px;
+        color: var(--text-primary);
+      }
+
+      .faq-item {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 16px;
+      }
+
+      .faq-item:last-child {
+        margin-bottom: 0;
+      }
+
+      .faq-item h4 {
+        font-size: 16px;
+        color: var(--text-primary);
+        margin-bottom: 12px;
+      }
+
+      .faq-item p {
+        color: var(--text-secondary);
+        line-height: 1.6;
+        font-size: 15px;
+      }
+
+      .faq-item a {
+        color: var(--cyan);
+        text-decoration: none;
+      }
+
+      .faq-item a:hover {
+        text-decoration: underline;
+      }
+
+      /* Feedback Section */
+      .feedback-section {
+        padding: 60px 0;
+      }
+
+      .feedback-section .container {
+        max-width: 600px;
+      }
+
+      .feedback-form {
+        background: var(--bg-card);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        padding: 40px;
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      .form-group label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        margin-bottom: 8px;
+        color: var(--text-secondary);
+      }
+
+      .form-group input,
+      .form-group select,
+      .form-group textarea {
+        width: 100%;
+        padding: 14px 16px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--text-primary);
+        font-size: 15px;
+        font-family: inherit;
+        transition: border-color 0.2s;
+      }
+
+      .form-group input:focus,
+      .form-group select:focus,
+      .form-group textarea:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+
+      .form-group textarea {
+        min-height: 120px;
+        resize: vertical;
+      }
+
+      .form-submit {
+        width: 100%;
+        padding: 16px;
+        background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+        border: none;
+        border-radius: 10px;
+        color: #000;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .form-submit:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px var(--accent-glow);
+      }
+
+      .form-message {
+        text-align: center;
+        margin-top: 16px;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        display: none;
+      }
+
+      .form-message.success {
+        display: block;
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--accent-green);
+        border: 1px solid var(--accent-green);
+      }
+
+      .form-message.error {
+        display: block;
+        background: rgba(239, 68, 68, 0.2);
+        color: #EF4444;
+        border: 1px solid #EF4444;
+      }
+
+      /* Download Section */
+      .download {
+        padding: 60px 0;
+        text-align: center;
+      }
+
+      .download-cards {
+        display: flex;
+        justify-content: center;
+        gap: 24px;
+        margin-top: 40px;
+        flex-wrap: wrap;
+      }
+
+      .download-card {
+        background: var(--bg-card);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 32px;
+        min-width: 280px;
+        transition: all 0.3s;
+      }
+
+      .download-card:hover {
+        border-color: var(--accent);
+        transform: translateY(-4px);
+      }
+
+      .download-card h3 {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 16px;
+      }
+
+      .download-card img {
+        max-width: 100%;
+        height: auto;
+      }
+
+      .store-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .store-button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 14px 24px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--text-primary);
+        text-decoration: none;
+        font-weight: 500;
+        transition: all 0.2s;
+      }
+
+      .store-button:hover {
+        background: var(--bg-card);
+        border-color: var(--accent);
+      }
+
+      .store-button svg {
+        width: 24px;
+        height: 24px;
+      }
+
+      .qr-placeholder {
+        width: 160px;
+        height: 160px;
+        background: #fff;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 16px;
+        padding: 12px;
+      }
+
+      .qr-placeholder img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      /* Footer */
+      footer {
+        padding: 40px 0;
+        border-top: 1px solid var(--border);
+        text-align: center;
+      }
+
+      footer p {
+        font-size: 14px;
+        color: var(--text-muted);
+        margin-top: 16px;
+      }
+
+      .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 24px;
+        margin-bottom: 16px;
+      }
+
+      .footer-links a {
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-size: 14px;
+        transition: color 0.2s;
+      }
+
+      .footer-links a:hover {
+        color: var(--accent);
+      }
+
+      footer a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      footer a:hover {
+        text-decoration: underline;
+      }
+
+      /* Responsive */
+      @media (max-width: 1024px) {
+        .hero .container {
+          grid-template-columns: 1fr;
+          text-align: center;
+        }
+
+        .hero-content {
+          order: 2;
+        }
+
+        .hero-phones {
+          order: 1;
+          margin-bottom: 40px;
+        }
+
+        .hero-subtitle {
+          max-width: 100%;
+        }
+
+        .hero-buttons {
+          justify-content: center;
+        }
+
+        .features-grid,
+        .quotes-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .mission .container {
+          grid-template-columns: 1fr;
+          gap: 40px;
+        }
+
+        .mission-visual {
+          order: -1;
+        }
+
+        .phone-mockup.side {
+          display: none;
+        }
+
+        .nav-links {
+          display: none;
+        }
+
+        .mobile-menu-btn {
+          display: block;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .hero h1 {
+          font-size: 36px;
+        }
+
+        .section-title {
+          font-size: 32px;
+        }
+
+        .phone-mockup.featured {
+          width: 240px;
+          height: 490px;
+        }
+      }
+
+      /* Differentiation Section */
+      .differentiation {
+        padding: 80px 0;
+      }
+
+      .comparison-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 32px;
+        max-width: 900px;
+        margin: 0 auto;
+      }
+
+      .comparison-card {
+        background: var(--bg-card);
+        border-radius: 20px;
+        padding: 32px;
+        border: 1px solid var(--border);
+      }
+
+      .comparison-card.old-way {
+        border-color: rgba(239, 68, 68, 0.3);
+        background: rgba(239, 68, 68, 0.05);
+      }
+
+      .comparison-card.old-way h3 {
+        color: #EF4444;
+      }
+
+      .comparison-card.new-way {
+        border-color: var(--accent);
+        background: rgba(0, 217, 255, 0.08);
+      }
+
+      .comparison-card.new-way h3 {
+        color: var(--accent);
+      }
+
+      .comparison-card h3 {
+        font-size: 20px;
+        margin-bottom: 20px;
+      }
+
+      .comparison-card ul {
+        list-style: none;
+      }
+
+      .comparison-card ul li {
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border);
+        font-size: 15px;
+        color: var(--text-secondary);
+      }
+
+      .comparison-card ul li:last-child {
+        border-bottom: none;
+      }
+
+      .comparison-card.old-way ul li::before {
+        content: "✗";
+        margin-right: 10px;
+        color: #EF4444;
+      }
+
+      .comparison-card.new-way ul li::before {
+        content: "✓";
+        margin-right: 10px;
+        color: var(--accent);
+      }
+
+      /* Privacy Assurance Section */
+      .privacy-assurance {
+        padding: 40px 0;
+      }
+
+      .privacy-box {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        background: var(--bg-card);
+        border: 1px solid var(--accent-green);
+        border-radius: 16px;
+        padding: 24px 32px;
+        max-width: 800px;
+        margin: 0 auto;
+      }
+
+      .privacy-icon {
+        width: 64px;
+        height: 64px;
+        background: rgba(16, 185, 129, 0.15);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .privacy-icon svg {
+        color: var(--accent-green);
+      }
+
+      .privacy-content h3 {
+        font-size: 18px;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+      }
+
+      .privacy-content p {
+        font-size: 14px;
+        color: var(--text-secondary);
+        line-height: 1.6;
+      }
+
+      .privacy-content a {
+        color: var(--accent);
+      }
+
+      @media (max-width: 640px) {
+        .comparison-grid {
+          grid-template-columns: 1fr;
+        }
+        
+        .privacy-box {
+          flex-direction: column;
+          text-align: center;
+        }
+      }
+
+      /* Persona Quiz Section */
+      .persona-quiz {
+        padding: 100px 0;
+        background: linear-gradient(180deg, rgba(139, 92, 246, 0.1) 0%, transparent 100%);
+      }
+
+      .quiz-container {
+        max-width: 700px;
+        margin: 0 auto;
+        background: var(--bg-card);
+        border-radius: 24px;
+        padding: 48px;
+        border: 1px solid var(--border);
+      }
+
+      .quiz-progress {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 32px;
+      }
+
+      .quiz-progress-dot {
+        flex: 1;
+        height: 4px;
+        background: var(--border);
+        border-radius: 2px;
+        transition: background 0.3s ease;
+      }
+
+      .quiz-progress-dot.active {
+        background: var(--accent);
+      }
+
+      .quiz-progress-dot.completed {
+        background: var(--accent-green);
+      }
+
+      .quiz-question {
+        display: none;
+      }
+
+      .quiz-question.active {
+        display: block;
+      }
+
+      .quiz-question h3 {
+        font-size: 24px;
+        margin-bottom: 24px;
+        color: var(--text-primary);
+      }
+
+      .quiz-options {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .quiz-option {
+        padding: 16px 20px;
+        background: var(--bg-elevated);
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        color: var(--text-primary);
+        text-align: left;
+        font-size: 16px;
+      }
+
+      .quiz-option:hover {
+        border-color: var(--accent);
+        background: rgba(0, 217, 255, 0.1);
+      }
+
+      .quiz-option.selected {
+        border-color: var(--accent);
+        background: rgba(0, 217, 255, 0.15);
+      }
+
+      .quiz-result {
+        display: none;
+        text-align: center;
+      }
+
+      .quiz-result.active {
+        display: block;
+      }
+
+      .persona-preview {
+        background: linear-gradient(135deg, rgba(0, 217, 255, 0.2), rgba(139, 92, 246, 0.2));
+        border-radius: 16px;
+        padding: 32px;
+        margin-top: 24px;
+        border: 1px solid var(--accent);
+      }
+
+      .persona-preview h4 {
+        font-size: 14px;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 12px;
+      }
+
+      .persona-preview p {
+        font-size: 18px;
+        color: var(--text-primary);
+        line-height: 1.6;
+      }
+
+      .quiz-cta {
+        margin-top: 32px;
+      }
+
+      .quiz-restart {
+        background: transparent;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        margin-top: 16px;
+        font-size: 14px;
+      }
+
+      .quiz-restart:hover {
+        color: var(--accent);
+      }
+
+      /* Pricing Section */
+      .pricing-info {
+        margin-top: 40px;
+        text-align: center;
+      }
+
+      .pricing-cards {
+        display: flex;
+        gap: 24px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 24px;
+      }
+
+      .pricing-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 24px 32px;
+        min-width: 200px;
+      }
+
+      .pricing-card.featured {
+        border-color: var(--accent);
+        background: rgba(0, 217, 255, 0.1);
+      }
+
+      .pricing-card h4 {
+        font-size: 18px;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+      }
+
+      .pricing-card .price {
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--accent);
+      }
+
+      .pricing-card .period {
+        font-size: 14px;
+        color: var(--text-secondary);
+      }
+
+      .pricing-card .savings {
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--accent-green);
+        font-weight: 600;
+      }
+
+      .pricing-note {
+        margin-top: 16px;
+        font-size: 14px;
+        color: var(--text-secondary);
+      }
+
+      .pricing-table-wrapper {
+        max-width: 700px;
+        margin: 32px auto;
+        overflow-x: auto;
+      }
+
+      .pricing-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--bg-card);
+        border-radius: 16px;
+        overflow: hidden;
+      }
+
+      .pricing-table th,
+      .pricing-table td {
+        padding: 16px 20px;
+        text-align: center;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .pricing-table th {
+        background: var(--bg-elevated);
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      .pricing-table th:first-child,
+      .pricing-table td:first-child {
+        text-align: left;
+      }
+
+      .pricing-table td {
+        color: var(--text-secondary);
+      }
+
+      .pricing-table .premium-col {
+        background: rgba(0, 217, 255, 0.08);
+        color: var(--accent);
+        font-weight: 500;
+      }
+
+      .pricing-table th.premium-col {
+        color: var(--accent);
+      }
+
+      .pricing-table tbody tr:last-child td {
+        border-bottom: none;
+      }
+
+      /* Coaching Detail */
+      .coaching-detail {
+        margin-top: 100px;
+        padding: 60px 0;
+        background: linear-gradient(180deg, transparent, rgba(244, 114, 182, 0.1), transparent);
+      }
+
+      .coaching-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 48px;
+        align-items: center;
+      }
+
+      .coaching-features {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+
+      .coaching-feature {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+      }
+
+      .coaching-feature-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        background: rgba(244, 114, 182, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .coaching-feature-icon svg {
+        width: 24px;
+        height: 24px;
+        color: var(--accent-tertiary);
+      }
+
+      .coaching-feature h4 {
+        font-size: 18px;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+      }
+
+      .coaching-feature p {
+        font-size: 14px;
+        color: var(--text-secondary);
+      }
+
+      .coaching-sample {
+        background: var(--bg-card);
+        border-radius: 20px;
+        padding: 32px;
+        border: 1px solid var(--border);
+      }
+
+      .coaching-sample-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .coach-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent-tertiary), var(--accent-secondary));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .coach-avatar svg {
+        width: 24px;
+        height: 24px;
+        color: white;
+      }
+
+      .coach-info h4 {
+        font-size: 16px;
+        color: var(--text-primary);
+      }
+
+      .coach-info span {
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+
+      .coaching-message {
+        font-size: 15px;
+        line-height: 1.7;
+        color: var(--text-primary);
+      }
+
+      .coaching-message p {
+        margin-bottom: 12px;
+      }
+
+      .coaching-message strong {
+        color: var(--accent);
+      }
+
+      .ai-disclaimer {
+        margin-top: 16px;
+        padding: 12px 16px;
+        background: rgba(139, 92, 246, 0.1);
+        border-radius: 8px;
+        font-size: 12px;
+        color: var(--text-muted);
+        border-left: 3px solid var(--accent-secondary);
+      }
+
+      /* How It Works Section */
+      .how-it-works {
+        padding: 80px 0;
+        background: linear-gradient(180deg, transparent, rgba(0, 217, 255, 0.05), transparent);
+      }
+
+      .steps-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 32px;
+        max-width: 1000px;
+        margin: 0 auto;
+      }
+
+      .step-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 32px;
+        text-align: center;
+        position: relative;
+      }
+
+      .step-number {
+        position: absolute;
+        top: -16px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 32px;
+        height: 32px;
+        background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 14px;
+        color: #000;
+      }
+
+      .step-icon {
+        width: 64px;
+        height: 64px;
+        margin: 16px auto 20px;
+        background: var(--bg-elevated);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .step-icon svg {
+        color: var(--accent);
+      }
+
+      .step-card h3 {
+        font-size: 18px;
+        margin-bottom: 12px;
+        color: var(--text-primary);
+      }
+
+      .step-card p {
+        font-size: 14px;
+        color: var(--text-secondary);
+        line-height: 1.6;
+      }
+
+      /* Social Proof Section */
+      .social-proof {
+        padding: 80px 0;
+      }
+
+      .outcomes-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 24px;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+
+      .outcome-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 28px;
+      }
+
+      .outcome-persona {
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--accent);
+        margin-bottom: 20px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .outcome-journey {
+        margin-bottom: 20px;
+      }
+
+      .outcome-before,
+      .outcome-after {
+        margin-bottom: 12px;
+      }
+
+      .outcome-before .label,
+      .outcome-after .label {
+        display: block;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+      }
+
+      .outcome-before span:last-child {
+        font-size: 14px;
+        color: var(--text-secondary);
+        font-style: italic;
+      }
+
+      .outcome-after span:last-child {
+        font-size: 14px;
+        color: var(--text-primary);
+        font-style: italic;
+      }
+
+      .outcome-result {
+        background: var(--bg-elevated);
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+      }
+
+      .outcome-result .metric {
+        display: block;
+        font-size: 28px;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .outcome-result .desc {
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+
+      .outcomes-note {
+        text-align: center;
+        margin-top: 24px;
+        font-size: 13px;
+        color: var(--text-muted);
+        font-style: italic;
+      }
+
+      @media (max-width: 900px) {
+        .coaching-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .quiz-container {
+          padding: 32px 24px;
+        }
+
+        .steps-grid,
+        .outcomes-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="gradient-bg"></div>
+    
+    <!-- SVG Definitions -->
+    <svg style="position: absolute; width: 0; height: 0;">
+      <defs>
+        <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#00D9FF;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#8B5CF6;stop-opacity:1" />
+        </linearGradient>
+      </defs>
+    </svg>
+
+    <!-- Navigation -->
+    <nav>
+      <div class="container">
+        <a href="#" class="logo">
+          <div class="logo-icon">
+            <img src="/assets/website/app-logo.png" alt="Resolution Companion Logo">
+          </div>
+          Resolution Companion
+        </a>
+        <div class="nav-links">
+          <a href="#features">Features</a>
+          <a href="/feedback">Support</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="#download" class="nav-cta">Get Started</a>
+        </div>
+        <button class="mobile-menu-btn" onclick="document.getElementById('mobileNav').classList.add('open')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Mobile Navigation -->
+    <div class="mobile-nav" id="mobileNav">
+      <button class="mobile-nav-close" onclick="document.getElementById('mobileNav').classList.remove('open')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+      <a href="#features" onclick="document.getElementById('mobileNav').classList.remove('open')">Features</a>
+      <a href="/feedback" onclick="document.getElementById('mobileNav').classList.remove('open')">Support</a>
+      <a href="/privacy" onclick="document.getElementById('mobileNav').classList.remove('open')">Privacy</a>
+      <a href="/terms" onclick="document.getElementById('mobileNav').classList.remove('open')">Terms</a>
+      <a href="#download" class="mobile-cta" onclick="document.getElementById('mobileNav').classList.remove('open')">Get Started</a>
+    </div>
+
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="container">
+        <div class="hero-content">
+          <div class="hero-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+            </svg>
+            <span>Identity-Based Change</span>
+          </div>
+          <h1>Stop Chasing Goals.<br/><span class="gradient-text">Become Someone New.</span></h1>
+          <p class="hero-subtitle">
+            Tired of broken resolutions and lost streaks? Resolution Companion uses identity-driven coaching to create sustainable behavior change. Define who you're becoming, not just what you're doing.
+          </p>
+          <div class="hero-buttons">
+            <a href="#download" class="btn-primary">
+              Start Free Today
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+            </a>
+          </div>
+          <p class="hero-note">Free forever. No credit card required.</p>
+        </div>
+
+        <div class="hero-phones">
+          <!-- Left Phone - Calendar -->
+          <div class="phone-mockup side">
+            <div class="phone-screen-image">
+              <img src="/assets/website/screen-calendar.png" alt="Calendar Screen">
+            </div>
+          </div>
+
+          <!-- Center Phone - Welcome (Featured) -->
+          <div class="phone-mockup featured">
+            <div class="phone-screen-image">
+              <img src="/assets/website/screen-welcome.png?v=2" alt="Welcome Screen">
+            </div>
+          </div>
+
+          <!-- Right Phone - Coach -->
+          <div class="phone-mockup side right">
+            <div class="phone-screen-image">
+              <img src="/assets/website/screen-coach.png" alt="Coach Screen">
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Differentiation Section -->
+    <section class="differentiation" id="why-different">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-label">Why We're Different</div>
+          <h2 class="section-title">Identity-Based, Not Streak-Based</h2>
+          <p class="section-subtitle">
+            Traditional habit trackers focus on streaks and goals. When you break the chain, motivation disappears. We focus on who you're becoming, not just what you're checking off.
+          </p>
+        </div>
+        
+        <div class="comparison-grid">
+          <div class="comparison-card old-way">
+            <h3>Streak-Based Apps</h3>
+            <ul>
+              <li>Break a streak, lose motivation</li>
+              <li>Focus on counting days</li>
+              <li>One missed day = failure</li>
+              <li>External motivation only</li>
+              <li>Same approach for everyone</li>
+            </ul>
+          </div>
+          <div class="comparison-card new-way">
+            <h3>Resolution Companion</h3>
+            <ul>
+              <li>Identity-driven sustainability</li>
+              <li>Focus on who you're becoming</li>
+              <li>Progress, not perfection</li>
+              <li>Internal motivation through identity</li>
+              <li>AI-personalized to your goals</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Privacy Assurance Section -->
+    <section class="privacy-assurance">
+      <div class="container">
+        <div class="privacy-box">
+          <div class="privacy-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <div class="privacy-content">
+            <h3>Your Data Stays on Your Device</h3>
+            <p>All personal data is stored locally. We don't collect, track, or sell your information. AI conversations are processed but never stored on our servers. <a href="/privacy">Read our full Privacy Policy</a></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Persona Preview Quiz -->
+    <section class="persona-quiz" id="quiz">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-label">Try It Now</div>
+          <h2 class="section-title">Discover Your Target Persona</h2>
+          <p class="section-subtitle">
+            Answer 3 quick questions to see a preview of what your personalized growth journey could look like.
+          </p>
+        </div>
+
+        <div class="quiz-container">
+          <div class="quiz-progress">
+            <div class="quiz-progress-dot active" id="dot1"></div>
+            <div class="quiz-progress-dot" id="dot2"></div>
+            <div class="quiz-progress-dot" id="dot3"></div>
+          </div>
+
+          <!-- Question 1 -->
+          <div class="quiz-question active" id="q1">
+            <h3>What area of life do you most want to transform?</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="health" onclick="selectAnswer(1, 'health', this)">Health & Fitness</button>
+              <button class="quiz-option" data-value="career" onclick="selectAnswer(1, 'career', this)">Career & Professional Growth</button>
+              <button class="quiz-option" data-value="relationships" onclick="selectAnswer(1, 'relationships', this)">Relationships & Connection</button>
+              <button class="quiz-option" data-value="creativity" onclick="selectAnswer(1, 'creativity', this)">Creativity & Learning</button>
+            </div>
+          </div>
+
+          <!-- Question 2 -->
+          <div class="quiz-question" id="q2">
+            <h3>What's your biggest challenge with building habits?</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="consistency" onclick="selectAnswer(2, 'consistency', this)">Staying consistent day after day</button>
+              <button class="quiz-option" data-value="motivation" onclick="selectAnswer(2, 'motivation', this)">Finding motivation to start</button>
+              <button class="quiz-option" data-value="time" onclick="selectAnswer(2, 'time', this)">Making time in my busy schedule</button>
+              <button class="quiz-option" data-value="clarity" onclick="selectAnswer(2, 'clarity', this)">Knowing what actions actually matter</button>
+            </div>
+          </div>
+
+          <!-- Question 3 -->
+          <div class="quiz-question" id="q3">
+            <h3>How would you describe your ideal future self?</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="disciplined" onclick="selectAnswer(3, 'disciplined', this)">Disciplined and focused</button>
+              <button class="quiz-option" data-value="confident" onclick="selectAnswer(3, 'confident', this)">Confident and accomplished</button>
+              <button class="quiz-option" data-value="balanced" onclick="selectAnswer(3, 'balanced', this)">Balanced and fulfilled</button>
+              <button class="quiz-option" data-value="inspiring" onclick="selectAnswer(3, 'inspiring', this)">Inspiring and impactful</button>
+            </div>
+          </div>
+
+          <!-- Result -->
+          <div class="quiz-result" id="quizResult">
+            <h3>Your Persona Preview</h3>
+            <div class="persona-preview">
+              <h4>Target Persona</h4>
+              <p id="personaText"></p>
+            </div>
+            <div class="quiz-cta">
+              <a href="#download" class="btn-primary">Start Your Full Journey</a>
+              <button class="quiz-restart" onclick="restartQuiz()">Take Quiz Again</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-label">Core Features</div>
+          <h2 class="section-title">Tools That Drive Real Change</h2>
+          <p class="section-subtitle">
+            Each feature solves a specific problem that keeps people stuck. Here's how they help you succeed.
+          </p>
+        </div>
+
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon cyan">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="8" r="3"/>
+                <path d="M12 14c-4 0-6 2-6 4v1h12v-1c0-2-2-4-6-4z"/>
+                <circle cx="12" cy="10" r="9" stroke-dasharray="2 2"/>
+                <line x1="12" y1="1" x2="12" y2="3"/>
+                <line x1="12" y1="17" x2="12" y2="19"/>
+                <line x1="3" y1="10" x2="5" y2="10"/>
+                <line x1="19" y1="10" x2="21" y2="10"/>
+              </svg>
+            </div>
+            <h3>Target Persona</h3>
+            <p class="feature-problem">Problem: Vague goals like "get healthier" lack direction and fade quickly.</p>
+            <p class="feature-benefit">Solution: Define a clear identity - "I am a disciplined athlete" - that guides every decision naturally.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon purple">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+                <path d="M7 14l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/>
+                <rect x="15" y="13" width="3" height="3" rx="0.5" fill="currentColor" opacity="0.3"/>
+                <rect x="7" y="17" width="3" height="3" rx="0.5" fill="currentColor" opacity="0.3"/>
+                <rect x="11" y="17" width="3" height="3" rx="0.5" fill="currentColor" opacity="0.3"/>
+              </svg>
+            </div>
+            <h3>Momentum Calendar</h3>
+            <p class="feature-problem">Problem: Missing one day makes you feel like a failure, destroying motivation.</p>
+            <p class="feature-benefit">Solution: Visual momentum tracking shows overall progress, not just streaks. One missed day doesn't erase your growth.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon pink">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M12 3C7 3 3 6.5 3 11c0 2.5 1.5 4.5 3.5 6L5 21l4-2c1 .3 2 .5 3 .5 5 0 9-3.5 9-8s-4-8.5-9-8.5z"/>
+                <circle cx="8" cy="11" r="1" fill="currentColor"/>
+                <circle cx="12" cy="11" r="1" fill="currentColor"/>
+                <circle cx="16" cy="11" r="1" fill="currentColor"/>
+                <path d="M19 2l1 2 2 1-2 1-1 2-1-2-2-1 2-1z" fill="currentColor" stroke="none"/>
+                <path d="M5 5l.5 1 1 .5-1 .5-.5 1-.5-1-1-.5 1-.5z" fill="currentColor" stroke="none"/>
+              </svg>
+            </div>
+            <h3>AI Coaching</h3>
+            <p class="feature-problem">Problem: You get stuck in the same patterns with no one to provide fresh perspective.</p>
+            <p class="feature-benefit">Solution: Monthly AI check-ins analyze your progress, spot patterns you miss, and adapt your strategy.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon green">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M3 20h18"/>
+                <path d="M3 20V10l4 4 5-8 4 6 5-6v14"/>
+                <circle cx="7" cy="14" r="1.5" fill="currentColor"/>
+                <circle cx="12" cy="6" r="1.5" fill="currentColor"/>
+                <circle cx="16" cy="12" r="1.5" fill="currentColor"/>
+                <circle cx="21" cy="6" r="1.5" fill="currentColor"/>
+                <path d="M18 3l3 3-3 3" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <h3>Progress Tracking</h3>
+            <p class="feature-problem">Problem: Without feedback, you don't know if you're actually improving.</p>
+            <p class="feature-benefit">Solution: Watch your persona alignment grow over time. See exactly how daily actions compound into real transformation.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon orange">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="10"/>
+                <circle cx="12" cy="12" r="6"/>
+                <circle cx="12" cy="12" r="2" fill="currentColor"/>
+                <line x1="12" y1="2" x2="12" y2="5"/>
+                <line x1="12" y1="19" x2="12" y2="22"/>
+                <line x1="2" y1="12" x2="5" y2="12"/>
+                <line x1="19" y1="12" x2="22" y2="12"/>
+                <path d="M16 4l1 2" stroke-linecap="round"/>
+                <path d="M20 8l-2 1" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <h3>Core Benchmarks</h3>
+            <p class="feature-problem">Problem: Big goals feel overwhelming with no clear path forward.</p>
+            <p class="feature-benefit">Solution: Break your persona into 3-5 key life areas, each with specific daily actions that make progress tangible.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon blue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="13" r="8"/>
+                <polyline points="12 9 12 13 15 15"/>
+                <path d="M12 5V3"/>
+                <path d="M5.5 7.5L4 6"/>
+                <path d="M18.5 7.5L20 6"/>
+                <path d="M9 2l3 3 3-3" fill="currentColor" stroke="none"/>
+                <path d="M7 11l2-3h2l-3 5h2l-2 3" fill="currentColor" stroke="none" opacity="0.5"/>
+              </svg>
+            </div>
+            <h3>120-Second Kickstart</h3>
+            <p class="feature-problem">Problem: Low energy days lead to skipping actions, breaking momentum.</p>
+            <p class="feature-benefit">Solution: Every action has a 2-minute version. Just show up. Consistency beats intensity.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Coaching Detail Section -->
+    <section class="coaching-detail" id="coaching">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-label">How It Works</div>
+          <h2 class="section-title">Your AI Coach, Always There</h2>
+          <p class="section-subtitle">
+            Get personalized guidance through real-time chat conversations and monthly reflection check-ins.
+          </p>
+        </div>
+
+        <div class="coaching-grid">
+          <div class="coaching-features">
+            <div class="coaching-feature">
+              <div class="coaching-feature-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+              </div>
+              <div>
+                <h4>Real-Time Chat</h4>
+                <p>Have natural conversations with your AI coach whenever you need guidance, motivation, or help overcoming obstacles.</p>
+              </div>
+            </div>
+
+            <div class="coaching-feature">
+              <div class="coaching-feature-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+              </div>
+              <div>
+                <h4>Monthly Check-ins</h4>
+                <p>Scheduled reflection sessions where your coach analyzes your progress, identifies patterns, and adjusts your strategy.</p>
+              </div>
+            </div>
+
+            <div class="coaching-feature">
+              <div class="coaching-feature-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v6l4 2"/>
+                </svg>
+              </div>
+              <div>
+                <h4>Daily Reminders</h4>
+                <p>Gentle push notifications at 8 PM to help you log your actions and maintain your momentum chain.</p>
+              </div>
+            </div>
+
+            <div class="coaching-feature">
+              <div class="coaching-feature-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                  <path d="M2 17l10 5 10-5"/>
+                  <path d="M2 12l10 5 10-5"/>
+                </svg>
+              </div>
+              <div>
+                <h4>Adaptive Coaching</h4>
+                <p>Your coach learns from your progress and adapts suggestions based on what's working and what needs adjustment.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="coaching-sample">
+            <div class="coaching-sample-header">
+              <div class="coach-avatar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                  <path d="M2 17l10 5 10-5"/>
+                </svg>
+              </div>
+              <div class="coach-info">
+                <h4>Your AI Coach</h4>
+                <span>Monthly Reflection</span>
+              </div>
+            </div>
+            <div class="coaching-message">
+              <p>Great progress this month! You completed <strong>87% of your daily actions</strong>, up from 72% last month.</p>
+              <p>I noticed you're strongest on weekday mornings. Consider moving your "Read for 20 minutes" action to mornings too - it might help with your 3-day streak goal.</p>
+              <p>Your <strong>Target Persona alignment</strong> has grown to 45%. Keep building those momentum chains - you're on track to hit 60% by next month!</p>
+            </div>
+            <div class="ai-disclaimer">
+              AI coaching provides motivational and informational guidance only. It is not a substitute for professional advice from qualified healthcare providers, therapists, or counselors.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section class="how-it-works" id="how-it-works">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-label">Getting Started</div>
+          <h2 class="section-title">How It Works</h2>
+          <p class="section-subtitle">
+            Three simple steps to begin your identity transformation journey.
+          </p>
+        </div>
+
+        <div class="steps-grid">
+          <div class="step-card">
+            <div class="step-number">1</div>
+            <div class="step-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+            </div>
+            <h3>Define Your Persona</h3>
+            <p>Chat with our AI to discover who you want to become. No forms or guesswork - just a conversation about your aspirations.</p>
+          </div>
+          
+          <div class="step-card">
+            <div class="step-number">2</div>
+            <div class="step-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">
+                <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+            </div>
+            <h3>Track Daily Actions</h3>
+            <p>Complete 3-5 small daily actions that align with your persona. Use 120-second versions when motivation is low.</p>
+          </div>
+          
+          <div class="step-card">
+            <div class="step-number">3</div>
+            <div class="step-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">
+                <line x1="12" y1="20" x2="12" y2="10"/>
+                <line x1="18" y1="20" x2="18" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="16"/>
+              </svg>
+            </div>
+            <h3>Evolve with Coaching</h3>
+            <p>Monthly AI check-ins analyze your progress, celebrate wins, and adapt your strategy for continuous growth.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Social Proof / Example Outcomes -->
+    <section class="social-proof">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-label">Real Transformations</div>
+          <h2 class="section-title">Example Growth Journeys</h2>
+          <p class="section-subtitle">
+            See how identity-based change creates lasting results.
+          </p>
+        </div>
+
+        <div class="outcomes-grid">
+          <div class="outcome-card">
+            <div class="outcome-persona">The Disciplined Runner</div>
+            <div class="outcome-journey">
+              <div class="outcome-before">
+                <span class="label">Started with:</span>
+                <span>"I want to run a marathon but can't stick to training."</span>
+              </div>
+              <div class="outcome-after">
+                <span class="label">Became:</span>
+                <span>"I'm someone who runs every morning. A marathon is just what runners do."</span>
+              </div>
+            </div>
+            <div class="outcome-result">
+              <span class="metric">87%</span>
+              <span class="desc">persona alignment after 90 days</span>
+            </div>
+          </div>
+
+          <div class="outcome-card">
+            <div class="outcome-persona">The Mindful Leader</div>
+            <div class="outcome-journey">
+              <div class="outcome-before">
+                <span class="label">Started with:</span>
+                <span>"I want to be less stressed and more present at work."</span>
+              </div>
+              <div class="outcome-after">
+                <span class="label">Became:</span>
+                <span>"I'm a calm, focused leader who creates space for deep thinking."</span>
+              </div>
+            </div>
+            <div class="outcome-result">
+              <span class="metric">92%</span>
+              <span class="desc">persona alignment after 60 days</span>
+            </div>
+          </div>
+
+          <div class="outcome-card">
+            <div class="outcome-persona">The Creative Writer</div>
+            <div class="outcome-journey">
+              <div class="outcome-before">
+                <span class="label">Started with:</span>
+                <span>"I've always wanted to write a book but never find time."</span>
+              </div>
+              <div class="outcome-after">
+                <span class="label">Became:</span>
+                <span>"I'm a writer. I write every day because that's who I am."</span>
+              </div>
+            </div>
+            <div class="outcome-result">
+              <span class="metric">78%</span>
+              <span class="desc">persona alignment after 45 days</span>
+            </div>
+          </div>
+        </div>
+        
+        <p class="outcomes-note">These are illustrative examples of how identity-based change works. Individual results vary based on commitment and consistency.</p>
+      </div>
+    </section>
+
+    <!-- Quotes Section -->
+    <section class="quotes">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-label">Inspiration</div>
+          <h2 class="section-title">Wisdom for Your Journey</h2>
+        </div>
+
+        <div class="quotes-grid">
+          <div class="quote-card">
+            <blockquote>
+              "We are what we repeatedly do. Excellence, then, is not an act, but a habit."
+            </blockquote>
+            <cite>Aristotle</cite>
+            <p class="quote-context">Ancient Greek Philosopher</p>
+          </div>
+
+          <div class="quote-card">
+            <blockquote>
+              "Every action you take is a vote for the type of person you wish to become."
+            </blockquote>
+            <cite>James Clear</cite>
+            <p class="quote-context">Author of Atomic Habits</p>
+          </div>
+
+          <div class="quote-card">
+            <blockquote>
+              "The journey of a thousand miles begins with a single step."
+            </blockquote>
+            <cite>Lao Tzu</cite>
+            <p class="quote-context">Chinese Proverb</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Mission Section -->
+    <section class="mission" id="mission">
+      <div class="container">
+        <div class="mission-content">
+          <h2>Our <span class="gradient-text">Story</span></h2>
+          <p>
+            We believe that lasting change comes from within. Instead of chasing goals, we focus on building identity. When you see yourself as a "healthy person" rather than someone "trying to lose weight," your daily choices naturally align with who you're becoming.
+          </p>
+          <p>
+            Resolution Companion was built on this simple truth: <strong>you don't rise to the level of your goals, you fall to the level of your systems.</strong> We help you build systems that work.
+          </p>
+
+          <ul class="mission-list">
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              Identity-first approach to habit building
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              AI that adapts to your unique journey
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              Small actions that compound into big results
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              Visual momentum to keep you motivated
+            </li>
+          </ul>
+        </div>
+
+        <div class="mission-visual">
+          <div class="mission-phone">
+            <div class="phone-screen-image">
+              <img src="/assets/website/screen-progress-2.png" alt="Progress Screen">
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Download Section -->
+    <section class="download" id="download">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-label">Get Started</div>
+          <h2 class="section-title">Start Your Journey Today</h2>
+          <p class="section-subtitle">
+            Download Resolution Companion and begin transforming who you become.
+          </p>
+        </div>
+
+        <div class="download-cards">
+          <div class="download-card">
+            <h3>App Stores</h3>
+            <div class="store-buttons">
+              <a href="#" class="store-button">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                </svg>
+                App Store
+              </a>
+              <a href="#" class="store-button">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
+                </svg>
+                Google Play
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="pricing-info">
+          <h3>Simple, Transparent Pricing</h3>
+          
+          <!-- Pricing Comparison Table -->
+          <div class="pricing-table-wrapper">
+            <table class="pricing-table">
+              <thead>
+                <tr>
+                  <th>Feature</th>
+                  <th>Free</th>
+                  <th class="premium-col">Premium</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Target Personas</td>
+                  <td>1</td>
+                  <td class="premium-col">Unlimited</td>
+                </tr>
+                <tr>
+                  <td>AI Coaching Sessions</td>
+                  <td>10/month</td>
+                  <td class="premium-col">Unlimited</td>
+                </tr>
+                <tr>
+                  <td>Daily Action Tracking</td>
+                  <td>Full access</td>
+                  <td class="premium-col">Full access</td>
+                </tr>
+                <tr>
+                  <td>Momentum Calendar</td>
+                  <td>Full access</td>
+                  <td class="premium-col">Full access</td>
+                </tr>
+                <tr>
+                  <td>Progress Analytics</td>
+                  <td>Basic</td>
+                  <td class="premium-col">Advanced</td>
+                </tr>
+                <tr>
+                  <td>Custom Benchmarks</td>
+                  <td>-</td>
+                  <td class="premium-col">Included</td>
+                </tr>
+                <tr>
+                  <td>120-Second Kickstart Actions</td>
+                  <td>Full access</td>
+                  <td class="premium-col">Full access</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="pricing-cards">
+            <div class="pricing-card">
+              <h4>Free Forever</h4>
+              <div class="price">$0</div>
+              <div class="period">no credit card needed</div>
+            </div>
+            <div class="pricing-card featured">
+              <h4>Premium Yearly</h4>
+              <div class="price">$24.99</div>
+              <div class="period">per year (~$2.08/mo)</div>
+              <div class="savings">Save 30%</div>
+            </div>
+            <div class="pricing-card">
+              <h4>Premium Monthly</h4>
+              <div class="price">$2.99</div>
+              <div class="period">per month</div>
+            </div>
+          </div>
+          <p class="pricing-note">Subscriptions auto-renew unless canceled at least 24 hours before the renewal date. Manage subscriptions in your device's App Store or Google Play settings.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <div class="container">
+        <div class="footer-links">
+          <a href="/">Home</a>
+          <a href="#features">Features</a>
+          <a href="/feedback">Support</a>
+          <a href="/privacy">Privacy Policy</a>
+          <a href="/terms">Terms of Use</a>
+        </div>
+        <p>&copy; 2026 Resolution Companion. Built with purpose.</p>
+      </div>
+    </footer>
+
+    <script>
+      // Smooth scroll for navigation
+      document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+          e.preventDefault();
+          const target = document.querySelector(this.getAttribute('href'));
+          if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        });
+      });
+
+      // Persona Quiz Logic
+      const quizAnswers = {};
+      
+      function selectAnswer(questionNum, answer, button) {
+        quizAnswers[questionNum] = answer;
+        
+        // Mark selected option
+        const options = button.parentElement.querySelectorAll('.quiz-option');
+        options.forEach(opt => opt.classList.remove('selected'));
+        button.classList.add('selected');
+        
+        // Update progress dots
+        document.getElementById('dot' + questionNum).classList.add('completed');
+        
+        // Move to next question after short delay
+        setTimeout(() => {
+          if (questionNum < 3) {
+            document.getElementById('q' + questionNum).classList.remove('active');
+            document.getElementById('q' + (questionNum + 1)).classList.add('active');
+            document.getElementById('dot' + (questionNum + 1)).classList.add('active');
+          } else {
+            // Show result
+            document.getElementById('q3').classList.remove('active');
+            document.getElementById('quizResult').classList.add('active');
+            generatePersona();
+          }
+        }, 300);
+      }
+      
+      function generatePersona() {
+        const area = quizAnswers[1];
+        const challenge = quizAnswers[2];
+        const ideal = quizAnswers[3];
+        
+        const personas = {
+          health: {
+            disciplined: "A disciplined wellness champion who prioritizes physical health through consistent daily habits - from morning workouts to mindful eating - building a body and mind that supports every ambition.",
+            confident: "A confident, vibrant individual who radiates health and energy, inspiring others through visible transformation and proving that sustainable change is possible.",
+            balanced: "A balanced wellness practitioner who integrates fitness, nutrition, and rest into a harmonious lifestyle, never sacrificing one for another.",
+            inspiring: "An inspiring health advocate who leads by example, showing others that small daily actions compound into remarkable physical transformation."
+          },
+          career: {
+            disciplined: "A focused professional who approaches career growth with unwavering discipline - consistently developing skills, building relationships, and taking strategic actions toward mastery.",
+            confident: "A confident leader who commands respect through competence and communication, navigating professional challenges with poise and strategic thinking.",
+            balanced: "A balanced achiever who excels professionally while maintaining fulfilling personal relationships, proving that success doesn't require sacrifice.",
+            inspiring: "An inspiring mentor and thought leader whose career impact extends beyond personal success to lifting up everyone around them."
+          },
+          relationships: {
+            disciplined: "A dedicated connector who consistently nurtures relationships through intentional actions - regular check-ins, meaningful conversations, and acts of service.",
+            confident: "A confident communicator who builds deep, authentic relationships by showing up genuinely and expressing needs and boundaries clearly.",
+            balanced: "A balanced relationship cultivator who maintains thriving connections across family, friends, and community without neglecting self-care.",
+            inspiring: "An inspiring presence in others' lives who strengthens every relationship they touch and creates a ripple effect of connection and belonging."
+          },
+          creativity: {
+            disciplined: "A disciplined creative who treats artistic growth like a craft - showing up daily to practice, learn, and create, building mastery through consistent effort.",
+            confident: "A confident creator who shares their work boldly, embracing feedback and iteration as paths to authentic artistic expression.",
+            balanced: "A balanced learner who integrates creative pursuits into everyday life, finding inspiration in routine and expressing ideas across multiple mediums.",
+            inspiring: "An inspiring creative force whose work moves others, constantly pushing boundaries and proving that creativity flourishes with commitment."
+          }
+        };
+        
+        const persona = personas[area]?.[ideal] || "A transforming individual committed to daily growth, building the habits and mindset needed to become their best self.";
+        document.getElementById('personaText').textContent = persona;
+      }
+      
+      function restartQuiz() {
+        // Reset answers
+        Object.keys(quizAnswers).forEach(key => delete quizAnswers[key]);
+        
+        // Reset UI
+        document.querySelectorAll('.quiz-question').forEach(q => q.classList.remove('active'));
+        document.getElementById('q1').classList.add('active');
+        document.getElementById('quizResult').classList.remove('active');
+        
+        document.querySelectorAll('.quiz-progress-dot').forEach(dot => {
+          dot.classList.remove('completed', 'active');
+        });
+        document.getElementById('dot1').classList.add('active');
+        
+        document.querySelectorAll('.quiz-option').forEach(opt => opt.classList.remove('selected'));
+      }
+    </script>
+  </body>
+</html>

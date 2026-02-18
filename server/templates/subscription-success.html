@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Successful - Resolution Companion</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            padding: 20px;
+        }
+        .container {
+            text-align: center;
+            max-width: 400px;
+        }
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #00D9FF 0%, #00B4CC 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        .success-icon svg {
+            width: 40px;
+            height: 40px;
+            stroke: #0a0a0a;
+            stroke-width: 3;
+            fill: none;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: #00D9FF;
+        }
+        p {
+            font-size: 16px;
+            color: #b0b0b0;
+            margin-bottom: 32px;
+            line-height: 1.5;
+        }
+        .status {
+            background: rgba(0, 217, 255, 0.1);
+            border: 1px solid rgba(0, 217, 255, 0.3);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+        .status-text {
+            color: #00D9FF;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .instructions {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        .instructions h2 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: #ffffff;
+        }
+        .instructions ol {
+            text-align: left;
+            padding-left: 24px;
+            color: #b0b0b0;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+        .btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #00D9FF 0%, #00B4CC 100%);
+            color: #0a0a0a;
+            padding: 16px 32px;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 217, 255, 0.3);
+        }
+        .loading {
+            display: none;
+            margin-top: 16px;
+            color: #00D9FF;
+            font-size: 14px;
+        }
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(0, 217, 255, 0.3);
+            border-top-color: #00D9FF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">
+            <svg viewBox="0 0 24 24">
+                <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+        </div>
+        <h1>Welcome to Premium!</h1>
+        <p>Your payment was successful and your subscription is now active.</p>
+        
+        <div class="status">
+            <span class="status-text" id="status-text">Activating your subscription...</span>
+        </div>
+        
+        <div class="instructions">
+            <h2>Return to the App</h2>
+            <ol>
+                <li>Close this browser tab</li>
+                <li>Return to Expo Go</li>
+                <li>Tap "Restore Purchases" if needed</li>
+            </ol>
+        </div>
+        
+        <a href="#" class="btn" onclick="closeTab()">Close This Page</a>
+        
+        <div class="loading" id="loading">
+            <span class="spinner"></span>
+            Confirming payment...
+        </div>
+    </div>
+    
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get('session_id');
+        
+        async function confirmSubscription() {
+            if (!sessionId) return;
+            
+            document.getElementById('loading').style.display = 'block';
+            
+            try {
+                const response = await fetch('/api/stripe/session/' + sessionId);
+                const data = await response.json();
+                
+                if (data.payment_status === 'paid') {
+                    document.getElementById('status-text').textContent = 'Subscription activated successfully!';
+                } else {
+                    document.getElementById('status-text').textContent = 'Processing your payment...';
+                }
+            } catch (error) {
+                console.error('Error confirming subscription:', error);
+            }
+            
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        function closeTab() {
+            window.close();
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 100);
+        }
+        
+        confirmSubscription();
+    </script>
+</body>
+</html>
