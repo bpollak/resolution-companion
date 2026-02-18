@@ -78,7 +78,44 @@ function setupRequestLogging(app: express.Application) {
   });
 }
 
-function servePrivacyAndTerms(app: express.Application) {
+function getAppName(): string {
+  try {
+    const appJsonPath = path.resolve(process.cwd(), "app.json");
+    const appJsonContent = fs.readFileSync(appJsonPath, "utf-8");
+    const appJson = JSON.parse(appJsonContent);
+    return appJson.expo?.name || "App Landing Page";
+  } catch {
+    return "App Landing Page";
+  }
+}
+
+function serveExpoManifest(platform: string, res: Response) {
+  const manifestPath = path.resolve(
+    process.cwd(),
+    "static-build",
+    platform,
+    "manifest.json",
+  );
+
+  if (!fs.existsSync(manifestPath)) {
+    return res
+      .status(404)
+      .json({ error: `Manifest not found for platform: ${platform}` });
+  }
+
+  res.setHeader("expo-protocol-version", "1");
+  res.setHeader("expo-sfv-version", "0");
+  res.setHeader("content-type", "application/json");
+
+  const manifest = fs.readFileSync(manifestPath, "utf-8");
+  res.send(manifest);
+}
+
+function configureExpoAndLanding(app: express.Application) {
+  const landingPageTemplate = fs.readFileSync(
+    path.resolve(process.cwd(), "server", "templates", "landing-page.html"),
+    "utf-8",
+  );
   const privacyTemplate = fs.readFileSync(
     path.resolve(process.cwd(), "server", "templates", "privacy.html"),
     "utf-8",
@@ -87,6 +124,44 @@ function servePrivacyAndTerms(app: express.Application) {
     path.resolve(process.cwd(), "server", "templates", "terms.html"),
     "utf-8",
   );
+  const feedbackTemplate = fs.readFileSync(
+    path.resolve(process.cwd(), "server", "templates", "feedback.html"),
+    "utf-8",
+  );
+
+  const appName = getAppName();
+
+  const staticBuildDir = path.resolve(process.cwd(), "static-build");
+  if (fs.existsSync(staticBuildDir)) {
+    log("Serving static Expo files with dynamic manifest routing");
+    app.use("/_expo", express.static(path.join(staticBuildDir)));
+
+    log("Expo routing: Checking expo-platform header on / and /manifest");
+    app.get(["/", "/manifest"], (req: Request, res: Response, next: Function) => {
+      const platform = req.header("expo-platform");
+      if (platform) {
+        return serveExpoManifest(platform, res);
+      }
+      next();
+    });
+  }
+
+  app.get("/", (req: Request, res: Response) => {
+    const forwardedProto = req.header("x-forwarded-proto");
+    const protocol = forwardedProto || req.protocol || "https";
+    const forwardedHost = req.header("x-forwarded-host");
+    const host = forwardedHost || req.get("host");
+    const baseUrl = `${protocol}://${host}`;
+    const expsUrl = `${host}`;
+
+    const html = landingPageTemplate
+      .replace(/BASE_URL_PLACEHOLDER/g, baseUrl)
+      .replace(/EXPS_URL_PLACEHOLDER/g, expsUrl)
+      .replace(/APP_NAME_PLACEHOLDER/g, appName);
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.status(200).send(html);
+  });
 
   app.get("/privacy", (_req: Request, res: Response) => {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -96,6 +171,11 @@ function servePrivacyAndTerms(app: express.Application) {
   app.get("/terms", (_req: Request, res: Response) => {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.status(200).send(termsTemplate);
+  });
+
+  app.get("/feedback", (_req: Request, res: Response) => {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.status(200).send(feedbackTemplate);
   });
 }
 
@@ -120,7 +200,7 @@ function setupErrorHandler(app: express.Application) {
   setupCors(app);
   setupBodyParsing(app);
   setupRequestLogging(app);
-  servePrivacyAndTerms(app);
+  configureExpoAndLanding(app);
 
   const server = await registerRoutes(app);
 
