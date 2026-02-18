@@ -11,7 +11,12 @@ const openai = new OpenAI({
 });
 
 async function validateAppleReceiptWithUrl(receipt: string, productId: string, verifyUrl: string): Promise<{ valid: boolean; status: number }> {
-  const sharedSecret = process.env.APPLE_SHARED_SECRET || "";
+  const sharedSecret = process.env.APPLE_SHARED_SECRET;
+
+  if (!sharedSecret) {
+    console.error("APPLE_SHARED_SECRET is not configured — cannot validate receipt");
+    return { valid: false, status: -1 };
+  }
 
   const response = await fetch(verifyUrl, {
     method: "POST",
@@ -38,7 +43,7 @@ async function validateAppleReceiptWithUrl(receipt: string, productId: string, v
         }
       }
     }
-    return { valid: true, status: 0 };
+    return { valid: false, status: 0 };
   }
 
   return { valid: false, status: data.status };
@@ -56,6 +61,10 @@ async function validateAppleReceipt(receipt: string, productId: string): Promise
       return true;
     }
 
+    if (prodResult.status === -1) {
+      return false;
+    }
+
     if (prodResult.status === 21007) {
       console.log("Sandbox receipt detected, retrying with sandbox endpoint");
       const sandboxResult = await validateAppleReceiptWithUrl(receipt, productId, sandboxUrl);
@@ -65,30 +74,20 @@ async function validateAppleReceipt(receipt: string, productId: string): Promise
         return true;
       }
 
-      if (sandboxResult.status === 21004) {
-        console.log("APPLE_SHARED_SECRET not configured or incorrect - accepting sandbox receipt for review");
-        return true;
-      }
-
       console.log("Sandbox validation failed with status:", sandboxResult.status);
-      return sandboxResult.status === 0;
-    }
-
-    if (prodResult.status === 21008) {
-      console.log("Production receipt sent to sandbox, retrying with production (already tried)");
       return false;
     }
 
-    if (prodResult.status === 21004) {
-      console.log("APPLE_SHARED_SECRET not configured or incorrect - accepting receipt");
-      return true;
+    if (prodResult.status === 21008) {
+      console.log("Production receipt rejected by production endpoint");
+      return false;
     }
 
     console.log("Apple receipt validation failed with status:", prodResult.status);
     return false;
   } catch (error) {
     console.error("Apple receipt validation error:", error);
-    return true;
+    return false;
   }
 }
 
