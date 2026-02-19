@@ -38,8 +38,7 @@
           }
         }
       ],
-      "expo-web-browser",
-      "expo-in-app-purchases"
+      "expo-web-browser"
     ],
     "experiments": {
       "reactCompiler": true

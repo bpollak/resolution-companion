@@ -484,4 +484,5 @@ export const storage = {
   async setStripeCustomerId(customerId: string): Promise<void> {
     await AsyncStorage.setItem(STORAGE_KEYS.STRIPE_CUSTOMER_ID, customerId);
   },
+
 };
