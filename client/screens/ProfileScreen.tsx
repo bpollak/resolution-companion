@@ -16,6 +16,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
+import { getApiUrl } from "@/lib/query-client";
+import { storage } from "@/lib/storage";
 import {
   requestNotificationPermissions,
   scheduleDailyReminder,
@@ -266,6 +268,42 @@ export default function ProfileScreen() {
     );
   };
 
+  const handleDeleteAccount = () => {
+    showAlert(
+      "Delete All My Data",
+      "This will permanently delete ALL your data, both on this device and on our servers (including subscription records). This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Everything",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const deviceId = await storage.getDeviceId();
+              await fetch(new URL(`/api/user-data/${deviceId}`, getApiUrl()).toString(), {
+                method: "DELETE",
+              });
+              await clearAllData();
+              if (Platform.OS === "web") {
+                window.alert("All your data has been deleted from this device and our servers.");
+              } else {
+                Alert.alert("Account Deleted", "All your data has been deleted from this device and our servers.");
+              }
+            } catch (error) {
+              console.error("Failed to delete server data:", error);
+              await clearAllData();
+              if (Platform.OS === "web") {
+                window.alert("Local data deleted. Server data deletion may have failed — please contact support if needed.");
+              } else {
+                Alert.alert("Partial Deletion", "Local data deleted. Server data deletion may have failed — please contact support if needed.");
+              }
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const currentPersonaBenchmarks = benchmarks.filter((b) => b.personaId === persona?.id);
   const currentPersonaActions = actions.filter((a) => 
     currentPersonaBenchmarks.some((b) => b.id === a.benchmarkId)
@@ -500,8 +538,16 @@ export default function ProfileScreen() {
           <SettingsRow
             icon="trash-2"
             title="Clear All Data"
-            subtitle="Delete everything and start fresh"
+            subtitle="Delete local data and start fresh"
             onPress={handleClearData}
+            destructive
+          />
+
+          <SettingsRow
+            icon="user-minus"
+            title="Delete My Account & Data"
+            subtitle="Remove all data from device and servers"
+            onPress={handleDeleteAccount}
             destructive
           />
         </>

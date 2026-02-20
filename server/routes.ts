@@ -51,6 +51,9 @@ async function validateAppleReceiptWithUrl(receipt: string, productId: string, v
 
 async function validateAppleReceipt(receipt: string, productId: string): Promise<boolean> {
   try {
+    // NOTE: These endpoints are deprecated by Apple. Future migration to App Store Server API v2
+    // (https://developer.apple.com/documentation/appstoreserverapi) is recommended.
+    // The verifyReceipt endpoints still function but Apple encourages migration to the new API.
     const productionUrl = "https://buy.itunes.apple.com/verifyReceipt";
     const sandboxUrl = "https://sandbox.itunes.apple.com/verifyReceipt";
 
@@ -324,7 +327,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         plan: sub.plan,
         status: sub.status,
         currentPeriodEnd: sub.currentPeriodEnd?.toISOString() || null,
-        stripeCustomerId: sub.stripeCustomerId,
       });
     } catch (error) {
       console.error("Subscription status error:", error);
@@ -379,6 +381,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/user-data/:deviceId", async (req: Request, res: Response) => {
+    try {
+      const { deviceId } = req.params;
+
+      if (!deviceId) {
+        res.status(400).json({ error: "deviceId is required" });
+        return;
+      }
+
+      if (!db) {
+        res.json({ success: true, message: "No server data to delete" });
+        return;
+      }
+
+      const deleted = await db.delete(deviceSubscriptions).where(eq(deviceSubscriptions.deviceId, deviceId)).returning();
+
+      res.json({
+        success: true,
+        message: deleted.length > 0
+          ? "All server-side data for this device has been deleted"
+          : "No server data found for this device",
+      });
+    } catch (error) {
+      console.error("User data deletion error:", error);
+      res.status(500).json({ error: "Failed to delete user data" });
+    }
+  });
+
   app.post("/api/iap/validate", async (req: Request, res: Response) => {
     try {
       const { deviceId, platform, productId, transactionId, receipt, purchaseTime } = req.body;
@@ -409,8 +439,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           : "monthly";
         
         const subscriptionData = {
-          stripeCustomerId: `${platform}_${transactionId}`,
-          stripeSubscriptionId: transactionId,
+          stripeCustomerId: `iap_${platform}_${transactionId}`,
+          stripeSubscriptionId: `iap_${transactionId}`,
           plan: plan,
           status: "active" as const,
           currentPeriodEnd: expirationDate,

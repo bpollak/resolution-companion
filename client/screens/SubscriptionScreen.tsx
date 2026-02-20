@@ -494,7 +494,7 @@ export default function SubscriptionScreen() {
         <View style={styles.plansSection}>
           <PlanCard
             type="yearly"
-            price="$24.99"
+            price={iapProducts.find(p => p.productId === PRODUCT_IDS.YEARLY)?.price || "$24.99"}
             period="per year"
             savings="Save 30%"
             selected={selectedPlan === "yearly"}
@@ -502,7 +502,7 @@ export default function SubscriptionScreen() {
           />
           <PlanCard
             type="monthly"
-            price="$2.99"
+            price={iapProducts.find(p => p.productId === PRODUCT_IDS.MONTHLY)?.price || "$2.99"}
             period="per month"
             selected={selectedPlan === "monthly"}
             onSelect={() => setSelectedPlan("monthly")}
@@ -581,8 +581,8 @@ export default function SubscriptionScreen() {
             {isLoading
               ? "Processing..."
               : selectedPlan === "yearly"
-                ? "Subscribe for $24.99/year"
-                : "Subscribe for $2.99/month"}
+                ? `Subscribe for ${iapProducts.find(p => p.productId === PRODUCT_IDS.YEARLY)?.price || "$24.99"}/year`
+                : `Subscribe for ${iapProducts.find(p => p.productId === PRODUCT_IDS.MONTHLY)?.price || "$2.99"}/month`}
           </ThemedText>
         </Pressable>
 
@@ -594,8 +594,8 @@ export default function SubscriptionScreen() {
 
         <ThemedText style={[styles.subscriptionDisclosure, { color: theme.textSecondary }]}>
           {selectedPlan === "yearly" 
-            ? "Subscription automatically renews for $24.99/year unless canceled at least 24 hours before the end of the current period. "
-            : "Subscription automatically renews for $2.99/month unless canceled at least 24 hours before the end of the current period. "}
+            ? `Subscription automatically renews for ${iapProducts.find(p => p.productId === PRODUCT_IDS.YEARLY)?.price || "$24.99"}/year unless canceled at least 24 hours before the end of the current period. `
+            : `Subscription automatically renews for ${iapProducts.find(p => p.productId === PRODUCT_IDS.MONTHLY)?.price || "$2.99"}/month unless canceled at least 24 hours before the end of the current period. `}
           Your account will be charged for renewal within 24 hours prior to the end of the current period. 
           You can manage and cancel your subscription in your App Store settings after purchase.
         </ThemedText>
