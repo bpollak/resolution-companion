@@ -131,6 +131,11 @@ function configureExpoAndLanding(app: express.Application) {
 
   const appName = getAppName();
 
+  const publicDir = path.resolve(process.cwd(), "public");
+  if (fs.existsSync(publicDir)) {
+    app.use("/assets", express.static(path.join(publicDir, "assets")));
+  }
+
   const staticBuildDir = path.resolve(process.cwd(), "static-build");
   if (fs.existsSync(staticBuildDir)) {
     log("Serving static Expo files with dynamic manifest routing");
