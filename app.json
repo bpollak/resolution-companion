@@ -5,12 +5,12 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "evolve",
+    "scheme": "resolutioncompanion",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.evolve.app",
+      "bundleIdentifier": "com.resolutioncompanion.app",
       "infoPlist": {
         "NSUserTrackingUsageDescription": "This app does not track you across other apps or websites. This permission is requested to comply with App Store requirements.",
         "ITSAppUsesNonExemptEncryption": false
@@ -44,7 +44,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.evolve.app"
+      "package": "com.resolutioncompanion.app"
     },
     "web": {
       "output": "single",
