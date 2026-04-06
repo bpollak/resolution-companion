@@ -24,6 +24,7 @@ import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ChatBubble } from "@/components/ChatBubble";
 import { getReflectionResponse, AIMessage, getMonthlyContext } from "@/lib/ai";
+import { logger } from "@/lib/logger";
 
 type PeriodType = "monthly";
 
@@ -114,7 +115,7 @@ export default function ReflectScreen() {
       setMessages([aiMessage]);
       setStreamingText("");
     } catch (error) {
-      console.error("Failed to start reflection:", error);
+      logger.error("Failed to start reflection:", error);
       setIsStreaming(false);
       setStreamingText("");
     } finally {
@@ -177,7 +178,7 @@ export default function ReflectScreen() {
       setMessages((prev) => [...prev, aiMessage]);
       setStreamingText("");
     } catch (error) {
-      console.error("Failed to send message:", error);
+      logger.error("Failed to send message:", error);
       setIsStreaming(false);
       setStreamingText("");
     } finally {

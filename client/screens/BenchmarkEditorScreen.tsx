@@ -17,6 +17,7 @@ import { useApp } from "@/context/AppContext";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { logger } from "@/lib/logger";
 
 const MIN_ACTIONS_PER_PERSONA = 3;
 const MAX_ACTIONS_PER_PERSONA = 5;
@@ -98,7 +99,7 @@ export default function BenchmarkEditorScreen() {
 
       navigation.goBack();
     } catch (error) {
-      console.error("Failed to save benchmark:", error);
+      logger.error("Failed to save benchmark:", error);
       if (Platform.OS === "web") {
         window.alert("Failed to save benchmark. Please try again.");
       } else {

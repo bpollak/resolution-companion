@@ -1,6 +1,7 @@
 import { Platform, NativeModules } from "react-native";
 import { storage } from "./storage";
-import { getApiUrl } from "./query-client";
+import { getApiUrl, getAuthHeaders } from "./query-client";
+import { logger } from "./logger";
 
 let InAppPurchases: typeof import("expo-in-app-purchases") | null = null;
 
@@ -12,7 +13,7 @@ async function loadIAPModule(): Promise<boolean> {
   // Check if the native module exists before attempting to import
   // This prevents the "Cannot find native module" error in Expo Go
   if (!NativeModules.ExpoInAppPurchases) {
-    console.log("ExpoInAppPurchases native module not available (expected in Expo Go)");
+    logger.log("ExpoInAppPurchases native module not available (expected in Expo Go)");
     return false;
   }
   
@@ -20,7 +21,7 @@ async function loadIAPModule(): Promise<boolean> {
     InAppPurchases = await import("expo-in-app-purchases");
     return true;
   } catch (error) {
-    console.log("expo-in-app-purchases not available:", error);
+    logger.log("expo-in-app-purchases not available:", error);
     return false;
   }
 }
@@ -83,7 +84,7 @@ class IAPService {
 
     // Check if connectAsync is actually available (may not be in some environments)
     if (typeof InAppPurchases.connectAsync !== "function") {
-      console.log("IAP connectAsync not available in this environment");
+      logger.log("IAP connectAsync not available in this environment");
       return false;
     }
 
@@ -98,7 +99,7 @@ class IAPService {
       this.isConnected = true;
       return true;
     } catch (error) {
-      console.error("Failed to connect to IAP:", error);
+      logger.error("Failed to connect to IAP:", error);
       return false;
     }
   }
@@ -109,7 +110,7 @@ class IAPService {
         await InAppPurchases.disconnectAsync();
         this.isConnected = false;
       } catch (error) {
-        console.error("Failed to disconnect from IAP:", error);
+        logger.error("Failed to disconnect from IAP:", error);
       }
     }
   }
@@ -117,14 +118,14 @@ class IAPService {
   async getProducts(): Promise<IAPProduct[]> {
     const available = await this.isAvailable();
     if (!available || !InAppPurchases) {
-      console.log("IAP not available, returning empty products");
+      logger.log("IAP not available, returning empty products");
       return [];
     }
 
     try {
       const connected = await this.connect();
       if (!connected) {
-        console.log("Failed to connect to store, returning empty products");
+        logger.log("Failed to connect to store, returning empty products");
         return [];
       }
 
@@ -133,11 +134,11 @@ class IAPService {
       ) as string[];
 
       if (typeof InAppPurchases.getProductsAsync !== "function") {
-        console.log("IAP getProductsAsync not available");
+        logger.log("IAP getProductsAsync not available");
         return [];
       }
 
-      console.log("Fetching IAP products:", productIds);
+      logger.log("Fetching IAP products:", productIds);
       
       // Add timeout to prevent hanging
       const getProductsPromise = InAppPurchases.getProductsAsync(productIds);
@@ -148,11 +149,11 @@ class IAPService {
       const { results } = await Promise.race([getProductsPromise, timeoutPromise]) as { results: any[] };
 
       if (!results || results.length === 0) {
-        console.log("No IAP products returned from store");
+        logger.log("No IAP products returned from store");
         return [];
       }
 
-      console.log("IAP products fetched successfully:", results.length);
+      logger.log("IAP products fetched successfully:", results.length);
       
       this.products = results.map((product) => ({
         productId: product.productId,
@@ -168,11 +169,11 @@ class IAPService {
 
       return this.products;
     } catch (error: any) {
-      console.error("Failed to get products:", error);
+      logger.error("Failed to get products:", error);
       
       const errorMessage = error?.message || String(error);
       if (errorMessage.includes("BILLING_UNAVAILABLE")) {
-        console.log("Billing unavailable - App Store/Play Store not configured");
+        logger.log("Billing unavailable - App Store/Play Store not configured");
       }
       
       return [];
@@ -189,7 +190,7 @@ class IAPService {
 
     // Check if setPurchaseListener is available
     if (typeof InAppPurchases.setPurchaseListener !== "function") {
-      console.log("IAP setPurchaseListener not available");
+      logger.log("IAP setPurchaseListener not available");
       return;
     }
 
@@ -224,9 +225,9 @@ class IAPService {
           }
         }
       } else if (responseCode === IAP.IAPResponseCode.USER_CANCELED) {
-        console.log("User cancelled the purchase");
+        logger.log("User cancelled the purchase");
       } else if (responseCode === IAP.IAPResponseCode.DEFERRED) {
-        console.log("Purchase deferred - awaiting approval");
+        logger.log("Purchase deferred - awaiting approval");
       } else {
         onError(new Error(`Purchase failed with code: ${responseCode}`));
       }
@@ -251,7 +252,7 @@ class IAPService {
 
       await InAppPurchases.purchaseItemAsync(productId);
     } catch (error: any) {
-      console.error("Purchase failed:", error);
+      logger.error("Purchase failed:", error);
       
       const errorMessage = error?.message || String(error);
       
@@ -286,7 +287,7 @@ class IAPService {
       }
 
       if (typeof InAppPurchases.getPurchaseHistoryAsync !== "function") {
-        console.log("IAP getPurchaseHistoryAsync not available");
+        logger.log("IAP getPurchaseHistoryAsync not available");
         return [];
       }
 
@@ -314,7 +315,7 @@ class IAPService {
 
       return purchases;
     } catch (error) {
-      console.error("Failed to restore purchases:", error);
+      logger.error("Failed to restore purchases:", error);
       return [];
     }
   }
@@ -329,6 +330,7 @@ class IAPService {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...getAuthHeaders(),
           },
           body: JSON.stringify({
             deviceId,
@@ -347,13 +349,13 @@ class IAPService {
 
       const response = await Promise.race([validatePromise, timeoutPromise]);
       if (!response.ok) {
-        console.error("Receipt validation server error:", response.status);
+        logger.error("Receipt validation server error:", response.status);
         return false;
       }
       const data = await response.json();
       return data.valid === true;
     } catch (error) {
-      console.error("Receipt validation error:", error);
+      logger.error("Receipt validation error:", error);
       return false;
     }
   }

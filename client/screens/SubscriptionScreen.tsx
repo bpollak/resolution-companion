@@ -10,9 +10,10 @@ import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
-import { getApiUrl } from "@/lib/query-client";
+import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { storage } from "@/lib/storage";
 import { iapService, PRODUCT_IDS, IAPProduct, IAPPurchase } from "@/lib/iap";
+import { logger } from "@/lib/logger";
 
 type PlanType = "monthly" | "yearly";
 
@@ -135,7 +136,7 @@ export default function SubscriptionScreen() {
     
     const timeoutPromise = new Promise<void>((resolve) => {
       setTimeout(() => {
-        console.log("IAP initialization timeout - using fallback");
+        logger.log("IAP initialization timeout - using fallback");
         resolve();
       }, 15000);
     });
@@ -145,14 +146,14 @@ export default function SubscriptionScreen() {
         const isAvailable = await iapService.isAvailable();
 
         if (!isAvailable) {
-          console.log("Native IAP not available on this device");
+          logger.log("Native IAP not available on this device");
           return;
         }
 
         const products = await iapService.getProducts();
 
         if (products.length > 0) {
-          console.log("IAP products loaded:", products.length);
+          logger.log("IAP products loaded:", products.length);
           setIapProducts(products);
           setUseNativeIAP(true);
 
@@ -174,7 +175,7 @@ export default function SubscriptionScreen() {
                   setIsLoading(false);
                   Alert.alert("Success", "Welcome to Premium! Your subscription is now active.");
                 } catch (err) {
-                  console.error("Error processing purchase:", err);
+                  logger.error("Error processing purchase:", err);
                   setIsLoading(false);
                   Alert.alert(
                     "Purchase Issue",
@@ -187,7 +188,7 @@ export default function SubscriptionScreen() {
                 }
               },
               (error: Error) => {
-                console.error("Purchase error:", error);
+                logger.error("Purchase error:", error);
                 setIsLoading(false);
 
                 const errorMessage = error.message || "There was a problem with your purchase.";
@@ -206,10 +207,10 @@ export default function SubscriptionScreen() {
               }
             );
           } else {
-            console.log("No IAP products returned from store");
+            logger.log("No IAP products returned from store");
           }
         } catch (error) {
-          console.error("IAP initialization failed:", error);
+          logger.error("IAP initialization failed:", error);
         }
     };
 
@@ -236,7 +237,9 @@ export default function SubscriptionScreen() {
     try {
       setCheckingStatus(true);
       const deviceId = await storage.getDeviceId();
-      const response = await fetch(new URL(`/api/subscription/status/${deviceId}`, getApiUrl()).toString());
+      const response = await fetch(new URL(`/api/subscription/status/${deviceId}`, getApiUrl()).toString(), {
+        headers: getAuthHeaders(),
+      });
       const data = await response.json();
       
       if (data.isPremium) {
@@ -250,7 +253,7 @@ export default function SubscriptionScreen() {
         await refreshData();
       }
     } catch (error) {
-      console.error("Failed to check subscription status:", error);
+      logger.error("Failed to check subscription status:", error);
     } finally {
       setCheckingStatus(false);
     }
@@ -305,7 +308,7 @@ export default function SubscriptionScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await iapService.purchaseProduct(productId);
     } catch (error: any) {
-      console.error("Purchase failed:", error);
+      logger.error("Purchase failed:", error);
       setIsLoading(false);
 
       const errorMessage = error?.message || "";
@@ -354,7 +357,7 @@ export default function SubscriptionScreen() {
           return;
         }
       } catch (error) {
-        console.error("Native restore failed:", error);
+        logger.error("Native restore failed:", error);
         await restoreFromServer();
         return;
       }
@@ -368,7 +371,7 @@ export default function SubscriptionScreen() {
       const deviceId = await storage.getDeviceId();
       const response = await fetch(new URL("/api/subscription/restore", getApiUrl()).toString(), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ deviceId }),
       });
 
@@ -391,7 +394,7 @@ export default function SubscriptionScreen() {
         );
       }
     } catch (error) {
-      console.error("Failed to restore subscription from server:", error);
+      logger.error("Failed to restore subscription from server:", error);
       Alert.alert("Error", "Failed to restore subscription. Please try again.");
     } finally {
       setCheckingStatus(false);

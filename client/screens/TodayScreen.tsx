@@ -23,6 +23,7 @@ import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { CircularProgress } from "@/components/CircularProgress";
 import { ActionCard } from "@/components/ActionCard";
+import { logger } from "@/lib/logger";
 
 function getLocalDateString(date: Date): string {
   const year = date.getFullYear();
@@ -266,7 +267,7 @@ export default function TodayScreen() {
     try {
       await toggleDailyLog(actionId, todayDateStr);
     } catch (error) {
-      console.error("Failed to toggle action:", error);
+      logger.error("Failed to toggle action:", error);
     }
   };
 

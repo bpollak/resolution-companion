@@ -22,6 +22,7 @@ import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ChatBubble } from "@/components/ChatBubble";
 import { getOnboardingResponse, extractPersonaFromConversation, AIMessage } from "@/lib/ai";
+import { logger } from "@/lib/logger";
 
 const MIN_ACTIONS_PER_PERSONA = 3;
 const MAX_ACTIONS_PER_PERSONA = 5;
@@ -133,7 +134,7 @@ export default function OnboardingScreen() {
       setMessages([aiMessage]);
       setStreamingText("");
     } catch (error) {
-      console.error("Failed to start conversation:", error);
+      logger.error("Failed to start conversation:", error);
       Alert.alert("Error", "Failed to connect to AI. Please try again.");
       setIsStreaming(false);
       setStreamingText("");
@@ -186,7 +187,7 @@ export default function OnboardingScreen() {
         setConversationComplete(true);
       }
     } catch (error) {
-      console.error("Failed to send message:", error);
+      logger.error("Failed to send message:", error);
       Alert.alert("Error", "Failed to get AI response. Please try again.");
       setIsStreaming(false);
       setStreamingText("");
@@ -297,7 +298,7 @@ export default function OnboardingScreen() {
         }],
       });
     } catch (error) {
-      console.error("Failed to extract persona:", error);
+      logger.error("Failed to extract persona:", error);
       Alert.alert("Error", "Failed to create your persona. Please try again.");
     } finally {
       setIsExtracting(false);
