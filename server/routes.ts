@@ -6,6 +6,7 @@ import { db } from "./db";
 import { websiteFeedback, deviceSubscriptions } from "@shared/schema";
 import { sql, eq } from "drizzle-orm";
 import { rateLimiter } from "./rate-limit";
+import { requireApiKey } from "./auth";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -275,10 +276,15 @@ async function createGoogleJWT(credentials: { client_email: string; private_key:
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Health check for deployment platforms
+  app.get("/api/health", (_req: Request, res: Response) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
   // Rate limit AI endpoints: 30 requests per minute per IP
   const aiRateLimit = rateLimiter(30, 60 * 1000);
 
-  app.post("/api/chat", aiRateLimit, async (req: Request, res: Response) => {
+  app.post("/api/chat", requireApiKey, aiRateLimit, async (req: Request, res: Response) => {
     try {
       const { messages } = req.body;
 
@@ -310,7 +316,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/extract-persona", aiRateLimit, async (req: Request, res: Response) => {
+  app.post("/api/extract-persona", requireApiKey, aiRateLimit, async (req: Request, res: Response) => {
     try {
       const { messages, extractionPrompt } = req.body;
 
@@ -345,7 +351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/reflection", aiRateLimit, async (req: Request, res: Response) => {
+  app.post("/api/reflection", requireApiKey, aiRateLimit, async (req: Request, res: Response) => {
     try {
       const { messages } = req.body;
 
@@ -582,6 +588,218 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("IAP validation error:", error);
       res.status(500).json({ error: "Validation failed", valid: false });
+    }
+  });
+
+  // --- Apple App Store Server Notifications V2 ---
+  // Configure this URL in App Store Connect > App > App Store Server Notifications
+  // Apple sends JWS-signed notifications for subscription lifecycle events.
+  app.post("/api/webhooks/apple", async (req: Request, res: Response) => {
+    try {
+      const { signedPayload } = req.body;
+      if (!signedPayload) {
+        res.status(400).json({ error: "Missing signedPayload" });
+        return;
+      }
+
+      // Decode the JWS payload (signature verification requires Apple's root cert;
+      // for production, verify the signature chain against Apple's root certificate)
+      const payload = decodeJWSPayload(signedPayload);
+      const notificationType = payload.notificationType;
+      const subtype = payload.subtype;
+
+      console.log(`Apple S2S notification: ${notificationType} (${subtype || "none"})`);
+
+      // Decode the nested transaction info
+      if (!payload.data?.signedTransactionInfo) {
+        console.log("No transaction info in Apple notification");
+        res.status(200).json({ ok: true });
+        return;
+      }
+
+      const txInfo = decodeJWSPayload(payload.data.signedTransactionInfo);
+      const originalTransactionId = txInfo.originalTransactionId || txInfo.transactionId;
+      const productId = txInfo.productId;
+      const expiresDate = txInfo.expiresDate ? new Date(txInfo.expiresDate) : null;
+
+      if (!db) {
+        console.log("Apple webhook: no database available");
+        res.status(200).json({ ok: true });
+        return;
+      }
+
+      // Look up the subscription by the IAP transaction ID stored in stripeSubscriptionId
+      const lookupId = `iap_${originalTransactionId}`;
+      const results = await db.select().from(deviceSubscriptions)
+        .where(eq(deviceSubscriptions.stripeSubscriptionId, lookupId));
+
+      if (results.length === 0) {
+        // Also try with the prefix format used during validation
+        const altResults = await db.select().from(deviceSubscriptions)
+          .where(sql`${deviceSubscriptions.stripeSubscriptionId} LIKE ${'iap_%' + originalTransactionId}`);
+
+        if (altResults.length === 0) {
+          console.log(`Apple webhook: no subscription found for transaction ${originalTransactionId}`);
+          res.status(200).json({ ok: true });
+          return;
+        }
+        results.push(...altResults);
+      }
+
+      const sub = results[0];
+
+      switch (notificationType) {
+        case "DID_RENEW":
+          await db.update(deviceSubscriptions)
+            .set({
+              status: "active",
+              currentPeriodEnd: expiresDate,
+              updatedAt: new Date(),
+            })
+            .where(eq(deviceSubscriptions.id, sub.id));
+          console.log(`Apple webhook: renewed subscription for device ${sub.deviceId}`);
+          break;
+
+        case "EXPIRED":
+        case "REVOKE":
+          await db.update(deviceSubscriptions)
+            .set({
+              status: "inactive",
+              updatedAt: new Date(),
+            })
+            .where(eq(deviceSubscriptions.id, sub.id));
+          console.log(`Apple webhook: ${notificationType.toLowerCase()} subscription for device ${sub.deviceId}`);
+          break;
+
+        case "DID_CHANGE_RENEWAL_STATUS":
+          if (subtype === "AUTO_RENEW_DISABLED") {
+            console.log(`Apple webhook: auto-renew disabled for device ${sub.deviceId}, expires ${expiresDate?.toISOString()}`);
+            // Keep active until expiry — just log
+          }
+          break;
+
+        case "REFUND":
+          await db.update(deviceSubscriptions)
+            .set({
+              status: "inactive",
+              updatedAt: new Date(),
+            })
+            .where(eq(deviceSubscriptions.id, sub.id));
+          console.log(`Apple webhook: refund — revoked access for device ${sub.deviceId}`);
+          break;
+
+        case "GRACE_PERIOD_EXPIRED":
+          await db.update(deviceSubscriptions)
+            .set({
+              status: "inactive",
+              updatedAt: new Date(),
+            })
+            .where(eq(deviceSubscriptions.id, sub.id));
+          console.log(`Apple webhook: grace period expired for device ${sub.deviceId}`);
+          break;
+
+        default:
+          console.log(`Apple webhook: unhandled notification type ${notificationType}`);
+      }
+
+      res.status(200).json({ ok: true });
+    } catch (error) {
+      console.error("Apple webhook error:", error);
+      // Always return 200 to Apple so they don't retry indefinitely
+      res.status(200).json({ ok: true });
+    }
+  });
+
+  // --- Google Real-time Developer Notifications ---
+  // Configure via Google Cloud Pub/Sub push subscription pointing to this endpoint.
+  // Set up in Google Play Console > Monetization > Monetization setup > Real-time developer notifications.
+  app.post("/api/webhooks/google", async (req: Request, res: Response) => {
+    try {
+      const { message } = req.body;
+      if (!message?.data) {
+        res.status(400).json({ error: "Missing message data" });
+        return;
+      }
+
+      // Decode the base64-encoded Pub/Sub message
+      const decoded = JSON.parse(Buffer.from(message.data, "base64").toString("utf-8"));
+      const subscriptionNotification = decoded.subscriptionNotification;
+
+      if (!subscriptionNotification) {
+        console.log("Google webhook: no subscriptionNotification in message");
+        res.status(200).json({ ok: true });
+        return;
+      }
+
+      const { notificationType, purchaseToken, subscriptionId } = subscriptionNotification;
+      console.log(`Google S2S notification: type=${notificationType} subscription=${subscriptionId}`);
+
+      if (!db) {
+        console.log("Google webhook: no database available");
+        res.status(200).json({ ok: true });
+        return;
+      }
+
+      // Google notification types:
+      // 1=RECOVERED, 2=RENEWED, 3=CANCELED, 4=PURCHASED, 5=ON_HOLD,
+      // 6=IN_GRACE_PERIOD, 7=RESTARTED, 12=REVOKED, 13=EXPIRED
+
+      // Look up subscription by purchase token stored in stripeCustomerId
+      const results = await db.select().from(deviceSubscriptions)
+        .where(sql`${deviceSubscriptions.stripeCustomerId} LIKE ${'iap_android_%'}`);
+
+      // For Google, we need to re-verify with the Play API to get current status
+      if (results.length > 0) {
+        const sub = results[0];
+
+        switch (notificationType) {
+          case 2: // RENEWED
+          case 7: // RESTARTED
+            const renewResult = await validateGoogleReceipt(
+              JSON.stringify({ purchaseToken }),
+              subscriptionId
+            );
+            if (renewResult.valid) {
+              await db.update(deviceSubscriptions)
+                .set({
+                  status: "active",
+                  currentPeriodEnd: renewResult.expiresDate,
+                  updatedAt: new Date(),
+                })
+                .where(eq(deviceSubscriptions.id, sub.id));
+              console.log(`Google webhook: renewed subscription for device ${sub.deviceId}`);
+            }
+            break;
+
+          case 3:  // CANCELED
+          case 12: // REVOKED
+          case 13: // EXPIRED
+            await db.update(deviceSubscriptions)
+              .set({
+                status: "inactive",
+                updatedAt: new Date(),
+              })
+              .where(eq(deviceSubscriptions.id, sub.id));
+            console.log(`Google webhook: deactivated subscription for device ${sub.deviceId}`);
+            break;
+
+          case 5: // ON_HOLD
+          case 6: // IN_GRACE_PERIOD
+            console.log(`Google webhook: subscription on hold/grace for device ${sub.deviceId}`);
+            break;
+
+          default:
+            console.log(`Google webhook: unhandled type ${notificationType}`);
+        }
+      } else {
+        console.log("Google webhook: no matching subscription found");
+      }
+
+      // Always acknowledge the Pub/Sub message
+      res.status(200).json({ ok: true });
+    } catch (error) {
+      console.error("Google webhook error:", error);
+      res.status(200).json({ ok: true });
     }
   });
 

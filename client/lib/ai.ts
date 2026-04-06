@@ -1,4 +1,4 @@
-import { getApiUrl } from "@/lib/query-client";
+import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import EventSource from "react-native-sse";
 
 export interface AIMessage {
@@ -118,6 +118,7 @@ export async function sendChatMessageStreaming(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeaders(),
       },
       body: JSON.stringify({ messages }),
     });
@@ -174,6 +175,7 @@ export async function extractPersonaFromConversation(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...getAuthHeaders(),
     },
     body: JSON.stringify({
       messages,
@@ -249,6 +251,7 @@ Be warm and practical. No bullet points or lists in responses.`,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...getAuthHeaders(),
     },
     body: JSON.stringify({ messages: [systemMessage, ...messages] }),
   });

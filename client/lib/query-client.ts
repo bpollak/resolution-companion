@@ -23,6 +23,15 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+export function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const apiKey = process.env.EXPO_PUBLIC_API_SECRET;
+  if (apiKey) {
+    headers["X-API-Key"] = apiKey;
+  }
+  return headers;
+}
+
 export async function apiRequest(
   method: string,
   route: string,
@@ -33,7 +42,10 @@ export async function apiRequest(
 
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers: {
+      ...getAuthHeaders(),
+      ...(data ? { "Content-Type": "application/json" } : {}),
+    },
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -52,6 +64,7 @@ export const getQueryFn: <T>(options: {
     const url = new URL(queryKey.join("/") as string, baseUrl);
 
     const res = await fetch(url, {
+      headers: getAuthHeaders(),
       credentials: "include",
     });
 
