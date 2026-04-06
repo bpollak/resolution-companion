@@ -14,15 +14,26 @@ declare module "http" {
 }
 
 function setupCors(app: express.Application) {
+  // Configure allowed origins via ALLOWED_ORIGINS env var (comma-separated).
+  // Falls back to allowing any HTTPS origin if not set (for backward compatibility).
+  const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim())
+    : null;
+
   app.use((req, res, next) => {
     const origin = req.header("origin");
 
-    // Allow requests from any HTTPS origin (covers the mobile app's backend calls)
-    if (origin && origin.startsWith("https://")) {
-      res.header("Access-Control-Allow-Origin", origin);
-      res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-      res.header("Access-Control-Allow-Headers", "Content-Type, Cache-Control, Pragma, X-Requested-With");
-      res.header("Access-Control-Allow-Credentials", "true");
+    if (origin) {
+      const isAllowed = allowedOrigins
+        ? allowedOrigins.includes(origin)
+        : origin.startsWith("https://");
+
+      if (isAllowed) {
+        res.header("Access-Control-Allow-Origin", origin);
+        res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        res.header("Access-Control-Allow-Headers", "Content-Type, Cache-Control, Pragma, X-Requested-With");
+        res.header("Access-Control-Allow-Credentials", "true");
+      }
     }
 
     if (req.method === "OPTIONS") {
@@ -197,7 +208,7 @@ function setupErrorHandler(app: express.Application) {
 
     res.status(status).json({ message });
 
-    throw err;
+    console.error("Unhandled error:", err);
   });
 }
 

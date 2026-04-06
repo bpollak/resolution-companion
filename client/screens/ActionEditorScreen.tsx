@@ -17,6 +17,7 @@ import { useApp } from "@/context/AppContext";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { logger } from "@/lib/logger";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const MIN_ACTIONS_PER_PERSONA = 3;
@@ -136,7 +137,7 @@ export default function ActionEditorScreen() {
 
       navigation.goBack();
     } catch (error) {
-      console.error("Failed to save action:", error);
+      logger.error("Failed to save action:", error);
       if (Platform.OS === "web") {
         window.alert("Failed to save action. Please try again.");
       } else {

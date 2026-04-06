@@ -2,6 +2,7 @@ import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { logger } from "@/lib/logger";
 
 const NOTIFICATION_ID_KEY = "evolve_daily_reminder_id";
 const NOTIFICATIONS_ENABLED_KEY = "evolve_notifications_enabled";
@@ -73,7 +74,7 @@ export async function scheduleDailyReminder(hour: number = 20, minute: number = 
 
     return id;
   } catch (error) {
-    console.error("Failed to schedule notification:", error);
+    logger.error("Failed to schedule notification:", error);
     return null;
   }
 }
@@ -91,7 +92,7 @@ export async function cancelDailyReminder(): Promise<void> {
     }
     await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, "false");
   } catch (error) {
-    console.error("Failed to cancel notification:", error);
+    logger.error("Failed to cancel notification:", error);
   }
 }
 

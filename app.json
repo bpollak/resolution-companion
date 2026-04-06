@@ -3,6 +3,7 @@
     "name": "Resolution Companion AI",
     "slug": "evolve-app",
     "version": "1.0.0",
+    "description": "AI-powered personal development app to define your goals, build daily habits, and track your progress with coaching.",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "resolutioncompanion",
@@ -11,6 +12,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.resolutioncompanion.app",
+      "buildNumber": "1",
       "infoPlist": {
         "NSUserTrackingUsageDescription": "This app does not track you across other apps or websites. This permission is requested to comply with App Store requirements.",
         "ITSAppUsesNonExemptEncryption": false
@@ -42,9 +44,14 @@
         "backgroundColor": "#000000",
         "foregroundImage": "./assets/images/icon.png"
       },
+      "versionCode": 1,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.resolutioncompanion.app"
+      "package": "com.resolutioncompanion.app",
+      "permissions": [
+        "INTERNET",
+        "VIBRATE"
+      ]
     },
     "web": {
       "output": "single",

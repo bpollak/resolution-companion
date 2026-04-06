@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { storage, Persona, Benchmark, ElementalAction, DailyLog, Reflection, Subscription } from "@/lib/storage";
+import { logger } from "@/lib/logger";
 
 interface AppContextType {
   hasOnboarded: boolean;
@@ -119,7 +120,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       setReflectionsState(reflectionsData);
     } catch (error) {
-      console.error("Error refreshing data:", error);
+      logger.error("Error refreshing data:", error);
     } finally {
       setIsLoading(false);
     }

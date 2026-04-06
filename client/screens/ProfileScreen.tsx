@@ -25,6 +25,7 @@ import {
   areNotificationsEnabled,
   getNotificationPermissionStatus,
 } from "@/lib/notifications";
+import { logger } from "@/lib/logger";
 
 const springConfig = {
   damping: 15,
@@ -290,7 +291,7 @@ export default function ProfileScreen() {
                 Alert.alert("Account Deleted", "All your data has been deleted from this device and our servers.");
               }
             } catch (error) {
-              console.error("Failed to delete server data:", error);
+              logger.error("Failed to delete server data:", error);
               await clearAllData();
               if (Platform.OS === "web") {
                 window.alert("Local data deleted. Server data deletion may have failed — please contact support if needed.");
