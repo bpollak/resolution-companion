@@ -54,6 +54,104 @@ function decodeJWSPayload(jws: string): any {
   return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8"));
 }
 
+function decodeJWSHeader(jws: string): any {
+  const parts = jws.split(".");
+  if (parts.length !== 3) throw new Error("Invalid JWS format");
+  return JSON.parse(Buffer.from(parts[0], "base64url").toString("utf-8"));
+}
+
+// Apple Root CA - G3 certificate (DER, base64-encoded)
+// Download from https://www.apple.com/certificateauthority/AppleRootCA-G3.cer
+// This is the trust anchor for all App Store Server Notifications V2.
+const APPLE_ROOT_CA_G3_FINGERPRINT_SHA256 =
+  "b0b1730ecbc7ff4505142c49f1295e6eda6bcaed7e2c68c5be91b5a11001f024";
+
+/**
+ * Verify an Apple JWS signed payload:
+ * 1. Extract x5c certificate chain from JWS header
+ * 2. Verify the leaf cert was issued by an intermediate signed by Apple Root CA G3
+ * 3. Verify the JWS signature using the leaf cert's public key
+ *
+ * Returns the decoded payload if valid, throws if verification fails.
+ */
+function verifyAppleJWS(jws: string): any {
+  const parts = jws.split(".");
+  if (parts.length !== 3) throw new Error("Invalid JWS format");
+
+  const header = decodeJWSHeader(jws);
+  const x5c: string[] | undefined = header.x5c;
+
+  if (!x5c || x5c.length < 3) {
+    throw new Error("Missing or incomplete x5c certificate chain in JWS header");
+  }
+
+  // Build PEM certificates from the base64-encoded DER certs in x5c
+  const certs = x5c.map((certBase64) => {
+    const lines = certBase64.match(/.{1,64}/g)!.join("\n");
+    return `-----BEGIN CERTIFICATE-----\n${lines}\n-----END CERTIFICATE-----`;
+  });
+
+  // Verify the root certificate matches Apple Root CA G3
+  const rootCertDer = Buffer.from(x5c[x5c.length - 1], "base64");
+  const rootFingerprint = crypto.createHash("sha256").update(rootCertDer).digest("hex");
+
+  if (rootFingerprint !== APPLE_ROOT_CA_G3_FINGERPRINT_SHA256) {
+    throw new Error(
+      `Root certificate fingerprint mismatch: expected Apple Root CA G3, got ${rootFingerprint}`
+    );
+  }
+
+  // Verify the certificate chain: each cert should be signed by the next one
+  for (let i = 0; i < certs.length - 1; i++) {
+    const certObj = new crypto.X509Certificate(certs[i]);
+    const issuerCert = new crypto.X509Certificate(certs[i + 1]);
+
+    if (!certObj.verify(issuerCert.publicKey)) {
+      throw new Error(`Certificate chain verification failed at index ${i}`);
+    }
+  }
+
+  // Verify the root cert is self-signed
+  const rootCertObj = new crypto.X509Certificate(certs[certs.length - 1]);
+  if (!rootCertObj.verify(rootCertObj.publicKey)) {
+    throw new Error("Root certificate is not self-signed");
+  }
+
+  // Verify the JWS signature using the leaf certificate's public key
+  const leafCert = new crypto.X509Certificate(certs[0]);
+  const signatureInput = `${parts[0]}.${parts[1]}`;
+  const signature = Buffer.from(parts[2], "base64url");
+
+  const alg = header.alg;
+  let algorithm: string;
+  if (alg === "ES256") {
+    algorithm = "SHA256";
+  } else if (alg === "PS256" || alg === "RS256") {
+    algorithm = "SHA256";
+  } else {
+    throw new Error(`Unsupported JWS algorithm: ${alg}`);
+  }
+
+  const verifier = crypto.createVerify(algorithm);
+  verifier.update(signatureInput);
+
+  const isValid = verifier.verify(
+    {
+      key: leafCert.publicKey,
+      // ES256 uses ECDSA with DER-encoded signatures in JWS
+      ...(alg === "ES256" ? { dsaEncoding: "ieee-p1363" as const } : {}),
+    },
+    signature
+  );
+
+  if (!isValid) {
+    throw new Error("JWS signature verification failed");
+  }
+
+  // Signature is valid — return the decoded payload
+  return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8"));
+}
+
 async function validateAppleReceiptV2(transactionId: string, productId: string): Promise<{ valid: boolean; expiresDate: Date | null }> {
   try {
     const jwt = await createAppStoreJWT();
@@ -602,9 +700,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      // Decode the JWS payload (signature verification requires Apple's root cert;
-      // for production, verify the signature chain against Apple's root certificate)
-      const payload = decodeJWSPayload(signedPayload);
+      // Verify the JWS signature chain against Apple Root CA G3
+      let payload: any;
+      try {
+        payload = verifyAppleJWS(signedPayload);
+      } catch (verifyError) {
+        console.error("Apple webhook: JWS verification failed:", verifyError);
+        res.status(403).json({ error: "Invalid signature" });
+        return;
+      }
+
       const notificationType = payload.notificationType;
       const subtype = payload.subtype;
 
@@ -617,7 +722,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      const txInfo = decodeJWSPayload(payload.data.signedTransactionInfo);
+      // The nested signedTransactionInfo is also JWS-signed by Apple
+      const txInfo = verifyAppleJWS(payload.data.signedTransactionInfo);
       const originalTransactionId = txInfo.originalTransactionId || txInfo.transactionId;
       const productId = txInfo.productId;
       const expiresDate = txInfo.expiresDate ? new Date(txInfo.expiresDate) : null;
