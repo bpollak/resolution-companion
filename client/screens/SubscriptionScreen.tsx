@@ -571,6 +571,33 @@ export default function SubscriptionScreen() {
           },
         ]}
       >
+        <ThemedText style={[styles.subscriptionDisclosure, { color: theme.textSecondary }]}>
+          {selectedPlan === "yearly"
+            ? `Payment of ${iapProducts.find(p => p.productId === PRODUCT_IDS.YEARLY)?.price || "$24.99"} will be charged to your Apple ID account at confirmation of purchase. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. `
+            : `Payment of ${iapProducts.find(p => p.productId === PRODUCT_IDS.MONTHLY)?.price || "$2.99"} will be charged to your Apple ID account at confirmation of purchase. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. `}
+          You can manage and cancel your subscription in your device's Settings {'>'} Subscriptions.
+        </ThemedText>
+
+        <View style={styles.legalLinks}>
+          <Pressable
+            onPress={() => WebBrowser.openBrowserAsync(`${getApiUrl()}/terms`)}
+            style={styles.legalLink}
+          >
+            <ThemedText style={[styles.legalLinkText, { color: theme.textSecondary }]}>
+              Terms of Use
+            </ThemedText>
+          </Pressable>
+          <ThemedText style={[styles.legalSeparator, { color: theme.textSecondary }]}>|</ThemedText>
+          <Pressable
+            onPress={() => WebBrowser.openBrowserAsync(`${getApiUrl()}/privacy`)}
+            style={styles.legalLink}
+          >
+            <ThemedText style={[styles.legalLinkText, { color: theme.textSecondary }]}>
+              Privacy Policy
+            </ThemedText>
+          </Pressable>
+        </View>
+
         <Pressable
           onPress={handleSubscribe}
           disabled={isLoading}
@@ -593,34 +620,6 @@ export default function SubscriptionScreen() {
             Restore Purchases
           </ThemedText>
         </Pressable>
-
-        <ThemedText style={[styles.subscriptionDisclosure, { color: theme.textSecondary }]}>
-          {selectedPlan === "yearly" 
-            ? `Subscription automatically renews for ${iapProducts.find(p => p.productId === PRODUCT_IDS.YEARLY)?.price || "$24.99"}/year unless canceled at least 24 hours before the end of the current period. `
-            : `Subscription automatically renews for ${iapProducts.find(p => p.productId === PRODUCT_IDS.MONTHLY)?.price || "$2.99"}/month unless canceled at least 24 hours before the end of the current period. `}
-          Your account will be charged for renewal within 24 hours prior to the end of the current period. 
-          You can manage and cancel your subscription in your App Store settings after purchase.
-        </ThemedText>
-
-        <View style={styles.legalLinks}>
-          <Pressable 
-            onPress={() => WebBrowser.openBrowserAsync(`${getApiUrl()}/terms`)}
-            style={styles.legalLink}
-          >
-            <ThemedText style={[styles.legalLinkText, { color: theme.textSecondary }]}>
-              Terms of Use
-            </ThemedText>
-          </Pressable>
-          <ThemedText style={[styles.legalSeparator, { color: theme.textSecondary }]}>|</ThemedText>
-          <Pressable 
-            onPress={() => WebBrowser.openBrowserAsync(`${getApiUrl()}/privacy`)}
-            style={styles.legalLink}
-          >
-            <ThemedText style={[styles.legalLinkText, { color: theme.textSecondary }]}>
-              Privacy Policy
-            </ThemedText>
-          </Pressable>
-        </View>
       </View>
     </View>
   );
@@ -852,8 +851,7 @@ const styles = StyleSheet.create({
   subscriptionDisclosure: {
     ...Typography.caption,
     textAlign: "center",
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
     paddingHorizontal: Spacing.sm,
     lineHeight: 18,
   },

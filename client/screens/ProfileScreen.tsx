@@ -530,6 +530,24 @@ export default function ProfileScreen() {
         }}
       />
 
+      <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
+        Legal
+      </ThemedText>
+
+      <SettingsRow
+        icon="file-text"
+        title="Privacy Policy"
+        subtitle="How we handle your data"
+        onPress={() => Linking.openURL(`${getApiUrl()}/privacy`)}
+      />
+
+      <SettingsRow
+        icon="book-open"
+        title="Terms of Use"
+        subtitle="App usage terms and conditions"
+        onPress={() => Linking.openURL(`${getApiUrl()}/terms`)}
+      />
+
       {hasOnboarded ? (
         <>
           <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
