@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, ScrollView, StyleSheet, Pressable, Platform, Alert, AppState } from "react-native";
+import { View, ScrollView, StyleSheet, Pressable, Platform, Alert, AppState, Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
@@ -273,56 +273,37 @@ export default function SubscriptionScreen() {
     setIapError(null);
     
     try {
-      if (Platform.OS === "ios") {
-        if (!useNativeIAP) {
-          setIsLoading(false);
-          Alert.alert(
-            "Store Connection",
-            "Unable to connect to the App Store. Please check your internet connection and try again.",
-            [
-              { text: "OK", style: "default" },
-              { text: "Retry", onPress: () => {
-                initializePurchases().then(() => handleSubscribe());
-              }}
-            ]
-          );
-          return;
-        }
-        
-        const productId = getIAPProductId(selectedPlan);
-        if (!productId) {
-          setIsLoading(false);
-          Alert.alert(
-            "Product Unavailable",
-            "This subscription option is temporarily unavailable. Please try again later.",
-            [
-              { text: "OK", style: "default" },
-              { text: "Retry", onPress: () => initializePurchases() }
-            ]
-          );
-          return;
-        }
-        
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        await iapService.purchaseProduct(productId);
-      } else if (Platform.OS === "android") {
-        const productId = getIAPProductId(selectedPlan);
-        if (!productId) {
-          setIsLoading(false);
-          Alert.alert(
-            "Product Unavailable",
-            "This subscription option is temporarily unavailable. Please try again later.",
-            [
-              { text: "OK", style: "default" },
-              { text: "Retry", onPress: () => initializePurchases() }
-            ]
-          );
-          return;
-        }
-
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        await iapService.purchaseProduct(productId);
+      if (Platform.OS === "ios" && !useNativeIAP) {
+        setIsLoading(false);
+        Alert.alert(
+          "Store Connection",
+          "Unable to connect to the App Store. Please check your internet connection and try again.",
+          [
+            { text: "OK", style: "default" },
+            { text: "Retry", onPress: () => {
+              initializePurchases().then(() => handleSubscribe());
+            }}
+          ]
+        );
+        return;
       }
+
+      const productId = getIAPProductId(selectedPlan);
+      if (!productId) {
+        setIsLoading(false);
+        Alert.alert(
+          "Product Unavailable",
+          "This subscription option is temporarily unavailable. Please try again later.",
+          [
+            { text: "OK", style: "default" },
+            { text: "Retry", onPress: () => initializePurchases() }
+          ]
+        );
+        return;
+      }
+
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await iapService.purchaseProduct(productId);
     } catch (error: any) {
       console.error("Purchase failed:", error);
       setIsLoading(false);
@@ -442,6 +423,24 @@ export default function SubscriptionScreen() {
               {new Date(subscription.expiresAt).toLocaleDateString()}
             </ThemedText>
           ) : null}
+          <Pressable
+            onPress={() => {
+              if (Platform.OS === "ios") {
+                Linking.openURL("https://apps.apple.com/account/subscriptions");
+              } else if (Platform.OS === "android") {
+                Linking.openURL("https://play.google.com/store/account/subscriptions");
+              }
+            }}
+            style={({ pressed }) => [
+              styles.manageButton,
+              { opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <Feather name="settings" size={16} color={Colors.dark.accent} />
+            <ThemedText style={[styles.manageButtonText, { color: Colors.dark.accent }]}>
+              Manage Subscription
+            </ThemedText>
+          </Pressable>
         </View>
       </View>
     );
@@ -814,6 +813,21 @@ const styles = StyleSheet.create({
   },
   expiresText: {
     ...Typography.small,
+  },
+  manageButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginTop: Spacing.xl,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.dark.accent,
+  },
+  manageButtonText: {
+    ...Typography.body,
+    fontWeight: "600",
   },
   legalLinks: {
     flexDirection: "row",

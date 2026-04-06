@@ -1,21 +1,115 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
+import * as crypto from "node:crypto";
 import OpenAI from "openai";
 import { db } from "./db";
 import { websiteFeedback, deviceSubscriptions } from "@shared/schema";
 import { sql, eq } from "drizzle-orm";
+import { rateLimiter } from "./rate-limit";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
-async function validateAppleReceiptWithUrl(receipt: string, productId: string, verifyUrl: string): Promise<{ valid: boolean; status: number }> {
+// --- App Store Server API v2 (preferred) ---
+// Uses JWS signed transactions. Requires APPLE_ISSUER_ID, APPLE_KEY_ID, and
+// APPLE_PRIVATE_KEY environment variables (from App Store Connect > Keys > In-App Purchase).
+// When these are configured, this path is used instead of the deprecated verifyReceipt endpoints.
+
+function isAppStoreServerAPIConfigured(): boolean {
+  return !!(process.env.APPLE_ISSUER_ID && process.env.APPLE_KEY_ID && process.env.APPLE_PRIVATE_KEY);
+}
+
+async function createAppStoreJWT(): Promise<string> {
+  const issuerId = process.env.APPLE_ISSUER_ID!;
+  const keyId = process.env.APPLE_KEY_ID!;
+  const privateKey = process.env.APPLE_PRIVATE_KEY!.replace(/\\n/g, "\n");
+
+  const header = { alg: "ES256", kid: keyId, typ: "JWT" };
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iss: issuerId,
+    iat: now,
+    exp: now + 3600,
+    aud: "appstoreconnect-v1",
+    bid: "com.resolutioncompanion.app",
+  };
+
+  const base64Header = Buffer.from(JSON.stringify(header)).toString("base64url");
+  const base64Payload = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signatureInput = `${base64Header}.${base64Payload}`;
+
+  const sign = crypto.createSign("SHA256");
+  sign.update(signatureInput);
+  const signature = sign.sign(privateKey, "base64url");
+
+  return `${signatureInput}.${signature}`;
+}
+
+function decodeJWSPayload(jws: string): any {
+  const parts = jws.split(".");
+  if (parts.length !== 3) throw new Error("Invalid JWS format");
+  return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8"));
+}
+
+async function validateAppleReceiptV2(transactionId: string, productId: string): Promise<{ valid: boolean; expiresDate: Date | null }> {
+  try {
+    const jwt = await createAppStoreJWT();
+    const baseUrl = process.env.APPLE_SANDBOX === "true"
+      ? "https://api.storekit-sandbox.itunes.apple.com"
+      : "https://api.storekit.itunes.apple.com";
+
+    const response = await fetch(
+      `${baseUrl}/inApps/v1/transactions/${transactionId}`,
+      { headers: { Authorization: `Bearer ${jwt}` } }
+    );
+
+    if (!response.ok) {
+      // If production fails with 4xx, try sandbox
+      if (response.status >= 400 && response.status < 500 && process.env.APPLE_SANDBOX !== "true") {
+        const sandboxResponse = await fetch(
+          `https://api.storekit-sandbox.itunes.apple.com/inApps/v1/transactions/${transactionId}`,
+          { headers: { Authorization: `Bearer ${jwt}` } }
+        );
+        if (!sandboxResponse.ok) {
+          console.error("App Store Server API v2: sandbox lookup failed", sandboxResponse.status);
+          return { valid: false, expiresDate: null };
+        }
+        const sandboxData = await sandboxResponse.json();
+        const txInfo = decodeJWSPayload(sandboxData.signedTransactionInfo);
+        if (txInfo.productId === productId && txInfo.expiresDate && txInfo.expiresDate > Date.now()) {
+          return { valid: true, expiresDate: new Date(txInfo.expiresDate) };
+        }
+        return { valid: false, expiresDate: null };
+      }
+      console.error("App Store Server API v2: lookup failed", response.status);
+      return { valid: false, expiresDate: null };
+    }
+
+    const data = await response.json();
+    const txInfo = decodeJWSPayload(data.signedTransactionInfo);
+
+    if (txInfo.productId === productId && txInfo.expiresDate && txInfo.expiresDate > Date.now()) {
+      console.log("Apple receipt validated via App Store Server API v2");
+      return { valid: true, expiresDate: new Date(txInfo.expiresDate) };
+    }
+
+    return { valid: false, expiresDate: null };
+  } catch (error) {
+    console.error("App Store Server API v2 validation error:", error);
+    return { valid: false, expiresDate: null };
+  }
+}
+
+// --- Legacy verifyReceipt (deprecated, used as fallback) ---
+
+async function validateAppleReceiptWithUrl(receipt: string, productId: string, verifyUrl: string): Promise<{ valid: boolean; status: number; expiresDateMs: number | null }> {
   const sharedSecret = process.env.APPLE_SHARED_SECRET;
 
   if (!sharedSecret) {
     console.error("APPLE_SHARED_SECRET is not configured — cannot validate receipt");
-    return { valid: false, status: -1 };
+    return { valid: false, status: -1, expiresDateMs: null };
   }
 
   const response = await fetch(verifyUrl, {
@@ -39,21 +133,26 @@ async function validateAppleReceiptWithUrl(receipt: string, productId: string, v
       if (transaction.product_id === productId) {
         const expiresDate = parseInt(transaction.expires_date_ms || "0");
         if (expiresDate > Date.now()) {
-          return { valid: true, status: 0 };
+          return { valid: true, status: 0, expiresDateMs: expiresDate };
         }
       }
     }
-    return { valid: false, status: 0 };
+    return { valid: false, status: 0, expiresDateMs: null };
   }
 
-  return { valid: false, status: data.status };
+  return { valid: false, status: data.status, expiresDateMs: null };
 }
 
-async function validateAppleReceipt(receipt: string, productId: string): Promise<boolean> {
+async function validateAppleReceipt(receipt: string, productId: string, transactionId?: string): Promise<{ valid: boolean; expiresDate: Date | null }> {
+  // Prefer App Store Server API v2 when configured and transactionId is available
+  if (isAppStoreServerAPIConfigured() && transactionId) {
+    console.log("Using App Store Server API v2 for validation");
+    return validateAppleReceiptV2(transactionId, productId);
+  }
+
   try {
-    // NOTE: These endpoints are deprecated by Apple. Future migration to App Store Server API v2
-    // (https://developer.apple.com/documentation/appstoreserverapi) is recommended.
-    // The verifyReceipt endpoints still function but Apple encourages migration to the new API.
+    // Legacy verifyReceipt endpoints (deprecated by Apple).
+    // Will be used as fallback until APPLE_ISSUER_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY are configured.
     const productionUrl = "https://buy.itunes.apple.com/verifyReceipt";
     const sandboxUrl = "https://sandbox.itunes.apple.com/verifyReceipt";
 
@@ -61,11 +160,11 @@ async function validateAppleReceipt(receipt: string, productId: string): Promise
 
     if (prodResult.valid) {
       console.log("Apple receipt validated via production endpoint");
-      return true;
+      return { valid: true, expiresDate: prodResult.expiresDateMs ? new Date(prodResult.expiresDateMs) : null };
     }
 
     if (prodResult.status === -1) {
-      return false;
+      return { valid: false, expiresDate: null };
     }
 
     if (prodResult.status === 21007) {
@@ -74,37 +173,37 @@ async function validateAppleReceipt(receipt: string, productId: string): Promise
 
       if (sandboxResult.valid) {
         console.log("Apple receipt validated via sandbox endpoint");
-        return true;
+        return { valid: true, expiresDate: sandboxResult.expiresDateMs ? new Date(sandboxResult.expiresDateMs) : null };
       }
 
       console.log("Sandbox validation failed with status:", sandboxResult.status);
-      return false;
+      return { valid: false, expiresDate: null };
     }
 
     if (prodResult.status === 21008) {
       console.log("Production receipt rejected by production endpoint");
-      return false;
+      return { valid: false, expiresDate: null };
     }
 
     console.log("Apple receipt validation failed with status:", prodResult.status);
-    return false;
+    return { valid: false, expiresDate: null };
   } catch (error) {
     console.error("Apple receipt validation error:", error);
-    return false;
+    return { valid: false, expiresDate: null };
   }
 }
 
-async function validateGoogleReceipt(receipt: string, productId: string): Promise<boolean> {
+async function validateGoogleReceipt(receipt: string, productId: string): Promise<{ valid: boolean; expiresDate: Date | null }> {
   try {
     const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
     if (!serviceAccountKey) {
       console.error("GOOGLE_SERVICE_ACCOUNT_KEY is not configured — cannot validate receipt");
-      return false;
+      return { valid: false, expiresDate: null };
     }
 
     const credentials = JSON.parse(serviceAccountKey);
     const packageName = process.env.ANDROID_PACKAGE_NAME || "com.resolutioncompanion.app";
-    
+
     const tokenResponse = await fetch(
       `https://oauth2.googleapis.com/token`,
       {
@@ -116,34 +215,39 @@ async function validateGoogleReceipt(receipt: string, productId: string): Promis
         }),
       }
     );
-    
+
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
-    
+
     let receiptData;
     try {
       receiptData = JSON.parse(receipt);
     } catch {
       receiptData = { purchaseToken: receipt };
     }
-    
+
     const verifyUrl = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/purchases/subscriptions/${productId}/tokens/${receiptData.purchaseToken}`;
-    
+
     const response = await fetch(verifyUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    
+
     const data = await response.json();
-    
+
     if (data.expiryTimeMillis && parseInt(data.expiryTimeMillis) > Date.now()) {
-      return true;
+      return { valid: true, expiresDate: new Date(parseInt(data.expiryTimeMillis)) };
     }
-    
-    return data.paymentState === 1;
+
+    if (data.paymentState === 1) {
+      // Payment received but no expiry data — fall back to plan-based estimate
+      return { valid: true, expiresDate: null };
+    }
+
+    return { valid: false, expiresDate: null };
   } catch (error) {
     // Fail closed — do not grant access when validation cannot be confirmed
     console.error("Google receipt validation error:", error);
-    return false;
+    return { valid: false, expiresDate: null };
   }
 }
 
@@ -171,7 +275,10 @@ async function createGoogleJWT(credentials: { client_email: string; private_key:
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  app.post("/api/chat", async (req: Request, res: Response) => {
+  // Rate limit AI endpoints: 30 requests per minute per IP
+  const aiRateLimit = rateLimiter(30, 60 * 1000);
+
+  app.post("/api/chat", aiRateLimit, async (req: Request, res: Response) => {
     try {
       const { messages } = req.body;
 
@@ -203,7 +310,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/extract-persona", async (req: Request, res: Response) => {
+  app.post("/api/extract-persona", aiRateLimit, async (req: Request, res: Response) => {
     try {
       const { messages, extractionPrompt } = req.body;
 
@@ -238,7 +345,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/reflection", async (req: Request, res: Response) => {
+  app.post("/api/reflection", aiRateLimit, async (req: Request, res: Response) => {
     try {
       const { messages } = req.body;
 
@@ -420,17 +527,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let isValid = false;
       let expirationDate: Date | null = null;
-      
+
       if (platform === "ios") {
-        isValid = await validateAppleReceipt(receipt, productId);
-        if (isValid) {
-          expirationDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-        }
+        const result = await validateAppleReceipt(receipt, productId, transactionId);
+        isValid = result.valid;
+        expirationDate = result.expiresDate;
       } else if (platform === "android") {
-        isValid = await validateGoogleReceipt(receipt, productId);
-        if (isValid) {
-          expirationDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-        }
+        const result = await validateGoogleReceipt(receipt, productId);
+        isValid = result.valid;
+        expirationDate = result.expiresDate;
+      }
+
+      // Fall back to plan-based estimate only if the store didn't provide an expiry
+      if (isValid && !expirationDate) {
+        const isYearly = productId.toLowerCase().includes("yearly") || productId.toLowerCase().includes("year") || productId.toLowerCase().includes("annual");
+        expirationDate = isYearly
+          ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+          : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       }
 
       if (isValid && db) {
