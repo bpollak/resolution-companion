@@ -85,7 +85,6 @@
         }
       ],
       "expo-web-browser",
-      "expo-in-app-purchases",
       [
         "expo-notifications",
         {
