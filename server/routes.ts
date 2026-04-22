@@ -662,6 +662,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
   );
 
+  // Lets users flag AI output as objectionable. Apple Guideline 1.2 expects
+  // a user-reachable report path on any UGC-adjacent surface. We reuse the
+  // websiteFeedback table with feedbackType="content_report" so there's one
+  // inbox to triage; no extra schema.
+  const reportRateLimit = rateLimiter(5, 60 * 1000, deviceOrIpKey);
+  app.post(
+    "/api/report-content",
+    reportRateLimit,
+    async (req: Request, res: Response) => {
+      const schema = z.object({
+        deviceId: z.string().min(1).max(256),
+        reason: z.string().max(500).optional(),
+        messageContent: z.string().max(4000),
+        conversation: z.string().max(16000).optional(),
+      });
+
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        res
+          .status(400)
+          .json({ error: "Invalid request", details: parsed.error.flatten() });
+        return;
+      }
+
+      const { deviceId, reason, messageContent, conversation } = parsed.data;
+      const summary = [
+        `Reason: ${reason || "(none given)"}`,
+        `Reported message: ${messageContent.slice(0, 1000)}`,
+        conversation ? `Conversation: ${conversation.slice(0, 3000)}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      try {
+        if (db) {
+          await db.insert(websiteFeedback).values({
+            name: "content-report",
+            email: `device-${deviceId}@reports.internal`,
+            feedbackType: "content_report",
+            message: summary,
+          });
+        } else {
+          console.log(
+            `[content-report] device=${deviceId} reason=${reason || "(none)"} msg=${messageContent.slice(0, 200)}`,
+          );
+        }
+        res.json({ success: true });
+      } catch (error) {
+        console.error("Report content error:", error);
+        res.status(500).json({ error: "Failed to submit report" });
+      }
+    },
+  );
+
   app.post("/api/feedback", async (req: Request, res: Response) => {
     try {
       const { name, email, type, message } = req.body;
@@ -896,14 +950,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/iap/validate", async (req: Request, res: Response) => {
     try {
-      const {
-        deviceId,
-        platform,
-        productId,
-        transactionId,
-        receipt,
-        purchaseTime,
-      } = req.body;
+      const { deviceId, platform, productId, transactionId, receipt } =
+        req.body;
 
       if (!deviceId || !platform || !productId || !receipt) {
         res
@@ -1030,7 +1078,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const txInfo = verifyAppleJWS(payload.data.signedTransactionInfo);
       const originalTransactionId =
         txInfo.originalTransactionId || txInfo.transactionId;
-      const productId = txInfo.productId;
       const expiresDate = txInfo.expiresDate
         ? new Date(txInfo.expiresDate)
         : null;

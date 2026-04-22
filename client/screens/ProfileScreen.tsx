@@ -33,7 +33,6 @@ import {
   scheduleDailyReminder,
   cancelDailyReminder,
   areNotificationsEnabled,
-  getNotificationPermissionStatus,
 } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
 
@@ -165,17 +164,12 @@ export default function ProfileScreen() {
   } = useApp();
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-  const [hasPermission, setHasPermission] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const checkNotificationStatus = async () => {
-      const [enabled, permission] = await Promise.all([
-        areNotificationsEnabled(),
-        getNotificationPermissionStatus(),
-      ]);
+      const enabled = await areNotificationsEnabled();
       setNotificationsEnabled(enabled);
-      setHasPermission(permission);
     };
     checkNotificationStatus();
   }, []);
@@ -194,10 +188,8 @@ export default function ProfileScreen() {
       if (granted) {
         await scheduleDailyReminder(20, 0);
         setNotificationsEnabled(true);
-        setHasPermission(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
-        setHasPermission(false);
         Alert.alert(
           "Permission Required",
           "Please enable notifications in your device settings to receive daily reminders.",
@@ -736,7 +728,108 @@ export default function ProfileScreen() {
           />
         </>
       ) : null}
+
+      {__DEV__ ? <SubscriptionDebugPanel /> : null}
     </ScrollView>
+  );
+}
+
+/**
+ * Dev-only panel for exercising subscription state without a real IAP.
+ * Hidden from production bundles by __DEV__ guard. Useful for QA of the
+ * expiry-aware gating in AppContext.
+ */
+function SubscriptionDebugPanel() {
+  const { theme } = useTheme();
+  const { subscription, refreshData } = useApp();
+  const [busy, setBusy] = useState(false);
+
+  const setLocalSub = async (
+    isPremium: boolean,
+    plan: "monthly" | "yearly",
+    expiresAt: string | null,
+  ) => {
+    setBusy(true);
+    try {
+      await storage.setSubscription({
+        isPremium,
+        plan: isPremium ? plan : "free",
+        expiresAt,
+        purchasedAt: isPremium ? new Date().toISOString() : null,
+      });
+      await refreshData();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const actions: { label: string; run: () => Promise<void> }[] = [
+    {
+      label: "Grant monthly (valid 30d)",
+      run: () =>
+        setLocalSub(
+          true,
+          "monthly",
+          new Date(Date.now() + 30 * 86400000).toISOString(),
+        ),
+    },
+    {
+      label: "Grant yearly (valid 365d)",
+      run: () =>
+        setLocalSub(
+          true,
+          "yearly",
+          new Date(Date.now() + 365 * 86400000).toISOString(),
+        ),
+    },
+    {
+      label: "Expire sub (kept isPremium=true, expiresAt=yesterday)",
+      run: () =>
+        setLocalSub(
+          true,
+          "monthly",
+          new Date(Date.now() - 86400000).toISOString(),
+        ),
+    },
+    {
+      label: "Revoke sub (free)",
+      run: () => setLocalSub(false, "monthly", null),
+    },
+  ];
+
+  return (
+    <View style={{ marginTop: Spacing.xl }}>
+      <ThemedText style={[styles.sectionTitle, { color: Colors.dark.warning }]}>
+        Dev: Subscription
+      </ThemedText>
+      <ThemedText
+        style={[
+          styles.settingsSubtitle,
+          { color: theme.textSecondary, marginBottom: Spacing.sm },
+        ]}
+      >
+        state: isPremium={String(subscription.isPremium)} plan=
+        {subscription.plan} expiresAt={subscription.expiresAt || "(none)"}
+      </ThemedText>
+      {actions.map((a) => (
+        <Pressable
+          key={a.label}
+          disabled={busy}
+          onPress={a.run}
+          style={({ pressed }) => [
+            styles.settingsRow,
+            {
+              backgroundColor: theme.backgroundSecondary,
+              opacity: pressed || busy ? 0.6 : 1,
+            },
+          ]}
+        >
+          <View style={styles.settingsContent}>
+            <ThemedText style={styles.settingsTitle}>{a.label}</ThemedText>
+          </View>
+        </Pressable>
+      ))}
+    </View>
   );
 }
 

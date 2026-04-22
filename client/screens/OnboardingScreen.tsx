@@ -9,7 +9,6 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
-  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -36,13 +35,6 @@ interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
-}
-
-interface IntroFeature {
-  icon: keyof typeof Feather.glyphMap;
-  title: string;
-  description: string;
-  color: string;
 }
 
 const ACCENT_COLORS = {

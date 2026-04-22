@@ -39,7 +39,8 @@ export function Toast({
   topOffset,
 }: ToastProps) {
   const insets = useSafeAreaInsets();
-  const finalTop = topOffset !== undefined ? topOffset : insets.top + Spacing.md;
+  const finalTop =
+    topOffset !== undefined ? topOffset : insets.top + Spacing.md;
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(-30);
   const scale = useSharedValue(0.9);
@@ -52,7 +53,7 @@ export function Toast({
       translateY.value = withSpring(0, springConfig);
       scale.value = withSequence(
         withSpring(1.02, { damping: 10, stiffness: 300 }),
-        withSpring(1, springConfig)
+        withSpring(1, springConfig),
       );
 
       const timer = setTimeout(() => {
@@ -74,22 +75,26 @@ export function Toast({
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
-    transform: [
-      { translateY: translateY.value },
-      { scale: scale.value },
-    ],
+    transform: [{ translateY: translateY.value }, { scale: scale.value }],
   }));
 
   const glowStyle = useAnimatedStyle(() => {
-    const glowColor = 
-      type === "success" ? Colors.dark.success : 
-      type === "warning" ? Colors.dark.warning : 
-      Colors.dark.accent;
-    
+    const glowColor =
+      type === "success"
+        ? Colors.dark.success
+        : type === "warning"
+          ? Colors.dark.warning
+          : Colors.dark.accent;
+
     return {
       shadowColor: glowColor,
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: interpolate(opacity.value, [0, 1], [0, 0.4], Extrapolation.CLAMP),
+      shadowOpacity: interpolate(
+        opacity.value,
+        [0, 1],
+        [0, 0.4],
+        Extrapolation.CLAMP,
+      ),
       shadowRadius: 12,
     };
   });
@@ -101,12 +106,15 @@ export function Toast({
         ? Colors.dark.warning
         : Colors.dark.backgroundTertiary;
 
-  const textColor = type === "success" || type === "warning" ? "#000000" : "#FFFFFF";
-  
-  const iconName: keyof typeof Feather.glyphMap = 
-    type === "success" ? "check-circle" : 
-    type === "warning" ? "alert-circle" : 
-    "info";
+  const textColor =
+    type === "success" || type === "warning" ? "#000000" : "#FFFFFF";
+
+  const iconName: keyof typeof Feather.glyphMap =
+    type === "success"
+      ? "check-circle"
+      : type === "warning"
+        ? "alert-circle"
+        : "info";
 
   if (!shouldRender) return null;
 
@@ -122,8 +130,15 @@ export function Toast({
         },
       ]}
     >
-      <Feather name={iconName} size={18} color={textColor} style={styles.icon} />
-      <ThemedText style={[styles.text, { color: textColor }]}>{message}</ThemedText>
+      <Feather
+        name={iconName}
+        size={18}
+        color={textColor}
+        style={styles.icon}
+      />
+      <ThemedText style={[styles.text, { color: textColor }]}>
+        {message}
+      </ThemedText>
     </Animated.View>
   );
 }

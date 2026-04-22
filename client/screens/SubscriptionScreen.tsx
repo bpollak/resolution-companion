@@ -160,12 +160,11 @@ function FeatureRow({
 export default function SubscriptionScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const { subscription, refreshData } = useApp();
   const [selectedPlan, setSelectedPlan] = useState<PlanType>("yearly");
   const [isLoading, setIsLoading] = useState(false);
   const [iapProducts, setIapProducts] = useState<IAPProduct[]>([]);
-  const [checkingStatus, setCheckingStatus] = useState(false);
   const [useNativeIAP, setUseNativeIAP] = useState(false);
   const [iapError, setIapError] = useState<string | null>(null);
   const [initializationComplete, setInitializationComplete] = useState(false);
@@ -312,7 +311,6 @@ export default function SubscriptionScreen() {
 
   const checkSubscriptionStatus = async () => {
     try {
-      setCheckingStatus(true);
       const deviceId = await storage.getDeviceId();
       const response = await fetch(
         new URL(
@@ -354,8 +352,6 @@ export default function SubscriptionScreen() {
       }
     } catch (error) {
       logger.error("Failed to check subscription status:", error);
-    } finally {
-      if (mountedRef.current) setCheckingStatus(false);
     }
   };
 
@@ -578,7 +574,7 @@ export default function SubscriptionScreen() {
             <Feather name="check" size={48} color="#000000" />
           </View>
           <ThemedText style={styles.premiumActiveTitle}>
-            You're Premium!
+            You&rsquo;re Premium!
           </ThemedText>
           <ThemedText
             style={[

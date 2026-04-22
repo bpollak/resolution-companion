@@ -35,7 +35,12 @@ export function useScreenOptions({
           style={StyleSheet.absoluteFill}
         />
       ) : (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.backgroundRoot }]} />
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            { backgroundColor: theme.backgroundRoot },
+          ]}
+        />
       ),
     gestureEnabled: true,
     gestureDirection: "horizontal",

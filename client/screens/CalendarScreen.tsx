@@ -242,7 +242,7 @@ export default function CalendarScreen() {
           wasCompleted ? "info" : "success",
         );
       }
-    } catch (error) {
+    } catch {
       showToast("Failed to update action", "warning");
     }
   };
