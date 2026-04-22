@@ -2,12 +2,12 @@
 
 Production stack:
 
-- **Domain:** `resolutioncompanion.com` (Cloudflare Registrar / DNS)
-- **Backend:** Fly.io (`fly.toml` in repo, Dockerfile-based)
-- **Database:** Neon Postgres (pooled connection string in `DATABASE_URL`)
-- **Edge / WAF:** Cloudflare proxy in front of Fly
-- **Monitoring:** Uptime Robot (free) + Sentry (free tier) — optional for day 1
-- **CI/CD:** `.github/workflows/deploy.yml` auto-deploys `main` on changes to server / shared / Dockerfile / fly.toml.
+- **Domain:** `resolutioncompanion.com`
+- **Backend:** Railway (Dockerfile-based, `railway.json` in repo)
+- **Database:** Railway Postgres (auto-injects `DATABASE_URL`)
+- **Edge / WAF (optional, recommended):** Cloudflare proxy in front
+- **Monitoring:** Uptime Robot (free) + Sentry (free tier) — optional but strongly recommended before submission
+- **CI gate:** `.github/workflows/checks.yml` runs typecheck + lint on PRs. Railway itself auto-deploys `main` on every push via its GitHub integration — no separate deploy workflow needed.
 
 The same backend serves the mobile API **and** the landing / privacy / terms pages. These URLs are referenced from App Store Connect and must never change after submission.
 
@@ -15,90 +15,88 @@ The same backend serves the mobile API **and** the landing / privacy / terms pag
 
 ## One-time setup
 
-### 1. Fly account + CLI
+### 1. Railway project
 
-```bash
-brew install flyctl                       # macOS
-fly auth login
-fly launch --copy-config --no-deploy      # picks up fly.toml; confirms region
+- Sign in at https://railway.app and "New Project → Deploy from GitHub repo".
+- Pick this repo. Railway auto-detects `railway.json` + `Dockerfile`.
+- In the service settings, confirm:
+  - **Build:** Dockerfile
+  - **Healthcheck path:** `/api/health`
+  - **Port:** Railway auto-detects via the `PORT` env var (the Dockerfile sets it to `5000`, and the server reads `process.env.PORT`).
+
+### 2. Railway Postgres
+
+- "+ New → Database → PostgreSQL" inside the same project.
+- Railway auto-injects `DATABASE_URL` into the server service. No manual wiring.
+- Note: for the first schema push you'll run `npm run db:push` locally against that URL (see step 5).
+
+### 3. Environment variables
+
+Railway Service → Variables. Set everything below. **NEVER** commit any of these.
+
+```
+NODE_ENV=production
+ALLOWED_ORIGINS=https://resolutioncompanion.com,https://www.resolutioncompanion.com
+ANDROID_PACKAGE_NAME=com.resolutioncompanion.app
+APPLE_SANDBOX=false
+
+API_SECRET=<run: openssl rand -hex 32>
+AI_INTEGRATIONS_OPENAI_API_KEY=sk-...
+APPLE_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+APPLE_KEY_ID=ABC123XYZ
+APPLE_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\nMII...\n-----END PRIVATE KEY-----
+APPLE_SHARED_SECRET=abc123...
+GOOGLE_SERVICE_ACCOUNT_KEY={"type":"service_account",...}
 ```
 
-Answer "no" when asked about Postgres (we use Neon) and Redis.
+Notes:
 
-### 2. Neon Postgres
+- `APPLE_PRIVATE_KEY`: paste the full `.p8` contents. Railway preserves newlines when you paste into the raw-editor field.
+- `GOOGLE_SERVICE_ACCOUNT_KEY`: paste the whole JSON as a single value. The server `JSON.parse`s it.
+- `API_SECRET` also goes into the mobile app build as `EXPO_PUBLIC_API_SECRET` via `eas.json` → build → production → env, matched to the server's value. Mismatch = every AI request returns 401.
+- `EXPO_PUBLIC_DOMAIN=resolutioncompanion.com` also lives in `eas.json`, not on the server.
 
-- Create project at https://console.neon.tech
-- Create **two branches**: `main` (production) and `staging`
-- Copy the **pooled connection string** from the "Connection Details" panel — the one with `-pooler` in the host. Fly's short-lived connections blow standard PG connection slots otherwise.
+### 4. Custom domain
 
-### 3. Secrets (run once — NEVER commit these)
+In the Railway service → Settings → Networking → Custom Domain:
 
-```bash
-fly secrets set \
-  DATABASE_URL="postgresql://...pooler..." \
-  API_SECRET="$(openssl rand -hex 32)" \
-  AI_INTEGRATIONS_OPENAI_API_KEY="sk-..." \
-  APPLE_ISSUER_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" \
-  APPLE_KEY_ID="ABC123XYZ" \
-  APPLE_PRIVATE_KEY="$(cat /path/to/AuthKey_ABC123XYZ.p8)" \
-  APPLE_SHARED_SECRET="abc123..." \
-  GOOGLE_SERVICE_ACCOUNT_KEY="$(cat /path/to/play-service-account.json)"
-```
+- Add `resolutioncompanion.com`. Railway displays a CNAME target (something like `abcdef.up.railway.app`).
+- Add `www.resolutioncompanion.com` too.
 
-The app's client build also needs `EXPO_PUBLIC_API_SECRET` set to the same value as `API_SECRET`, and `EXPO_PUBLIC_DOMAIN=resolutioncompanion.com`. These go in `eas.json` build env, not on the server.
+At your DNS provider (Cloudflare, if that's where the domain lives):
 
-### 4. Initial deploy
+| Type  | Name  | Target                         | Proxy |
+| ----- | ----- | ------------------------------ | ----- |
+| CNAME | `@`   | `<your>.up.railway.app`        | OFF\* |
+| CNAME | `www` | `<your>.up.railway.app`        | OFF\* |
 
-```bash
-fly deploy
-fly status                                 # confirm one machine is started
-curl https://resolution-companion.fly.dev/api/health
-```
+\* **Important:** Railway issues Let's Encrypt certs for custom domains. If Cloudflare's proxy is ON (orange cloud), you must set Cloudflare SSL to **Full (strict)**, not Flexible. The easier path during first setup is to leave the proxy OFF (gray cloud) until Railway's cert is `Issued`, then turn the proxy on and set SSL → Full (strict).
 
-### 5. Database schema
+Some registrars can't CNAME the apex — if so, use Cloudflare DNS (free) for this domain and CNAME-flatten the apex automatically.
 
-From a machine with `DATABASE_URL` exported to the Neon pooled URL:
+### 5. Initial database migration
+
+Run once from your laptop against the Railway Postgres:
 
 ```bash
+# Grab the DATABASE_URL from the Postgres service → Variables → "Connect" tab
+export DATABASE_URL="postgresql://..."
+npm install
 npm run db:push
 ```
 
-### 6. DNS (Cloudflare)
+Subsequent schema changes can be pushed the same way, or wired into a Railway pre-deploy command if you want.
 
-Add these records in the Cloudflare DNS tab for `resolutioncompanion.com`:
+### 6. GitHub integration (already done if you set it up in step 1)
 
-| Type    | Name | Target                              | Proxy |
-| ------- | ---- | ----------------------------------- | ----- |
-| A       | `@`  | (Fly anycast IPv4 — see below)      | ON    |
-| AAAA    | `@`  | (Fly anycast IPv6 — see below)      | ON    |
-| CNAME   | `www`| `resolutioncompanion.com`           | ON    |
+Railway Service → Settings → Source → confirm:
 
-Get the Fly anycast IPs:
+- **Branch:** `main`
+- **Automatic deployments:** ON
 
-```bash
-fly ips list
-```
+Every push to `main` triggers a build. The `checks.yml` workflow runs typecheck + lint in parallel — keep it green to avoid shipping broken code.
 
-Then tell Fly about the custom domain so it provisions TLS:
-
-```bash
-fly certs add resolutioncompanion.com
-fly certs add www.resolutioncompanion.com
-fly certs show resolutioncompanion.com     # repeat until status == "Ready"
-```
-
-**Cloudflare SSL mode:** set to **Full (strict)**. Any other mode either breaks TLS or exposes plaintext.
-
-### 7. GitHub Actions deploy secret
-
-- `fly tokens create deploy -x 999999h` → copy the token
-- Repo → Settings → Secrets and variables → Actions → New repository secret:
-  - Name: `FLY_API_TOKEN`
-  - Value: that token
-
-From now on every push to `main` that touches server code auto-deploys.
-
-### 8. App Store Connect wiring
+### 7. App Store Connect wiring
 
 Once `https://resolutioncompanion.com/privacy` and `/terms` return 200:
 
@@ -108,7 +106,7 @@ Once `https://resolutioncompanion.com/privacy` and `/terms` return 200:
 - **App Store Connect → App → App Store Server Notifications:**
   - Production URL: `https://resolutioncompanion.com/api/webhooks/apple`
   - Version: **Version 2**
-  - Send a test notification — check `fly logs` for "Apple S2S notification".
+  - Send a test notification — check Railway logs for "Apple S2S notification".
 - **Google Play Console → Monetization setup → Real-time developer notifications:**
   - Topic: a Pub/Sub topic pushing to `https://resolutioncompanion.com/api/webhooks/google`.
 
@@ -116,20 +114,16 @@ Once `https://resolutioncompanion.com/privacy` and `/terms` return 200:
 
 ## Staging environment
 
-Clone the production setup into a second Fly app so the App Store review build has somewhere safe to test against:
+Railway supports multiple environments per project. Create a `staging` environment (Project Settings → Environments → New).
 
-```bash
-fly launch --name resolution-companion-staging --copy-config --no-deploy
-# Point at the Neon "staging" branch
-fly secrets -a resolution-companion-staging set \
-  DATABASE_URL="postgresql://...staging-pooler..." \
-  APPLE_SANDBOX="true" \
-  ... # everything else, sandbox keys where applicable
-fly deploy -a resolution-companion-staging
-fly certs add api-staging.resolutioncompanion.com -a resolution-companion-staging
-```
+- Staging gets its own set of variables. Duplicate the production ones, then override:
+  - `APPLE_SANDBOX=true`
+  - `APPLE_*` keys → sandbox versions
+  - `ALLOWED_ORIGINS` → include your TestFlight landing if needed
+- Point staging at a separate Railway Postgres (or a branch, if you later migrate to Neon).
+- Add a staging custom domain like `api-staging.resolutioncompanion.com` so TestFlight builds can target it via `EXPO_PUBLIC_DOMAIN=api-staging.resolutioncompanion.com` in an `eas.json` preview profile.
 
-Add the `api-staging` CNAME in Cloudflare. Your App Store TestFlight builds point at this; production App Store builds point at the apex.
+Production App Store builds point at the apex; TestFlight / preview builds point at staging.
 
 ---
 
@@ -139,19 +133,15 @@ Add the `api-staging` CNAME in Cloudflare. Your App Store TestFlight builds poin
 
 - Monitor `https://resolutioncompanion.com/api/health`, every 5 min.
 - Alert to your phone number.
-- Turn this on **before** you submit. Reviewers test at unpredictable hours.
+- Turn this on **before** you submit. Apple reviewers test at unpredictable hours, and downtime during review = rejection + back to the queue.
 
 ### Sentry (free tier)
 
-Install `@sentry/node` in `server/`, wrap the Express error handler. 5 minutes of setup. The first time a webhook silently fails, this pays for itself.
+Install `@sentry/node` in `server/`, wrap the Express error handler. ~5 minutes of setup. The first time `/api/webhooks/apple` silently fails is when this pays for itself.
 
 ### Log retention
 
-`fly logs` shows the last few hours only. For Apple webhooks (which can retry days later), ship logs to Axiom or BetterStack:
-
-```bash
-fly ext axiom create                       # free tier, auto-wires log forwarding
-```
+Railway retains logs for 30 days on the Hobby plan; check your plan's limit. Apple webhooks can retry days later, so forward logs to something with longer retention (BetterStack, Axiom, Logtail) via Railway's log drain setting if you need more than what Railway retains.
 
 ---
 
@@ -159,34 +149,30 @@ fly ext axiom create                       # free tier, auto-wires log forwardin
 
 If any secret leaks, rotate immediately:
 
-- `API_SECRET` / OpenAI key / Apple p8 / Google service account:
-  `fly secrets set KEY=newvalue` → the app restarts automatically.
-- Apple `.p8` also needs the old key **revoked in App Store Connect**.
-- After rotating `API_SECRET`, also update `EXPO_PUBLIC_API_SECRET` in `eas.json` and ship a mobile app update; old builds won't reach the server anymore.
+- **`API_SECRET` / OpenAI / Apple `.p8` / Google service account:** update the variable in Railway → the service redeploys automatically.
+- **Apple `.p8`** also requires revoking the old key in App Store Connect → Users and Access → Keys.
+- **After rotating `API_SECRET`:** also update `EXPO_PUBLIC_API_SECRET` in `eas.json` and ship a mobile app update. Old app builds will no longer reach the server.
 
 ---
 
 ## Rollback
 
-```bash
-fly releases                               # list past releases
-fly releases rollback <version>            # revert to a previous image
-```
+Railway → Deployments → find the last known good deployment → "Redeploy".
 
-The DB is separate; rolling back the server does not roll back schema migrations. Use Neon's point-in-time restore for that.
+The database is separate; rolling back the server doesn't roll back schema migrations. Irreversible migrations should ship in their own PR, behind a flag, ideally not in the same deploy as dependent app code.
 
 ---
 
 ## Costs (order of magnitude, early stage)
 
-| Thing                     | Cost                 |
-| ------------------------- | -------------------- |
-| Domain (Cloudflare Reg.)  | ~$10/yr              |
-| Fly.io (1 × shared-cpu-1x)| ~$5–15/mo            |
-| Neon Postgres             | $0 (free) → $19/mo   |
-| Cloudflare                | $0                   |
-| Uptime Robot              | $0                   |
-| Sentry                    | $0                   |
-| **Total**                 | **~$15–35/mo**       |
+| Thing                      | Cost                    |
+| -------------------------- | ----------------------- |
+| Domain (you already own)   | ~$10/yr                 |
+| Railway Hobby              | $5/mo + usage           |
+| Railway Postgres           | usage-based, ~$5–15/mo  |
+| Cloudflare (if used)       | $0                      |
+| Uptime Robot               | $0                      |
+| Sentry                     | $0                      |
+| **Total**                  | **~$15–30/mo**          |
 
-OpenAI spend sits on top and scales with user count — set billing alerts.
+OpenAI spend sits on top and scales with user count — set billing alerts in the OpenAI dashboard.
