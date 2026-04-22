@@ -43,6 +43,7 @@
     "expo-in-app-purchases": "^14.5.0",
     "expo-linking": "~8.0.8",
     "expo-notifications": "^0.32.15",
+    "expo-secure-store": "~15.0.7",
     "expo-splash-screen": "~31.0.10",
     "expo-status-bar": "~3.0.8",
     "expo-symbols": "~1.0.7",

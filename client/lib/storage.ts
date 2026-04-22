@@ -1,4 +1,15 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { secureStorage } from "./secure-storage";
+import { toDateKey } from "./date";
+
+// Items that carry security / billing weight live in the OS keychain.
+// Plain journaling data stays in AsyncStorage — encrypting it properly
+// needs a full key-management story that's out of scope here.
+const SECURE_KEYS = new Set<string>([
+  "deviceId",
+  "subscription",
+  "stripeCustomerId",
+]);
 
 const STORAGE_KEYS = {
   HAS_ONBOARDED: "hasOnboarded",
@@ -201,7 +212,7 @@ export const storage = {
         if (action.frequency.includes(dayOfWeek)) {
           totalExpected++;
           const log = logs.find(
-            (l) => l.actionId === action.id && l.logDate.split("T")[0] === dateStr
+            (l) => l.actionId === action.id && toDateKey(l.logDate) === dateStr
           );
           if (log?.status) {
             totalCompleted++;
@@ -335,13 +346,11 @@ export const storage = {
 
   async toggleDailyLog(actionId: string, date: string): Promise<DailyLog> {
     const logs = await this.getDailyLogs();
-    const dateStr = date.includes("T") ? date.split("T")[0] : date;
-    
+    const dateStr = toDateKey(date);
+
     const existingIndex = logs.findIndex(
-      (log) => {
-        const logDateStr = log.logDate.includes("T") ? log.logDate.split("T")[0] : log.logDate;
-        return log.actionId === actionId && logDateStr === dateStr;
-      }
+      (log) =>
+        log.actionId === actionId && toDateKey(log.logDate) === dateStr
     );
 
     if (existingIndex >= 0) {
@@ -364,10 +373,12 @@ export const storage = {
 
   async getLogForDate(actionId: string, date: string): Promise<DailyLog | null> {
     const logs = await this.getDailyLogs();
-    const dateStr = date.split("T")[0];
-    return logs.find(
-      (log) => log.actionId === actionId && log.logDate.split("T")[0] === dateStr
-    ) || null;
+    const dateStr = toDateKey(date);
+    return (
+      logs.find(
+        (log) => log.actionId === actionId && toDateKey(log.logDate) === dateStr
+      ) || null
+    );
   },
 
   async getReflections(): Promise<Reflection[]> {
@@ -397,17 +408,30 @@ export const storage = {
   },
 
   async clearAll(): Promise<void> {
-    await AsyncStorage.multiRemove(Object.values(STORAGE_KEYS));
+    const keys = Object.values(STORAGE_KEYS);
+    await AsyncStorage.multiRemove(keys);
+    // Also clear secure-storage-backed items.
+    await Promise.all(
+      keys
+        .filter((k) => SECURE_KEYS.has(k))
+        .map((k) => secureStorage.removeItem(k))
+    );
   },
 
   async getSubscription(): Promise<Subscription> {
-    const value = await AsyncStorage.getItem(STORAGE_KEYS.SUBSCRIPTION);
-    if (value) return JSON.parse(value);
+    const value = await secureStorage.getItem(STORAGE_KEYS.SUBSCRIPTION);
+    if (value) {
+      try {
+        return JSON.parse(value);
+      } catch {
+        // fall through to default
+      }
+    }
     return { isPremium: false, plan: "free", expiresAt: null, purchasedAt: null };
   },
 
   async setSubscription(subscription: Subscription): Promise<void> {
-    await AsyncStorage.setItem(STORAGE_KEYS.SUBSCRIPTION, JSON.stringify(subscription));
+    await secureStorage.setItem(STORAGE_KEYS.SUBSCRIPTION, JSON.stringify(subscription));
   },
 
   async getMonthlyReflectionCount(): Promise<MonthlyReflectionCount> {
@@ -452,7 +476,7 @@ export const storage = {
         if (action.frequency.includes(dayOfWeek)) {
           totalExpected++;
           const log = logs.find(
-            (l) => l.actionId === action.id && l.logDate.split("T")[0] === dateStr
+            (l) => l.actionId === action.id && toDateKey(l.logDate) === dateStr
           );
           if (log?.status) {
             totalCompleted++;
@@ -469,20 +493,22 @@ export const storage = {
   },
 
   async getDeviceId(): Promise<string> {
-    let deviceId = await AsyncStorage.getItem(STORAGE_KEYS.DEVICE_ID);
+    let deviceId = await secureStorage.getItem(STORAGE_KEYS.DEVICE_ID);
     if (!deviceId) {
-      deviceId = generateId() + "-" + generateId();
-      await AsyncStorage.setItem(STORAGE_KEYS.DEVICE_ID, deviceId);
+      // Migrate pre-secure-store installs that kept deviceId in AsyncStorage.
+      const legacy = await AsyncStorage.getItem(STORAGE_KEYS.DEVICE_ID);
+      deviceId = legacy || generateId() + "-" + generateId();
+      await secureStorage.setItem(STORAGE_KEYS.DEVICE_ID, deviceId);
     }
     return deviceId;
   },
 
   async getStripeCustomerId(): Promise<string | null> {
-    return AsyncStorage.getItem(STORAGE_KEYS.STRIPE_CUSTOMER_ID);
+    return secureStorage.getItem(STORAGE_KEYS.STRIPE_CUSTOMER_ID);
   },
 
   async setStripeCustomerId(customerId: string): Promise<void> {
-    await AsyncStorage.setItem(STORAGE_KEYS.STRIPE_CUSTOMER_ID, customerId);
+    await secureStorage.setItem(STORAGE_KEYS.STRIPE_CUSTOMER_ID, customerId);
   },
 
 };

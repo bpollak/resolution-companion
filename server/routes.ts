@@ -2,16 +2,67 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import * as crypto from "node:crypto";
 import OpenAI from "openai";
+import { z } from "zod";
 import { db } from "./db";
 import { websiteFeedback, deviceSubscriptions } from "@shared/schema";
 import { sql, eq } from "drizzle-orm";
-import { rateLimiter } from "./rate-limit";
+import { rateLimiter, deviceOrIpKey } from "./rate-limit";
 import { requireApiKey } from "./auth";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
+
+// --- AI request validation ---
+// User text is forwarded to OpenAI. Cap lengths so abusive callers can't run
+// up the bill or slip prompt-injection payloads past us, and validate shape so
+// broken clients fail fast with a 400 rather than a 500 from OpenAI.
+
+const MAX_MESSAGE_CHARS = 4000;
+const MAX_MESSAGE_COUNT = 40;
+const MAX_EXTRACTION_PROMPT_CHARS = 4000;
+
+const aiMessageSchema = z.object({
+  role: z.enum(["system", "user", "assistant"]),
+  content: z.string().min(1).max(MAX_MESSAGE_CHARS),
+});
+
+const aiMessagesSchema = z
+  .array(aiMessageSchema)
+  .min(1)
+  .max(MAX_MESSAGE_COUNT);
+
+const extractPersonaSchema = z.object({
+  messages: aiMessagesSchema,
+  extractionPrompt: z.string().min(1).max(MAX_EXTRACTION_PROMPT_CHARS),
+});
+
+/**
+ * Run OpenAI's Moderation API over just the user-authored turns. Returns true
+ * iff the content is safe. On error we fail closed — we would rather block a
+ * legitimate message than forward CSAM/self-harm/etc to the model.
+ */
+async function moderateUserContent(messages: { role: string; content: string }[]): Promise<boolean> {
+  const userText = messages
+    .filter((m) => m.role === "user")
+    .map((m) => m.content)
+    .join("\n")
+    .slice(0, 8000);
+
+  if (!userText) return true;
+
+  try {
+    const res = await openai.moderations.create({
+      model: "omni-moderation-latest",
+      input: userText,
+    });
+    return !res.results.some((r) => r.flagged);
+  } catch (error) {
+    console.error("Moderation check failed:", error);
+    return false;
+  }
+}
 
 // --- App Store Server API v2 (preferred) ---
 // Uses JWS signed transactions. Requires APPLE_ISSUER_ID, APPLE_KEY_ID, and
@@ -379,13 +430,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
-  // Rate limit AI endpoints: 30 requests per minute per IP
-  const aiRateLimit = rateLimiter(30, 60 * 1000);
+  // Rate limit AI endpoints: keyed per-device so NAT'd mobile users don't share
+  // a budget, and low enough that an abusive caller can't run up the bill.
+  const aiRateLimit = rateLimiter(8, 60 * 1000, deviceOrIpKey);
 
   app.post("/api/chat", requireApiKey, aiRateLimit, async (req: Request, res: Response) => {
-    try {
-      const { messages } = req.body;
+    const parsed = z.object({ messages: aiMessagesSchema }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+      return;
+    }
 
+    const { messages } = parsed.data;
+
+    const safe = await moderateUserContent(messages);
+    if (!safe) {
+      res.status(400).json({ error: "Message violates our content policy." });
+      return;
+    }
+
+    try {
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
@@ -415,12 +479,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/extract-persona", requireApiKey, aiRateLimit, async (req: Request, res: Response) => {
-    try {
-      const { messages, extractionPrompt } = req.body;
+    const parsed = extractPersonaSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+      return;
+    }
 
+    const { messages, extractionPrompt } = parsed.data;
+
+    const safe = await moderateUserContent(messages);
+    if (!safe) {
+      res.status(400).json({ error: "Conversation violates our content policy." });
+      return;
+    }
+
+    try {
       const conversationText = messages
-        .filter((m: { role: string }) => m.role !== "system")
-        .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
+        .filter((m) => m.role !== "system")
+        .map((m) => `${m.role}: ${m.content}`)
         .join("\n");
 
       const response = await openai.chat.completions.create({
@@ -450,9 +526,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/reflection", requireApiKey, aiRateLimit, async (req: Request, res: Response) => {
-    try {
-      const { messages } = req.body;
+    const parsed = z.object({ messages: aiMessagesSchema }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+      return;
+    }
 
+    const { messages } = parsed.data;
+
+    const safe = await moderateUserContent(messages);
+    if (!safe) {
+      res.status(400).json({ error: "Message violates our content policy." });
+      return;
+    }
+
+    try {
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages,
@@ -546,24 +634,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
-  // Restore subscription by looking up the active record in the database for this device.
-  // Native IAP purchases are tracked server-side via /api/iap/validate; this endpoint
-  // lets the client re-sync that state (e.g. after a reinstall).
+  // Restore subscription. We do NOT trust the DB alone — for each device record
+  // we re-verify with Apple/Google so that a refund or revoke taking effect
+  // before the webhook lands does not regrant premium.
   app.post("/api/subscription/restore", async (req: Request, res: Response) => {
     try {
-      const { deviceId } = req.body;
-
-      if (!deviceId) {
-        res.status(400).json({ error: "deviceId is required" });
-        return;
-      }
+      const { deviceId } = z
+        .object({ deviceId: z.string().min(1).max(256) })
+        .parse(req.body);
 
       if (!db) {
         res.json({ success: false, message: "Database not available" });
         return;
       }
 
-      const results = await db.select().from(deviceSubscriptions).where(eq(deviceSubscriptions.deviceId, deviceId));
+      const results = await db
+        .select()
+        .from(deviceSubscriptions)
+        .where(eq(deviceSubscriptions.deviceId, deviceId));
 
       if (results.length === 0) {
         res.json({ success: false, message: "No subscription record found for this device" });
@@ -571,32 +659,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const sub = results[0];
-      const isPremium = sub.status === 'active' && (
-        !sub.currentPeriodEnd || new Date(sub.currentPeriodEnd) > new Date()
-      );
+
+      // Pull the transaction id out of the stripeSubscriptionId field where
+      // /api/iap/validate stored it (format: `iap_<transactionId>`).
+      const storedTx = sub.stripeSubscriptionId || "";
+      const transactionId = storedTx.startsWith("iap_") ? storedTx.slice(4) : "";
+      const platform = sub.stripeCustomerId?.startsWith("iap_android") ? "android" : "ios";
+
+      let isPremium = false;
+      let currentPeriodEnd: Date | null = sub.currentPeriodEnd;
+
+      if (platform === "ios" && isAppStoreServerAPIConfigured() && transactionId) {
+        const result = await validateAppleReceiptV2(transactionId, sub.plan === "yearly"
+          ? "com.resolutioncompanion.annual"
+          : "com.resolutioncompanion.monthly");
+        isPremium = result.valid;
+        currentPeriodEnd = result.expiresDate ?? currentPeriodEnd;
+      } else {
+        // Fallback: trust the DB state (we still store webhook-derived status),
+        // but only if the period hasn't lapsed locally.
+        isPremium = sub.status === "active" && (
+          !sub.currentPeriodEnd || new Date(sub.currentPeriodEnd) > new Date()
+        );
+      }
 
       if (!isPremium) {
+        // Update DB so the next status call reflects reality.
+        await db
+          .update(deviceSubscriptions)
+          .set({ status: "inactive", updatedAt: new Date() })
+          .where(eq(deviceSubscriptions.id, sub.id));
+
         res.json({ success: false, message: "No active subscription found for this device" });
         return;
+      }
+
+      // Refresh DB with the newly-confirmed expiry.
+      if (currentPeriodEnd && currentPeriodEnd !== sub.currentPeriodEnd) {
+        await db
+          .update(deviceSubscriptions)
+          .set({ status: "active", currentPeriodEnd, updatedAt: new Date() })
+          .where(eq(deviceSubscriptions.id, sub.id));
       }
 
       res.json({
         success: true,
         isPremium: true,
         plan: sub.plan,
-        currentPeriodEnd: sub.currentPeriodEnd?.toISOString() || null,
+        currentPeriodEnd: currentPeriodEnd?.toISOString() || null,
       });
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: "Invalid request", details: error.flatten() });
+        return;
+      }
       console.error("Restore subscription error:", error);
       res.status(500).json({ error: "Failed to restore subscription" });
     }
   });
 
+  // Delete every row tied to this device across every table that stores user
+  // content. The client should only show "deleted" if this succeeds.
   app.delete("/api/user-data/:deviceId", async (req: Request, res: Response) => {
     try {
-      const { deviceId } = req.params;
+      const deviceId = req.params.deviceId;
 
-      if (!deviceId) {
+      if (!deviceId || deviceId.length > 256) {
         res.status(400).json({ error: "deviceId is required" });
         return;
       }
@@ -606,13 +734,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      const deleted = await db.delete(deviceSubscriptions).where(eq(deviceSubscriptions.deviceId, deviceId)).returning();
+      // All current server-side storage is device-keyed in deviceSubscriptions.
+      // websiteFeedback is keyed by user-supplied email, not deviceId, and is a
+      // separate flow (not automatically linked). If new device-keyed tables
+      // are added, extend the transaction below.
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(deviceSubscriptions)
+          .where(eq(deviceSubscriptions.deviceId, deviceId));
+      });
 
       res.json({
         success: true,
-        message: deleted.length > 0
-          ? "All server-side data for this device has been deleted"
-          : "No server data found for this device",
+        message: "All server-side data for this device has been deleted",
       });
     } catch (error) {
       console.error("User data deletion error:", error);
