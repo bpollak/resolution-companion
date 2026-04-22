@@ -44,18 +44,18 @@ export function CircularProgress({
   const { isDark } = useTheme();
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
-  
+
   const animatedProgress = useSharedValue(0);
   const glowOpacity = useSharedValue(0);
 
   useEffect(() => {
     if (animated) {
       animatedProgress.value = withSpring(progress, springConfig);
-      
+
       if (progress >= 80) {
         glowOpacity.value = withSequence(
           withTiming(0.6, { duration: 300 }),
-          withTiming(0.3, { duration: 500 })
+          withTiming(0.3, { duration: 500 }),
         );
       } else {
         glowOpacity.value = withTiming(0, { duration: 300 });
@@ -65,14 +65,16 @@ export function CircularProgress({
     }
   }, [progress, animated]);
 
-  const progressColor = progress >= 80 
-    ? Colors.dark.success 
-    : progress >= 50 
-      ? Colors.dark.accent 
-      : Colors.dark.warning;
+  const progressColor =
+    progress >= 80
+      ? Colors.dark.success
+      : progress >= 50
+        ? Colors.dark.accent
+        : Colors.dark.warning;
 
   const animatedProps = useAnimatedProps(() => {
-    const strokeDashoffset = circumference - (animatedProgress.value / 100) * circumference;
+    const strokeDashoffset =
+      circumference - (animatedProgress.value / 100) * circumference;
     return {
       strokeDashoffset,
     };
@@ -97,7 +99,11 @@ export function CircularProgress({
             cx={size / 2}
             cy={size / 2}
             r={radius}
-            stroke={isDark ? Colors.dark.backgroundSecondary : Colors.light.backgroundSecondary}
+            stroke={
+              isDark
+                ? Colors.dark.backgroundSecondary
+                : Colors.light.backgroundSecondary
+            }
             strokeWidth={strokeWidth}
             fill="none"
           />
@@ -116,24 +122,37 @@ export function CircularProgress({
       </Svg>
       <View style={[styles.labelContainer, { width: size, height: size }]}>
         <AnimatedPercentage progress={displayProgress} color={progressColor} />
-        {label ? (
-          <ThemedText style={styles.label}>{label}</ThemedText>
-        ) : null}
+        {label ? <ThemedText style={styles.label}>{label}</ThemedText> : null}
       </View>
     </Animated.View>
   );
 }
 
-function AnimatedPercentage({ progress, color }: { progress: SharedValue<number>; color: string }) {
+function AnimatedPercentage({
+  progress,
+  color,
+}: {
+  progress: SharedValue<number>;
+  color: string;
+}) {
   const [displayValue, setDisplayValue] = React.useState(0);
-  
+
   useDerivedValue(() => {
     const rounded = Math.round(progress.value);
     runOnJS(setDisplayValue)(rounded);
   }, [progress]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: interpolate(progress.value, [0, 100], [0.9, 1], Extrapolation.CLAMP) }],
+    transform: [
+      {
+        scale: interpolate(
+          progress.value,
+          [0, 100],
+          [0.9, 1],
+          Extrapolation.CLAMP,
+        ),
+      },
+    ],
   }));
 
   return (

@@ -30,7 +30,12 @@ interface ActionCardProps {
   benchmarkTitle?: string;
 }
 
-export function ActionCard({ action, log, onToggle, benchmarkTitle }: ActionCardProps) {
+export function ActionCard({
+  action,
+  log,
+  onToggle,
+  benchmarkTitle,
+}: ActionCardProps) {
   const { theme, isDark } = useTheme();
   const scale = useSharedValue(1);
   const buttonScale = useSharedValue(1);
@@ -43,11 +48,11 @@ export function ActionCard({ action, log, onToggle, benchmarkTitle }: ActionCard
     if (isCompleted && !wasCompleted.value) {
       completionGlow.value = withSequence(
         withTiming(1, { duration: 200 }),
-        withDelay(300, withTiming(0, { duration: 400 }))
+        withDelay(300, withTiming(0, { duration: 400 })),
       );
       checkScale.value = withSequence(
         withSpring(1.3, { damping: 8, stiffness: 300 }),
-        withSpring(1, springConfig)
+        withSpring(1, springConfig),
       );
     }
     wasCompleted.value = isCompleted;
@@ -56,9 +61,9 @@ export function ActionCard({ action, log, onToggle, benchmarkTitle }: ActionCard
   const handlePress = async () => {
     buttonScale.value = withSequence(
       withSpring(0.92, { damping: 15, stiffness: 400 }),
-      withSpring(1, springConfig)
+      withSpring(1, springConfig),
     );
-    
+
     if (!isCompleted) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } else {
@@ -78,8 +83,18 @@ export function ActionCard({ action, log, onToggle, benchmarkTitle }: ActionCard
   const glowStyle = useAnimatedStyle(() => ({
     shadowColor: Colors.dark.success,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: interpolate(completionGlow.value, [0, 1], [0, 0.8], Extrapolation.CLAMP),
-    shadowRadius: interpolate(completionGlow.value, [0, 1], [0, 20], Extrapolation.CLAMP),
+    shadowOpacity: interpolate(
+      completionGlow.value,
+      [0, 1],
+      [0, 0.8],
+      Extrapolation.CLAMP,
+    ),
+    shadowRadius: interpolate(
+      completionGlow.value,
+      [0, 1],
+      [0, 20],
+      Extrapolation.CLAMP,
+    ),
   }));
 
   const checkAnimatedStyle = useAnimatedStyle(() => ({
@@ -103,9 +118,9 @@ export function ActionCard({ action, log, onToggle, benchmarkTitle }: ActionCard
             {benchmarkTitle}
           </ThemedText>
         ) : null}
-        
+
         <ThemedText style={styles.title}>{action.title}</ThemedText>
-        
+
         <View style={styles.kickstartContainer}>
           <Feather
             name="zap"
@@ -117,15 +132,33 @@ export function ActionCard({ action, log, onToggle, benchmarkTitle }: ActionCard
             {action.kickstartVersion}
           </ThemedText>
         </View>
-        
+
         {action.anchorLink ? (
-          <View style={[styles.anchorContainer, { backgroundColor: isDark ? Colors.dark.backgroundSecondary : Colors.light.backgroundSecondary }]}>
-            <Feather name="link" size={14} color={Colors.dark.accent} style={styles.anchorIcon} />
+          <View
+            style={[
+              styles.anchorContainer,
+              {
+                backgroundColor: isDark
+                  ? Colors.dark.backgroundSecondary
+                  : Colors.light.backgroundSecondary,
+              },
+            ]}
+          >
+            <Feather
+              name="link"
+              size={14}
+              color={Colors.dark.accent}
+              style={styles.anchorIcon}
+            />
             <View style={styles.anchorContent}>
-              <ThemedText style={[styles.anchorLabel, { color: Colors.dark.accent }]}>
+              <ThemedText
+                style={[styles.anchorLabel, { color: Colors.dark.accent }]}
+              >
                 Anchor
               </ThemedText>
-              <ThemedText style={[styles.anchor, { color: theme.textSecondary }]}>
+              <ThemedText
+                style={[styles.anchor, { color: theme.textSecondary }]}
+              >
                 {action.anchorLink}
               </ThemedText>
             </View>

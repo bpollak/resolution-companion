@@ -14,7 +14,6 @@
       "bundleIdentifier": "com.resolutioncompanion.app",
       "buildNumber": "1",
       "infoPlist": {
-        "NSUserTrackingUsageDescription": "Resolution Companion uses a device identifier to manage your subscription status and restore purchases across sessions. We do not track you across other apps or websites.",
         "ITSAppUsesNonExemptEncryption": false
       },
       "privacyManifests": {
@@ -33,7 +32,25 @@
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeDeviceID",
             "NSPrivacyCollectedDataTypeLinked": false,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          },
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeOtherUserContent",
+            "NSPrivacyCollectedDataTypeLinked": false,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          },
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypePurchaseHistory",
+            "NSPrivacyCollectedDataTypeLinked": false,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           }
         ],
         "NSPrivacyTracking": false
@@ -48,10 +65,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.resolutioncompanion.app",
-      "permissions": [
-        "INTERNET",
-        "VIBRATE"
-      ]
+      "permissions": ["INTERNET", "VIBRATE"]
     },
     "web": {
       "output": "single",
@@ -71,7 +85,6 @@
         }
       ],
       "expo-web-browser",
-      "expo-in-app-purchases",
       [
         "expo-notifications",
         {

@@ -19,7 +19,15 @@ import { ThemedText } from "@/components/ThemedText";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { logger } from "@/lib/logger";
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
 const MIN_ACTIONS_PER_PERSONA = 3;
 const MAX_ACTIONS_PER_PERSONA = 5;
 
@@ -35,7 +43,14 @@ export default function ActionEditorScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<RouteParams, "ActionEditor">>();
   const { theme, isDark } = useTheme();
-  const { persona, benchmarks, actions, addAction, updateAction, deleteAction } = useApp();
+  const {
+    persona,
+    benchmarks,
+    actions,
+    addAction,
+    updateAction,
+    deleteAction,
+  } = useApp();
 
   const { benchmarkId, actionId } = route.params;
   const isEditing = !!actionId;
@@ -46,7 +61,7 @@ export default function ActionEditorScreen() {
     .filter((b) => b.personaId === persona?.id)
     .map((b) => b.id);
   const personaActionsCount = actions.filter((a) =>
-    personaBenchmarkIds.includes(a.benchmarkId)
+    personaBenchmarkIds.includes(a.benchmarkId),
   ).length;
   const canAddAction = personaActionsCount < MAX_ACTIONS_PER_PERSONA;
   const canDeleteAction = personaActionsCount > MIN_ACTIONS_PER_PERSONA;
@@ -70,9 +85,14 @@ export default function ActionEditorScreen() {
     }
     if (!isEditing && !canAddAction) {
       if (Platform.OS === "web") {
-        window.alert(`You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} actions per persona.`);
+        window.alert(
+          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} actions per persona.`,
+        );
       } else {
-        Alert.alert("Action Limit Reached", `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} actions per persona.`);
+        Alert.alert(
+          "Action Limit Reached",
+          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} actions per persona.`,
+        );
       }
       navigation.goBack();
       return;
@@ -80,9 +100,15 @@ export default function ActionEditorScreen() {
   }, [persona, benchmark, isEditing, existingAction, navigation, canAddAction]);
 
   const [actionTitle, setActionTitle] = useState(existingAction?.title || "");
-  const [kickstartVersion, setKickstartVersion] = useState(existingAction?.kickstartVersion || "");
-  const [anchorLink, setAnchorLink] = useState(existingAction?.anchorLink || "");
-  const [frequency, setFrequency] = useState<string[]>(existingAction?.frequency || ["Monday", "Wednesday", "Friday"]);
+  const [kickstartVersion, setKickstartVersion] = useState(
+    existingAction?.kickstartVersion || "",
+  );
+  const [anchorLink, setAnchorLink] = useState(
+    existingAction?.anchorLink || "",
+  );
+  const [frequency, setFrequency] = useState<string[]>(
+    existingAction?.frequency || ["Monday", "Wednesday", "Friday"],
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   const toggleDay = (day: string) => {
@@ -118,7 +144,8 @@ export default function ActionEditorScreen() {
         await updateAction(existingAction.id, {
           title: actionTitle,
           frequency,
-          kickstartVersion: kickstartVersion || `Do ${actionTitle.toLowerCase()} for 2 minutes`,
+          kickstartVersion:
+            kickstartVersion || `Do ${actionTitle.toLowerCase()} for 2 minutes`,
           anchorLink: anchorLink || "After I wake up",
         });
       } else {
@@ -126,7 +153,8 @@ export default function ActionEditorScreen() {
           benchmarkId,
           title: actionTitle,
           frequency,
-          kickstartVersion: kickstartVersion || `Do ${actionTitle.toLowerCase()} for 2 minutes`,
+          kickstartVersion:
+            kickstartVersion || `Do ${actionTitle.toLowerCase()} for 2 minutes`,
           anchorLink: anchorLink || "After I wake up",
         });
       }
@@ -153,9 +181,14 @@ export default function ActionEditorScreen() {
 
     if (!canDeleteAction) {
       if (Platform.OS === "web") {
-        window.alert(`You must have at least ${MIN_ACTIONS_PER_PERSONA} actions per persona.`);
+        window.alert(
+          `You must have at least ${MIN_ACTIONS_PER_PERSONA} actions per persona.`,
+        );
       } else {
-        Alert.alert("Cannot Delete", `You must have at least ${MIN_ACTIONS_PER_PERSONA} actions per persona.`);
+        Alert.alert(
+          "Cannot Delete",
+          `You must have at least ${MIN_ACTIONS_PER_PERSONA} actions per persona.`,
+        );
       }
       return;
     }
@@ -169,7 +202,11 @@ export default function ActionEditorScreen() {
     };
 
     if (Platform.OS === "web") {
-      if (window.confirm(`Delete "${existingAction.title}"? This will also remove all logs for this action.`)) {
+      if (
+        window.confirm(
+          `Delete "${existingAction.title}"? This will also remove all logs for this action.`,
+        )
+      ) {
         doDelete();
       }
     } else {
@@ -179,7 +216,7 @@ export default function ActionEditorScreen() {
         [
           { text: "Cancel", style: "cancel" },
           { text: "Delete", style: "destructive", onPress: doDelete },
-        ]
+        ],
       );
     }
   };
@@ -187,7 +224,10 @@ export default function ActionEditorScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.headerButton}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={styles.headerButton}
+        >
           <Feather name="x" size={24} color={theme.text} />
         </Pressable>
         <ThemedText style={styles.headerTitle}>
@@ -196,7 +236,10 @@ export default function ActionEditorScreen() {
         <Pressable
           onPress={handleSave}
           disabled={isSaving}
-          style={({ pressed }) => [styles.headerButton, { opacity: pressed || isSaving ? 0.5 : 1 }]}
+          style={({ pressed }) => [
+            styles.headerButton,
+            { opacity: pressed || isSaving ? 0.5 : 1 },
+          ]}
         >
           <Feather name="check" size={24} color={Colors.dark.accent} />
         </Pressable>
@@ -209,14 +252,18 @@ export default function ActionEditorScreen() {
         ]}
       >
         <View style={styles.section}>
-          <ThemedText style={[styles.sectionLabel, { color: Colors.dark.accent }]}>
+          <ThemedText
+            style={[styles.sectionLabel, { color: Colors.dark.accent }]}
+          >
             Action Title
           </ThemedText>
           <TextInput
             style={[
               styles.input,
               {
-                backgroundColor: isDark ? Colors.dark.backgroundDefault : Colors.light.backgroundDefault,
+                backgroundColor: isDark
+                  ? Colors.dark.backgroundDefault
+                  : Colors.light.backgroundDefault,
                 color: theme.text,
               },
             ]}
@@ -232,7 +279,9 @@ export default function ActionEditorScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={[styles.sectionLabel, { color: Colors.dark.accent }]}>
+          <ThemedText
+            style={[styles.sectionLabel, { color: Colors.dark.accent }]}
+          >
             Frequency
           </ThemedText>
           <View style={styles.daysContainer}>
@@ -265,14 +314,18 @@ export default function ActionEditorScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={[styles.sectionLabel, { color: Colors.dark.accent }]}>
+          <ThemedText
+            style={[styles.sectionLabel, { color: Colors.dark.accent }]}
+          >
             120-Second Kickstart
           </ThemedText>
           <TextInput
             style={[
               styles.input,
               {
-                backgroundColor: isDark ? Colors.dark.backgroundDefault : Colors.light.backgroundDefault,
+                backgroundColor: isDark
+                  ? Colors.dark.backgroundDefault
+                  : Colors.light.backgroundDefault,
                 color: theme.text,
               },
             ]}
@@ -288,14 +341,18 @@ export default function ActionEditorScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={[styles.sectionLabel, { color: Colors.dark.accent }]}>
+          <ThemedText
+            style={[styles.sectionLabel, { color: Colors.dark.accent }]}
+          >
             Anchor Link
           </ThemedText>
           <TextInput
             style={[
               styles.input,
               {
-                backgroundColor: isDark ? Colors.dark.backgroundDefault : Colors.light.backgroundDefault,
+                backgroundColor: isDark
+                  ? Colors.dark.backgroundDefault
+                  : Colors.light.backgroundDefault,
                 color: theme.text,
               },
             ]}
@@ -318,18 +375,44 @@ export default function ActionEditorScreen() {
               style={({ pressed }) => [
                 styles.deleteButton,
                 {
-                  backgroundColor: isDark ? Colors.dark.backgroundDefault : Colors.light.backgroundDefault,
+                  backgroundColor: isDark
+                    ? Colors.dark.backgroundDefault
+                    : Colors.light.backgroundDefault,
                   opacity: pressed || !canDeleteAction ? 0.5 : 1,
                 },
               ]}
             >
-              <Feather name="trash-2" size={20} color={canDeleteAction ? Colors.dark.error : theme.textSecondary} />
-              <ThemedText style={[styles.deleteButtonText, { color: canDeleteAction ? Colors.dark.error : theme.textSecondary }]}>
+              <Feather
+                name="trash-2"
+                size={20}
+                color={
+                  canDeleteAction ? Colors.dark.error : theme.textSecondary
+                }
+              />
+              <ThemedText
+                style={[
+                  styles.deleteButtonText,
+                  {
+                    color: canDeleteAction
+                      ? Colors.dark.error
+                      : theme.textSecondary,
+                  },
+                ]}
+              >
                 Delete Action
               </ThemedText>
             </Pressable>
             {!canDeleteAction ? (
-              <ThemedText style={[styles.hint, { color: theme.textSecondary, textAlign: 'center', marginTop: Spacing.sm }]}>
+              <ThemedText
+                style={[
+                  styles.hint,
+                  {
+                    color: theme.textSecondary,
+                    textAlign: "center",
+                    marginTop: Spacing.sm,
+                  },
+                ]}
+              >
                 Minimum {MIN_ACTIONS_PER_PERSONA} actions required per persona
               </ThemedText>
             ) : null}

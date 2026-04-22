@@ -1,28 +1,35 @@
-import { Platform, NativeModules } from "react-native";
+import { Platform } from "react-native";
 import { storage } from "./storage";
 import { getApiUrl, getAuthHeaders } from "./query-client";
 import { logger } from "./logger";
 
-let InAppPurchases: typeof import("expo-in-app-purchases") | null = null;
+/**
+ * Thin wrapper over react-native-iap that preserves the same public surface
+ * SubscriptionScreen uses. We migrated off expo-in-app-purchases (archived /
+ * deprecated, flaky on Expo SDK 54 new architecture) to react-native-iap,
+ * which is actively maintained.
+ *
+ * The native module is loaded lazily so Expo Go / web can gracefully report
+ * "IAP unavailable" instead of throwing at import time.
+ */
 
-async function loadIAPModule(): Promise<boolean> {
-  if (Platform.OS === "web") {
-    return false;
-  }
-  
-  // Check if the native module exists before attempting to import
-  // This prevents the "Cannot find native module" error in Expo Go
-  if (!NativeModules.ExpoInAppPurchases) {
-    logger.log("ExpoInAppPurchases native module not available (expected in Expo Go)");
-    return false;
-  }
-  
+let RNIap: typeof import("react-native-iap") | null = null;
+let moduleLoadAttempted = false;
+
+async function loadIAPModule(): Promise<
+  typeof import("react-native-iap") | null
+> {
+  if (RNIap || moduleLoadAttempted) return RNIap;
+  moduleLoadAttempted = true;
+
+  if (Platform.OS === "web") return null;
+
   try {
-    InAppPurchases = await import("expo-in-app-purchases");
-    return true;
+    RNIap = await import("react-native-iap");
+    return RNIap;
   } catch (error) {
-    logger.log("expo-in-app-purchases not available:", error);
-    return false;
+    logger.log("react-native-iap not available (expected in Expo Go):", error);
+    return null;
   }
 }
 
@@ -56,46 +63,89 @@ export interface IAPPurchase {
   purchaseTime: number;
 }
 
+const IAP_CONNECT_TIMEOUT_MS = 8000;
+const IAP_PRODUCTS_TIMEOUT_MS = 8000;
+const IAP_VALIDATE_TIMEOUT_MS = 15000;
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race<T>([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out`)), ms),
+    ),
+  ]);
+}
+
+// Normalize the RNIap subscription shape into the compact IAPProduct our UI
+// expects. RNIap returns different fields per platform; we paper over that.
+function normalizeProduct(s: any): IAPProduct {
+  const priceAmountMicros =
+    Number(s.priceAmountMicros) ||
+    (typeof s.price === "number"
+      ? Math.round(s.price * 1_000_000)
+      : typeof s.price === "string"
+        ? Math.round(parseFloat(s.price) * 1_000_000) || 0
+        : 0);
+
+  return {
+    productId: s.productId,
+    title: s.title || s.productId,
+    description: s.description || "",
+    price: s.localizedPrice || String(s.price ?? ""),
+    priceAmountMicros,
+    priceCurrencyCode: s.currency || s.priceCurrencyCode || "USD",
+    subscriptionPeriod:
+      s.subscriptionPeriodUnitIOS ||
+      s.subscriptionPeriodAndroid ||
+      (String(s.productId).includes("yearly") ||
+      String(s.productId).includes("annual")
+        ? "year"
+        : "month"),
+  };
+}
+
+function normalizePurchase(p: any): IAPPurchase {
+  return {
+    productId: p.productId,
+    transactionId:
+      p.transactionId ||
+      p.purchaseToken ||
+      p.originalTransactionIdentifierIOS ||
+      "",
+    transactionReceipt:
+      p.transactionReceipt || p.purchaseToken || p.dataAndroid || "",
+    purchaseTime:
+      typeof p.transactionDate === "number"
+        ? p.transactionDate
+        : Number(p.transactionDate) || Date.now(),
+  };
+}
+
 class IAPService {
   private isConnected = false;
-  private products: IAPProduct[] = [];
-  private moduleLoaded = false;
+  private purchaseUpdateSub: { remove: () => void } | null = null;
+  private purchaseErrorSub: { remove: () => void } | null = null;
+  // Cache raw subscription objects keyed by sku so Android can resolve the
+  // offer token needed by requestSubscription.
+  private rawSubscriptions = new Map<string, any>();
 
   async isAvailable(): Promise<boolean> {
-    if (Platform.OS === "web") {
-      return false;
-    }
-    
-    if (!this.moduleLoaded) {
-      this.moduleLoaded = await loadIAPModule();
-    }
-    
-    return this.moduleLoaded && InAppPurchases !== null;
+    if (Platform.OS === "web") return false;
+    const mod = await loadIAPModule();
+    return !!mod;
   }
 
   async connect(): Promise<boolean> {
-    if (Platform.OS === "web" || !InAppPurchases) {
-      return false;
-    }
-
-    if (this.isConnected) {
-      return true;
-    }
-
-    // Check if connectAsync is actually available (may not be in some environments)
-    if (typeof InAppPurchases.connectAsync !== "function") {
-      logger.log("IAP connectAsync not available in this environment");
-      return false;
-    }
+    if (this.isConnected) return true;
+    const mod = await loadIAPModule();
+    if (!mod) return false;
 
     try {
-      // Add timeout to prevent hanging
-      const connectPromise = InAppPurchases.connectAsync();
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error("IAP connect timeout")), 8000)
+      await withTimeout(
+        mod.initConnection(),
+        IAP_CONNECT_TIMEOUT_MS,
+        "IAP connect",
       );
-      
-      await Promise.race([connectPromise, timeoutPromise]);
       this.isConnected = true;
       return true;
     } catch (error) {
@@ -105,214 +155,198 @@ class IAPService {
   }
 
   async disconnect(): Promise<void> {
-    if (this.isConnected && InAppPurchases && typeof InAppPurchases.disconnectAsync === "function") {
-      try {
-        await InAppPurchases.disconnectAsync();
-        this.isConnected = false;
-      } catch (error) {
-        logger.error("Failed to disconnect from IAP:", error);
-      }
+    const mod = await loadIAPModule();
+    if (!mod || !this.isConnected) return;
+    try {
+      await mod.endConnection();
+    } catch (error) {
+      logger.error("Failed to disconnect from IAP:", error);
     }
+    this.isConnected = false;
   }
 
   async getProducts(): Promise<IAPProduct[]> {
-    const available = await this.isAvailable();
-    if (!available || !InAppPurchases) {
-      logger.log("IAP not available, returning empty products");
-      return [];
-    }
+    const mod = await loadIAPModule();
+    if (!mod) return [];
+
+    const connected = await this.connect();
+    if (!connected) return [];
+
+    const skus = [PRODUCT_IDS.MONTHLY, PRODUCT_IDS.YEARLY].filter(
+      Boolean,
+    ) as string[];
 
     try {
-      const connected = await this.connect();
-      if (!connected) {
-        logger.log("Failed to connect to store, returning empty products");
-        return [];
-      }
-
-      const productIds = [PRODUCT_IDS.MONTHLY, PRODUCT_IDS.YEARLY].filter(
-        Boolean
-      ) as string[];
-
-      if (typeof InAppPurchases.getProductsAsync !== "function") {
-        logger.log("IAP getProductsAsync not available");
-        return [];
-      }
-
-      logger.log("Fetching IAP products:", productIds);
-      
-      // Add timeout to prevent hanging
-      const getProductsPromise = InAppPurchases.getProductsAsync(productIds);
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error("IAP getProducts timeout")), 8000)
+      // react-native-iap renamed the argument shape a few versions back;
+      // handle both the new `{ skus }` form and the older positional form.
+      const getSubs = (mod as any).getSubscriptions;
+      const results: any = await withTimeout(
+        typeof getSubs === "function"
+          ? getSubs.length <= 1
+            ? getSubs({ skus })
+            : getSubs(skus)
+          : (mod as any).getProducts({ skus }),
+        IAP_PRODUCTS_TIMEOUT_MS,
+        "IAP getSubscriptions",
       );
-      
-      const { results } = await Promise.race([getProductsPromise, timeoutPromise]) as { results: any[] };
 
-      if (!results || results.length === 0) {
+      const list: any[] = Array.isArray(results)
+        ? results
+        : results?.results || [];
+      if (!list.length) {
         logger.log("No IAP products returned from store");
         return [];
       }
-
-      logger.log("IAP products fetched successfully:", results.length);
-      
-      this.products = results.map((product) => ({
-        productId: product.productId,
-        title: product.title,
-        description: product.description,
-        price: product.price,
-        priceAmountMicros: product.priceAmountMicros,
-        priceCurrencyCode: product.priceCurrencyCode,
-        subscriptionPeriod:
-          product.subscriptionPeriod ||
-          (product.productId.includes("yearly") ? "year" : "month"),
-      }));
-
-      return this.products;
-    } catch (error: any) {
-      logger.error("Failed to get products:", error);
-      
-      const errorMessage = error?.message || String(error);
-      if (errorMessage.includes("BILLING_UNAVAILABLE")) {
-        logger.log("Billing unavailable - App Store/Play Store not configured");
+      this.rawSubscriptions.clear();
+      for (const s of list) {
+        if (s?.productId) this.rawSubscriptions.set(s.productId, s);
       }
-      
+      return list.map(normalizeProduct);
+    } catch (error) {
+      logger.error("Failed to get products:", error);
       return [];
     }
   }
 
   setPurchaseListener(
-    onPurchase: (purchase: IAPPurchase) => void,
-    onError: (error: Error) => void
+    onPurchase: (p: IAPPurchase) => void,
+    onError: (error: Error) => void,
   ): void {
-    if (Platform.OS === "web" || !InAppPurchases) {
-      return;
-    }
+    if (Platform.OS === "web") return;
 
-    // Check if setPurchaseListener is available
-    if (typeof InAppPurchases.setPurchaseListener !== "function") {
-      logger.log("IAP setPurchaseListener not available");
-      return;
-    }
+    // Replace any prior listeners so we never have stale callbacks hanging.
+    this.purchaseUpdateSub?.remove();
+    this.purchaseErrorSub?.remove();
+    this.purchaseUpdateSub = null;
+    this.purchaseErrorSub = null;
 
-    const IAP = InAppPurchases;
-    IAP.setPurchaseListener(async (result: { responseCode: number; results?: any[] }) => {
-      const { responseCode, results } = result;
-      if (responseCode === IAP.IAPResponseCode.OK && results) {
-        for (const purchase of results) {
-          if (purchase.acknowledged) {
-            continue;
-          }
+    loadIAPModule().then((mod) => {
+      if (!mod) return;
 
-          const iapPurchase: IAPPurchase = {
-            productId: purchase.productId,
-            transactionId: purchase.orderId || "",
-            transactionReceipt: purchase.transactionReceipt || "",
-            purchaseTime: purchase.purchaseTime || Date.now(),
-          };
-
+      this.purchaseUpdateSub = mod.purchaseUpdatedListener(
+        async (purchase: any) => {
+          const iap = normalizePurchase(purchase);
           try {
-            const validated = await this.validateReceipt(iapPurchase);
+            const validated = await this.validateReceipt(iap);
             if (validated) {
-              if (typeof IAP.finishTransactionAsync === "function") {
-                await IAP.finishTransactionAsync(purchase, true);
+              try {
+                // Finish only after server-side validation so Apple/Google
+                // stop redelivering the transaction.
+                await (mod as any).finishTransaction({
+                  purchase,
+                  isConsumable: false,
+                });
+              } catch (finishErr) {
+                logger.error(
+                  "finishTransaction failed (non-fatal):",
+                  finishErr,
+                );
               }
-              onPurchase(iapPurchase);
+              onPurchase(iap);
             } else {
               onError(new Error("Receipt validation failed"));
             }
           } catch (error) {
             onError(error as Error);
           }
+        },
+      );
+
+      this.purchaseErrorSub = mod.purchaseErrorListener((error: any) => {
+        const code = error?.code || "";
+        if (code === "E_USER_CANCELLED" || code === "USER_CANCELED") {
+          logger.log("User cancelled the purchase");
+          return;
         }
-      } else if (responseCode === IAP.IAPResponseCode.USER_CANCELED) {
-        logger.log("User cancelled the purchase");
-      } else if (responseCode === IAP.IAPResponseCode.DEFERRED) {
-        logger.log("Purchase deferred - awaiting approval");
-      } else {
-        onError(new Error(`Purchase failed with code: ${responseCode}`));
-      }
+        onError(
+          new Error(error?.message || `Purchase failed: ${code || "unknown"}`),
+        );
+      });
     });
   }
 
   async purchaseProduct(productId: string): Promise<void> {
-    const available = await this.isAvailable();
-    if (!available || !InAppPurchases) {
-      throw new Error("In-app purchases are not available on this device. Please try again or contact support.");
+    const mod = await loadIAPModule();
+    if (!mod) {
+      throw new Error(
+        "In-app purchases are not available on this device. Please try again or contact support.",
+      );
+    }
+
+    const connected = await this.connect();
+    if (!connected) {
+      throw new Error(
+        "Unable to connect to the App Store. Please check your connection and try again.",
+      );
     }
 
     try {
-      const connected = await this.connect();
-      if (!connected) {
-        throw new Error("Unable to connect to the App Store. Please check your connection and try again.");
+      // Our products are auto-renewable subscriptions → requestSubscription.
+      // The actual purchase event fires on purchaseUpdatedListener; this
+      // call just initiates the native sheet.
+      const request: any = { sku: productId };
+
+      if (Platform.OS === "android") {
+        // Android's Billing Library v6+ requires an explicit offer token
+        // from the subscription's subscriptionOfferDetails array.
+        const raw = this.rawSubscriptions.get(productId);
+        const offers: any[] = raw?.subscriptionOfferDetails || [];
+        if (!offers.length) {
+          throw new Error(
+            "No subscription offers found for this product. Please try again.",
+          );
+        }
+        request.subscriptionOffers = offers.map((offer: any) => ({
+          sku: productId,
+          offerToken: offer.offerToken,
+        }));
       }
 
-      if (typeof InAppPurchases.purchaseItemAsync !== "function") {
-        throw new Error("In-app purchases are not supported in this environment.");
-      }
-
-      await InAppPurchases.purchaseItemAsync(productId);
+      await (mod as any).requestSubscription(request);
     } catch (error: any) {
-      logger.error("Purchase failed:", error);
-      
-      const errorMessage = error?.message || String(error);
-      
-      if (errorMessage.includes("E_USER_CANCELLED") || 
-          errorMessage.includes("USER_CANCELED") ||
-          errorMessage.includes("cancel")) {
+      const code = error?.code || "";
+      const msg = error?.message || String(error);
+
+      if (
+        code === "E_USER_CANCELLED" ||
+        code === "USER_CANCELED" ||
+        msg.includes("cancel")
+      ) {
         throw new Error("USER_CANCELED");
       }
-      
-      if (errorMessage.includes("NETWORK") || errorMessage.includes("network")) {
-        throw new Error("Network error. Please check your connection and try again.");
+      if (msg.includes("NETWORK") || msg.includes("network")) {
+        throw new Error(
+          "Network error. Please check your connection and try again.",
+        );
       }
-      
-      if (errorMessage.includes("ITEM_UNAVAILABLE") || errorMessage.includes("not found")) {
-        throw new Error("This subscription is temporarily unavailable. Please try again later.");
+      if (code === "E_ITEM_UNAVAILABLE" || msg.includes("unavailable")) {
+        throw new Error(
+          "This subscription is temporarily unavailable. Please try again later.",
+        );
       }
-      
       throw error;
     }
   }
 
   async restorePurchases(): Promise<IAPPurchase[]> {
-    const available = await this.isAvailable();
-    if (!available || !InAppPurchases) {
-      return [];
-    }
+    const mod = await loadIAPModule();
+    if (!mod) return [];
+
+    const connected = await this.connect();
+    if (!connected) return [];
 
     try {
-      const connected = await this.connect();
-      if (!connected) {
-        return [];
-      }
-
-      if (typeof InAppPurchases.getPurchaseHistoryAsync !== "function") {
-        logger.log("IAP getPurchaseHistoryAsync not available");
-        return [];
-      }
-
-      const { results } = await InAppPurchases.getPurchaseHistoryAsync();
-
-      if (!results || results.length === 0) {
-        return [];
-      }
+      const available: any[] = await (mod as any).getAvailablePurchases();
+      if (!available?.length) return [];
 
       const purchases: IAPPurchase[] = [];
-
-      for (const purchase of results) {
-        const iapPurchase: IAPPurchase = {
-          productId: purchase.productId,
-          transactionId: purchase.orderId || "",
-          transactionReceipt: purchase.transactionReceipt || "",
-          purchaseTime: purchase.purchaseTime || Date.now(),
-        };
-
-        const validated = await this.validateReceipt(iapPurchase);
-        if (validated) {
-          purchases.push(iapPurchase);
-        }
+      for (const p of available) {
+        const iap = normalizePurchase(p);
+        // Server-validate each so we never surface a restored purchase that
+        // has since been refunded / revoked.
+        const ok = await this.validateReceipt(iap);
+        if (ok) purchases.push(iap);
       }
-
       return purchases;
     } catch (error) {
       logger.error("Failed to restore purchases:", error);
@@ -340,11 +374,14 @@ class IAPService {
             receipt: purchase.transactionReceipt,
             purchaseTime: purchase.purchaseTime,
           }),
-        }
+        },
       );
 
       const timeoutPromise = new Promise<Response>((_, reject) =>
-        setTimeout(() => reject(new Error("Validation timeout")), 15000)
+        setTimeout(
+          () => reject(new Error("Validation timeout")),
+          IAP_VALIDATE_TIMEOUT_MS,
+        ),
       );
 
       const response = await Promise.race([validatePromise, timeoutPromise]);
