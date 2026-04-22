@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, ScrollView, StyleSheet, Pressable, Platform, Alert, AppState, ActivityIndicator } from "react-native";
+import {
+  View,
+  ScrollView,
+  StyleSheet,
+  Pressable,
+  Platform,
+  Alert,
+  AppState,
+  ActivityIndicator,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
@@ -26,7 +35,14 @@ interface PlanCardProps {
   onSelect: () => void;
 }
 
-function PlanCard({ type, price, period, savings, selected, onSelect }: PlanCardProps) {
+function PlanCard({
+  type,
+  price,
+  period,
+  savings,
+  selected,
+  onSelect,
+}: PlanCardProps) {
   const { theme, isDark } = useTheme();
 
   return (
@@ -48,23 +64,39 @@ function PlanCard({ type, price, period, savings, selected, onSelect }: PlanCard
         <View
           style={[
             styles.radioOuter,
-            { borderColor: selected ? Colors.dark.accent : theme.textSecondary },
+            {
+              borderColor: selected ? Colors.dark.accent : theme.textSecondary,
+            },
           ]}
         >
           {selected ? (
-            <View style={[styles.radioInner, { backgroundColor: Colors.dark.accent }]} />
+            <View
+              style={[
+                styles.radioInner,
+                { backgroundColor: Colors.dark.accent },
+              ]}
+            />
           ) : null}
         </View>
         <View style={styles.planInfo}>
           <ThemedText style={styles.planPrice}>{price}</ThemedText>
-          <ThemedText style={[styles.planPeriod, { color: theme.textSecondary }]}>
+          <ThemedText
+            style={[styles.planPeriod, { color: theme.textSecondary }]}
+          >
             {period}
           </ThemedText>
         </View>
       </View>
       {savings ? (
-        <View style={[styles.savingsBadge, { backgroundColor: "rgba(0, 217, 255, 0.15)" }]}>
-          <ThemedText style={[styles.savingsText, { color: Colors.dark.accent }]}>
+        <View
+          style={[
+            styles.savingsBadge,
+            { backgroundColor: "rgba(0, 217, 255, 0.15)" },
+          ]}
+        >
+          <ThemedText
+            style={[styles.savingsText, { color: Colors.dark.accent }]}
+          >
             {savings}
           </ThemedText>
         </View>
@@ -80,7 +112,12 @@ interface FeatureRowProps {
   isPremium?: boolean;
 }
 
-function FeatureRow({ icon, title, description, isPremium = false }: FeatureRowProps) {
+function FeatureRow({
+  icon,
+  title,
+  description,
+  isPremium = false,
+}: FeatureRowProps) {
   const { theme } = useTheme();
 
   return (
@@ -88,7 +125,11 @@ function FeatureRow({ icon, title, description, isPremium = false }: FeatureRowP
       <View
         style={[
           styles.featureIcon,
-          { backgroundColor: isPremium ? "rgba(0, 217, 255, 0.1)" : "rgba(255,255,255,0.05)" },
+          {
+            backgroundColor: isPremium
+              ? "rgba(0, 217, 255, 0.1)"
+              : "rgba(255,255,255,0.05)",
+          },
         ]}
       >
         <Feather
@@ -99,12 +140,16 @@ function FeatureRow({ icon, title, description, isPremium = false }: FeatureRowP
       </View>
       <View style={styles.featureContent}>
         <ThemedText style={styles.featureTitle}>{title}</ThemedText>
-        <ThemedText style={[styles.featureDescription, { color: theme.textSecondary }]}>
+        <ThemedText
+          style={[styles.featureDescription, { color: theme.textSecondary }]}
+        >
           {description}
         </ThemedText>
       </View>
       {isPremium ? (
-        <View style={[styles.premiumBadge, { backgroundColor: Colors.dark.accent }]}>
+        <View
+          style={[styles.premiumBadge, { backgroundColor: Colors.dark.accent }]}
+        >
           <ThemedText style={styles.premiumBadgeText}>PRO</ThemedText>
         </View>
       ) : null}
@@ -149,7 +194,7 @@ export default function SubscriptionScreen() {
       Promise.race<T>([
         p,
         new Promise<T>((_, reject) =>
-          setTimeout(() => reject(new Error(`${label} timed out`)), ms)
+          setTimeout(() => reject(new Error(`${label} timed out`)), ms),
         ),
       ]);
 
@@ -163,12 +208,18 @@ export default function SubscriptionScreen() {
         return;
       }
 
-      const products = await withTimeout(iapService.getProducts(), 12000, "Store lookup");
+      const products = await withTimeout(
+        iapService.getProducts(),
+        12000,
+        "Store lookup",
+      );
 
       if (!mountedRef.current) return;
 
       if (products.length === 0) {
-        setIapError("We couldn't load subscription options from the store. Pull to retry.");
+        setIapError(
+          "We couldn't load subscription options from the store. Pull to retry.",
+        );
         setInitializationComplete(true);
         return;
       }
@@ -187,7 +238,10 @@ export default function SubscriptionScreen() {
             setIsLoading(false);
             if (validated) {
               await refreshData();
-              Alert.alert("Success", "Welcome to Premium! Your subscription is now active.");
+              Alert.alert(
+                "Success",
+                "Welcome to Premium! Your subscription is now active.",
+              );
             } else {
               Alert.alert(
                 "Purchase Issue",
@@ -195,7 +249,7 @@ export default function SubscriptionScreen() {
                 [
                   { text: "OK", style: "default" },
                   { text: "Restore", onPress: () => handleRestorePurchases() },
-                ]
+                ],
               );
             }
           } catch (err) {
@@ -204,7 +258,7 @@ export default function SubscriptionScreen() {
             setIsLoading(false);
             Alert.alert(
               "Purchase Issue",
-              "Your payment was processed but activation failed. Please use Restore Purchases."
+              "Your payment was processed but activation failed. Please use Restore Purchases.",
             );
           }
         },
@@ -220,14 +274,16 @@ export default function SubscriptionScreen() {
             [
               { text: "OK", style: "default" },
               { text: "Restore", onPress: () => handleRestorePurchases() },
-            ]
+            ],
           );
-        }
+        },
       );
     } catch (error) {
       logger.error("IAP initialization failed:", error);
       if (mountedRef.current) {
-        setIapError("We couldn't reach the store. Please check your connection and retry.");
+        setIapError(
+          "We couldn't reach the store. Please check your connection and retry.",
+        );
       }
     } finally {
       if (mountedRef.current) setInitializationComplete(true);
@@ -235,12 +291,18 @@ export default function SubscriptionScreen() {
   };
 
   useEffect(() => {
-    const appStateSubscription = AppState.addEventListener("change", (nextAppState) => {
-      if (appState.current.match(/inactive|background/) && nextAppState === "active") {
-        checkSubscriptionStatus();
-      }
-      appState.current = nextAppState;
-    });
+    const appStateSubscription = AppState.addEventListener(
+      "change",
+      (nextAppState) => {
+        if (
+          appState.current.match(/inactive|background/) &&
+          nextAppState === "active"
+        ) {
+          checkSubscriptionStatus();
+        }
+        appState.current = nextAppState;
+      },
+    );
 
     return () => {
       appStateSubscription.remove();
@@ -253,8 +315,11 @@ export default function SubscriptionScreen() {
       setCheckingStatus(true);
       const deviceId = await storage.getDeviceId();
       const response = await fetch(
-        new URL(`/api/subscription/status/${encodeURIComponent(deviceId)}`, getApiUrl()).toString(),
-        { headers: getAuthHeaders() }
+        new URL(
+          `/api/subscription/status/${encodeURIComponent(deviceId)}`,
+          getApiUrl(),
+        ).toString(),
+        { headers: getAuthHeaders() },
       );
 
       if (!response.ok) {
@@ -294,20 +359,25 @@ export default function SubscriptionScreen() {
     }
   };
 
-  const validateAndStoreSubscription = async (purchase: IAPPurchase): Promise<boolean> => {
+  const validateAndStoreSubscription = async (
+    purchase: IAPPurchase,
+  ): Promise<boolean> => {
     const deviceId = await storage.getDeviceId();
-    const response = await fetch(new URL("/api/iap/validate", getApiUrl()).toString(), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-      body: JSON.stringify({
-        deviceId,
-        platform: Platform.OS,
-        productId: purchase.productId,
-        transactionId: purchase.transactionId,
-        receipt: purchase.transactionReceipt,
-        purchaseTime: purchase.purchaseTime,
-      }),
-    });
+    const response = await fetch(
+      new URL("/api/iap/validate", getApiUrl()).toString(),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({
+          deviceId,
+          platform: Platform.OS,
+          productId: purchase.productId,
+          transactionId: purchase.transactionId,
+          receipt: purchase.transactionReceipt,
+          purchaseTime: purchase.purchaseTime,
+        }),
+      },
+    );
 
     if (!response.ok) {
       logger.error("IAP validation failed:", response.status);
@@ -335,7 +405,10 @@ export default function SubscriptionScreen() {
 
   const handleSubscribe = async () => {
     if (!initializationComplete) {
-      Alert.alert("Please Wait", "Still loading purchase options. Please try again in a moment.");
+      Alert.alert(
+        "Please Wait",
+        "Still loading purchase options. Please try again in a moment.",
+      );
       return;
     }
 
@@ -346,7 +419,7 @@ export default function SubscriptionScreen() {
         [
           { text: "OK", style: "default" },
           { text: "Retry", onPress: () => initializePurchases() },
-        ]
+        ],
       );
       return;
     }
@@ -360,7 +433,7 @@ export default function SubscriptionScreen() {
         [
           { text: "OK", style: "default" },
           { text: "Retry", onPress: () => initializePurchases() },
-        ]
+        ],
       );
       return;
     }
@@ -376,7 +449,10 @@ export default function SubscriptionScreen() {
       if (mountedRef.current) setIsLoading(false);
 
       const errorMessage = error?.message || "";
-      if (errorMessage.includes("cancel") || errorMessage.includes("USER_CANCELED")) {
+      if (
+        errorMessage.includes("cancel") ||
+        errorMessage.includes("USER_CANCELED")
+      ) {
         return;
       }
 
@@ -386,7 +462,7 @@ export default function SubscriptionScreen() {
         [
           { text: "OK", style: "default" },
           { text: "Retry", onPress: () => handleSubscribe() },
-        ]
+        ],
       );
     }
   };
@@ -402,7 +478,9 @@ export default function SubscriptionScreen() {
           if (purchases.length > 0) {
             // Validate the latest purchase server-side so we write the real
             // expiration date rather than guessing from a client clock.
-            const latest = purchases.sort((a, b) => b.purchaseTime - a.purchaseTime)[0];
+            const latest = purchases.sort(
+              (a, b) => b.purchaseTime - a.purchaseTime,
+            )[0];
             const ok = await validateAndStoreSubscription(latest);
             if (ok) {
               await refreshData();
@@ -426,15 +504,21 @@ export default function SubscriptionScreen() {
   const restoreFromServer = async () => {
     try {
       const deviceId = await storage.getDeviceId();
-      const response = await fetch(new URL("/api/subscription/restore", getApiUrl()).toString(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify({ deviceId }),
-      });
+      const response = await fetch(
+        new URL("/api/subscription/restore", getApiUrl()).toString(),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+          body: JSON.stringify({ deviceId }),
+        },
+      );
 
       if (!response.ok) {
         logger.error("Restore request failed:", response.status);
-        Alert.alert("Error", "We couldn't reach the server to restore your subscription. Please try again.");
+        Alert.alert(
+          "Error",
+          "We couldn't reach the server to restore your subscription. Please try again.",
+        );
         return;
       }
 
@@ -453,7 +537,7 @@ export default function SubscriptionScreen() {
       } else {
         Alert.alert(
           "No Purchases Found",
-          "We couldn't find an active subscription for this device. If you believe this is an error, please contact support."
+          "We couldn't find an active subscription for this device. If you believe this is an error, please contact support.",
         );
       }
     } catch (error) {
@@ -468,9 +552,16 @@ export default function SubscriptionScreen() {
         ? "https://play.google.com/store/account/subscriptions"
         : "https://apps.apple.com/account/subscriptions";
     return (
-      <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+      <View
+        style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
+      >
         <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.closeButton} accessibilityRole="button" accessibilityLabel="Close">
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={styles.closeButton}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
             <Feather name="x" size={24} color={theme.text} />
           </Pressable>
           <ThemedText style={styles.headerTitle}>Premium</ThemedText>
@@ -478,15 +569,29 @@ export default function SubscriptionScreen() {
         </View>
 
         <View style={styles.premiumActiveContainer}>
-          <View style={[styles.premiumActiveIcon, { backgroundColor: Colors.dark.accent }]}>
+          <View
+            style={[
+              styles.premiumActiveIcon,
+              { backgroundColor: Colors.dark.accent },
+            ]}
+          >
             <Feather name="check" size={48} color="#000000" />
           </View>
-          <ThemedText style={styles.premiumActiveTitle}>You're Premium!</ThemedText>
-          <ThemedText style={[styles.premiumActiveSubtitle, { color: theme.textSecondary }]}>
+          <ThemedText style={styles.premiumActiveTitle}>
+            You're Premium!
+          </ThemedText>
+          <ThemedText
+            style={[
+              styles.premiumActiveSubtitle,
+              { color: theme.textSecondary },
+            ]}
+          >
             You have unlimited access to all features.
           </ThemedText>
           {subscription.expiresAt ? (
-            <ThemedText style={[styles.expiresText, { color: theme.textSecondary }]}>
+            <ThemedText
+              style={[styles.expiresText, { color: theme.textSecondary }]}
+            >
               Your subscription renews on{" "}
               {new Date(subscription.expiresAt).toLocaleDateString()}
             </ThemedText>
@@ -501,7 +606,9 @@ export default function SubscriptionScreen() {
             ]}
           >
             <Feather name="settings" size={16} color={Colors.dark.accent} />
-            <ThemedText style={[styles.manageButtonText, { color: Colors.dark.accent }]}>
+            <ThemedText
+              style={[styles.manageButtonText, { color: Colors.dark.accent }]}
+            >
               Manage Subscription
             </ThemedText>
           </Pressable>
@@ -510,16 +617,27 @@ export default function SubscriptionScreen() {
     );
   }
 
-  const yearlyProduct = iapProducts.find((p) => p.productId === PRODUCT_IDS.YEARLY);
-  const monthlyProduct = iapProducts.find((p) => p.productId === PRODUCT_IDS.MONTHLY);
-  const selectedProduct = selectedPlan === "yearly" ? yearlyProduct : monthlyProduct;
+  const yearlyProduct = iapProducts.find(
+    (p) => p.productId === PRODUCT_IDS.YEARLY,
+  );
+  const monthlyProduct = iapProducts.find(
+    (p) => p.productId === PRODUCT_IDS.MONTHLY,
+  );
+  const selectedProduct =
+    selectedPlan === "yearly" ? yearlyProduct : monthlyProduct;
   const canPurchase =
-    initializationComplete && useNativeIAP && iapProducts.length > 0 && !!selectedProduct;
+    initializationComplete &&
+    useNativeIAP &&
+    iapProducts.length > 0 &&
+    !!selectedProduct;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.closeButton}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={styles.closeButton}
+        >
           <Feather name="x" size={24} color={theme.text} />
         </Pressable>
         <ThemedText style={styles.headerTitle}>Upgrade to Premium</ThemedText>
@@ -534,16 +652,23 @@ export default function SubscriptionScreen() {
         showsVerticalScrollIndicator={false}
       >
         {iapError ? (
-          <View style={[styles.errorBanner, { backgroundColor: "rgba(255, 100, 100, 0.15)" }]}>
+          <View
+            style={[
+              styles.errorBanner,
+              { backgroundColor: "rgba(255, 100, 100, 0.15)" },
+            ]}
+          >
             <Feather name="alert-circle" size={20} color="#FF6B6B" />
             <ThemedText style={[styles.errorText, { color: "#FF6B6B" }]}>
               {iapError}
             </ThemedText>
-            <Pressable 
-              onPress={() => initializePurchases()} 
+            <Pressable
+              onPress={() => initializePurchases()}
               style={styles.retryButton}
             >
-              <ThemedText style={[styles.retryButtonText, { color: Colors.dark.accent }]}>
+              <ThemedText
+                style={[styles.retryButtonText, { color: Colors.dark.accent }]}
+              >
                 Retry
               </ThemedText>
             </Pressable>
@@ -551,12 +676,19 @@ export default function SubscriptionScreen() {
         ) : null}
 
         <View style={styles.heroSection}>
-          <View style={[styles.heroIcon, { backgroundColor: Colors.dark.accent }]}>
+          <View
+            style={[styles.heroIcon, { backgroundColor: Colors.dark.accent }]}
+          >
             <Feather name="zap" size={32} color="#000000" />
           </View>
-          <ThemedText style={styles.heroTitle}>Unlock Your Full Potential</ThemedText>
-          <ThemedText style={[styles.heroSubtitle, { color: theme.textSecondary }]}>
-            Get unlimited access to all premium features and accelerate your personal evolution.
+          <ThemedText style={styles.heroTitle}>
+            Unlock Your Full Potential
+          </ThemedText>
+          <ThemedText
+            style={[styles.heroSubtitle, { color: theme.textSecondary }]}
+          >
+            Get unlimited access to all premium features and accelerate your
+            personal evolution.
           </ThemedText>
         </View>
 
@@ -573,7 +705,9 @@ export default function SubscriptionScreen() {
           ) : !initializationComplete ? (
             <View style={styles.planLoadingCard}>
               <ActivityIndicator size="small" color={Colors.dark.accent} />
-              <ThemedText style={[styles.planLoadingText, { color: theme.textSecondary }]}>
+              <ThemedText
+                style={[styles.planLoadingText, { color: theme.textSecondary }]}
+              >
                 Loading yearly plan…
               </ThemedText>
             </View>
@@ -589,7 +723,9 @@ export default function SubscriptionScreen() {
           ) : !initializationComplete ? (
             <View style={styles.planLoadingCard}>
               <ActivityIndicator size="small" color={Colors.dark.accent} />
-              <ThemedText style={[styles.planLoadingText, { color: theme.textSecondary }]}>
+              <ThemedText
+                style={[styles.planLoadingText, { color: theme.textSecondary }]}
+              >
                 Loading monthly plan…
               </ThemedText>
             </View>
@@ -597,8 +733,10 @@ export default function SubscriptionScreen() {
         </View>
 
         <View style={styles.featuresSection}>
-          <ThemedText style={styles.featuresSectionTitle}>Premium Features</ThemedText>
-          
+          <ThemedText style={styles.featuresSectionTitle}>
+            Premium Features
+          </ThemedText>
+
           <FeatureRow
             icon="users"
             title="Unlimited Personas"
@@ -626,7 +764,9 @@ export default function SubscriptionScreen() {
         </View>
 
         <View style={styles.freeFeatures}>
-          <ThemedText style={[styles.freeFeaturesTitle, { color: theme.textSecondary }]}>
+          <ThemedText
+            style={[styles.freeFeaturesTitle, { color: theme.textSecondary }]}
+          >
             Free Plan Includes
           </ThemedText>
           <FeatureRow
@@ -657,7 +797,12 @@ export default function SubscriptionScreen() {
         ]}
       >
         {selectedProduct ? (
-          <ThemedText style={[styles.subscriptionDisclosure, { color: theme.textSecondary }]}>
+          <ThemedText
+            style={[
+              styles.subscriptionDisclosure,
+              { color: theme.textSecondary },
+            ]}
+          >
             {selectedPlan === "yearly"
               ? `Annual subscription — ${selectedProduct.price} per year, billed once per year. `
               : `Monthly subscription — ${selectedProduct.price} per month, billed monthly. `}
@@ -671,7 +816,12 @@ export default function SubscriptionScreen() {
               : "Settings > [your name] > Subscriptions."}
           </ThemedText>
         ) : (
-          <ThemedText style={[styles.subscriptionDisclosure, { color: theme.textSecondary }]}>
+          <ThemedText
+            style={[
+              styles.subscriptionDisclosure,
+              { color: theme.textSecondary },
+            ]}
+          >
             Subscription pricing and terms will appear here once the store
             connection loads.
           </ThemedText>
@@ -684,18 +834,26 @@ export default function SubscriptionScreen() {
             accessibilityRole="link"
             accessibilityLabel="Open Terms of Use"
           >
-            <ThemedText style={[styles.legalLinkText, { color: theme.textSecondary }]}>
+            <ThemedText
+              style={[styles.legalLinkText, { color: theme.textSecondary }]}
+            >
               Terms of Use (EULA)
             </ThemedText>
           </Pressable>
-          <ThemedText style={[styles.legalSeparator, { color: theme.textSecondary }]}>|</ThemedText>
+          <ThemedText
+            style={[styles.legalSeparator, { color: theme.textSecondary }]}
+          >
+            |
+          </ThemedText>
           <Pressable
             onPress={() => WebBrowser.openBrowserAsync(`${getApiUrl()}privacy`)}
             style={styles.legalLink}
             accessibilityRole="link"
             accessibilityLabel="Open Privacy Policy"
           >
-            <ThemedText style={[styles.legalLinkText, { color: theme.textSecondary }]}>
+            <ThemedText
+              style={[styles.legalLinkText, { color: theme.textSecondary }]}
+            >
               Privacy Policy
             </ThemedText>
           </Pressable>
@@ -742,7 +900,9 @@ export default function SubscriptionScreen() {
           {isRestoring ? (
             <ActivityIndicator size="small" color={Colors.dark.accent} />
           ) : (
-            <ThemedText style={[styles.restoreButtonText, { color: Colors.dark.accent }]}>
+            <ThemedText
+              style={[styles.restoreButtonText, { color: Colors.dark.accent }]}
+            >
               Restore Purchases
             </ThemedText>
           )}

@@ -13,7 +13,7 @@ const apiSecret = process.env.API_SECRET;
 
 if (process.env.NODE_ENV === "production" && !apiSecret) {
   throw new Error(
-    "API_SECRET must be set in production. Refusing to start with unauthenticated API endpoints."
+    "API_SECRET must be set in production. Refusing to start with unauthenticated API endpoints.",
   );
 }
 

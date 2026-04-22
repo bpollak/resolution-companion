@@ -6,7 +6,9 @@
 
 export function toDateKey(isoOrDateOnly: string): string {
   if (!isoOrDateOnly) return "";
-  return isoOrDateOnly.includes("T") ? isoOrDateOnly.split("T")[0] : isoOrDateOnly;
+  return isoOrDateOnly.includes("T")
+    ? isoOrDateOnly.split("T")[0]
+    : isoOrDateOnly;
 }
 
 export function toLocalDateKey(date: Date): string {
@@ -18,7 +20,7 @@ export function toLocalDateKey(date: Date): string {
 
 export function isSubscriptionActive(
   isPremium: boolean,
-  expiresAt: string | null | undefined
+  expiresAt: string | null | undefined,
 ): boolean {
   if (!isPremium) return false;
   if (!expiresAt) return true;

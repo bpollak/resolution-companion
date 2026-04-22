@@ -10,7 +10,7 @@ const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 export function rateLimiter(
   maxRequests: number,
   windowMs: number,
-  keyFn?: (req: Request) => string
+  keyFn?: (req: Request) => string,
 ) {
   return (req: Request, res: Response, next: NextFunction) => {
     const key = keyFn
@@ -25,7 +25,9 @@ export function rateLimiter(
     }
 
     if (entry.count >= maxRequests) {
-      res.status(429).json({ error: "Too many requests. Please try again later." });
+      res
+        .status(429)
+        .json({ error: "Too many requests. Please try again later." });
       return;
     }
 
@@ -38,14 +40,19 @@ export function deviceOrIpKey(req: Request): string {
   const deviceId =
     typeof req.body?.deviceId === "string" ? req.body.deviceId : null;
   const header =
-    typeof req.header("x-device-id") === "string" ? req.header("x-device-id") : null;
+    typeof req.header("x-device-id") === "string"
+      ? req.header("x-device-id")
+      : null;
   const ip = req.ip || req.socket.remoteAddress || "unknown";
   return `${deviceId || header || "nodev"}|${ip}`;
 }
 
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of rateLimitStore) {
-    if (now > entry.resetTime) rateLimitStore.delete(key);
-  }
-}, 5 * 60 * 1000);
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [key, entry] of rateLimitStore) {
+      if (now > entry.resetTime) rateLimitStore.delete(key);
+    }
+  },
+  5 * 60 * 1000,
+);

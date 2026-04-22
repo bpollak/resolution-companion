@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -21,7 +21,12 @@ import { useApp } from "@/context/AppContext";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ChatBubble } from "@/components/ChatBubble";
-import { getOnboardingResponse, extractPersonaFromConversation, AIMessage } from "@/lib/ai";
+import { AiDisclosure } from "@/components/AiDisclosure";
+import {
+  getOnboardingResponse,
+  extractPersonaFromConversation,
+  AIMessage,
+} from "@/lib/ai";
 import { logger } from "@/lib/logger";
 
 const MIN_ACTIONS_PER_PERSONA = 3;
@@ -52,27 +57,53 @@ interface IntroPage {
   icon: keyof typeof Feather.glyphMap;
   title: string;
   subtitle: string;
-  details?: { icon: keyof typeof Feather.glyphMap; text: string; color: string }[];
+  details?: {
+    icon: keyof typeof Feather.glyphMap;
+    text: string;
+    color: string;
+  }[];
 }
 
 const INTRO_PAGES: IntroPage[] = [
   {
     icon: "compass",
     title: "Welcome to Resolution Companion",
-    subtitle: "Build better habits and make real progress on your goals with personalized daily actions and AI-powered coaching.",
+    subtitle:
+      "Build better habits and make real progress on your goals with personalized daily actions and AI-powered coaching.",
     details: [
-      { icon: "target", text: "Daily habit tracking", color: ACCENT_COLORS.cyan },
-      { icon: "message-circle", text: "AI coaching sessions", color: ACCENT_COLORS.pink },
-      { icon: "trending-up", text: "Progress insights", color: ACCENT_COLORS.purple },
+      {
+        icon: "target",
+        text: "Daily habit tracking",
+        color: ACCENT_COLORS.cyan,
+      },
+      {
+        icon: "message-circle",
+        text: "AI coaching sessions",
+        color: ACCENT_COLORS.pink,
+      },
+      {
+        icon: "trending-up",
+        text: "Progress insights",
+        color: ACCENT_COLORS.purple,
+      },
     ],
   },
   {
     icon: "message-circle",
     title: "Start with a Quick Chat",
-    subtitle: "Answer a couple of questions about what you'd like to improve. We'll create a personalized plan just for you.",
+    subtitle:
+      "Answer a couple of questions about what you'd like to improve. We'll create a personalized plan just for you.",
     details: [
-      { icon: "clock", text: "Takes about 2 minutes", color: ACCENT_COLORS.cyan },
-      { icon: "shield", text: "Your answers stay private", color: ACCENT_COLORS.green },
+      {
+        icon: "clock",
+        text: "Takes about 2 minutes",
+        color: ACCENT_COLORS.cyan,
+      },
+      {
+        icon: "shield",
+        text: "Your answers stay private",
+        color: ACCENT_COLORS.green,
+      },
     ],
   },
   {
@@ -80,14 +111,30 @@ const INTRO_PAGES: IntroPage[] = [
     title: "Free vs Premium",
     subtitle: "Get started for free, or unlock everything with Premium.",
     details: [
-      { icon: "user", text: "Free: 1 persona, 10 check-ins/month", color: ACCENT_COLORS.cyan },
-      { icon: "star", text: "Premium: Unlimited personas & coaching", color: ACCENT_COLORS.orange },
-      { icon: "edit-2", text: "Both: Full customization of your plan", color: ACCENT_COLORS.green },
+      {
+        icon: "user",
+        text: "Free: 1 persona, 10 check-ins/month",
+        color: ACCENT_COLORS.cyan,
+      },
+      {
+        icon: "star",
+        text: "Premium: Unlimited personas & coaching",
+        color: ACCENT_COLORS.orange,
+      },
+      {
+        icon: "edit-2",
+        text: "Both: Full customization of your plan",
+        color: ACCENT_COLORS.green,
+      },
     ],
   },
 ];
 
-const STEP_COLORS = [ACCENT_COLORS.cyan, ACCENT_COLORS.pink, ACCENT_COLORS.purple];
+const STEP_COLORS = [
+  ACCENT_COLORS.cyan,
+  ACCENT_COLORS.pink,
+  ACCENT_COLORS.purple,
+];
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
@@ -107,6 +154,14 @@ export default function OnboardingScreen() {
 
   const flatListRef = useRef<FlatList>(null);
   const messageCount = useRef(0);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const handleBeginOnboarding = async () => {
     setShowIntro(false);
@@ -122,9 +177,11 @@ export default function OnboardingScreen() {
     setStreamingText("");
     try {
       const response = await getOnboardingResponse([], (chunk) => {
+        if (!mountedRef.current) return;
         setStreamingText((prev) => prev + chunk);
       });
 
+      if (!mountedRef.current) return;
       setIsStreaming(false);
       const aiMessage: ChatMessage = {
         id: Date.now().toString(),
@@ -135,11 +192,12 @@ export default function OnboardingScreen() {
       setStreamingText("");
     } catch (error) {
       logger.error("Failed to start conversation:", error);
+      if (!mountedRef.current) return;
       Alert.alert("Error", "Failed to connect to AI. Please try again.");
       setIsStreaming(false);
       setStreamingText("");
     } finally {
-      setIsLoading(false);
+      if (mountedRef.current) setIsLoading(false);
     }
   };
 
@@ -171,9 +229,11 @@ export default function OnboardingScreen() {
       aiMessages.push({ role: "user", content: userMessage.content });
 
       const response = await getOnboardingResponse(aiMessages, (chunk) => {
+        if (!mountedRef.current) return;
         setStreamingText((prev) => prev + chunk);
       });
 
+      if (!mountedRef.current) return;
       setIsStreaming(false);
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -188,11 +248,12 @@ export default function OnboardingScreen() {
       }
     } catch (error) {
       logger.error("Failed to send message:", error);
+      if (!mountedRef.current) return;
       Alert.alert("Error", "Failed to get AI response. Please try again.");
       setIsStreaming(false);
       setStreamingText("");
     } finally {
-      setIsLoading(false);
+      if (mountedRef.current) setIsLoading(false);
     }
   };
 
@@ -213,7 +274,13 @@ export default function OnboardingScreen() {
             title: "Build Daily Momentum",
             elementalAction: {
               title: "Complete one action toward your goal",
-              frequency: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+              frequency: [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+              ],
               kickstartVersion: "Spend 2 minutes planning your next step",
               anchorLink: "After I check my phone in the morning",
             },
@@ -268,10 +335,11 @@ export default function OnboardingScreen() {
       });
 
       const results = await Promise.all(benchmarkPromises);
-      
+
       const allBenchmarks = results.map((r) => r.benchmark);
       const allActions = results.map((r, index) => ({
-        id: Date.now().toString() + index + Math.random().toString(36).substr(2),
+        id:
+          Date.now().toString() + index + Math.random().toString(36).substr(2),
         benchmarkId: allBenchmarks[index].id,
         title: r.action.title,
         frequency: r.action.frequency,
@@ -290,12 +358,14 @@ export default function OnboardingScreen() {
 
       navigation.reset({
         index: 0,
-        routes: [{
-          name: "Main",
-          state: {
-            routes: [{ name: "ProgressTab" }],
+        routes: [
+          {
+            name: "Main",
+            state: {
+              routes: [{ name: "ProgressTab" }],
+            },
           },
-        }],
+        ],
       });
     } catch (error) {
       logger.error("Failed to extract persona:", error);
@@ -332,7 +402,9 @@ export default function OnboardingScreen() {
 
   if (showIntro) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+      <View
+        style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
+      >
         <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
           {navigation.canGoBack() ? (
             <Pressable
@@ -350,17 +422,40 @@ export default function OnboardingScreen() {
         <View style={styles.introPageContent}>
           <View style={styles.introHero}>
             <View style={styles.heroLogoContainer}>
-              <View style={[styles.heroGlowRing, { borderColor: STEP_COLORS[introPage] + "40" }]} />
+              <View
+                style={[
+                  styles.heroGlowRing,
+                  { borderColor: STEP_COLORS[introPage] + "40" },
+                ]}
+              />
               <View style={styles.heroLogoInner}>
-                <View style={[styles.heroLogoCore, { backgroundColor: STEP_COLORS[introPage] + "30" }]}>
-                  <Feather name={currentIntroPage.icon} size={40} color={STEP_COLORS[introPage]} />
+                <View
+                  style={[
+                    styles.heroLogoCore,
+                    { backgroundColor: STEP_COLORS[introPage] + "30" },
+                  ]}
+                >
+                  <Feather
+                    name={currentIntroPage.icon}
+                    size={40}
+                    color={STEP_COLORS[introPage]}
+                  />
                 </View>
               </View>
             </View>
-            <ThemedText style={styles.introTitle}>{currentIntroPage.title}</ThemedText>
-            <ThemedText style={[styles.introSubtitle, { color: theme.textSecondary }]}>
+            <ThemedText style={styles.introTitle}>
+              {currentIntroPage.title}
+            </ThemedText>
+            <ThemedText
+              style={[styles.introSubtitle, { color: theme.textSecondary }]}
+            >
               {currentIntroPage.subtitle}
             </ThemedText>
+            {introPage === 0 ? (
+              <View style={{ marginTop: Spacing.lg, alignItems: "center" }}>
+                <AiDisclosure />
+              </View>
+            ) : null}
           </View>
 
           {currentIntroPage.details ? (
@@ -370,20 +465,43 @@ export default function OnboardingScreen() {
                   key={index}
                   style={[
                     styles.introDetailRow,
-                    { backgroundColor: isDark ? Colors.dark.backgroundDefault : Colors.light.backgroundDefault },
+                    {
+                      backgroundColor: isDark
+                        ? Colors.dark.backgroundDefault
+                        : Colors.light.backgroundDefault,
+                    },
                   ]}
                 >
-                  <View style={[styles.introDetailIcon, { backgroundColor: detail.color + "20" }]}>
-                    <Feather name={detail.icon} size={18} color={detail.color} />
+                  <View
+                    style={[
+                      styles.introDetailIcon,
+                      { backgroundColor: detail.color + "20" },
+                    ]}
+                  >
+                    <Feather
+                      name={detail.icon}
+                      size={18}
+                      color={detail.color}
+                    />
                   </View>
-                  <ThemedText style={styles.introDetailText}>{detail.text}</ThemedText>
+                  <ThemedText style={styles.introDetailText}>
+                    {detail.text}
+                  </ThemedText>
                 </View>
               ))}
             </View>
           ) : null}
         </View>
 
-        <View style={[styles.introFooter, { paddingBottom: Math.max(insets.bottom, 20) + Spacing.xl, backgroundColor: theme.backgroundRoot }]}>
+        <View
+          style={[
+            styles.introFooter,
+            {
+              paddingBottom: Math.max(insets.bottom, 20) + Spacing.xl,
+              backgroundColor: theme.backgroundRoot,
+            },
+          ]}
+        >
           <View style={styles.paginationDots}>
             {INTRO_PAGES.map((_, index) => (
               <View
@@ -391,7 +509,10 @@ export default function OnboardingScreen() {
                 style={[
                   styles.paginationDot,
                   {
-                    backgroundColor: index === introPage ? STEP_COLORS[introPage] : theme.backgroundTertiary,
+                    backgroundColor:
+                      index === introPage
+                        ? STEP_COLORS[introPage]
+                        : theme.backgroundTertiary,
                     width: index === introPage ? 24 : 8,
                   },
                 ]}
@@ -405,7 +526,12 @@ export default function OnboardingScreen() {
                 onPress={handlePrevPage}
                 style={({ pressed }) => [
                   styles.backButton,
-                  { backgroundColor: isDark ? Colors.dark.backgroundDefault : Colors.light.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+                  {
+                    backgroundColor: isDark
+                      ? Colors.dark.backgroundDefault
+                      : Colors.light.backgroundDefault,
+                    opacity: pressed ? 0.8 : 1,
+                  },
                 ]}
               >
                 <Feather name="arrow-left" size={20} color={theme.text} />
@@ -426,7 +552,9 @@ export default function OnboardingScreen() {
           </View>
 
           {isLastIntroPage ? (
-            <ThemedText style={[styles.introFooterNote, { color: theme.textSecondary }]}>
+            <ThemedText
+              style={[styles.introFooterNote, { color: theme.textSecondary }]}
+            >
               Takes about 2 minutes
             </ThemedText>
           ) : null}
@@ -454,15 +582,41 @@ export default function OnboardingScreen() {
 
       <View style={styles.progressBarContainer}>
         <View style={styles.progressSteps}>
-          <View style={[styles.progressStep, { backgroundColor: Colors.dark.accent }]} />
-          <View style={[styles.progressStep, { backgroundColor: messageCount.current >= 1 ? Colors.dark.accent : theme.backgroundTertiary }]} />
-          <View style={[styles.progressStep, { backgroundColor: conversationComplete ? Colors.dark.accent : theme.backgroundTertiary }]} />
+          <View
+            style={[
+              styles.progressStep,
+              { backgroundColor: Colors.dark.accent },
+            ]}
+          />
+          <View
+            style={[
+              styles.progressStep,
+              {
+                backgroundColor:
+                  messageCount.current >= 1
+                    ? Colors.dark.accent
+                    : theme.backgroundTertiary,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.progressStep,
+              {
+                backgroundColor: conversationComplete
+                  ? Colors.dark.accent
+                  : theme.backgroundTertiary,
+              },
+            ]}
+          />
         </View>
-        <ThemedText style={[styles.progressStepLabel, { color: theme.textSecondary }]}>
-          {conversationComplete 
-            ? "Ready to create your persona" 
-            : messageCount.current >= 1 
-              ? "Step 2 of 2: Tell us more" 
+        <ThemedText
+          style={[styles.progressStepLabel, { color: theme.textSecondary }]}
+        >
+          {conversationComplete
+            ? "Ready to create your persona"
+            : messageCount.current >= 1
+              ? "Step 2 of 2: Tell us more"
               : "Step 1 of 2: Share your vision"}
         </ThemedText>
       </View>
@@ -487,10 +641,21 @@ export default function OnboardingScreen() {
       />
 
       {conversationComplete && !isExtracting ? (
-        <View style={[styles.finishContainer, { paddingBottom: insets.bottom + Spacing.lg }]}>
+        <View
+          style={[
+            styles.finishContainer,
+            { paddingBottom: insets.bottom + Spacing.lg },
+          ]}
+        >
           <View style={styles.progressIndicator}>
-            <Feather name="check-circle" size={16} color={Colors.dark.success} />
-            <ThemedText style={[styles.progressText, { color: theme.textSecondary }]}>
+            <Feather
+              name="check-circle"
+              size={16}
+              color={Colors.dark.success}
+            />
+            <ThemedText
+              style={[styles.progressText, { color: theme.textSecondary }]}
+            >
               Ready to create your persona
             </ThemedText>
           </View>
@@ -510,9 +675,16 @@ export default function OnboardingScreen() {
       ) : null}
 
       {isExtracting ? (
-        <View style={[styles.extractingContainer, { paddingBottom: insets.bottom + Spacing.lg }]}>
+        <View
+          style={[
+            styles.extractingContainer,
+            { paddingBottom: insets.bottom + Spacing.lg },
+          ]}
+        >
           <ActivityIndicator size="large" color={Colors.dark.accent} />
-          <ThemedText style={[styles.extractingText, { color: theme.textSecondary }]}>
+          <ThemedText
+            style={[styles.extractingText, { color: theme.textSecondary }]}
+          >
             Creating your personalized evolution plan...
           </ThemedText>
         </View>

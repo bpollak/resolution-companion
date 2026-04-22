@@ -9,14 +9,16 @@ async function loadIAPModule(): Promise<boolean> {
   if (Platform.OS === "web") {
     return false;
   }
-  
+
   // Check if the native module exists before attempting to import
   // This prevents the "Cannot find native module" error in Expo Go
   if (!NativeModules.ExpoInAppPurchases) {
-    logger.log("ExpoInAppPurchases native module not available (expected in Expo Go)");
+    logger.log(
+      "ExpoInAppPurchases native module not available (expected in Expo Go)",
+    );
     return false;
   }
-  
+
   try {
     InAppPurchases = await import("expo-in-app-purchases");
     return true;
@@ -38,6 +40,10 @@ export const PRODUCT_IDS = {
     default: "premium_yearly",
   }),
 };
+
+const IAP_CONNECT_TIMEOUT_MS = 8000;
+const IAP_PRODUCTS_TIMEOUT_MS = 8000;
+const IAP_VALIDATE_TIMEOUT_MS = 15000;
 
 export interface IAPProduct {
   productId: string;
@@ -65,11 +71,11 @@ class IAPService {
     if (Platform.OS === "web") {
       return false;
     }
-    
+
     if (!this.moduleLoaded) {
       this.moduleLoaded = await loadIAPModule();
     }
-    
+
     return this.moduleLoaded && InAppPurchases !== null;
   }
 
@@ -91,10 +97,13 @@ class IAPService {
     try {
       // Add timeout to prevent hanging
       const connectPromise = InAppPurchases.connectAsync();
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error("IAP connect timeout")), 8000)
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error("IAP connect timeout")),
+          IAP_CONNECT_TIMEOUT_MS,
+        ),
       );
-      
+
       await Promise.race([connectPromise, timeoutPromise]);
       this.isConnected = true;
       return true;
@@ -105,7 +114,11 @@ class IAPService {
   }
 
   async disconnect(): Promise<void> {
-    if (this.isConnected && InAppPurchases && typeof InAppPurchases.disconnectAsync === "function") {
+    if (
+      this.isConnected &&
+      InAppPurchases &&
+      typeof InAppPurchases.disconnectAsync === "function"
+    ) {
       try {
         await InAppPurchases.disconnectAsync();
         this.isConnected = false;
@@ -130,7 +143,7 @@ class IAPService {
       }
 
       const productIds = [PRODUCT_IDS.MONTHLY, PRODUCT_IDS.YEARLY].filter(
-        Boolean
+        Boolean,
       ) as string[];
 
       if (typeof InAppPurchases.getProductsAsync !== "function") {
@@ -139,14 +152,20 @@ class IAPService {
       }
 
       logger.log("Fetching IAP products:", productIds);
-      
+
       // Add timeout to prevent hanging
       const getProductsPromise = InAppPurchases.getProductsAsync(productIds);
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error("IAP getProducts timeout")), 8000)
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error("IAP getProducts timeout")),
+          IAP_PRODUCTS_TIMEOUT_MS,
+        ),
       );
-      
-      const { results } = await Promise.race([getProductsPromise, timeoutPromise]) as { results: any[] };
+
+      const { results } = (await Promise.race([
+        getProductsPromise,
+        timeoutPromise,
+      ])) as { results: any[] };
 
       if (!results || results.length === 0) {
         logger.log("No IAP products returned from store");
@@ -154,7 +173,7 @@ class IAPService {
       }
 
       logger.log("IAP products fetched successfully:", results.length);
-      
+
       this.products = results.map((product) => ({
         productId: product.productId,
         title: product.title,
@@ -170,19 +189,19 @@ class IAPService {
       return this.products;
     } catch (error: any) {
       logger.error("Failed to get products:", error);
-      
+
       const errorMessage = error?.message || String(error);
       if (errorMessage.includes("BILLING_UNAVAILABLE")) {
         logger.log("Billing unavailable - App Store/Play Store not configured");
       }
-      
+
       return [];
     }
   }
 
   setPurchaseListener(
     onPurchase: (purchase: IAPPurchase) => void,
-    onError: (error: Error) => void
+    onError: (error: Error) => void,
   ): void {
     if (Platform.OS === "web" || !InAppPurchases) {
       return;
@@ -195,81 +214,101 @@ class IAPService {
     }
 
     const IAP = InAppPurchases;
-    IAP.setPurchaseListener(async (result: { responseCode: number; results?: any[] }) => {
-      const { responseCode, results } = result;
-      if (responseCode === IAP.IAPResponseCode.OK && results) {
-        for (const purchase of results) {
-          if (purchase.acknowledged) {
-            continue;
-          }
-
-          const iapPurchase: IAPPurchase = {
-            productId: purchase.productId,
-            transactionId: purchase.orderId || "",
-            transactionReceipt: purchase.transactionReceipt || "",
-            purchaseTime: purchase.purchaseTime || Date.now(),
-          };
-
-          try {
-            const validated = await this.validateReceipt(iapPurchase);
-            if (validated) {
-              if (typeof IAP.finishTransactionAsync === "function") {
-                await IAP.finishTransactionAsync(purchase, true);
-              }
-              onPurchase(iapPurchase);
-            } else {
-              onError(new Error("Receipt validation failed"));
+    IAP.setPurchaseListener(
+      async (result: { responseCode: number; results?: any[] }) => {
+        const { responseCode, results } = result;
+        if (responseCode === IAP.IAPResponseCode.OK && results) {
+          for (const purchase of results) {
+            if (purchase.acknowledged) {
+              continue;
             }
-          } catch (error) {
-            onError(error as Error);
+
+            const iapPurchase: IAPPurchase = {
+              productId: purchase.productId,
+              transactionId: purchase.orderId || "",
+              transactionReceipt: purchase.transactionReceipt || "",
+              purchaseTime: purchase.purchaseTime || Date.now(),
+            };
+
+            try {
+              const validated = await this.validateReceipt(iapPurchase);
+              if (validated) {
+                if (typeof IAP.finishTransactionAsync === "function") {
+                  await IAP.finishTransactionAsync(purchase, true);
+                }
+                onPurchase(iapPurchase);
+              } else {
+                onError(new Error("Receipt validation failed"));
+              }
+            } catch (error) {
+              onError(error as Error);
+            }
           }
+        } else if (responseCode === IAP.IAPResponseCode.USER_CANCELED) {
+          logger.log("User cancelled the purchase");
+        } else if (responseCode === IAP.IAPResponseCode.DEFERRED) {
+          logger.log("Purchase deferred - awaiting approval");
+        } else {
+          onError(new Error(`Purchase failed with code: ${responseCode}`));
         }
-      } else if (responseCode === IAP.IAPResponseCode.USER_CANCELED) {
-        logger.log("User cancelled the purchase");
-      } else if (responseCode === IAP.IAPResponseCode.DEFERRED) {
-        logger.log("Purchase deferred - awaiting approval");
-      } else {
-        onError(new Error(`Purchase failed with code: ${responseCode}`));
-      }
-    });
+      },
+    );
   }
 
   async purchaseProduct(productId: string): Promise<void> {
     const available = await this.isAvailable();
     if (!available || !InAppPurchases) {
-      throw new Error("In-app purchases are not available on this device. Please try again or contact support.");
+      throw new Error(
+        "In-app purchases are not available on this device. Please try again or contact support.",
+      );
     }
 
     try {
       const connected = await this.connect();
       if (!connected) {
-        throw new Error("Unable to connect to the App Store. Please check your connection and try again.");
+        throw new Error(
+          "Unable to connect to the App Store. Please check your connection and try again.",
+        );
       }
 
       if (typeof InAppPurchases.purchaseItemAsync !== "function") {
-        throw new Error("In-app purchases are not supported in this environment.");
+        throw new Error(
+          "In-app purchases are not supported in this environment.",
+        );
       }
 
       await InAppPurchases.purchaseItemAsync(productId);
     } catch (error: any) {
       logger.error("Purchase failed:", error);
-      
+
       const errorMessage = error?.message || String(error);
-      
-      if (errorMessage.includes("E_USER_CANCELLED") || 
-          errorMessage.includes("USER_CANCELED") ||
-          errorMessage.includes("cancel")) {
+
+      if (
+        errorMessage.includes("E_USER_CANCELLED") ||
+        errorMessage.includes("USER_CANCELED") ||
+        errorMessage.includes("cancel")
+      ) {
         throw new Error("USER_CANCELED");
       }
-      
-      if (errorMessage.includes("NETWORK") || errorMessage.includes("network")) {
-        throw new Error("Network error. Please check your connection and try again.");
+
+      if (
+        errorMessage.includes("NETWORK") ||
+        errorMessage.includes("network")
+      ) {
+        throw new Error(
+          "Network error. Please check your connection and try again.",
+        );
       }
-      
-      if (errorMessage.includes("ITEM_UNAVAILABLE") || errorMessage.includes("not found")) {
-        throw new Error("This subscription is temporarily unavailable. Please try again later.");
+
+      if (
+        errorMessage.includes("ITEM_UNAVAILABLE") ||
+        errorMessage.includes("not found")
+      ) {
+        throw new Error(
+          "This subscription is temporarily unavailable. Please try again later.",
+        );
       }
-      
+
       throw error;
     }
   }
@@ -340,11 +379,14 @@ class IAPService {
             receipt: purchase.transactionReceipt,
             purchaseTime: purchase.purchaseTime,
           }),
-        }
+        },
       );
 
       const timeoutPromise = new Promise<Response>((_, reject) =>
-        setTimeout(() => reject(new Error("Validation timeout")), 15000)
+        setTimeout(
+          () => reject(new Error("Validation timeout")),
+          IAP_VALIDATE_TIMEOUT_MS,
+        ),
       );
 
       const response = await Promise.race([validatePromise, timeoutPromise]);

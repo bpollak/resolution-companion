@@ -12,7 +12,9 @@ import { logger } from "./logger";
 let SecureStore: typeof import("expo-secure-store") | null = null;
 let attemptedLoad = false;
 
-async function loadSecureStore(): Promise<typeof import("expo-secure-store") | null> {
+async function loadSecureStore(): Promise<
+  typeof import("expo-secure-store") | null
+> {
   if (SecureStore || attemptedLoad) return SecureStore;
   attemptedLoad = true;
 
@@ -25,7 +27,10 @@ async function loadSecureStore(): Promise<typeof import("expo-secure-store") | n
     SecureStore = await import("expo-secure-store");
     return SecureStore;
   } catch (error) {
-    logger.warn("expo-secure-store not available, falling back to AsyncStorage", error);
+    logger.warn(
+      "expo-secure-store not available, falling back to AsyncStorage",
+      error,
+    );
     return null;
   }
 }
@@ -37,7 +42,10 @@ export const secureStorage = {
       try {
         return await store.getItemAsync(key);
       } catch (error) {
-        logger.warn("SecureStore getItem failed, falling back to AsyncStorage", error);
+        logger.warn(
+          "SecureStore getItem failed, falling back to AsyncStorage",
+          error,
+        );
       }
     }
     return AsyncStorage.getItem(key);
@@ -52,7 +60,10 @@ export const secureStorage = {
         await AsyncStorage.removeItem(key).catch(() => {});
         return;
       } catch (error) {
-        logger.warn("SecureStore setItem failed, falling back to AsyncStorage", error);
+        logger.warn(
+          "SecureStore setItem failed, falling back to AsyncStorage",
+          error,
+        );
       }
     }
     await AsyncStorage.setItem(key, value);

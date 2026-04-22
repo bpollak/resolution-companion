@@ -12,19 +12,25 @@ import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ProgressBar } from "@/components/ProgressBar";
 import { Toast } from "@/components/Toast";
+import { toDateKey, toLocalDateKey } from "@/lib/date";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
-function getLocalDateString(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+const getLocalDateString = toLocalDateKey;
 
 interface DayInfo {
   date: Date;
@@ -42,26 +48,43 @@ interface SelectedDateDetailsProps {
   benchmarks: any[];
   isDark: boolean;
   theme: any;
-  onToggleAction: (actionId: string, dateStr: string, completed: boolean) => void;
+  onToggleAction: (
+    actionId: string,
+    dateStr: string,
+    completed: boolean,
+  ) => void;
 }
 
-function SelectedDateDetails({ date, actions, dailyLogs, benchmarks, isDark, theme, onToggleAction }: SelectedDateDetailsProps) {
+function SelectedDateDetails({
+  date,
+  actions,
+  dailyLogs,
+  benchmarks,
+  isDark,
+  theme,
+  onToggleAction,
+}: SelectedDateDetailsProps) {
   const dateStr = getLocalDateString(date);
   const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
-  const formattedDate = date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-  
+  const formattedDate = date.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const selectedDateNormalized = new Date(date);
   selectedDateNormalized.setHours(0, 0, 0, 0);
   const isFutureDate = selectedDateNormalized > today;
-  
-  const dayActions = actions.filter((a) => a.frequency && a.frequency.includes(dayOfWeek));
-  
+
+  const dayActions = actions.filter(
+    (a) => a.frequency && a.frequency.includes(dayOfWeek),
+  );
+
   const actionStatuses = dayActions.map((action) => {
     const log = dailyLogs.find((l) => {
-      const logDateStr = l.logDate.includes("T") ? l.logDate.split("T")[0] : l.logDate;
-      return l.actionId === action.id && logDateStr === dateStr;
+      return l.actionId === action.id && toDateKey(l.logDate) === dateStr;
     });
     const benchmark = benchmarks.find((b) => b.id === action.benchmarkId);
     return {
@@ -79,23 +102,40 @@ function SelectedDateDetails({ date, actions, dailyLogs, benchmarks, isDark, the
   };
 
   return (
-    <View style={[styles.selectedDateContainer, { backgroundColor: isDark ? Colors.dark.backgroundDefault : Colors.light.backgroundDefault }]}>
+    <View
+      style={[
+        styles.selectedDateContainer,
+        {
+          backgroundColor: isDark
+            ? Colors.dark.backgroundDefault
+            : Colors.light.backgroundDefault,
+        },
+      ]}
+    >
       <View style={styles.selectedDateHeader}>
         <Feather name="calendar" size={18} color={Colors.dark.accent} />
-        <ThemedText style={styles.selectedDateTitle}>{formattedDate}</ThemedText>
+        <ThemedText style={styles.selectedDateTitle}>
+          {formattedDate}
+        </ThemedText>
         {dayActions.length > 0 ? (
-          <ThemedText style={[styles.selectedDateSummary, { color: theme.textSecondary }]}>
+          <ThemedText
+            style={[styles.selectedDateSummary, { color: theme.textSecondary }]}
+          >
             {completedCount}/{dayActions.length} done
           </ThemedText>
         ) : null}
       </View>
-      
+
       {isFutureDate ? (
-        <ThemedText style={[styles.noActionsForDay, { color: theme.textSecondary }]}>
+        <ThemedText
+          style={[styles.noActionsForDay, { color: theme.textSecondary }]}
+        >
           Future dates cannot be logged
         </ThemedText>
       ) : dayActions.length === 0 ? (
-        <ThemedText style={[styles.noActionsForDay, { color: theme.textSecondary }]}>
+        <ThemedText
+          style={[styles.noActionsForDay, { color: theme.textSecondary }]}
+        >
           No actions scheduled
         </ThemedText>
       ) : (
@@ -112,16 +152,34 @@ function SelectedDateDetails({ date, actions, dailyLogs, benchmarks, isDark, the
                 color={completed ? Colors.dark.success : theme.textSecondary}
               />
               <View style={styles.selectedDateActionInfo}>
-                <ThemedText style={[styles.selectedDateActionTitle, completed && { textDecorationLine: "line-through", opacity: 0.7 }]}>
+                <ThemedText
+                  style={[
+                    styles.selectedDateActionTitle,
+                    completed && {
+                      textDecorationLine: "line-through",
+                      opacity: 0.7,
+                    },
+                  ]}
+                >
                   {action.title}
                 </ThemedText>
                 {benchmark ? (
-                  <ThemedText style={[styles.selectedDateBenchmark, { color: theme.textSecondary }]}>
+                  <ThemedText
+                    style={[
+                      styles.selectedDateBenchmark,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
                     {benchmark.title}
                   </ThemedText>
                 ) : null}
               </View>
-              <Feather name="chevron-right" size={16} color={theme.textSecondary} style={{ opacity: 0.5 }} />
+              <Feather
+                name="chevron-right"
+                size={16}
+                color={theme.textSecondary}
+                style={{ opacity: 0.5 }}
+              />
             </Pressable>
           ))}
         </View>
@@ -135,33 +193,53 @@ export default function CalendarScreen() {
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const { theme, isDark } = useTheme();
-  const { actions, dailyLogs, benchmarks, hasOnboarded, persona, toggleDailyLog } = useApp();
+  const {
+    actions,
+    dailyLogs,
+    benchmarks,
+    hasOnboarded,
+    persona,
+    toggleDailyLog,
+  } = useApp();
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
-  const [toastType, setToastType] = useState<"success" | "info" | "warning">("info");
+  const [toastType, setToastType] = useState<"success" | "info" | "warning">(
+    "info",
+  );
 
-  const showToast = (message: string, type: "success" | "info" | "warning" = "info") => {
+  const showToast = (
+    message: string,
+    type: "success" | "info" | "warning" = "info",
+  ) => {
     setToastMessage(message);
     setToastType(type);
     setToastVisible(true);
   };
 
-  const handleToggleAction = async (actionId: string, dateStr: string, wasCompleted: boolean) => {
+  const handleToggleAction = async (
+    actionId: string,
+    dateStr: string,
+    wasCompleted: boolean,
+  ) => {
     try {
+      await toggleDailyLog(actionId, dateStr);
+      // Fire haptics only after the write succeeds, so a failed toggle
+      // doesn't produce a false-positive success buzz.
       if (wasCompleted) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      await toggleDailyLog(actionId, dateStr);
       const action = actions.find((a) => a.id === actionId);
       if (action) {
         showToast(
-          wasCompleted ? `Unmarked "${action.title}"` : `Completed "${action.title}"`,
-          wasCompleted ? "info" : "success"
+          wasCompleted
+            ? `Unmarked "${action.title}"`
+            : `Completed "${action.title}"`,
+          wasCompleted ? "info" : "success",
         );
       }
     } catch (error) {
@@ -170,7 +248,9 @@ export default function CalendarScreen() {
   };
 
   const personaActions = useMemo(() => {
-    const personaBenchmarkIds = benchmarks.filter((b) => b.personaId === persona?.id).map((b) => b.id);
+    const personaBenchmarkIds = benchmarks
+      .filter((b) => b.personaId === persona?.id)
+      .map((b) => b.id);
     return actions.filter((a) => personaBenchmarkIds.includes(a.benchmarkId));
   }, [actions, benchmarks, persona?.id]);
 
@@ -184,11 +264,11 @@ export default function CalendarScreen() {
   const calendarDays = useMemo(() => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
-    
+
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const startPadding = firstDay.getDay();
-    
+
     const days: DayInfo[] = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -210,22 +290,26 @@ export default function CalendarScreen() {
       const dateStr = getLocalDateString(date);
       const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
 
-      const todayActions = personaActions.filter((a) => a.frequency.includes(dayOfWeek));
-      const completedLogs = dailyLogs.filter((log) => {
-        const logDateStr = log.logDate.includes("T") ? log.logDate.split("T")[0] : log.logDate;
-        return logDateStr === dateStr && log.status;
-      });
+      const todayActions = personaActions.filter((a) =>
+        a.frequency.includes(dayOfWeek),
+      );
+      const completedLogs = dailyLogs.filter(
+        (log) => toDateKey(log.logDate) === dateStr && log.status,
+      );
 
       const prevDate = new Date(year, month, day - 1);
       const prevDateStr = getLocalDateString(prevDate);
-      const prevDayOfWeek = prevDate.toLocaleDateString("en-US", { weekday: "long" });
-      const prevActions = personaActions.filter((a) => a.frequency.includes(prevDayOfWeek));
-      const prevCompletedLogs = dailyLogs.filter((log) => {
-        const logDateStr = log.logDate.includes("T") ? log.logDate.split("T")[0] : log.logDate;
-        return logDateStr === prevDateStr && log.status;
+      const prevDayOfWeek = prevDate.toLocaleDateString("en-US", {
+        weekday: "long",
       });
+      const prevActions = personaActions.filter((a) =>
+        a.frequency.includes(prevDayOfWeek),
+      );
+      const prevCompletedLogs = dailyLogs.filter(
+        (log) => toDateKey(log.logDate) === prevDateStr && log.status,
+      );
 
-      const hasStreak = 
+      const hasStreak =
         prevActions.length > 0 &&
         prevCompletedLogs.length === prevActions.length &&
         todayActions.length > 0 &&
@@ -258,11 +342,15 @@ export default function CalendarScreen() {
   }, [currentDate, personaActions, dailyLogs]);
 
   const prevMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    setCurrentDate(
+      new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1),
+    );
   };
 
   const nextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    setCurrentDate(
+      new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1),
+    );
   };
 
   const personaBenchmarks = useMemo(() => {
@@ -271,26 +359,28 @@ export default function CalendarScreen() {
 
   const benchmarkProgress = useMemo(() => {
     return personaBenchmarks.map((benchmark) => {
-      const benchmarkActions = personaActions.filter((a) => a.benchmarkId === benchmark.id);
+      const benchmarkActions = personaActions.filter(
+        (a) => a.benchmarkId === benchmark.id,
+      );
       if (benchmarkActions.length === 0) return { benchmark, progress: 0 };
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       const trackableDays: string[] = [];
       for (let i = 0; i < 30; i++) {
         const date = new Date();
         date.setDate(date.getDate() - i);
         date.setHours(0, 0, 0, 0);
-        
+
         if (personaCreatedDate && date < personaCreatedDate) {
           continue;
         }
-        
+
         if (date > today) {
           continue;
         }
-        
+
         trackableDays.push(date.toISOString().split("T")[0]);
       }
 
@@ -305,7 +395,8 @@ export default function CalendarScreen() {
           if (action.frequency.includes(dayOfWeek)) {
             totalExpected++;
             const log = dailyLogs.find(
-              (l) => l.actionId === action.id && l.logDate.split("T")[0] === dateStr
+              (l) =>
+                l.actionId === action.id && l.logDate.split("T")[0] === dateStr,
             );
             if (log?.status) totalCompleted++;
           }
@@ -314,7 +405,10 @@ export default function CalendarScreen() {
 
       return {
         benchmark,
-        progress: totalExpected > 0 ? Math.round((totalCompleted / totalExpected) * 100) : 0,
+        progress:
+          totalExpected > 0
+            ? Math.round((totalCompleted / totalExpected) * 100)
+            : 0,
       };
     });
   }, [personaBenchmarks, personaActions, dailyLogs, personaCreatedDate]);
@@ -333,7 +427,9 @@ export default function CalendarScreen() {
       >
         <View style={styles.emptyContainer}>
           <Feather name="calendar" size={64} color={theme.textSecondary} />
-          <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
+          <ThemedText
+            style={[styles.emptyText, { color: theme.textSecondary }]}
+          >
             Complete onboarding to track your consistency
           </ThemedText>
         </View>
@@ -352,125 +448,191 @@ export default function CalendarScreen() {
         }}
         scrollIndicatorInsets={{ bottom: insets.bottom }}
       >
-      <View style={styles.monthHeader}>
-        <Pressable onPress={prevMonth} style={styles.navButton}>
-          <Feather name="chevron-left" size={24} color={theme.text} />
-        </Pressable>
-        <ThemedText style={styles.monthTitle}>
-          {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
-        </ThemedText>
-        <Pressable onPress={nextMonth} style={styles.navButton}>
-          <Feather name="chevron-right" size={24} color={theme.text} />
-        </Pressable>
-      </View>
+        <View style={styles.monthHeader}>
+          <Pressable onPress={prevMonth} style={styles.navButton}>
+            <Feather name="chevron-left" size={24} color={theme.text} />
+          </Pressable>
+          <ThemedText style={styles.monthTitle}>
+            {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
+          </ThemedText>
+          <Pressable onPress={nextMonth} style={styles.navButton}>
+            <Feather name="chevron-right" size={24} color={theme.text} />
+          </Pressable>
+        </View>
 
-      <View style={styles.daysHeader}>
-        {DAYS.map((day) => (
-          <View key={day} style={styles.dayHeaderCell}>
-            <ThemedText style={[styles.dayHeaderText, { color: theme.textSecondary }]}>
-              {day}
-            </ThemedText>
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.calendarGrid}>
-        {calendarDays.map((dayInfo, index) => {
-          const isComplete = dayInfo.totalCount > 0 && dayInfo.completedCount === dayInfo.totalCount;
-          const isPartial = dayInfo.completedCount > 0 && dayInfo.completedCount < dayInfo.totalCount;
-          const isAfterPersonaCreated = personaCreatedDate ? dayInfo.date >= personaCreatedDate : true;
-          const isMissed = dayInfo.totalCount > 0 && dayInfo.completedCount === 0 && dayInfo.date < new Date() && isAfterPersonaCreated;
-
-          return (
-            <Pressable
-              key={index}
-              onPress={() => setSelectedDate(dayInfo.date)}
-              style={styles.dayCell}
-            >
-              {dayInfo.hasStreak ? (
-                <View style={[styles.streakLine, { backgroundColor: Colors.dark.accent }]} />
-              ) : null}
-              <View
-                style={[
-                  styles.dayMarker,
-                  dayInfo.isToday && styles.todayMarker,
-                  dayInfo.isToday && { borderColor: Colors.dark.accent },
-                  isComplete && { backgroundColor: Colors.dark.success },
-                  isPartial && { backgroundColor: Colors.dark.warning },
-                  isMissed && { 
-                    backgroundColor: "transparent",
-                    borderWidth: 2,
-                    borderColor: Colors.dark.error,
-                  },
-                ]}
+        <View style={styles.daysHeader}>
+          {DAYS.map((day) => (
+            <View key={day} style={styles.dayHeaderCell}>
+              <ThemedText
+                style={[styles.dayHeaderText, { color: theme.textSecondary }]}
               >
-                <ThemedText
+                {day}
+              </ThemedText>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.calendarGrid}>
+          {calendarDays.map((dayInfo, index) => {
+            const isComplete =
+              dayInfo.totalCount > 0 &&
+              dayInfo.completedCount === dayInfo.totalCount;
+            const isPartial =
+              dayInfo.completedCount > 0 &&
+              dayInfo.completedCount < dayInfo.totalCount;
+            const isAfterPersonaCreated = personaCreatedDate
+              ? dayInfo.date >= personaCreatedDate
+              : true;
+            const isMissed =
+              dayInfo.totalCount > 0 &&
+              dayInfo.completedCount === 0 &&
+              dayInfo.date < new Date() &&
+              isAfterPersonaCreated;
+
+            const statusLabel = isComplete
+              ? "all actions completed"
+              : isPartial
+                ? `${dayInfo.completedCount} of ${dayInfo.totalCount} actions completed`
+                : isMissed
+                  ? "missed day"
+                  : dayInfo.totalCount > 0
+                    ? `${dayInfo.totalCount} actions scheduled`
+                    : "no actions scheduled";
+            return (
+              <Pressable
+                key={index}
+                onPress={() => setSelectedDate(dayInfo.date)}
+                style={styles.dayCell}
+                accessibilityRole="button"
+                accessibilityLabel={`${dayInfo.date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}, ${statusLabel}`}
+                accessibilityState={{
+                  selected:
+                    selectedDate?.toDateString() ===
+                    dayInfo.date.toDateString(),
+                }}
+              >
+                {dayInfo.hasStreak ? (
+                  <View
+                    style={[
+                      styles.streakLine,
+                      { backgroundColor: Colors.dark.accent },
+                    ]}
+                  />
+                ) : null}
+                <View
                   style={[
-                    styles.dayText,
-                    !dayInfo.isCurrentMonth && { opacity: 0.3 },
-                    (isComplete || isPartial) && { color: "#000000" },
+                    styles.dayMarker,
+                    dayInfo.isToday && styles.todayMarker,
+                    dayInfo.isToday && { borderColor: Colors.dark.accent },
+                    isComplete && { backgroundColor: Colors.dark.success },
+                    isPartial && { backgroundColor: Colors.dark.warning },
+                    isMissed && {
+                      backgroundColor: "transparent",
+                      borderWidth: 2,
+                      borderColor: Colors.dark.error,
+                    },
                   ]}
                 >
-                  {dayInfo.date.getDate()}
-                </ThemedText>
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <View style={styles.legendContainer}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: Colors.dark.success }]} />
-          <ThemedText style={[styles.legendText, { color: theme.textSecondary }]}>
-            Complete
-          </ThemedText>
+                  <ThemedText
+                    style={[
+                      styles.dayText,
+                      !dayInfo.isCurrentMonth && { opacity: 0.3 },
+                      (isComplete || isPartial) && { color: "#000000" },
+                    ]}
+                  >
+                    {dayInfo.date.getDate()}
+                  </ThemedText>
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: Colors.dark.warning }]} />
-          <ThemedText style={[styles.legendText, { color: theme.textSecondary }]}>
-            Partial
-          </ThemedText>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: "transparent", borderWidth: 2, borderColor: Colors.dark.error }]} />
-          <ThemedText style={[styles.legendText, { color: theme.textSecondary }]}>
-            Missed
-          </ThemedText>
-        </View>
-      </View>
 
-      {selectedDate && persona ? (
-        <SelectedDateDetails
-          date={selectedDate}
-          actions={personaActions}
-          dailyLogs={dailyLogs}
-          benchmarks={benchmarks.filter((b) => b.personaId === persona?.id)}
-          isDark={isDark}
-          theme={theme}
-          onToggleAction={handleToggleAction}
-        />
-      ) : null}
-
-      <ThemedText style={styles.sectionTitle}>Benchmark Progress</ThemedText>
-      
-      {benchmarkProgress.map(({ benchmark, progress }) => (
-        <View
-          key={benchmark.id}
-          style={[
-            styles.benchmarkCard,
-            { backgroundColor: isDark ? Colors.dark.backgroundDefault : Colors.light.backgroundDefault },
-          ]}
-        >
-          <View style={styles.benchmarkHeader}>
-            <ThemedText style={styles.benchmarkTitle}>{benchmark.title}</ThemedText>
-            <ThemedText style={[styles.benchmarkPercent, { color: Colors.dark.accent }]}>
-              {progress}%
+        <View style={styles.legendContainer}>
+          <View style={styles.legendItem}>
+            <View
+              style={[
+                styles.legendDot,
+                { backgroundColor: Colors.dark.success },
+              ]}
+            />
+            <ThemedText
+              style={[styles.legendText, { color: theme.textSecondary }]}
+            >
+              Complete
             </ThemedText>
           </View>
-          <ProgressBar progress={progress} />
+          <View style={styles.legendItem}>
+            <View
+              style={[
+                styles.legendDot,
+                { backgroundColor: Colors.dark.warning },
+              ]}
+            />
+            <ThemedText
+              style={[styles.legendText, { color: theme.textSecondary }]}
+            >
+              Partial
+            </ThemedText>
+          </View>
+          <View style={styles.legendItem}>
+            <View
+              style={[
+                styles.legendDot,
+                {
+                  backgroundColor: "transparent",
+                  borderWidth: 2,
+                  borderColor: Colors.dark.error,
+                },
+              ]}
+            />
+            <ThemedText
+              style={[styles.legendText, { color: theme.textSecondary }]}
+            >
+              Missed
+            </ThemedText>
+          </View>
         </View>
-      ))}
+
+        {selectedDate && persona ? (
+          <SelectedDateDetails
+            date={selectedDate}
+            actions={personaActions}
+            dailyLogs={dailyLogs}
+            benchmarks={benchmarks.filter((b) => b.personaId === persona?.id)}
+            isDark={isDark}
+            theme={theme}
+            onToggleAction={handleToggleAction}
+          />
+        ) : null}
+
+        <ThemedText style={styles.sectionTitle}>Benchmark Progress</ThemedText>
+
+        {benchmarkProgress.map(({ benchmark, progress }) => (
+          <View
+            key={benchmark.id}
+            style={[
+              styles.benchmarkCard,
+              {
+                backgroundColor: isDark
+                  ? Colors.dark.backgroundDefault
+                  : Colors.light.backgroundDefault,
+              },
+            ]}
+          >
+            <View style={styles.benchmarkHeader}>
+              <ThemedText style={styles.benchmarkTitle}>
+                {benchmark.title}
+              </ThemedText>
+              <ThemedText
+                style={[styles.benchmarkPercent, { color: Colors.dark.accent }]}
+              >
+                {progress}%
+              </ThemedText>
+            </View>
+            <ProgressBar progress={progress} />
+          </View>
+        ))}
       </ScrollView>
       <Toast
         message={toastMessage}
