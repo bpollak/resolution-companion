@@ -40,7 +40,17 @@ export default function ReflectScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<any>();
   const { theme, isDark } = useTheme();
-  const { hasOnboarded, momentumScore, persona, addReflection, canUseReflection, incrementReflectionCount, subscription, monthlyReflectionCount, reflections } = useApp();
+  const {
+    hasOnboarded,
+    momentumScore,
+    persona,
+    addReflection,
+    canUseReflection,
+    incrementReflectionCount,
+    subscription,
+    monthlyReflectionCount,
+    reflections,
+  } = useApp();
 
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType | null>(null);
   const [isInSession, setIsInSession] = useState(false);
@@ -49,12 +59,14 @@ export default function ReflectScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [viewingPastSession, setViewingPastSession] = useState<string | null>(null);
+  const [viewingPastSession, setViewingPastSession] = useState<string | null>(
+    null,
+  );
 
   const flatListRef = useRef<FlatList>(null);
 
   const sortedReflections = [...reflections].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 
   const formatDate = (dateString: string) => {
@@ -75,7 +87,7 @@ export default function ReflectScreen() {
       navigation.navigate("Subscription");
       return;
     }
-    
+
     setSelectedPeriod(period);
     setIsInSession(true);
     setIsLoading(true);
@@ -83,27 +95,31 @@ export default function ReflectScreen() {
     setStreamingText("");
 
     const monthlyContext = getMonthlyContext(momentumScore);
-    
+
     if (persona.createdAt) {
       const createdDate = new Date(persona.createdAt);
       const today = new Date();
-      const daysSince = Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+      const daysSince = Math.floor(
+        (today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24),
+      );
       monthlyContext.personaCreatedAt = persona.createdAt;
       monthlyContext.daysSincePersonaCreated = daysSince;
     }
 
     try {
       const response = await getReflectionResponse(
-        [{
-          role: "user",
-          content: `I'm ready for my monthly check-in. My persona is "${persona.name}". Please help me review my progress this month.`,
-        }],
+        [
+          {
+            role: "user",
+            content: `I'm ready for my monthly check-in. My persona is "${persona.name}". Please help me review my progress this month.`,
+          },
+        ],
         momentumScore,
         period,
         (chunk) => {
           setStreamingText((prev) => prev + chunk);
         },
-        monthlyContext
+        monthlyContext,
       );
 
       setIsStreaming(false);
@@ -123,7 +139,7 @@ export default function ReflectScreen() {
       setSelectedPeriod(null);
       Alert.alert(
         "Connection Issue",
-        "We couldn't reach your AI coach. Please check your internet connection and try again."
+        "We couldn't reach your AI coach. Please check your internet connection and try again.",
       );
     } finally {
       setIsLoading(false);
@@ -157,15 +173,17 @@ export default function ReflectScreen() {
       aiMessages.push({ role: "user", content: userMessage.content });
 
       const monthlyContext = getMonthlyContext(momentumScore);
-      
+
       if (persona?.createdAt) {
         const createdDate = new Date(persona.createdAt);
         const today = new Date();
-        const daysSince = Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+        const daysSince = Math.floor(
+          (today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24),
+        );
         monthlyContext.personaCreatedAt = persona.createdAt;
         monthlyContext.daysSincePersonaCreated = daysSince;
       }
-      
+
       const response = await getReflectionResponse(
         aiMessages,
         momentumScore,
@@ -173,7 +191,7 @@ export default function ReflectScreen() {
         (chunk) => {
           setStreamingText((prev) => prev + chunk);
         },
-        monthlyContext
+        monthlyContext,
       );
 
       setIsStreaming(false);
@@ -195,8 +213,14 @@ export default function ReflectScreen() {
 
   const finishReflection = async () => {
     if (messages.length > 0 && selectedPeriod) {
-      const userMessages = messages.filter((m) => m.role === "user").map((m) => m.content).join("\n");
-      const aiMessages = messages.filter((m) => m.role === "assistant").map((m) => m.content).join("\n");
+      const userMessages = messages
+        .filter((m) => m.role === "user")
+        .map((m) => m.content)
+        .join("\n");
+      const aiMessages = messages
+        .filter((m) => m.role === "assistant")
+        .map((m) => m.content)
+        .join("\n");
       const conversationData = JSON.stringify(messages);
 
       await addReflection({
@@ -252,7 +276,7 @@ export default function ReflectScreen() {
             text: "Save",
             onPress: finishReflection,
           },
-        ]
+        ],
       );
     }
   };
@@ -275,7 +299,9 @@ export default function ReflectScreen() {
       >
         <View style={styles.emptyContainer}>
           <Feather name="edit-3" size={64} color={theme.textSecondary} />
-          <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
+          <ThemedText
+            style={[styles.emptyText, { color: theme.textSecondary }]}
+          >
             Complete onboarding to access coaching
           </ThemedText>
         </View>
@@ -291,24 +317,45 @@ export default function ReflectScreen() {
         try {
           conversationMessages = JSON.parse(session.conversation);
         } catch (error) {
-          logger.error("Failed to parse stored reflection conversation:", error);
+          logger.error(
+            "Failed to parse stored reflection conversation:",
+            error,
+          );
           conversationMessages = [];
         }
       }
-      
+
       const hasFullConversation = conversationMessages.length > 0;
 
       return (
-        <View style={[styles.chatContainer, { backgroundColor: theme.backgroundRoot }]}>
-          <View style={[styles.chatHeader, { paddingTop: headerHeight + Spacing.sm }]}>
-            <Pressable onPress={() => setViewingPastSession(null)} style={styles.closeButton}>
+        <View
+          style={[
+            styles.chatContainer,
+            { backgroundColor: theme.backgroundRoot },
+          ]}
+        >
+          <View
+            style={[
+              styles.chatHeader,
+              { paddingTop: headerHeight + Spacing.sm },
+            ]}
+          >
+            <Pressable
+              onPress={() => setViewingPastSession(null)}
+              style={styles.closeButton}
+            >
               <Feather name="arrow-left" size={24} color={theme.text} />
             </Pressable>
             <ThemedText style={styles.chatHeaderTitle}>
               {formatDate(session.createdAt)}
             </ThemedText>
             <View style={styles.doneButton}>
-              <ThemedText style={[styles.pastSessionMomentumValue, { color: Colors.dark.accent }]}>
+              <ThemedText
+                style={[
+                  styles.pastSessionMomentumValue,
+                  { color: Colors.dark.accent },
+                ]}
+              >
                 {session.momentumScore}%
               </ThemedText>
             </View>
@@ -316,7 +363,10 @@ export default function ReflectScreen() {
 
           <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={[styles.messageList, { paddingBottom: tabBarHeight + Spacing.xl }]}
+            contentContainerStyle={[
+              styles.messageList,
+              { paddingBottom: tabBarHeight + Spacing.xl },
+            ]}
             scrollIndicatorInsets={{ bottom: insets.bottom }}
           >
             {hasFullConversation ? (
@@ -355,16 +405,21 @@ export default function ReflectScreen() {
         <View style={styles.header}>
           <ThemedText style={styles.title}>AI Coaching</ThemedText>
           <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
-            Get personalized coaching to review your progress and receive guidance.
+            Get personalized coaching to review your progress and receive
+            guidance.
           </ThemedText>
         </View>
 
         <View style={styles.scoreCard}>
-          <ThemedText style={[styles.scoreLabel, { color: Colors.dark.accent }]}>
+          <ThemedText
+            style={[styles.scoreLabel, { color: Colors.dark.accent }]}
+          >
             Current Momentum
           </ThemedText>
           <ThemedText style={styles.scoreValue}>{momentumScore}%</ThemedText>
-          <ThemedText style={[styles.scoreHint, { color: theme.textSecondary }]}>
+          <ThemedText
+            style={[styles.scoreHint, { color: theme.textSecondary }]}
+          >
             {momentumScore >= 80
               ? "Excellent! You're building strong habits."
               : momentumScore >= 50
@@ -376,13 +431,31 @@ export default function ReflectScreen() {
         <View style={styles.sessionsCard}>
           <View style={styles.sessionsInfo}>
             <ThemedText style={styles.sessionsLabel}>
-              {subscription.isPremium ? "Unlimited Check-ins" : "Check-ins Available"}
+              {subscription.isPremium
+                ? "Unlimited Check-ins"
+                : "Check-ins Available"}
             </ThemedText>
-            <ThemedText style={[styles.sessionsCount, { color: monthlyReflectionCount >= 10 && !subscription.isPremium ? Colors.dark.error : Colors.dark.accent }]}>
-              {subscription.isPremium ? "Unlimited" : `${10 - monthlyReflectionCount} of 10`}
+            <ThemedText
+              style={[
+                styles.sessionsCount,
+                {
+                  color:
+                    monthlyReflectionCount >= 10 && !subscription.isPremium
+                      ? Colors.dark.error
+                      : Colors.dark.accent,
+                },
+              ]}
+            >
+              {subscription.isPremium
+                ? "Unlimited"
+                : `${10 - monthlyReflectionCount} of 10`}
             </ThemedText>
-            <ThemedText style={[styles.sessionsHint, { color: theme.textSecondary }]}>
-              {subscription.isPremium ? "Premium members get unlimited coaching" : "Resets at the start of each month"}
+            <ThemedText
+              style={[styles.sessionsHint, { color: theme.textSecondary }]}
+            >
+              {subscription.isPremium
+                ? "Premium members get unlimited coaching"
+                : "Resets at the start of each month"}
             </ThemedText>
           </View>
           {!subscription.isPremium ? (
@@ -392,11 +465,13 @@ export default function ReflectScreen() {
               accessibilityLabel="Upgrade to Premium for unlimited check-ins"
               style={({ pressed }) => [
                 styles.upgradeLink,
-                { opacity: pressed ? 0.7 : 1 }
+                { opacity: pressed ? 0.7 : 1 },
               ]}
             >
               <Feather name="zap" size={16} color={Colors.dark.accent} />
-              <ThemedText style={[styles.upgradeLinkText, { color: Colors.dark.accent }]}>
+              <ThemedText
+                style={[styles.upgradeLinkText, { color: Colors.dark.accent }]}
+              >
                 Upgrade to Premium
               </ThemedText>
             </Pressable>
@@ -432,9 +507,13 @@ export default function ReflectScreen() {
           </View>
           <View style={styles.periodContent}>
             <ThemedText style={styles.periodTitle}>
-              {canUseReflection() ? "Review Monthly Progress" : "Limit Reached — Upgrade"}
+              {canUseReflection()
+                ? "Review Monthly Progress"
+                : "Limit Reached — Upgrade"}
             </ThemedText>
-            <ThemedText style={[styles.periodDescription, { color: theme.textSecondary }]}>
+            <ThemedText
+              style={[styles.periodDescription, { color: theme.textSecondary }]}
+            >
               {canUseReflection()
                 ? "Get AI coaching based on your actions this month"
                 : "You've used all 10 free check-ins this month. Go Premium for unlimited coaching."}
@@ -445,7 +524,9 @@ export default function ReflectScreen() {
 
         {sortedReflections.length > 0 ? (
           <>
-            <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
+            <ThemedText
+              style={[styles.sectionTitle, { marginTop: Spacing.xl }]}
+            >
               Past Sessions
             </ThemedText>
             {sortedReflections.slice(0, 5).map((reflection) => (
@@ -463,25 +544,41 @@ export default function ReflectScreen() {
                 ]}
               >
                 <View style={styles.pastSessionIcon}>
-                  <Feather name="message-circle" size={20} color={Colors.dark.accent} />
+                  <Feather
+                    name="message-circle"
+                    size={20}
+                    color={Colors.dark.accent}
+                  />
                 </View>
                 <View style={styles.pastSessionContent}>
                   <ThemedText style={styles.pastSessionDate}>
                     {formatDate(reflection.createdAt)}
                   </ThemedText>
-                  <ThemedText 
-                    style={[styles.pastSessionPreview, { color: theme.textSecondary }]}
+                  <ThemedText
+                    style={[
+                      styles.pastSessionPreview,
+                      { color: theme.textSecondary },
+                    ]}
                     numberOfLines={1}
                   >
                     {reflection.aiFeedback.slice(0, 60)}...
                   </ThemedText>
                 </View>
                 <View style={styles.pastSessionMomentum}>
-                  <ThemedText style={[styles.pastSessionMomentumValue, { color: Colors.dark.accent }]}>
+                  <ThemedText
+                    style={[
+                      styles.pastSessionMomentumValue,
+                      { color: Colors.dark.accent },
+                    ]}
+                  >
                     {reflection.momentumScore}%
                   </ThemedText>
                 </View>
-                <Feather name="chevron-right" size={18} color={theme.textSecondary} />
+                <Feather
+                  name="chevron-right"
+                  size={18}
+                  color={theme.textSecondary}
+                />
               </Pressable>
             ))}
           </>
@@ -496,15 +593,20 @@ export default function ReflectScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={0}
     >
-      <View style={[styles.chatHeader, { paddingTop: headerHeight + Spacing.sm }]}>
+      <View
+        style={[styles.chatHeader, { paddingTop: headerHeight + Spacing.sm }]}
+      >
         <Pressable onPress={handleCloseSession} style={styles.closeButton}>
           <Feather name="x" size={24} color={theme.text} />
         </Pressable>
         <ThemedText style={styles.chatHeaderTitle}>
-          {selectedPeriod?.charAt(0).toUpperCase()}{selectedPeriod?.slice(1)} Reflection
+          {selectedPeriod?.charAt(0).toUpperCase()}
+          {selectedPeriod?.slice(1)} Reflection
         </ThemedText>
         <Pressable onPress={finishReflection} style={styles.doneButton}>
-          <ThemedText style={[styles.doneButtonText, { color: Colors.dark.accent }]}>
+          <ThemedText
+            style={[styles.doneButtonText, { color: Colors.dark.accent }]}
+          >
             Save
           </ThemedText>
         </Pressable>

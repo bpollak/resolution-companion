@@ -30,8 +30,14 @@ function setupCors(app: express.Application) {
 
       if (isAllowed) {
         res.header("Access-Control-Allow-Origin", origin);
-        res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        res.header("Access-Control-Allow-Headers", "Content-Type, Cache-Control, Pragma, X-Requested-With, X-API-Key");
+        res.header(
+          "Access-Control-Allow-Methods",
+          "GET, POST, PUT, DELETE, OPTIONS",
+        );
+        res.header(
+          "Access-Control-Allow-Headers",
+          "Content-Type, Cache-Control, Pragma, X-Requested-With, X-API-Key",
+        );
         res.header("Access-Control-Allow-Credentials", "true");
       }
     }
@@ -57,7 +63,11 @@ function setupBodyParsing(app: express.Application) {
 }
 
 // Endpoints whose responses contain device-linked data — log status only
-const SENSITIVE_LOG_PREFIXES = ["/api/subscription", "/api/user-data", "/api/iap"];
+const SENSITIVE_LOG_PREFIXES = [
+  "/api/subscription",
+  "/api/user-data",
+  "/api/iap",
+];
 
 function setupRequestLogging(app: express.Application) {
   app.use((req, res, next) => {
@@ -65,7 +75,9 @@ function setupRequestLogging(app: express.Application) {
     const path = req.path;
     let capturedJsonResponse: Record<string, unknown> | undefined = undefined;
 
-    const isSensitive = SENSITIVE_LOG_PREFIXES.some((prefix) => path.startsWith(prefix));
+    const isSensitive = SENSITIVE_LOG_PREFIXES.some((prefix) =>
+      path.startsWith(prefix),
+    );
 
     if (!isSensitive) {
       const originalResJson = res.json;
@@ -160,13 +172,16 @@ function configureExpoAndLanding(app: express.Application) {
     app.use("/_expo", express.static(path.join(staticBuildDir)));
 
     log("Expo routing: Checking expo-platform header on / and /manifest");
-    app.get(["/", "/manifest"], (req: Request, res: Response, next: Function) => {
-      const platform = req.header("expo-platform");
-      if (platform) {
-        return serveExpoManifest(platform, res);
-      }
-      next();
-    });
+    app.get(
+      ["/", "/manifest"],
+      (req: Request, res: Response, next: Function) => {
+        const platform = req.header("expo-platform");
+        if (platform) {
+          return serveExpoManifest(platform, res);
+        }
+        next();
+      },
+    );
   }
 
   app.get("/", (req: Request, res: Response) => {

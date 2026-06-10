@@ -30,7 +30,10 @@ export function buildLogIndex(logs: DailyLog[]): Map<string, DailyLog> {
  * The last `days` calendar days as YYYY-MM-DD strings (UTC, via toISOString),
  * excluding days before the persona was created and days after today.
  */
-export function getTrackableDays(personaCreatedDate: Date | null, days: number = 30): string[] {
+export function getTrackableDays(
+  personaCreatedDate: Date | null,
+  days: number = 30,
+): string[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -69,18 +72,23 @@ export function computeBenchmarkProgress(
   benchmarks: Benchmark[],
   actions: ElementalAction[],
   logIndex: Map<string, DailyLog>,
-  trackableDays: string[]
+  trackableDays: string[],
 ): BenchmarkProgressResult[] {
   // Day-of-week is derived by re-parsing the UTC date string, matching the
   // previous per-screen loops
   const dayInfos = trackableDays.map((dateStr) => ({
     dateStr,
-    dayOfWeek: new Date(dateStr).toLocaleDateString("en-US", { weekday: "long" }),
+    dayOfWeek: new Date(dateStr).toLocaleDateString("en-US", {
+      weekday: "long",
+    }),
   }));
 
   return benchmarks.map((benchmark) => {
-    const benchmarkActions = actions.filter((a) => a.benchmarkId === benchmark.id);
-    if (benchmarkActions.length === 0) return { benchmark, actions: [], progress: 0 };
+    const benchmarkActions = actions.filter(
+      (a) => a.benchmarkId === benchmark.id,
+    );
+    if (benchmarkActions.length === 0)
+      return { benchmark, actions: [], progress: 0 };
 
     let totalExpected = 0;
     let totalCompleted = 0;
@@ -103,14 +111,20 @@ export function computeBenchmarkProgress(
 
       return {
         action,
-        progress: actionExpected > 0 ? Math.round((actionCompleted / actionExpected) * 100) : 0,
+        progress:
+          actionExpected > 0
+            ? Math.round((actionCompleted / actionExpected) * 100)
+            : 0,
       };
     });
 
     return {
       benchmark,
       actions: actionProgress,
-      progress: totalExpected > 0 ? Math.round((totalCompleted / totalExpected) * 100) : 0,
+      progress:
+        totalExpected > 0
+          ? Math.round((totalCompleted / totalExpected) * 100)
+          : 0,
     };
   });
 }
@@ -126,7 +140,7 @@ export function computeBenchmarkProgress(
 export function computeMomentumScore(
   actions: ElementalAction[],
   logs: DailyLog[],
-  days: number = 7
+  days: number = 7,
 ): number {
   if (actions.length === 0) return 0;
 
@@ -152,5 +166,7 @@ export function computeMomentumScore(
     }
   }
 
-  return totalExpected > 0 ? Math.round((totalCompleted / totalExpected) * 100) : 0;
+  return totalExpected > 0
+    ? Math.round((totalCompleted / totalExpected) * 100)
+    : 0;
 }

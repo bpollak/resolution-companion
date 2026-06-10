@@ -17,7 +17,9 @@ async function loadIAPModule(): Promise<boolean> {
     // The Nitro native module is unavailable in Expo Go — only enable IAP
     // when it's actually ready so the rest of the app degrades gracefully.
     if (!mod.isNitroReady()) {
-      logger.log("react-native-iap native module not available (expected in Expo Go)");
+      logger.log(
+        "react-native-iap native module not available (expected in Expo Go)",
+      );
       return false;
     }
     IAP = mod;
@@ -90,7 +92,7 @@ class IAPService {
     try {
       const connectPromise = IAP.initConnection();
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("IAP connect timeout")), 8000)
+        setTimeout(() => reject(new Error("IAP connect timeout")), 8000),
       );
 
       await Promise.race([connectPromise, timeoutPromise]);
@@ -135,14 +137,14 @@ class IAPService {
       }
 
       const skus = [PRODUCT_IDS.MONTHLY, PRODUCT_IDS.YEARLY].filter(
-        Boolean
+        Boolean,
       ) as string[];
 
       logger.log("Fetching IAP products:", skus);
 
       const fetchPromise = IAP.fetchProducts({ skus, type: "subs" });
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("IAP fetchProducts timeout")), 8000)
+        setTimeout(() => reject(new Error("IAP fetchProducts timeout")), 8000),
       );
 
       const results = await Promise.race([fetchPromise, timeoutPromise]);
@@ -161,10 +163,11 @@ class IAPService {
         price: product.displayPrice,
         priceAmountMicros: Math.round((product.price ?? 0) * 1_000_000),
         priceCurrencyCode: product.currency,
-        subscriptionPeriod: product.id.toLowerCase().includes("year") ||
+        subscriptionPeriod:
+          product.id.toLowerCase().includes("year") ||
           product.id.toLowerCase().includes("annual")
-          ? "year"
-          : "month",
+            ? "year"
+            : "month",
       }));
 
       return this.products;
@@ -176,7 +179,7 @@ class IAPService {
 
   setPurchaseListener(
     onPurchase: (purchase: IAPPurchase) => void,
-    onError: (error: Error) => void
+    onError: (error: Error) => void,
   ): void {
     if (Platform.OS === "web" || !IAP) {
       return;
@@ -222,7 +225,7 @@ class IAPService {
         } catch (error) {
           onError(error as Error);
         }
-      })
+      }),
     );
 
     this.listenerSubscriptions.push(
@@ -238,20 +241,24 @@ class IAPService {
           return;
         }
         onError(new Error(error.message || `Purchase failed (${error.code})`));
-      })
+      }),
     );
   }
 
   async purchaseProduct(productId: string): Promise<void> {
     const available = await this.isAvailable();
     if (!available || !IAP) {
-      throw new Error("In-app purchases are not available on this device. Please try again or contact support.");
+      throw new Error(
+        "In-app purchases are not available on this device. Please try again or contact support.",
+      );
     }
 
     try {
       const connected = await this.connect();
       if (!connected) {
-        throw new Error("Unable to connect to the App Store. Please check your connection and try again.");
+        throw new Error(
+          "Unable to connect to the App Store. Please check your connection and try again.",
+        );
       }
 
       // Result is delivered via purchaseUpdatedListener / purchaseErrorListener
@@ -277,11 +284,18 @@ class IAPService {
       }
 
       if (errorMessage.toLowerCase().includes("network")) {
-        throw new Error("Network error. Please check your connection and try again.");
+        throw new Error(
+          "Network error. Please check your connection and try again.",
+        );
       }
 
-      if (errorMessage.includes("sku") || errorMessage.toLowerCase().includes("not found")) {
-        throw new Error("This subscription is temporarily unavailable. Please try again later.");
+      if (
+        errorMessage.includes("sku") ||
+        errorMessage.toLowerCase().includes("not found")
+      ) {
+        throw new Error(
+          "This subscription is temporarily unavailable. Please try again later.",
+        );
       }
 
       throw error;
@@ -312,7 +326,8 @@ class IAPService {
         const iapPurchase: IAPPurchase = {
           productId: purchase.productId,
           transactionId:
-            ("transactionId" in purchase && purchase.transactionId) || purchase.id,
+            ("transactionId" in purchase && purchase.transactionId) ||
+            purchase.id,
           transactionReceipt: purchase.purchaseToken || "",
           purchaseTime: purchase.transactionDate || Date.now(),
         };
@@ -332,7 +347,7 @@ class IAPService {
   }
 
   private async validateReceipt(
-    purchase: IAPPurchase
+    purchase: IAPPurchase,
   ): Promise<{ valid: boolean; expirationDate: string | null }> {
     try {
       const deviceId = await storage.getDeviceId();
@@ -353,11 +368,11 @@ class IAPService {
             receipt: purchase.transactionReceipt,
             purchaseTime: purchase.purchaseTime,
           }),
-        }
+        },
       );
 
       const timeoutPromise = new Promise<Response>((_, reject) =>
-        setTimeout(() => reject(new Error("Validation timeout")), 15000)
+        setTimeout(() => reject(new Error("Validation timeout")), 15000),
       );
 
       const response = await Promise.race([validatePromise, timeoutPromise]);

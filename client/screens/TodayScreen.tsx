@@ -46,23 +46,23 @@ function StylizedAppLogo() {
     rotation.value = withRepeat(
       withTiming(360, { duration: 20000, easing: Easing.linear }),
       -1,
-      false
+      false,
     );
     pulse.value = withRepeat(
       withSequence(
         withTiming(1.05, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.ease) })
+        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
       ),
       -1,
-      true
+      true,
     );
     glow.value = withRepeat(
       withSequence(
         withTiming(0.6, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.3, { duration: 2000, easing: Easing.inOut(Easing.ease) })
+        withTiming(0.3, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
       ),
       -1,
-      true
+      true,
     );
   }, []);
 
@@ -227,7 +227,6 @@ export default function TodayScreen() {
     personaAlignment,
     toggleDailyLog,
   } = useApp();
-  
 
   const today = new Date();
   const dayOfWeek = today.toLocaleDateString("en-US", { weekday: "long" });
@@ -238,7 +237,9 @@ export default function TodayScreen() {
   });
 
   const personaBenchmarkIds = useMemo(() => {
-    return benchmarks.filter((b) => b.personaId === persona?.id).map((b) => b.id);
+    return benchmarks
+      .filter((b) => b.personaId === persona?.id)
+      .map((b) => b.id);
   }, [benchmarks, persona?.id]);
 
   const todayActions = useMemo(() => {
@@ -250,15 +251,17 @@ export default function TodayScreen() {
   const todayDateStr = getLocalDateString(today);
 
   const getLogForAction = (actionId: string) => {
-    return dailyLogs.find(
-      (log) => {
-        const logDateStr = log.logDate.includes("T") ? log.logDate.split("T")[0] : log.logDate;
+    return (
+      dailyLogs.find((log) => {
+        const logDateStr = log.logDate.includes("T")
+          ? log.logDate.split("T")[0]
+          : log.logDate;
         return log.actionId === actionId && logDateStr === todayDateStr;
-      }
-    ) || null;
+      }) || null
+    );
   };
 
-  const getBenchmarkForAction = (action: typeof actions[0]) => {
+  const getBenchmarkForAction = (action: (typeof actions)[0]) => {
     return benchmarks.find((b) => b.id === action.benchmarkId);
   };
 
@@ -271,13 +274,15 @@ export default function TodayScreen() {
         logger.error("Failed to toggle action:", error);
       }
     },
-    [toggleDailyLog, todayDateStr]
+    [toggleDailyLog, todayDateStr],
   );
 
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowDayOfWeek = tomorrow.toLocaleDateString("en-US", { weekday: "long" });
-  
+  const tomorrowDayOfWeek = tomorrow.toLocaleDateString("en-US", {
+    weekday: "long",
+  });
+
   const tomorrowActions = useMemo(() => {
     return actions
       .filter((action) => personaBenchmarkIds.includes(action.benchmarkId))
@@ -301,10 +306,15 @@ export default function TodayScreen() {
           <ThemedText style={styles.emptyTitle}>
             Begin Your Evolution
           </ThemedText>
-          <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
-            Define who you are becoming and build the habits that will get you there.
+          <ThemedText
+            style={[styles.emptyText, { color: theme.textSecondary }]}
+          >
+            Define who you are becoming and build the habits that will get you
+            there.
           </ThemedText>
-          <AnimatedStartButton onPress={() => navigation.navigate("Onboarding")} />
+          <AnimatedStartButton
+            onPress={() => navigation.navigate("Onboarding")}
+          />
         </View>
       </View>
     );
@@ -321,7 +331,9 @@ export default function TodayScreen() {
       scrollIndicatorInsets={{ bottom: insets.bottom }}
     >
       <View style={styles.header}>
-        <ThemedText style={[styles.personaLabel, { color: Colors.dark.accent }]}>
+        <ThemedText
+          style={[styles.personaLabel, { color: Colors.dark.accent }]}
+        >
           Becoming
         </ThemedText>
         <ThemedText style={styles.personaName}>{persona.name}</ThemedText>
@@ -333,7 +345,9 @@ export default function TodayScreen() {
           size={160}
           label="Persona Alignment"
         />
-        <ThemedText style={[styles.alignmentHint, { color: theme.textSecondary }]}>
+        <ThemedText
+          style={[styles.alignmentHint, { color: theme.textSecondary }]}
+        >
           Based on your daily action completion
         </ThemedText>
       </View>
@@ -343,14 +357,26 @@ export default function TodayScreen() {
           {dateString}
         </ThemedText>
         <View style={styles.actionCount}>
-          <ThemedText style={[styles.actionCountText, { color: theme.textSecondary }]}>
-            {todayActions.length} action{todayActions.length !== 1 ? "s" : ""} today
+          <ThemedText
+            style={[styles.actionCountText, { color: theme.textSecondary }]}
+          >
+            {todayActions.length} action{todayActions.length !== 1 ? "s" : ""}{" "}
+            today
           </ThemedText>
         </View>
       </View>
 
       {todayActions.length === 0 ? (
-        <View style={[styles.noActionsCard, { backgroundColor: isDark ? Colors.dark.backgroundDefault : Colors.light.backgroundDefault }]}>
+        <View
+          style={[
+            styles.noActionsCard,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+            },
+          ]}
+        >
           <Feather name="check-circle" size={32} color={Colors.dark.success} />
           <ThemedText style={styles.noActionsText}>
             No actions scheduled for today. Rest and recharge!
@@ -362,13 +388,23 @@ export default function TodayScreen() {
               }}
               accessibilityRole="button"
               accessibilityLabel={`View ${tomorrowActions.length} ${tomorrowActions.length === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
-              style={({ pressed }) => [styles.tomorrowLink, { opacity: pressed ? 0.7 : 1 }]}
+              style={({ pressed }) => [
+                styles.tomorrowLink,
+                { opacity: pressed ? 0.7 : 1 },
+              ]}
             >
               <Feather name="calendar" size={16} color={Colors.dark.accent} />
-              <ThemedText style={[styles.tomorrowLinkText, { color: Colors.dark.accent }]}>
-                {tomorrowActions.length} action{tomorrowActions.length !== 1 ? "s" : ""} tomorrow
+              <ThemedText
+                style={[styles.tomorrowLinkText, { color: Colors.dark.accent }]}
+              >
+                {tomorrowActions.length} action
+                {tomorrowActions.length !== 1 ? "s" : ""} tomorrow
               </ThemedText>
-              <Feather name="chevron-right" size={16} color={Colors.dark.accent} />
+              <Feather
+                name="chevron-right"
+                size={16}
+                color={Colors.dark.accent}
+              />
             </Pressable>
           ) : null}
         </View>
@@ -386,7 +422,6 @@ export default function TodayScreen() {
           );
         })
       )}
-      
     </ScrollView>
   );
 }

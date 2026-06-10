@@ -7,7 +7,11 @@ import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
-import { buildLogIndex, getTrackableDays, computeBenchmarkProgress } from "@/lib/progress";
+import {
+  buildLogIndex,
+  getTrackableDays,
+  computeBenchmarkProgress,
+} from "@/lib/progress";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { CircularProgress } from "@/components/CircularProgress";
@@ -19,7 +23,14 @@ export default function ProgressScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<any>();
   const { theme, isDark } = useTheme();
-  const { hasOnboarded, persona, benchmarks, actions, dailyLogs, personaAlignment } = useApp();
+  const {
+    hasOnboarded,
+    persona,
+    benchmarks,
+    actions,
+    dailyLogs,
+    personaAlignment,
+  } = useApp();
 
   const personaBenchmarks = useMemo(() => {
     return benchmarks.filter((b) => b.personaId === persona?.id);
@@ -32,9 +43,9 @@ export default function ProgressScreen() {
     return date;
   }, [persona?.createdAt]);
 
-  const [expandedBenchmarks, setExpandedBenchmarks] = React.useState<Set<string>>(
-    () => new Set(personaBenchmarks.map((b) => b.id))
-  );
+  const [expandedBenchmarks, setExpandedBenchmarks] = React.useState<
+    Set<string>
+  >(() => new Set(personaBenchmarks.map((b) => b.id)));
 
   React.useEffect(() => {
     setExpandedBenchmarks(new Set(personaBenchmarks.map((b) => b.id)));
@@ -43,7 +54,12 @@ export default function ProgressScreen() {
   const benchmarkProgress = useMemo(() => {
     const logIndex = buildLogIndex(dailyLogs);
     const trackableDays = getTrackableDays(personaCreatedDate);
-    return computeBenchmarkProgress(personaBenchmarks, actions, logIndex, trackableDays);
+    return computeBenchmarkProgress(
+      personaBenchmarks,
+      actions,
+      logIndex,
+      trackableDays,
+    );
   }, [personaBenchmarks, actions, dailyLogs, personaCreatedDate]);
 
   const toggleExpand = (benchmarkId: string) => {
@@ -72,7 +88,9 @@ export default function ProgressScreen() {
       >
         <View style={styles.emptyContainer}>
           <Feather name="trending-up" size={64} color={theme.textSecondary} />
-          <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
+          <ThemedText
+            style={[styles.emptyText, { color: theme.textSecondary }]}
+          >
             Complete onboarding to track your progress
           </ThemedText>
         </View>
@@ -93,7 +111,11 @@ export default function ProgressScreen() {
       <View
         style={[
           styles.personaCard,
-          { backgroundColor: isDark ? Colors.dark.backgroundDefault : Colors.light.backgroundDefault },
+          {
+            backgroundColor: isDark
+              ? Colors.dark.backgroundDefault
+              : Colors.light.backgroundDefault,
+          },
         ]}
       >
         <View style={styles.personaHeader}>
@@ -101,14 +123,18 @@ export default function ProgressScreen() {
             <Feather name="target" size={24} color={Colors.dark.accent} />
           </View>
           <View style={styles.personaInfo}>
-            <ThemedText style={[styles.personaLabel, { color: Colors.dark.accent }]}>
+            <ThemedText
+              style={[styles.personaLabel, { color: Colors.dark.accent }]}
+            >
               Your Target Persona
             </ThemedText>
             <ThemedText style={styles.personaName}>{persona.name}</ThemedText>
           </View>
         </View>
         {persona.description ? (
-          <ThemedText style={[styles.personaDescription, { color: theme.textSecondary }]}>
+          <ThemedText
+            style={[styles.personaDescription, { color: theme.textSecondary }]}
+          >
             {persona.description}
           </ThemedText>
         ) : null}
@@ -132,127 +158,192 @@ export default function ProgressScreen() {
           ]}
         >
           <Feather name="plus" size={20} color={Colors.dark.accent} />
-          <ThemedText style={[styles.addButtonText, { color: Colors.dark.accent }]}>
+          <ThemedText
+            style={[styles.addButtonText, { color: Colors.dark.accent }]}
+          >
             Add
           </ThemedText>
         </Pressable>
       </View>
 
-      {benchmarkProgress.map(({ benchmark, actions: actionProgress, progress }) => (
-        <View key={benchmark.id}>
-          <Pressable
-            onPress={() => toggleExpand(benchmark.id)}
-            style={({ pressed }) => [
-              styles.benchmarkCard,
-              {
-                backgroundColor: isDark
-                  ? Colors.dark.backgroundDefault
-                  : Colors.light.backgroundDefault,
-                opacity: pressed ? 0.9 : 1,
-              },
-            ]}
-          >
-            <View style={styles.benchmarkHeader}>
-              <View style={styles.benchmarkTitleRow}>
-                <View
-                  style={[
-                    styles.statusDot,
-                    {
-                      backgroundColor:
-                        progress >= 80
-                          ? Colors.dark.success
-                          : progress >= 50
-                            ? Colors.dark.warning
-                            : Colors.dark.error,
-                    },
-                  ]}
-                />
-                <ThemedText style={styles.benchmarkTitle}>{benchmark.title}</ThemedText>
+      {benchmarkProgress.map(
+        ({ benchmark, actions: actionProgress, progress }) => (
+          <View key={benchmark.id}>
+            <Pressable
+              onPress={() => toggleExpand(benchmark.id)}
+              style={({ pressed }) => [
+                styles.benchmarkCard,
+                {
+                  backgroundColor: isDark
+                    ? Colors.dark.backgroundDefault
+                    : Colors.light.backgroundDefault,
+                  opacity: pressed ? 0.9 : 1,
+                },
+              ]}
+            >
+              <View style={styles.benchmarkHeader}>
+                <View style={styles.benchmarkTitleRow}>
+                  <View
+                    style={[
+                      styles.statusDot,
+                      {
+                        backgroundColor:
+                          progress >= 80
+                            ? Colors.dark.success
+                            : progress >= 50
+                              ? Colors.dark.warning
+                              : Colors.dark.error,
+                      },
+                    ]}
+                  />
+                  <ThemedText style={styles.benchmarkTitle}>
+                    {benchmark.title}
+                  </ThemedText>
+                </View>
+                <View style={styles.benchmarkMeta}>
+                  <Pressable
+                    onPress={() =>
+                      navigation.navigate("BenchmarkEditor", {
+                        benchmarkId: benchmark.id,
+                      })
+                    }
+                    hitSlop={8}
+                    style={({ pressed }) => [
+                      styles.editButton,
+                      {
+                        opacity: pressed ? 0.7 : 1,
+                        backgroundColor: "rgba(0, 217, 255, 0.15)",
+                      },
+                    ]}
+                  >
+                    <Feather
+                      name="edit-2"
+                      size={14}
+                      color={Colors.dark.accent}
+                    />
+                    <ThemedText style={styles.editButtonText}>Edit</ThemedText>
+                  </Pressable>
+                  <ThemedText
+                    style={[
+                      styles.benchmarkPercent,
+                      {
+                        color:
+                          progress >= 80
+                            ? Colors.dark.success
+                            : progress >= 50
+                              ? Colors.dark.accent
+                              : Colors.dark.warning,
+                      },
+                    ]}
+                  >
+                    {progress}%
+                  </ThemedText>
+                  <Feather
+                    name={
+                      expandedBenchmarks.has(benchmark.id)
+                        ? "chevron-up"
+                        : "chevron-down"
+                    }
+                    size={20}
+                    color={theme.textSecondary}
+                  />
+                </View>
               </View>
-              <View style={styles.benchmarkMeta}>
-                <Pressable
-                  onPress={() => navigation.navigate("BenchmarkEditor", { benchmarkId: benchmark.id })}
-                  hitSlop={8}
-                  style={({ pressed }) => [
-                    styles.editButton,
-                    { 
-                      opacity: pressed ? 0.7 : 1,
-                      backgroundColor: "rgba(0, 217, 255, 0.15)",
-                    },
-                  ]}
-                >
-                  <Feather name="edit-2" size={14} color={Colors.dark.accent} />
-                  <ThemedText style={styles.editButtonText}>Edit</ThemedText>
-                </Pressable>
-                <ThemedText style={[styles.benchmarkPercent, { color: progress >= 80 ? Colors.dark.success : progress >= 50 ? Colors.dark.accent : Colors.dark.warning }]}>
-                  {progress}%
-                </ThemedText>
-                <Feather
-                  name={expandedBenchmarks.has(benchmark.id) ? "chevron-up" : "chevron-down"}
-                  size={20}
-                  color={theme.textSecondary}
-                />
-              </View>
-            </View>
-            <ProgressBar progress={progress} />
-          </Pressable>
+              <ProgressBar progress={progress} />
+            </Pressable>
 
-          {expandedBenchmarks.has(benchmark.id) && actionProgress.length > 0 ? (
-            <View style={styles.actionsContainer}>
-              {actionProgress.map(({ action, progress: actionProg }) => (
-                <View
-                  key={action.id}
-                  style={[
-                    styles.actionCard,
-                    {
-                      backgroundColor: isDark
-                        ? Colors.dark.backgroundSecondary
-                        : Colors.light.backgroundSecondary,
-                    },
-                  ]}
-                >
-                  <View style={styles.actionHeader}>
-                    <ThemedText style={styles.actionTitle}>{action.title}</ThemedText>
-                    <ThemedText style={[styles.actionPercent, { color: theme.textSecondary }]}>
-                      {actionProg}%
-                    </ThemedText>
-                  </View>
-                  <View style={styles.actionDetails}>
-                    <View style={styles.actionDetail}>
-                      <Feather name="zap" size={14} color={Colors.dark.warning} />
-                      <ThemedText style={[styles.actionDetailText, { color: theme.textSecondary }]}>
-                        {action.kickstartVersion}
+            {expandedBenchmarks.has(benchmark.id) &&
+            actionProgress.length > 0 ? (
+              <View style={styles.actionsContainer}>
+                {actionProgress.map(({ action, progress: actionProg }) => (
+                  <View
+                    key={action.id}
+                    style={[
+                      styles.actionCard,
+                      {
+                        backgroundColor: isDark
+                          ? Colors.dark.backgroundSecondary
+                          : Colors.light.backgroundSecondary,
+                      },
+                    ]}
+                  >
+                    <View style={styles.actionHeader}>
+                      <ThemedText style={styles.actionTitle}>
+                        {action.title}
+                      </ThemedText>
+                      <ThemedText
+                        style={[
+                          styles.actionPercent,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
+                        {actionProg}%
                       </ThemedText>
                     </View>
-                    <View style={styles.actionDetail}>
-                      <Feather name="link" size={14} color={theme.textSecondary} />
-                      <ThemedText style={[styles.actionDetailText, { color: theme.textSecondary }]}>
-                        {action.anchorLink}
-                      </ThemedText>
-                    </View>
-                    <View style={styles.frequencyTags}>
-                      {action.frequency.map((day) => (
-                        <View
-                          key={day}
+                    <View style={styles.actionDetails}>
+                      <View style={styles.actionDetail}>
+                        <Feather
+                          name="zap"
+                          size={14}
+                          color={Colors.dark.warning}
+                        />
+                        <ThemedText
                           style={[
-                            styles.frequencyTag,
-                            { backgroundColor: isDark ? Colors.dark.backgroundTertiary : Colors.light.backgroundTertiary },
+                            styles.actionDetailText,
+                            { color: theme.textSecondary },
                           ]}
                         >
-                          <ThemedText style={[styles.frequencyTagText, { color: Colors.dark.accent }]}>
-                            {day.slice(0, 3)}
-                          </ThemedText>
-                        </View>
-                      ))}
+                          {action.kickstartVersion}
+                        </ThemedText>
+                      </View>
+                      <View style={styles.actionDetail}>
+                        <Feather
+                          name="link"
+                          size={14}
+                          color={theme.textSecondary}
+                        />
+                        <ThemedText
+                          style={[
+                            styles.actionDetailText,
+                            { color: theme.textSecondary },
+                          ]}
+                        >
+                          {action.anchorLink}
+                        </ThemedText>
+                      </View>
+                      <View style={styles.frequencyTags}>
+                        {action.frequency.map((day) => (
+                          <View
+                            key={day}
+                            style={[
+                              styles.frequencyTag,
+                              {
+                                backgroundColor: isDark
+                                  ? Colors.dark.backgroundTertiary
+                                  : Colors.light.backgroundTertiary,
+                              },
+                            ]}
+                          >
+                            <ThemedText
+                              style={[
+                                styles.frequencyTagText,
+                                { color: Colors.dark.accent },
+                              ]}
+                            >
+                              {day.slice(0, 3)}
+                            </ThemedText>
+                          </View>
+                        ))}
+                      </View>
                     </View>
+                    <ProgressBar progress={actionProg} height={4} />
                   </View>
-                  <ProgressBar progress={actionProg} height={4} />
-                </View>
-              ))}
-            </View>
-          ) : null}
-        </View>
-      ))}
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ),
+      )}
     </ScrollView>
   );
 }

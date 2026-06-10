@@ -110,13 +110,18 @@ export const storage = {
     return safeParse<Persona | null>(value, null);
   },
 
-  async setPersona(persona: Omit<Persona, "id" | "createdAt">): Promise<Persona> {
+  async setPersona(
+    persona: Omit<Persona, "id" | "createdAt">,
+  ): Promise<Persona> {
     const newPersona: Persona = {
       ...persona,
       id: generateId(),
       createdAt: new Date().toISOString(),
     };
-    await AsyncStorage.setItem(STORAGE_KEYS.PERSONA, JSON.stringify(newPersona));
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.PERSONA,
+      JSON.stringify(newPersona),
+    );
     const personas = await this.getPersonas();
     personas.push(newPersona);
     await this.setPersonas(personas);
@@ -152,7 +157,9 @@ export const storage = {
     await AsyncStorage.setItem(STORAGE_KEYS.PERSONAS, JSON.stringify(personas));
   },
 
-  async addPersona(persona: Omit<Persona, "id" | "createdAt">): Promise<Persona> {
+  async addPersona(
+    persona: Omit<Persona, "id" | "createdAt">,
+  ): Promise<Persona> {
     const newPersona: Persona = {
       ...persona,
       id: generateId(),
@@ -161,7 +168,10 @@ export const storage = {
     const personas = await this.getPersonas();
     personas.push(newPersona);
     await this.setPersonas(personas);
-    await AsyncStorage.setItem(STORAGE_KEYS.PERSONA, JSON.stringify(newPersona));
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.PERSONA,
+      JSON.stringify(newPersona),
+    );
     await this.setActivePersonaId(newPersona.id);
     return newPersona;
   },
@@ -171,12 +181,18 @@ export const storage = {
     const filtered = personas.filter((p) => p.id !== id);
     await this.setPersonas(filtered);
     const benchmarks = await this.getBenchmarks();
-    const benchmarkIds = benchmarks.filter((b) => b.personaId === id).map((b) => b.id);
+    const benchmarkIds = benchmarks
+      .filter((b) => b.personaId === id)
+      .map((b) => b.id);
     const filteredBenchmarks = benchmarks.filter((b) => b.personaId !== id);
     await this.setBenchmarks(filteredBenchmarks);
     const actions = await this.getElementalActions();
-    const actionIds = actions.filter((a) => benchmarkIds.includes(a.benchmarkId)).map((a) => a.id);
-    const filteredActions = actions.filter((a) => !benchmarkIds.includes(a.benchmarkId));
+    const actionIds = actions
+      .filter((a) => benchmarkIds.includes(a.benchmarkId))
+      .map((a) => a.id);
+    const filteredActions = actions.filter(
+      (a) => !benchmarkIds.includes(a.benchmarkId),
+    );
     await this.setElementalActions(filteredActions);
     const logs = await this.getDailyLogs();
     const filteredLogs = logs.filter((l) => !actionIds.includes(l.actionId));
@@ -184,7 +200,10 @@ export const storage = {
     const activeId = await this.getActivePersonaId();
     if (activeId === id && filtered.length > 0) {
       await this.setActivePersonaId(filtered[0].id);
-      await AsyncStorage.setItem(STORAGE_KEYS.PERSONA, JSON.stringify(filtered[0]));
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.PERSONA,
+        JSON.stringify(filtered[0]),
+      );
     } else if (filtered.length === 0) {
       await AsyncStorage.removeItem(STORAGE_KEYS.PERSONA);
       await AsyncStorage.removeItem(STORAGE_KEYS.ACTIVE_PERSONA_ID);
@@ -192,11 +211,18 @@ export const storage = {
     }
   },
 
-  async calculateMomentumScoreForPersona(personaId: string, days: number = 7): Promise<number> {
+  async calculateMomentumScoreForPersona(
+    personaId: string,
+    days: number = 7,
+  ): Promise<number> {
     const benchmarks = await this.getBenchmarks();
-    const personaBenchmarkIds = benchmarks.filter((b) => b.personaId === personaId).map((b) => b.id);
+    const personaBenchmarkIds = benchmarks
+      .filter((b) => b.personaId === personaId)
+      .map((b) => b.id);
     const allActions = await this.getElementalActions();
-    const personaActions = allActions.filter((a) => personaBenchmarkIds.includes(a.benchmarkId));
+    const personaActions = allActions.filter((a) =>
+      personaBenchmarkIds.includes(a.benchmarkId),
+    );
     const logs = await this.getDailyLogs();
 
     if (personaActions.length === 0) return 0;
@@ -215,7 +241,8 @@ export const storage = {
         if (action.frequency.includes(dayOfWeek)) {
           totalExpected++;
           const log = logs.find(
-            (l) => l.actionId === action.id && l.logDate.split("T")[0] === dateStr
+            (l) =>
+              l.actionId === action.id && l.logDate.split("T")[0] === dateStr,
           );
           if (log?.status) {
             totalCompleted++;
@@ -224,7 +251,9 @@ export const storage = {
       }
     }
 
-    return totalExpected > 0 ? Math.round((totalCompleted / totalExpected) * 100) : 0;
+    return totalExpected > 0
+      ? Math.round((totalCompleted / totalExpected) * 100)
+      : 0;
   },
 
   async getPersonaAlignmentScoreForPersona(personaId: string): Promise<number> {
@@ -257,10 +286,15 @@ export const storage = {
   },
 
   async setBenchmarks(benchmarks: Benchmark[]): Promise<void> {
-    await AsyncStorage.setItem(STORAGE_KEYS.BENCHMARKS, JSON.stringify(benchmarks));
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.BENCHMARKS,
+      JSON.stringify(benchmarks),
+    );
   },
 
-  async addBenchmark(benchmark: Omit<Benchmark, "id" | "createdAt">): Promise<Benchmark> {
+  async addBenchmark(
+    benchmark: Omit<Benchmark, "id" | "createdAt">,
+  ): Promise<Benchmark> {
     const benchmarks = await this.getBenchmarks();
     const newBenchmark: Benchmark = {
       ...benchmark,
@@ -272,11 +306,14 @@ export const storage = {
     return newBenchmark;
   },
 
-  async updateBenchmark(id: string, updates: Partial<Omit<Benchmark, "id" | "createdAt">>): Promise<Benchmark | null> {
+  async updateBenchmark(
+    id: string,
+    updates: Partial<Omit<Benchmark, "id" | "createdAt">>,
+  ): Promise<Benchmark | null> {
     const benchmarks = await this.getBenchmarks();
     const index = benchmarks.findIndex((b) => b.id === id);
     if (index === -1) return null;
-    
+
     benchmarks[index] = { ...benchmarks[index], ...updates };
     await this.setBenchmarks(benchmarks);
     return benchmarks[index];
@@ -286,14 +323,18 @@ export const storage = {
     const benchmarks = await this.getBenchmarks();
     const filtered = benchmarks.filter((b) => b.id !== id);
     await this.setBenchmarks(filtered);
-    
+
     const actions = await this.getElementalActions();
-    const actionIdsToDelete = actions.filter((a) => a.benchmarkId === id).map((a) => a.id);
+    const actionIdsToDelete = actions
+      .filter((a) => a.benchmarkId === id)
+      .map((a) => a.id);
     const filteredActions = actions.filter((a) => a.benchmarkId !== id);
     await this.setElementalActions(filteredActions);
-    
+
     const dailyLogs = await this.getDailyLogs();
-    const filteredLogs = dailyLogs.filter((l) => !actionIdsToDelete.includes(l.actionId));
+    const filteredLogs = dailyLogs.filter(
+      (l) => !actionIdsToDelete.includes(l.actionId),
+    );
     await this.setDailyLogs(filteredLogs);
   },
 
@@ -303,10 +344,15 @@ export const storage = {
   },
 
   async setElementalActions(actions: ElementalAction[]): Promise<void> {
-    await AsyncStorage.setItem(STORAGE_KEYS.ELEMENTAL_ACTIONS, JSON.stringify(actions));
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.ELEMENTAL_ACTIONS,
+      JSON.stringify(actions),
+    );
   },
 
-  async addElementalAction(action: Omit<ElementalAction, "id" | "createdAt">): Promise<ElementalAction> {
+  async addElementalAction(
+    action: Omit<ElementalAction, "id" | "createdAt">,
+  ): Promise<ElementalAction> {
     const actions = await this.getElementalActions();
     const newAction: ElementalAction = {
       ...action,
@@ -318,11 +364,14 @@ export const storage = {
     return newAction;
   },
 
-  async updateElementalAction(id: string, updates: Partial<Omit<ElementalAction, "id" | "createdAt">>): Promise<ElementalAction | null> {
+  async updateElementalAction(
+    id: string,
+    updates: Partial<Omit<ElementalAction, "id" | "createdAt">>,
+  ): Promise<ElementalAction | null> {
     const actions = await this.getElementalActions();
     const index = actions.findIndex((a) => a.id === id);
     if (index === -1) return null;
-    
+
     actions[index] = { ...actions[index], ...updates };
     await this.setElementalActions(actions);
     return actions[index];
@@ -332,7 +381,7 @@ export const storage = {
     const actions = await this.getElementalActions();
     const filtered = actions.filter((a) => a.id !== id);
     await this.setElementalActions(filtered);
-    
+
     const dailyLogs = await this.getDailyLogs();
     const filteredLogs = dailyLogs.filter((l) => l.actionId !== id);
     await this.setDailyLogs(filteredLogs);
@@ -350,13 +399,13 @@ export const storage = {
   async toggleDailyLog(actionId: string, date: string): Promise<DailyLog> {
     const logs = await this.getDailyLogs();
     const dateStr = date.includes("T") ? date.split("T")[0] : date;
-    
-    const existingIndex = logs.findIndex(
-      (log) => {
-        const logDateStr = log.logDate.includes("T") ? log.logDate.split("T")[0] : log.logDate;
-        return log.actionId === actionId && logDateStr === dateStr;
-      }
-    );
+
+    const existingIndex = logs.findIndex((log) => {
+      const logDateStr = log.logDate.includes("T")
+        ? log.logDate.split("T")[0]
+        : log.logDate;
+      return log.actionId === actionId && logDateStr === dateStr;
+    });
 
     if (existingIndex >= 0) {
       logs[existingIndex].status = !logs[existingIndex].status;
@@ -376,12 +425,18 @@ export const storage = {
     }
   },
 
-  async getLogForDate(actionId: string, date: string): Promise<DailyLog | null> {
+  async getLogForDate(
+    actionId: string,
+    date: string,
+  ): Promise<DailyLog | null> {
     const logs = await this.getDailyLogs();
     const dateStr = date.split("T")[0];
-    return logs.find(
-      (log) => log.actionId === actionId && log.logDate.split("T")[0] === dateStr
-    ) || null;
+    return (
+      logs.find(
+        (log) =>
+          log.actionId === actionId && log.logDate.split("T")[0] === dateStr,
+      ) || null
+    );
   },
 
   async getReflections(): Promise<Reflection[]> {
@@ -389,7 +444,9 @@ export const storage = {
     return safeParse<Reflection[]>(value, []);
   },
 
-  async addReflection(reflection: Omit<Reflection, "id" | "createdAt">): Promise<Reflection> {
+  async addReflection(
+    reflection: Omit<Reflection, "id" | "createdAt">,
+  ): Promise<Reflection> {
     const reflections = await this.getReflections();
     const newReflection: Reflection = {
       ...reflection,
@@ -397,7 +454,10 @@ export const storage = {
       createdAt: new Date().toISOString(),
     };
     reflections.push(newReflection);
-    await AsyncStorage.setItem(STORAGE_KEYS.REFLECTIONS, JSON.stringify(reflections));
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.REFLECTIONS,
+      JSON.stringify(reflections),
+    );
     return newReflection;
   },
 
@@ -407,7 +467,10 @@ export const storage = {
   },
 
   async setOnboardingMessages(messages: ChatMessage[]): Promise<void> {
-    await AsyncStorage.setItem(STORAGE_KEYS.ONBOARDING_MESSAGES, JSON.stringify(messages));
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.ONBOARDING_MESSAGES,
+      JSON.stringify(messages),
+    );
   },
 
   async clearAll(): Promise<void> {
@@ -425,12 +488,17 @@ export const storage = {
   },
 
   async setSubscription(subscription: Subscription): Promise<void> {
-    await AsyncStorage.setItem(STORAGE_KEYS.SUBSCRIPTION, JSON.stringify(subscription));
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.SUBSCRIPTION,
+      JSON.stringify(subscription),
+    );
   },
 
   async getMonthlyReflectionCount(): Promise<MonthlyReflectionCount> {
     const currentMonth = new Date().toISOString().slice(0, 7);
-    const value = await AsyncStorage.getItem(STORAGE_KEYS.MONTHLY_REFLECTION_COUNT);
+    const value = await AsyncStorage.getItem(
+      STORAGE_KEYS.MONTHLY_REFLECTION_COUNT,
+    );
     const data = safeParse<MonthlyReflectionCount | null>(value, null);
     if (data?.month === currentMonth) return data;
     return { month: currentMonth, count: 0 };
@@ -444,14 +512,17 @@ export const storage = {
       data.count = 0;
     }
     data.count += 1;
-    await AsyncStorage.setItem(STORAGE_KEYS.MONTHLY_REFLECTION_COUNT, JSON.stringify(data));
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.MONTHLY_REFLECTION_COUNT,
+      JSON.stringify(data),
+    );
     return data.count;
   },
 
   async calculateMomentumScore(days: number = 7): Promise<number> {
     const logs = await this.getDailyLogs();
     const actions = await this.getElementalActions();
-    
+
     if (actions.length === 0) return 0;
 
     const today = new Date();
@@ -468,7 +539,8 @@ export const storage = {
         if (action.frequency.includes(dayOfWeek)) {
           totalExpected++;
           const log = logs.find(
-            (l) => l.actionId === action.id && l.logDate.split("T")[0] === dateStr
+            (l) =>
+              l.actionId === action.id && l.logDate.split("T")[0] === dateStr,
           );
           if (log?.status) {
             totalCompleted++;
@@ -477,7 +549,9 @@ export const storage = {
       }
     }
 
-    return totalExpected > 0 ? Math.round((totalCompleted / totalExpected) * 100) : 0;
+    return totalExpected > 0
+      ? Math.round((totalCompleted / totalExpected) * 100)
+      : 0;
   },
 
   async getPersonaAlignmentScore(): Promise<number> {
@@ -500,5 +574,4 @@ export const storage = {
   async setStripeCustomerId(customerId: string): Promise<void> {
     await AsyncStorage.setItem(STORAGE_KEYS.STRIPE_CUSTOMER_ID, customerId);
   },
-
 };

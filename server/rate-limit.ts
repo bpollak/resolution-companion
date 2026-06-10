@@ -14,7 +14,9 @@ export function rateLimiter(maxRequests: number, windowMs: number) {
     }
 
     if (entry.count >= maxRequests) {
-      res.status(429).json({ error: "Too many requests. Please try again later." });
+      res
+        .status(429)
+        .json({ error: "Too many requests. Please try again later." });
       return;
     }
 
@@ -24,9 +26,12 @@ export function rateLimiter(maxRequests: number, windowMs: number) {
 }
 
 // Clean up expired entries every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of rateLimitStore) {
-    if (now > entry.resetTime) rateLimitStore.delete(key);
-  }
-}, 5 * 60 * 1000);
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [key, entry] of rateLimitStore) {
+      if (now > entry.resetTime) rateLimitStore.delete(key);
+    }
+  },
+  5 * 60 * 1000,
+);

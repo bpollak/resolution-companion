@@ -26,11 +26,13 @@ export function ProgressBar({ progress, height = 8, color }: ProgressBarProps) {
     width: `${animatedWidth.value}%`,
   }));
 
-  const barColor = color || (progress >= 80 
-    ? Colors.dark.success 
-    : progress >= 50 
-      ? Colors.dark.accent 
-      : Colors.dark.warning);
+  const barColor =
+    color ||
+    (progress >= 80
+      ? Colors.dark.success
+      : progress >= 50
+        ? Colors.dark.accent
+        : Colors.dark.warning);
 
   return (
     <View

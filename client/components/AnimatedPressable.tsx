@@ -42,7 +42,7 @@ export function AnimatedPressable({
 
   const triggerHaptic = () => {
     if (hapticStyle === "none") return;
-    
+
     switch (hapticStyle) {
       case "light":
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -90,7 +90,7 @@ export function AnimatedPressable({
 
   const glowStyle = useAnimatedStyle(() => {
     if (!showGlow || !glowColor) return {};
-    
+
     return {
       shadowColor: glowColor,
       shadowOffset: { width: 0, height: 0 },

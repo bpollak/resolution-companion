@@ -6,7 +6,7 @@ if (isProduction && !process.env.API_SECRET) {
   console.error(
     "FATAL: API_SECRET is not set. In production, protected API endpoints (AI chat, " +
       "subscriptions) reject all requests until API_SECRET is configured. Set the same " +
-      "value as EXPO_PUBLIC_API_SECRET in your EAS build environment."
+      "value as EXPO_PUBLIC_API_SECRET in your EAS build environment.",
   );
 }
 
@@ -22,7 +22,9 @@ export function requireApiKey(req: Request, res: Response, next: NextFunction) {
 
   if (!apiSecret) {
     if (isProduction) {
-      res.status(503).json({ error: "Service unavailable: server is not configured" });
+      res
+        .status(503)
+        .json({ error: "Service unavailable: server is not configured" });
       return;
     }
     return next();
