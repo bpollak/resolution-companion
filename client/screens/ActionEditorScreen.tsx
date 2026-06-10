@@ -161,11 +161,20 @@ export default function ActionEditorScreen() {
     }
 
     const doDelete = async () => {
-      await deleteAction(existingAction.id);
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      try {
+        await deleteAction(existingAction.id);
+        if (Platform.OS !== "web") {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        }
+        navigation.goBack();
+      } catch (error) {
+        logger.error("Failed to delete action:", error);
+        if (Platform.OS === "web") {
+          window.alert("Failed to delete the action. Please try again.");
+        } else {
+          Alert.alert("Error", "Failed to delete the action. Please try again.");
+        }
       }
-      navigation.goBack();
     };
 
     if (Platform.OS === "web") {

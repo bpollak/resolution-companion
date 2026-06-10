@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { logger } from "@/lib/logger";
 
 const STORAGE_KEYS = {
   HAS_ONBOARDED: "hasOnboarded",
@@ -83,6 +84,17 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
+// Corrupted AsyncStorage data should degrade to defaults, never crash the app
+function safeParse<T>(value: string | null, fallback: T): T {
+  if (value == null) return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch (error) {
+    logger.error("Failed to parse stored value, using fallback:", error);
+    return fallback;
+  }
+}
+
 export const storage = {
   async getHasOnboarded(): Promise<boolean> {
     const value = await AsyncStorage.getItem(STORAGE_KEYS.HAS_ONBOARDED);
@@ -95,7 +107,7 @@ export const storage = {
 
   async getPersona(): Promise<Persona | null> {
     const value = await AsyncStorage.getItem(STORAGE_KEYS.PERSONA);
-    return value ? JSON.parse(value) : null;
+    return safeParse<Persona | null>(value, null);
   },
 
   async setPersona(persona: Omit<Persona, "id" | "createdAt">): Promise<Persona> {
@@ -114,8 +126,10 @@ export const storage = {
 
   async getPersonas(): Promise<Persona[]> {
     const value = await AsyncStorage.getItem(STORAGE_KEYS.PERSONAS);
-    if (value) {
-      const personas: Persona[] = JSON.parse(value);
+    // Corrupt data falls through to the legacy single-persona branch
+    const parsed = safeParse<Persona[] | null>(value, null);
+    if (parsed) {
+      const personas: Persona[] = parsed;
       const seenById = new Map<string, Persona>();
       const seenByName = new Map<string, Persona>();
       for (const p of personas) {
@@ -239,7 +253,7 @@ export const storage = {
 
   async getBenchmarks(): Promise<Benchmark[]> {
     const value = await AsyncStorage.getItem(STORAGE_KEYS.BENCHMARKS);
-    return value ? JSON.parse(value) : [];
+    return safeParse<Benchmark[]>(value, []);
   },
 
   async setBenchmarks(benchmarks: Benchmark[]): Promise<void> {
@@ -285,7 +299,7 @@ export const storage = {
 
   async getElementalActions(): Promise<ElementalAction[]> {
     const value = await AsyncStorage.getItem(STORAGE_KEYS.ELEMENTAL_ACTIONS);
-    return value ? JSON.parse(value) : [];
+    return safeParse<ElementalAction[]>(value, []);
   },
 
   async setElementalActions(actions: ElementalAction[]): Promise<void> {
@@ -326,7 +340,7 @@ export const storage = {
 
   async getDailyLogs(): Promise<DailyLog[]> {
     const value = await AsyncStorage.getItem(STORAGE_KEYS.DAILY_LOGS);
-    return value ? JSON.parse(value) : [];
+    return safeParse<DailyLog[]>(value, []);
   },
 
   async setDailyLogs(logs: DailyLog[]): Promise<void> {
@@ -372,7 +386,7 @@ export const storage = {
 
   async getReflections(): Promise<Reflection[]> {
     const value = await AsyncStorage.getItem(STORAGE_KEYS.REFLECTIONS);
-    return value ? JSON.parse(value) : [];
+    return safeParse<Reflection[]>(value, []);
   },
 
   async addReflection(reflection: Omit<Reflection, "id" | "createdAt">): Promise<Reflection> {
@@ -389,7 +403,7 @@ export const storage = {
 
   async getOnboardingMessages(): Promise<ChatMessage[]> {
     const value = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_MESSAGES);
-    return value ? JSON.parse(value) : [];
+    return safeParse<ChatMessage[]>(value, []);
   },
 
   async setOnboardingMessages(messages: ChatMessage[]): Promise<void> {
@@ -402,8 +416,12 @@ export const storage = {
 
   async getSubscription(): Promise<Subscription> {
     const value = await AsyncStorage.getItem(STORAGE_KEYS.SUBSCRIPTION);
-    if (value) return JSON.parse(value);
-    return { isPremium: false, plan: "free", expiresAt: null, purchasedAt: null };
+    return safeParse<Subscription>(value, {
+      isPremium: false,
+      plan: "free",
+      expiresAt: null,
+      purchasedAt: null,
+    });
   },
 
   async setSubscription(subscription: Subscription): Promise<void> {
@@ -413,10 +431,8 @@ export const storage = {
   async getMonthlyReflectionCount(): Promise<MonthlyReflectionCount> {
     const currentMonth = new Date().toISOString().slice(0, 7);
     const value = await AsyncStorage.getItem(STORAGE_KEYS.MONTHLY_REFLECTION_COUNT);
-    if (value) {
-      const data = JSON.parse(value);
-      if (data.month === currentMonth) return data;
-    }
+    const data = safeParse<MonthlyReflectionCount | null>(value, null);
+    if (data?.month === currentMonth) return data;
     return { month: currentMonth, count: 0 };
   },
 

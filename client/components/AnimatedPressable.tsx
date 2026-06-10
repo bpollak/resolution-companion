@@ -1,5 +1,5 @@
 import React, { ReactNode } from "react";
-import { StyleProp, ViewStyle, PressableProps } from "react-native";
+import { StyleProp, ViewStyle } from "react-native";
 import * as Haptics from "expo-haptics";
 import Animated, {
   useAnimatedStyle,

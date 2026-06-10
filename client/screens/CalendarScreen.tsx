@@ -8,6 +8,7 @@ import * as Haptics from "expo-haptics";
 
 import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
+import { buildLogIndex, getTrackableDays, computeBenchmarkProgress } from "@/lib/progress";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ProgressBar } from "@/components/ProgressBar";
@@ -164,7 +165,7 @@ export default function CalendarScreen() {
           wasCompleted ? "info" : "success"
         );
       }
-    } catch (error) {
+    } catch {
       showToast("Failed to update action", "warning");
     }
   };
@@ -270,53 +271,9 @@ export default function CalendarScreen() {
   }, [benchmarks, persona?.id]);
 
   const benchmarkProgress = useMemo(() => {
-    return personaBenchmarks.map((benchmark) => {
-      const benchmarkActions = personaActions.filter((a) => a.benchmarkId === benchmark.id);
-      if (benchmarkActions.length === 0) return { benchmark, progress: 0 };
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const trackableDays: string[] = [];
-      for (let i = 0; i < 30; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        date.setHours(0, 0, 0, 0);
-        
-        if (personaCreatedDate && date < personaCreatedDate) {
-          continue;
-        }
-        
-        if (date > today) {
-          continue;
-        }
-        
-        trackableDays.push(date.toISOString().split("T")[0]);
-      }
-
-      let totalExpected = 0;
-      let totalCompleted = 0;
-
-      for (const dateStr of trackableDays) {
-        const date = new Date(dateStr);
-        const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
-
-        for (const action of benchmarkActions) {
-          if (action.frequency.includes(dayOfWeek)) {
-            totalExpected++;
-            const log = dailyLogs.find(
-              (l) => l.actionId === action.id && l.logDate.split("T")[0] === dateStr
-            );
-            if (log?.status) totalCompleted++;
-          }
-        }
-      }
-
-      return {
-        benchmark,
-        progress: totalExpected > 0 ? Math.round((totalCompleted / totalExpected) * 100) : 0,
-      };
-    });
+    const logIndex = buildLogIndex(dailyLogs);
+    const trackableDays = getTrackableDays(personaCreatedDate);
+    return computeBenchmarkProgress(personaBenchmarks, personaActions, logIndex, trackableDays);
   }, [personaBenchmarks, personaActions, dailyLogs, personaCreatedDate]);
 
   if (!hasOnboarded) {

@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect } from "react";
+import React, { useMemo, useEffect, useCallback } from "react";
 import { View, ScrollView, StyleSheet, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -12,7 +12,6 @@ import Animated, {
   withSpring,
   withRepeat,
   withSequence,
-  interpolate,
   Easing,
   withTiming,
 } from "react-native-reanimated";
@@ -263,13 +262,17 @@ export default function TodayScreen() {
     return benchmarks.find((b) => b.id === action.benchmarkId);
   };
 
-  const handleToggle = async (actionId: string) => {
-    try {
-      await toggleDailyLog(actionId, todayDateStr);
-    } catch (error) {
-      logger.error("Failed to toggle action:", error);
-    }
-  };
+  // Stable reference so memoized ActionCards skip re-rendering on each toggle
+  const handleToggle = useCallback(
+    async (actionId: string) => {
+      try {
+        await toggleDailyLog(actionId, todayDateStr);
+      } catch (error) {
+        logger.error("Failed to toggle action:", error);
+      }
+    },
+    [toggleDailyLog, todayDateStr]
+  );
 
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -357,6 +360,8 @@ export default function TodayScreen() {
               onPress={() => {
                 navigation.navigate("CalendarTab" as never);
               }}
+              accessibilityRole="button"
+              accessibilityLabel={`View ${tomorrowActions.length} ${tomorrowActions.length === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
               style={({ pressed }) => [styles.tomorrowLink, { opacity: pressed ? 0.7 : 1 }]}
             >
               <Feather name="calendar" size={16} color={Colors.dark.accent} />
@@ -375,7 +380,7 @@ export default function TodayScreen() {
               key={action.id}
               action={action}
               log={getLogForAction(action.id)}
-              onToggle={() => handleToggle(action.id)}
+              onToggle={handleToggle}
               benchmarkTitle={benchmark?.title}
             />
           );

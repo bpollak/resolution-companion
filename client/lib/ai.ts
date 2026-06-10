@@ -1,4 +1,5 @@
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
+import { logger } from "@/lib/logger";
 import EventSource from "react-native-sse";
 
 export interface AIMessage {
@@ -161,7 +162,10 @@ export async function sendChatMessageStreaming(
           es.close();
           reject(new Error(parsed.error));
         }
-      } catch {}
+      } catch (parseError) {
+        // Skip the malformed event but surface it for debugging
+        logger.warn("Skipping malformed SSE event:", parseError);
+      }
     });
 
     es.addEventListener("error", () => {

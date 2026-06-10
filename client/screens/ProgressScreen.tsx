@@ -4,15 +4,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from "react-native-reanimated";
-
 import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
+import { buildLogIndex, getTrackableDays, computeBenchmarkProgress } from "@/lib/progress";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { CircularProgress } from "@/components/CircularProgress";
@@ -46,66 +41,9 @@ export default function ProgressScreen() {
   }, [personaBenchmarks]);
 
   const benchmarkProgress = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const trackableDays: string[] = [];
-    for (let i = 0; i < 30; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      date.setHours(0, 0, 0, 0);
-      
-      if (personaCreatedDate && date < personaCreatedDate) {
-        continue;
-      }
-      
-      if (date > today) {
-        continue;
-      }
-      
-      trackableDays.push(date.toISOString().split("T")[0]);
-    }
-
-    return personaBenchmarks.map((benchmark) => {
-      const benchmarkActions = actions.filter((a) => a.benchmarkId === benchmark.id);
-      if (benchmarkActions.length === 0) return { benchmark, actions: [], progress: 0 };
-
-      let totalExpected = 0;
-      let totalCompleted = 0;
-
-      const actionProgress = benchmarkActions.map((action) => {
-        let actionExpected = 0;
-        let actionCompleted = 0;
-
-        for (const dateStr of trackableDays) {
-          const date = new Date(dateStr);
-          const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
-
-          if (action.frequency.includes(dayOfWeek)) {
-            actionExpected++;
-            totalExpected++;
-            const log = dailyLogs.find(
-              (l) => l.actionId === action.id && l.logDate.split("T")[0] === dateStr
-            );
-            if (log?.status) {
-              actionCompleted++;
-              totalCompleted++;
-            }
-          }
-        }
-
-        return {
-          action,
-          progress: actionExpected > 0 ? Math.round((actionCompleted / actionExpected) * 100) : 0,
-        };
-      });
-
-      return {
-        benchmark,
-        actions: actionProgress,
-        progress: totalExpected > 0 ? Math.round((totalCompleted / totalExpected) * 100) : 0,
-      };
-    });
+    const logIndex = buildLogIndex(dailyLogs);
+    const trackableDays = getTrackableDays(personaCreatedDate);
+    return computeBenchmarkProgress(personaBenchmarks, actions, logIndex, trackableDays);
   }, [personaBenchmarks, actions, dailyLogs, personaCreatedDate]);
 
   const toggleExpand = (benchmarkId: string) => {

@@ -290,7 +290,8 @@ export default function ReflectScreen() {
       if (session.conversation) {
         try {
           conversationMessages = JSON.parse(session.conversation);
-        } catch {
+        } catch (error) {
+          logger.error("Failed to parse stored reflection conversation:", error);
           conversationMessages = [];
         }
       }
@@ -320,7 +321,11 @@ export default function ReflectScreen() {
           >
             {hasFullConversation ? (
               conversationMessages.map((msg, index) => (
-                <ChatBubble key={index} message={msg.content} isUser={msg.role === "user"} />
+                <ChatBubble
+                  key={msg.id || `${session.id}-${index}`}
+                  message={msg.content}
+                  isUser={msg.role === "user"}
+                />
               ))
             ) : (
               <>
@@ -383,6 +388,8 @@ export default function ReflectScreen() {
           {!subscription.isPremium ? (
             <Pressable
               onPress={() => navigation.navigate("Subscription")}
+              accessibilityRole="button"
+              accessibilityLabel="Upgrade to Premium for unlimited check-ins"
               style={({ pressed }) => [
                 styles.upgradeLink,
                 { opacity: pressed ? 0.7 : 1 }

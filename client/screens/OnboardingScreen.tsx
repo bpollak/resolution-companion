@@ -9,7 +9,6 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
-  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -31,13 +30,6 @@ interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
-}
-
-interface IntroFeature {
-  icon: keyof typeof Feather.glyphMap;
-  title: string;
-  description: string;
-  color: string;
 }
 
 const ACCENT_COLORS = {
@@ -299,7 +291,22 @@ export default function OnboardingScreen() {
       });
     } catch (error) {
       logger.error("Failed to extract persona:", error);
-      Alert.alert("Error", "Failed to create your persona. Please try again.");
+      if (Platform.OS === "web") {
+        if (window.confirm("We couldn't create your persona. Check your internet connection and retry?")) {
+          setIsExtracting(false);
+          finishOnboarding();
+          return;
+        }
+      } else {
+        Alert.alert(
+          "Connection Issue",
+          "We couldn't create your persona. Please check your internet connection and try again.",
+          [
+            { text: "Not Now", style: "cancel" },
+            { text: "Retry", onPress: () => finishOnboarding() },
+          ]
+        );
+      }
     } finally {
       setIsExtracting(false);
     }
@@ -689,9 +696,6 @@ const styles = StyleSheet.create({
     ...Typography.body,
     textAlign: "center",
   },
-  introContent: {
-    paddingHorizontal: Spacing.lg,
-  },
   introHero: {
     alignItems: "center",
     paddingVertical: Spacing.xl,
@@ -726,28 +730,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  heroOrbit1: {
-    position: "absolute",
-    top: -4,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  heroOrbit2: {
-    position: "absolute",
-    right: -4,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  heroOrbit3: {
-    position: "absolute",
-    bottom: -4,
-    left: 20,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
   introTitle: {
     ...Typography.title,
     textAlign: "center",
@@ -757,76 +739,6 @@ const styles = StyleSheet.create({
     ...Typography.body,
     textAlign: "center",
     lineHeight: 24,
-  },
-  introSection: {
-    marginTop: Spacing.xl,
-  },
-  introSectionTitle: {
-    ...Typography.headline,
-    marginBottom: Spacing.md,
-  },
-  introCard: {
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-  },
-  introStep: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.1)",
-  },
-  introStepNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: BorderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.md,
-  },
-  introStepNumberText: {
-    ...Typography.body,
-    fontWeight: "700",
-    color: "#000000",
-  },
-  introStepContent: {
-    flex: 1,
-  },
-  introStepTitle: {
-    ...Typography.body,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  introStepDesc: {
-    ...Typography.small,
-    lineHeight: 20,
-  },
-  featureRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.sm,
-  },
-  featureIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.md,
-  },
-  featureContent: {
-    flex: 1,
-  },
-  featureTitle: {
-    ...Typography.body,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  featureDesc: {
-    ...Typography.small,
-    lineHeight: 18,
   },
   introFooter: {
     position: "absolute",

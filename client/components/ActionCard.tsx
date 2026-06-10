@@ -26,11 +26,13 @@ const springConfig = {
 interface ActionCardProps {
   action: ElementalAction;
   log: DailyLog | null;
-  onToggle: () => void;
+  onToggle: (actionId: string) => void;
   benchmarkTitle?: string;
 }
 
-export function ActionCard({ action, log, onToggle, benchmarkTitle }: ActionCardProps) {
+// Memoized: TodayScreen renders one card per action, and a toggle should only
+// re-render the card whose log changed
+export const ActionCard = React.memo(function ActionCard({ action, log, onToggle, benchmarkTitle }: ActionCardProps) {
   const { theme, isDark } = useTheme();
   const scale = useSharedValue(1);
   const buttonScale = useSharedValue(1);
@@ -64,7 +66,7 @@ export function ActionCard({ action, log, onToggle, benchmarkTitle }: ActionCard
     } else {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    onToggle();
+    onToggle(action.id);
   };
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -167,7 +169,7 @@ export function ActionCard({ action, log, onToggle, benchmarkTitle }: ActionCard
       </View>
     </Animated.View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

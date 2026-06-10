@@ -5,7 +5,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { Colors, BorderRadius, Spacing } from "@/constants/theme";
+import { Colors, BorderRadius } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
 
 interface ProgressBarProps {

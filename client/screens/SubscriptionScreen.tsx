@@ -125,7 +125,7 @@ export default function SubscriptionScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { theme, isDark } = useTheme();
-  const { subscription, upgradeToPremium, refreshData } = useApp();
+  const { subscription, refreshData } = useApp();
   const [selectedPlan, setSelectedPlan] = useState<PlanType>("yearly");
   const [isLoading, setIsLoading] = useState(false);
   const [iapProducts, setIapProducts] = useState<IAPProduct[]>([]);

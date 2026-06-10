@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
 import { storage, Persona, Benchmark, ElementalAction, DailyLog, Reflection, Subscription } from "@/lib/storage";
+import { computeMomentumScore } from "@/lib/progress";
 import { logger } from "@/lib/logger";
 
 interface AppContextType {
@@ -52,9 +53,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [actions, setActionsState] = useState<ElementalAction[]>([]);
   const [dailyLogs, setDailyLogsState] = useState<DailyLog[]>([]);
   const [reflections, setReflectionsState] = useState<Reflection[]>([]);
-  const [momentumScore, setMomentumScore] = useState(0);
-  const [personaAlignment, setPersonaAlignment] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Derived from the persona-scoped state, so they can never drift from the
+  // data they describe (state mirrors storage via refreshData + mutators)
+  const momentumScore = useMemo(() => computeMomentumScore(actions, dailyLogs, 7), [actions, dailyLogs]);
+  const personaAlignment = useMemo(() => computeMomentumScore(actions, dailyLogs, 30), [actions, dailyLogs]);
   const [subscription, setSubscriptionState] = useState<Subscription>({
     isPremium: false,
     plan: "free",
@@ -104,19 +108,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setBenchmarksState(personaBenchmarks);
         setActionsState(personaActions);
         setDailyLogsState(personaLogs);
-        
-        const [momentum, alignment] = await Promise.all([
-          storage.calculateMomentumScoreForPersona(personaData.id),
-          storage.getPersonaAlignmentScoreForPersona(personaData.id),
-        ]);
-        setMomentumScore(momentum);
-        setPersonaAlignment(alignment);
       } else {
         setBenchmarksState([]);
         setActionsState([]);
         setDailyLogsState([]);
-        setMomentumScore(0);
-        setPersonaAlignment(0);
       }
       setReflectionsState(reflectionsData);
     } catch (error) {
@@ -160,8 +155,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setBenchmarksState([]);
     setActionsState([]);
     setDailyLogsState([]);
-    setMomentumScore(0);
-    setPersonaAlignment(0);
     await storage.deletePersona(id);
     await refreshData();
   };
@@ -191,14 +184,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setBenchmarksState((prev) => prev.filter((b) => b.id !== id));
     setActionsState((prev) => prev.filter((a) => a.benchmarkId !== id));
     setDailyLogsState((prev) => prev.filter((l) => !actionIdsToDelete.includes(l.actionId)));
-    if (persona) {
-      const [momentum, alignment] = await Promise.all([
-        storage.calculateMomentumScoreForPersona(persona.id),
-        storage.getPersonaAlignmentScoreForPersona(persona.id),
-      ]);
-      setMomentumScore(momentum);
-      setPersonaAlignment(alignment);
-    }
   };
 
   const addAction = async (action: Omit<ElementalAction, "id" | "createdAt">) => {
@@ -219,14 +204,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await storage.deleteElementalAction(id);
     setActionsState((prev) => prev.filter((a) => a.id !== id));
     setDailyLogsState((prev) => prev.filter((l) => l.actionId !== id));
-    if (persona) {
-      const [momentum, alignment] = await Promise.all([
-        storage.calculateMomentumScoreForPersona(persona.id),
-        storage.getPersonaAlignmentScoreForPersona(persona.id),
-      ]);
-      setMomentumScore(momentum);
-      setPersonaAlignment(alignment);
-    }
   };
 
   const setActions = async (actionsData: ElementalAction[]) => {
@@ -234,38 +211,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActionsState(actionsData);
   };
 
-  const toggleDailyLog = async (actionId: string, date: string) => {
+  // Upsert into state directly — no storage re-reads. Both toggle surfaces
+  // (Today, Calendar) only operate on the active persona's actions, so the
+  // persona-scoped state invariant holds. Momentum/alignment recompute via
+  // the useMemo above.
+  const toggleDailyLog = useCallback(async (actionId: string, date: string) => {
     const log = await storage.toggleDailyLog(actionId, date);
-    
-    const activePersona = await storage.getActivePersona();
-    if (activePersona) {
-      const [allBenchmarks, allActions, allLogs] = await Promise.all([
-        storage.getBenchmarks(),
-        storage.getElementalActions(),
-        storage.getDailyLogs(),
-      ]);
-      
-      const personaBenchmarks = allBenchmarks.filter((b) => b.personaId === activePersona.id);
-      const personaBenchmarkIds = personaBenchmarks.map((b) => b.id);
-      const personaActions = allActions.filter((a) => personaBenchmarkIds.includes(a.benchmarkId));
-      const personaActionIds = personaActions.map((a) => a.id);
-      const personaLogs = allLogs.filter((l) => personaActionIds.includes(l.actionId));
-      
-      setDailyLogsState(personaLogs);
-      
-      const [momentum, alignment] = await Promise.all([
-        storage.calculateMomentumScoreForPersona(activePersona.id),
-        storage.getPersonaAlignmentScoreForPersona(activePersona.id),
-      ]);
-      setMomentumScore(momentum);
-      setPersonaAlignment(alignment);
-    } else {
-      const allLogs = await storage.getDailyLogs();
-      setDailyLogsState(allLogs);
-    }
-    
+    setDailyLogsState((prev) =>
+      prev.some((l) => l.id === log.id)
+        ? prev.map((l) => (l.id === log.id ? log : l))
+        : [...prev, log]
+    );
     return log;
-  };
+  }, []);
 
   const addReflection = async (reflection: Omit<Reflection, "id" | "createdAt">) => {
     const newReflection = await storage.addReflection(reflection);
@@ -282,8 +240,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActionsState([]);
     setDailyLogsState([]);
     setReflectionsState([]);
-    setMomentumScore(0);
-    setPersonaAlignment(0);
     setSubscriptionState({ isPremium: false, plan: "free", expiresAt: null, purchasedAt: null });
     setMonthlyReflectionCount(0);
   };

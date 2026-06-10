@@ -33,7 +33,7 @@ export default function BenchmarkEditorScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<RouteParams, "BenchmarkEditor">>();
   const { theme, isDark } = useTheme();
-  const { persona, benchmarks, actions, addBenchmark, updateBenchmark, deleteBenchmark, deleteAction, canAddBenchmark, subscription } = useApp();
+  const { persona, benchmarks, actions, addBenchmark, updateBenchmark, deleteBenchmark, deleteAction, canAddBenchmark } = useApp();
 
   const benchmarkId = route.params?.benchmarkId;
   const isEditing = !!benchmarkId;
@@ -114,11 +114,20 @@ export default function BenchmarkEditorScreen() {
     if (!isEditing || !existingBenchmark) return;
 
     const doDelete = async () => {
-      await deleteBenchmark(existingBenchmark.id);
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      try {
+        await deleteBenchmark(existingBenchmark.id);
+        if (Platform.OS !== "web") {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        }
+        navigation.goBack();
+      } catch (error) {
+        logger.error("Failed to delete benchmark:", error);
+        if (Platform.OS === "web") {
+          window.alert("Failed to delete the benchmark. Please try again.");
+        } else {
+          Alert.alert("Error", "Failed to delete the benchmark. Please try again.");
+        }
       }
-      navigation.goBack();
     };
 
     if (Platform.OS === "web") {
@@ -172,9 +181,18 @@ export default function BenchmarkEditorScreen() {
     }
 
     const doDelete = async () => {
-      await deleteAction(action.id);
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      try {
+        await deleteAction(action.id);
+        if (Platform.OS !== "web") {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        }
+      } catch (error) {
+        logger.error("Failed to delete action:", error);
+        if (Platform.OS === "web") {
+          window.alert("Failed to delete the action. Please try again.");
+        } else {
+          Alert.alert("Error", "Failed to delete the action. Please try again.");
+        }
       }
     };
 
