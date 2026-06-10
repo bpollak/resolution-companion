@@ -1,15 +1,32 @@
 import type { Request, Response, NextFunction } from "express";
 
+const isProduction = process.env.NODE_ENV === "production";
+
+if (isProduction && !process.env.API_SECRET) {
+  console.error(
+    "FATAL: API_SECRET is not set. In production, protected API endpoints (AI chat, " +
+      "subscriptions) reject all requests until API_SECRET is configured. Set the same " +
+      "value as EXPO_PUBLIC_API_SECRET in your EAS build environment.",
+  );
+}
+
 /**
  * API key authentication middleware.
- * When API_SECRET env var is set, requires X-API-Key header on protected endpoints.
- * When not set, all requests pass through (backward compatible).
+ *
+ * - Production: API_SECRET is required. If unset, protected endpoints fail closed
+ *   (503) instead of silently exposing the OpenAI-backed endpoints to the internet.
+ * - Development: when API_SECRET is unset, requests pass through for local testing.
  */
 export function requireApiKey(req: Request, res: Response, next: NextFunction) {
   const apiSecret = process.env.API_SECRET;
 
-  // If no API_SECRET configured, skip authentication
   if (!apiSecret) {
+    if (isProduction) {
+      res
+        .status(503)
+        .json({ error: "Service unavailable: server is not configured" });
+      return;
+    }
     return next();
   }
 

@@ -1,27 +1,31 @@
-import { Platform, NativeModules } from "react-native";
+import { Platform } from "react-native";
 import { storage } from "./storage";
 import { getApiUrl, getAuthHeaders } from "./query-client";
 import { logger } from "./logger";
 
-let InAppPurchases: typeof import("expo-in-app-purchases") | null = null;
+type IAPModule = typeof import("react-native-iap");
+
+let IAP: IAPModule | null = null;
 
 async function loadIAPModule(): Promise<boolean> {
   if (Platform.OS === "web") {
     return false;
   }
-  
-  // Check if the native module exists before attempting to import
-  // This prevents the "Cannot find native module" error in Expo Go
-  if (!NativeModules.ExpoInAppPurchases) {
-    logger.log("ExpoInAppPurchases native module not available (expected in Expo Go)");
-    return false;
-  }
-  
+
   try {
-    InAppPurchases = await import("expo-in-app-purchases");
+    const mod = await import("react-native-iap");
+    // The Nitro native module is unavailable in Expo Go — only enable IAP
+    // when it's actually ready so the rest of the app degrades gracefully.
+    if (!mod.isNitroReady()) {
+      logger.log(
+        "react-native-iap native module not available (expected in Expo Go)",
+      );
+      return false;
+    }
+    IAP = mod;
     return true;
   } catch (error) {
-    logger.log("expo-in-app-purchases not available:", error);
+    logger.log("react-native-iap not available:", error);
     return false;
   }
 }
@@ -54,27 +58,30 @@ export interface IAPPurchase {
   transactionId: string;
   transactionReceipt: string;
   purchaseTime: number;
+  /** Server-validated expiry (ISO string), when the backend returned one. */
+  expirationDate?: string | null;
 }
 
 class IAPService {
   private isConnected = false;
   private products: IAPProduct[] = [];
   private moduleLoaded = false;
+  private listenerSubscriptions: { remove: () => void }[] = [];
 
   async isAvailable(): Promise<boolean> {
     if (Platform.OS === "web") {
       return false;
     }
-    
+
     if (!this.moduleLoaded) {
       this.moduleLoaded = await loadIAPModule();
     }
-    
-    return this.moduleLoaded && InAppPurchases !== null;
+
+    return this.moduleLoaded && IAP !== null;
   }
 
   async connect(): Promise<boolean> {
-    if (Platform.OS === "web" || !InAppPurchases) {
+    if (Platform.OS === "web" || !IAP) {
       return false;
     }
 
@@ -82,19 +89,12 @@ class IAPService {
       return true;
     }
 
-    // Check if connectAsync is actually available (may not be in some environments)
-    if (typeof InAppPurchases.connectAsync !== "function") {
-      logger.log("IAP connectAsync not available in this environment");
-      return false;
-    }
-
     try {
-      // Add timeout to prevent hanging
-      const connectPromise = InAppPurchases.connectAsync();
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error("IAP connect timeout")), 8000)
+      const connectPromise = IAP.initConnection();
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("IAP connect timeout")), 8000),
       );
-      
+
       await Promise.race([connectPromise, timeoutPromise]);
       this.isConnected = true;
       return true;
@@ -105,9 +105,16 @@ class IAPService {
   }
 
   async disconnect(): Promise<void> {
-    if (this.isConnected && InAppPurchases && typeof InAppPurchases.disconnectAsync === "function") {
+    for (const sub of this.listenerSubscriptions) {
       try {
-        await InAppPurchases.disconnectAsync();
+        sub.remove();
+      } catch {}
+    }
+    this.listenerSubscriptions = [];
+
+    if (this.isConnected && IAP) {
+      try {
+        await IAP.endConnection();
         this.isConnected = false;
       } catch (error) {
         logger.error("Failed to disconnect from IAP:", error);
@@ -117,7 +124,7 @@ class IAPService {
 
   async getProducts(): Promise<IAPProduct[]> {
     const available = await this.isAvailable();
-    if (!available || !InAppPurchases) {
+    if (!available || !IAP) {
       logger.log("IAP not available, returning empty products");
       return [];
     }
@@ -129,24 +136,18 @@ class IAPService {
         return [];
       }
 
-      const productIds = [PRODUCT_IDS.MONTHLY, PRODUCT_IDS.YEARLY].filter(
-        Boolean
+      const skus = [PRODUCT_IDS.MONTHLY, PRODUCT_IDS.YEARLY].filter(
+        Boolean,
       ) as string[];
 
-      if (typeof InAppPurchases.getProductsAsync !== "function") {
-        logger.log("IAP getProductsAsync not available");
-        return [];
-      }
+      logger.log("Fetching IAP products:", skus);
 
-      logger.log("Fetching IAP products:", productIds);
-      
-      // Add timeout to prevent hanging
-      const getProductsPromise = InAppPurchases.getProductsAsync(productIds);
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error("IAP getProducts timeout")), 8000)
+      const fetchPromise = IAP.fetchProducts({ skus, type: "subs" });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("IAP fetchProducts timeout")), 8000),
       );
-      
-      const { results } = await Promise.race([getProductsPromise, timeoutPromise]) as { results: any[] };
+
+      const results = await Promise.race([fetchPromise, timeoutPromise]);
 
       if (!results || results.length === 0) {
         logger.log("No IAP products returned from store");
@@ -154,129 +155,156 @@ class IAPService {
       }
 
       logger.log("IAP products fetched successfully:", results.length);
-      
+
       this.products = results.map((product) => ({
-        productId: product.productId,
+        productId: product.id,
         title: product.title,
         description: product.description,
-        price: product.price,
-        priceAmountMicros: product.priceAmountMicros,
-        priceCurrencyCode: product.priceCurrencyCode,
+        price: product.displayPrice,
+        priceAmountMicros: Math.round((product.price ?? 0) * 1_000_000),
+        priceCurrencyCode: product.currency,
         subscriptionPeriod:
-          product.subscriptionPeriod ||
-          (product.productId.includes("yearly") ? "year" : "month"),
+          product.id.toLowerCase().includes("year") ||
+          product.id.toLowerCase().includes("annual")
+            ? "year"
+            : "month",
       }));
 
       return this.products;
     } catch (error: any) {
       logger.error("Failed to get products:", error);
-      
-      const errorMessage = error?.message || String(error);
-      if (errorMessage.includes("BILLING_UNAVAILABLE")) {
-        logger.log("Billing unavailable - App Store/Play Store not configured");
-      }
-      
       return [];
     }
   }
 
   setPurchaseListener(
     onPurchase: (purchase: IAPPurchase) => void,
-    onError: (error: Error) => void
+    onError: (error: Error) => void,
   ): void {
-    if (Platform.OS === "web" || !InAppPurchases) {
+    if (Platform.OS === "web" || !IAP) {
       return;
     }
 
-    // Check if setPurchaseListener is available
-    if (typeof InAppPurchases.setPurchaseListener !== "function") {
-      logger.log("IAP setPurchaseListener not available");
-      return;
-    }
+    const iap = IAP;
 
-    const IAP = InAppPurchases;
-    IAP.setPurchaseListener(async (result: { responseCode: number; results?: any[] }) => {
-      const { responseCode, results } = result;
-      if (responseCode === IAP.IAPResponseCode.OK && results) {
-        for (const purchase of results) {
-          if (purchase.acknowledged) {
-            continue;
+    // Clear any previously registered listeners so re-initialization
+    // (e.g. reopening the paywall) doesn't double-fire callbacks.
+    for (const sub of this.listenerSubscriptions) {
+      try {
+        sub.remove();
+      } catch {}
+    }
+    this.listenerSubscriptions = [];
+
+    this.listenerSubscriptions.push(
+      iap.purchaseUpdatedListener(async (purchase) => {
+        try {
+          // e.g. Ask to Buy — the purchase is awaiting approval, not failed
+          if (purchase.purchaseState === "pending") {
+            logger.log("Purchase pending approval:", purchase.productId);
+            onError(new Error("PURCHASE_DEFERRED"));
+            return;
           }
 
           const iapPurchase: IAPPurchase = {
             productId: purchase.productId,
-            transactionId: purchase.orderId || "",
-            transactionReceipt: purchase.transactionReceipt || "",
-            purchaseTime: purchase.purchaseTime || Date.now(),
+            transactionId: purchase.transactionId || purchase.id,
+            // Unified token: JWS representation on iOS, purchase token on Android
+            transactionReceipt: purchase.purchaseToken || "",
+            purchaseTime: purchase.transactionDate || Date.now(),
           };
 
-          try {
-            const validated = await this.validateReceipt(iapPurchase);
-            if (validated) {
-              if (typeof IAP.finishTransactionAsync === "function") {
-                await IAP.finishTransactionAsync(purchase, true);
-              }
-              onPurchase(iapPurchase);
-            } else {
-              onError(new Error("Receipt validation failed"));
-            }
-          } catch (error) {
-            onError(error as Error);
+          const validation = await this.validateReceipt(iapPurchase);
+          if (validation.valid) {
+            await iap.finishTransaction({ purchase, isConsumable: false });
+            iapPurchase.expirationDate = validation.expirationDate;
+            onPurchase(iapPurchase);
+          } else {
+            onError(new Error("Receipt validation failed"));
           }
+        } catch (error) {
+          onError(error as Error);
         }
-      } else if (responseCode === IAP.IAPResponseCode.USER_CANCELED) {
-        logger.log("User cancelled the purchase");
-      } else if (responseCode === IAP.IAPResponseCode.DEFERRED) {
-        logger.log("Purchase deferred - awaiting approval");
-      } else {
-        onError(new Error(`Purchase failed with code: ${responseCode}`));
-      }
-    });
+      }),
+    );
+
+    this.listenerSubscriptions.push(
+      iap.purchaseErrorListener((error) => {
+        if (error.code === iap.ErrorCode.UserCancelled) {
+          logger.log("User cancelled the purchase");
+          onError(new Error("USER_CANCELED"));
+          return;
+        }
+        if (error.code === iap.ErrorCode.DeferredPayment) {
+          logger.log("Purchase deferred - awaiting approval");
+          onError(new Error("PURCHASE_DEFERRED"));
+          return;
+        }
+        onError(new Error(error.message || `Purchase failed (${error.code})`));
+      }),
+    );
   }
 
   async purchaseProduct(productId: string): Promise<void> {
     const available = await this.isAvailable();
-    if (!available || !InAppPurchases) {
-      throw new Error("In-app purchases are not available on this device. Please try again or contact support.");
+    if (!available || !IAP) {
+      throw new Error(
+        "In-app purchases are not available on this device. Please try again or contact support.",
+      );
     }
 
     try {
       const connected = await this.connect();
       if (!connected) {
-        throw new Error("Unable to connect to the App Store. Please check your connection and try again.");
+        throw new Error(
+          "Unable to connect to the App Store. Please check your connection and try again.",
+        );
       }
 
-      if (typeof InAppPurchases.purchaseItemAsync !== "function") {
-        throw new Error("In-app purchases are not supported in this environment.");
-      }
-
-      await InAppPurchases.purchaseItemAsync(productId);
+      // Result is delivered via purchaseUpdatedListener / purchaseErrorListener
+      await IAP.requestPurchase({
+        type: "subs",
+        request: {
+          apple: { sku: productId },
+          google: { skus: [productId] },
+        },
+      });
     } catch (error: any) {
       logger.error("Purchase failed:", error);
-      
+
       const errorMessage = error?.message || String(error);
-      
-      if (errorMessage.includes("E_USER_CANCELLED") || 
-          errorMessage.includes("USER_CANCELED") ||
-          errorMessage.includes("cancel")) {
+      const errorCode = error?.code || "";
+
+      if (
+        errorCode === "user-cancelled" ||
+        errorMessage.includes("USER_CANCELED") ||
+        errorMessage.toLowerCase().includes("cancel")
+      ) {
         throw new Error("USER_CANCELED");
       }
-      
-      if (errorMessage.includes("NETWORK") || errorMessage.includes("network")) {
-        throw new Error("Network error. Please check your connection and try again.");
+
+      if (errorMessage.toLowerCase().includes("network")) {
+        throw new Error(
+          "Network error. Please check your connection and try again.",
+        );
       }
-      
-      if (errorMessage.includes("ITEM_UNAVAILABLE") || errorMessage.includes("not found")) {
-        throw new Error("This subscription is temporarily unavailable. Please try again later.");
+
+      if (
+        errorMessage.includes("sku") ||
+        errorMessage.toLowerCase().includes("not found")
+      ) {
+        throw new Error(
+          "This subscription is temporarily unavailable. Please try again later.",
+        );
       }
-      
+
       throw error;
     }
   }
 
   async restorePurchases(): Promise<IAPPurchase[]> {
     const available = await this.isAvailable();
-    if (!available || !InAppPurchases) {
+    if (!available || !IAP) {
       return [];
     }
 
@@ -286,12 +314,7 @@ class IAPService {
         return [];
       }
 
-      if (typeof InAppPurchases.getPurchaseHistoryAsync !== "function") {
-        logger.log("IAP getPurchaseHistoryAsync not available");
-        return [];
-      }
-
-      const { results } = await InAppPurchases.getPurchaseHistoryAsync();
+      const results = await IAP.getAvailablePurchases();
 
       if (!results || results.length === 0) {
         return [];
@@ -302,13 +325,16 @@ class IAPService {
       for (const purchase of results) {
         const iapPurchase: IAPPurchase = {
           productId: purchase.productId,
-          transactionId: purchase.orderId || "",
-          transactionReceipt: purchase.transactionReceipt || "",
-          purchaseTime: purchase.purchaseTime || Date.now(),
+          transactionId:
+            ("transactionId" in purchase && purchase.transactionId) ||
+            purchase.id,
+          transactionReceipt: purchase.purchaseToken || "",
+          purchaseTime: purchase.transactionDate || Date.now(),
         };
 
-        const validated = await this.validateReceipt(iapPurchase);
-        if (validated) {
+        const validation = await this.validateReceipt(iapPurchase);
+        if (validation.valid) {
+          iapPurchase.expirationDate = validation.expirationDate;
           purchases.push(iapPurchase);
         }
       }
@@ -320,7 +346,9 @@ class IAPService {
     }
   }
 
-  private async validateReceipt(purchase: IAPPurchase): Promise<boolean> {
+  private async validateReceipt(
+    purchase: IAPPurchase,
+  ): Promise<{ valid: boolean; expirationDate: string | null }> {
     try {
       const deviceId = await storage.getDeviceId();
 
@@ -340,23 +368,26 @@ class IAPService {
             receipt: purchase.transactionReceipt,
             purchaseTime: purchase.purchaseTime,
           }),
-        }
+        },
       );
 
       const timeoutPromise = new Promise<Response>((_, reject) =>
-        setTimeout(() => reject(new Error("Validation timeout")), 15000)
+        setTimeout(() => reject(new Error("Validation timeout")), 15000),
       );
 
       const response = await Promise.race([validatePromise, timeoutPromise]);
       if (!response.ok) {
         logger.error("Receipt validation server error:", response.status);
-        return false;
+        return { valid: false, expirationDate: null };
       }
       const data = await response.json();
-      return data.valid === true;
+      return {
+        valid: data.valid === true,
+        expirationDate: data.expirationDate || null,
+      };
     } catch (error) {
       logger.error("Receipt validation error:", error);
-      return false;
+      return { valid: false, expirationDate: null };
     }
   }
 

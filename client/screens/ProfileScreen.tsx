@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { View, ScrollView, StyleSheet, Pressable, Alert, Platform, Switch, Linking } from "react-native";
+import {
+  View,
+  ScrollView,
+  StyleSheet,
+  Pressable,
+  Alert,
+  Platform,
+  Switch,
+  Linking,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -16,7 +25,9 @@ import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
-import { getApiUrl } from "@/lib/query-client";
+import Constants from "expo-constants";
+
+import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { storage } from "@/lib/storage";
 import {
   requestNotificationPermissions,
@@ -41,7 +52,13 @@ interface SettingsRowProps {
   destructive?: boolean;
 }
 
-function SettingsRow({ icon, title, subtitle, onPress, destructive }: SettingsRowProps) {
+function SettingsRow({
+  icon,
+  title,
+  subtitle,
+  onPress,
+  destructive,
+}: SettingsRowProps) {
   const { theme, isDark } = useTheme();
   const scale = useSharedValue(1);
   const chevronX = useSharedValue(0);
@@ -74,6 +91,8 @@ function SettingsRow({ icon, title, subtitle, onPress, destructive }: SettingsRo
       onPress={handlePress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
+      accessibilityRole="button"
+      accessibilityLabel={subtitle ? `${title}. ${subtitle}` : title}
     >
       <Animated.View
         style={[
@@ -112,7 +131,9 @@ function SettingsRow({ icon, title, subtitle, onPress, destructive }: SettingsRo
             {title}
           </ThemedText>
           {subtitle ? (
-            <ThemedText style={[styles.settingsSubtitle, { color: theme.textSecondary }]}>
+            <ThemedText
+              style={[styles.settingsSubtitle, { color: theme.textSecondary }]}
+            >
               {subtitle}
             </ThemedText>
           ) : null}
@@ -131,7 +152,20 @@ export default function ProfileScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<any>();
   const { theme, isDark } = useTheme();
-  const { hasOnboarded, persona, personas, benchmarks, actions, reflections, clearAllData, switchPersona, deletePersona, subscription, canAddPersona, monthlyReflectionCount } = useApp();
+  const {
+    hasOnboarded,
+    persona,
+    personas,
+    benchmarks,
+    actions,
+    reflections,
+    clearAllData,
+    switchPersona,
+    deletePersona,
+    subscription,
+    canAddPersona,
+    monthlyReflectionCount,
+  } = useApp();
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
@@ -149,13 +183,37 @@ export default function ProfileScreen() {
   }, []);
 
   const handleToggleNotifications = async (value: boolean) => {
-    const isWeb = Platform.OS as string === "web";
+    const isWeb = (Platform.OS as string) === "web";
     if (isWeb) {
-      window.alert("Notifications are only available in Expo Go on your mobile device.");
+      window.alert(
+        "Notifications are only available in Expo Go on your mobile device.",
+      );
       return;
     }
 
     if (value) {
+      // Give the user context before the OS permission prompt appears
+      if (!hasPermission) {
+        const proceed = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            "Daily Reminders",
+            "Resolution Companion will send one reminder at 8:00 PM each day to log your actions. You can turn this off anytime.",
+            [
+              {
+                text: "Not Now",
+                style: "cancel",
+                onPress: () => resolve(false),
+              },
+              { text: "Enable", onPress: () => resolve(true) },
+            ],
+          );
+        });
+        if (!proceed) {
+          setNotificationsEnabled(false);
+          return;
+        }
+      }
+
       const granted = await requestNotificationPermissions();
       if (granted) {
         await scheduleDailyReminder(20, 0);
@@ -174,11 +232,10 @@ export default function ProfileScreen() {
               onPress: async () => {
                 try {
                   await Linking.openSettings();
-                } catch {
-                }
+                } catch {}
               },
             },
-          ]
+          ],
         );
       }
     } else {
@@ -191,10 +248,12 @@ export default function ProfileScreen() {
   const showAlert = (
     title: string,
     message: string,
-    buttons: { text: string; onPress?: () => void; style?: string }[]
+    buttons: { text: string; onPress?: () => void; style?: string }[],
   ) => {
     if (Platform.OS === "web") {
-      const confirmButton = buttons.find((b) => b.style === "destructive" || b.text !== "Cancel");
+      const confirmButton = buttons.find(
+        (b) => b.style === "destructive" || b.text !== "Cancel",
+      );
       if (confirmButton && window.confirm(`${title}\n\n${message}`)) {
         confirmButton.onPress?.();
       }
@@ -221,9 +280,14 @@ export default function ProfileScreen() {
   const handleDeletePersona = (id: string, name: string) => {
     if (personas.length <= 1) {
       if (Platform.OS === "web") {
-        window.alert("You must have at least one persona. Create a new one first before deleting this one.");
+        window.alert(
+          "You must have at least one persona. Create a new one first before deleting this one.",
+        );
       } else {
-        Alert.alert("Cannot Delete", "You must have at least one persona. Create a new one first before deleting this one.");
+        Alert.alert(
+          "Cannot Delete",
+          "You must have at least one persona. Create a new one first before deleting this one.",
+        );
       }
       return;
     }
@@ -239,11 +303,13 @@ export default function ProfileScreen() {
           onPress: async () => {
             await deletePersona(id);
             if (Platform.OS !== "web") {
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Warning,
+              );
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -265,7 +331,7 @@ export default function ProfileScreen() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -281,33 +347,49 @@ export default function ProfileScreen() {
           onPress: async () => {
             try {
               const deviceId = await storage.getDeviceId();
-              await fetch(new URL(`/api/user-data/${deviceId}`, getApiUrl()).toString(), {
-                method: "DELETE",
-              });
+              await fetch(
+                new URL(`/api/user-data/${deviceId}`, getApiUrl()).toString(),
+                {
+                  method: "DELETE",
+                  headers: getAuthHeaders(),
+                },
+              );
               await clearAllData();
               if (Platform.OS === "web") {
-                window.alert("All your data has been deleted from this device and our servers.");
+                window.alert(
+                  "All your data has been deleted from this device and our servers.",
+                );
               } else {
-                Alert.alert("Account Deleted", "All your data has been deleted from this device and our servers.");
+                Alert.alert(
+                  "Account Deleted",
+                  "All your data has been deleted from this device and our servers.",
+                );
               }
             } catch (error) {
               logger.error("Failed to delete server data:", error);
               await clearAllData();
               if (Platform.OS === "web") {
-                window.alert("Local data deleted. Server data deletion may have failed — please contact support if needed.");
+                window.alert(
+                  "Local data deleted. Server data deletion may have failed — please contact support if needed.",
+                );
               } else {
-                Alert.alert("Partial Deletion", "Local data deleted. Server data deletion may have failed — please contact support if needed.");
+                Alert.alert(
+                  "Partial Deletion",
+                  "Local data deleted. Server data deletion may have failed — please contact support if needed.",
+                );
               }
             }
           },
         },
-      ]
+      ],
     );
   };
 
-  const currentPersonaBenchmarks = benchmarks.filter((b) => b.personaId === persona?.id);
-  const currentPersonaActions = actions.filter((a) => 
-    currentPersonaBenchmarks.some((b) => b.id === a.benchmarkId)
+  const currentPersonaBenchmarks = benchmarks.filter(
+    (b) => b.personaId === persona?.id,
+  );
+  const currentPersonaActions = actions.filter((a) =>
+    currentPersonaBenchmarks.some((b) => b.id === a.benchmarkId),
   );
 
   const stats = [
@@ -330,28 +412,43 @@ export default function ProfileScreen() {
         <View
           style={[
             styles.profileCard,
-            { backgroundColor: isDark ? Colors.dark.backgroundDefault : Colors.light.backgroundDefault },
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+            },
           ]}
         >
           <View style={styles.avatarContainer}>
-            <View style={[styles.avatar, { backgroundColor: Colors.dark.accent }]}>
+            <View
+              style={[styles.avatar, { backgroundColor: Colors.dark.accent }]}
+            >
               <Feather name="user" size={32} color="#000000" />
             </View>
           </View>
           <ThemedText style={styles.personaName}>{persona.name}</ThemedText>
           {persona.description ? (
-            <ThemedText style={[styles.personaDescription, { color: theme.textSecondary }]}>
+            <ThemedText
+              style={[
+                styles.personaDescription,
+                { color: theme.textSecondary },
+              ]}
+            >
               {persona.description}
             </ThemedText>
           ) : null}
-          
+
           <View style={styles.statsRow}>
             {stats.map((stat) => (
               <View key={stat.label} style={styles.statItem}>
-                <ThemedText style={[styles.statValue, { color: Colors.dark.accent }]}>
+                <ThemedText
+                  style={[styles.statValue, { color: Colors.dark.accent }]}
+                >
                   {stat.value}
                 </ThemedText>
-                <ThemedText style={[styles.statLabel, { color: theme.textSecondary }]}>
+                <ThemedText
+                  style={[styles.statLabel, { color: theme.textSecondary }]}
+                >
                   {stat.label}
                 </ThemedText>
               </View>
@@ -362,15 +459,26 @@ export default function ProfileScreen() {
         <View
           style={[
             styles.profileCard,
-            { backgroundColor: isDark ? Colors.dark.backgroundDefault : Colors.light.backgroundDefault },
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+            },
           ]}
         >
           <View style={styles.avatarContainer}>
-            <View style={[styles.avatar, { backgroundColor: theme.backgroundSecondary }]}>
+            <View
+              style={[
+                styles.avatar,
+                { backgroundColor: theme.backgroundSecondary },
+              ]}
+            >
               <Feather name="user" size={32} color={theme.textSecondary} />
             </View>
           </View>
-          <ThemedText style={[styles.notOnboarded, { color: theme.textSecondary }]}>
+          <ThemedText
+            style={[styles.notOnboarded, { color: theme.textSecondary }]}
+          >
             Complete onboarding to define your persona
           </ThemedText>
           <Pressable
@@ -380,7 +488,9 @@ export default function ProfileScreen() {
               { opacity: pressed ? 0.8 : 1 },
             ]}
           >
-            <ThemedText style={styles.onboardButtonText}>Start Journey</ThemedText>
+            <ThemedText style={styles.onboardButtonText}>
+              Start Journey
+            </ThemedText>
           </Pressable>
         </View>
       )}
@@ -391,14 +501,26 @@ export default function ProfileScreen() {
             <ThemedText style={styles.sectionTitle}>My Personas</ThemedText>
             <Pressable
               onPress={handleAddNewPersona}
-              style={({ pressed }) => [styles.addPersonaButton, { opacity: pressed ? 0.7 : 1 }]}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={
+                canAddPersona()
+                  ? "Add a new persona"
+                  : "Upgrade to Premium to add more personas"
+              }
+              style={({ pressed }) => [
+                styles.addPersonaButton,
+                { opacity: pressed ? 0.7 : 1 },
+              ]}
             >
               {!canAddPersona() ? (
                 <Feather name="lock" size={14} color={Colors.dark.accent} />
               ) : (
                 <Feather name="plus" size={18} color={Colors.dark.accent} />
               )}
-              <ThemedText style={[styles.addPersonaText, { color: Colors.dark.accent }]}>
+              <ThemedText
+                style={[styles.addPersonaText, { color: Colors.dark.accent }]}
+              >
                 {canAddPersona() ? "Add" : "PRO"}
               </ThemedText>
             </Pressable>
@@ -413,23 +535,46 @@ export default function ProfileScreen() {
                 style={({ pressed }) => [
                   styles.personaItem,
                   {
-                    backgroundColor: isDark ? Colors.dark.backgroundDefault : Colors.light.backgroundDefault,
-                    borderColor: p.id === persona?.id ? Colors.dark.accent : "transparent",
+                    backgroundColor: isDark
+                      ? Colors.dark.backgroundDefault
+                      : Colors.light.backgroundDefault,
+                    borderColor:
+                      p.id === persona?.id ? Colors.dark.accent : "transparent",
                     borderWidth: 2,
                     opacity: pressed ? 0.8 : 1,
                   },
                 ]}
               >
-                <View style={[
-                  styles.personaItemAvatar,
-                  { backgroundColor: p.id === persona?.id ? Colors.dark.accent : theme.backgroundSecondary }
-                ]}>
-                  <Feather name="user" size={16} color={p.id === persona?.id ? "#000000" : theme.textSecondary} />
+                <View
+                  style={[
+                    styles.personaItemAvatar,
+                    {
+                      backgroundColor:
+                        p.id === persona?.id
+                          ? Colors.dark.accent
+                          : theme.backgroundSecondary,
+                    },
+                  ]}
+                >
+                  <Feather
+                    name="user"
+                    size={16}
+                    color={
+                      p.id === persona?.id ? "#000000" : theme.textSecondary
+                    }
+                  />
                 </View>
                 <View style={styles.personaItemContent}>
-                  <ThemedText style={styles.personaItemName}>{p.name}</ThemedText>
+                  <ThemedText style={styles.personaItemName}>
+                    {p.name}
+                  </ThemedText>
                   {p.id === persona?.id ? (
-                    <ThemedText style={[styles.personaItemBadge, { color: Colors.dark.accent }]}>
+                    <ThemedText
+                      style={[
+                        styles.personaItemBadge,
+                        { color: Colors.dark.accent },
+                      ]}
+                    >
                       Active
                     </ThemedText>
                   ) : null}
@@ -437,10 +582,16 @@ export default function ProfileScreen() {
                 {p.id !== persona?.id ? (
                   <Pressable
                     onPress={() => handleDeletePersona(p.id, p.name)}
-                    hitSlop={8}
+                    hitSlop={14}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete persona ${p.name}`}
                     style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
                   >
-                    <Feather name="trash-2" size={18} color={Colors.dark.error} />
+                    <Feather
+                      name="trash-2"
+                      size={18}
+                      color={Colors.dark.error}
+                    />
                   </Pressable>
                 ) : null}
               </Pressable>
@@ -450,13 +601,17 @@ export default function ProfileScreen() {
           <View style={styles.personaHintContainer}>
             <View style={styles.personaHintRow}>
               <Feather name="repeat" size={14} color={theme.textSecondary} />
-              <ThemedText style={[styles.personaHint, { color: theme.textSecondary }]}>
+              <ThemedText
+                style={[styles.personaHint, { color: theme.textSecondary }]}
+              >
                 Tap to switch
               </ThemedText>
             </View>
             <View style={styles.personaHintRow}>
               <Feather name="trash-2" size={14} color={theme.textSecondary} />
-              <ThemedText style={[styles.personaHint, { color: theme.textSecondary }]}>
+              <ThemedText
+                style={[styles.personaHint, { color: theme.textSecondary }]}
+              >
                 Tap trash icon to delete
               </ThemedText>
             </View>
@@ -464,16 +619,20 @@ export default function ProfileScreen() {
         </>
       ) : null}
 
-      <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>Settings</ThemedText>
+      <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
+        Settings
+      </ThemedText>
 
       <SettingsRow
         icon={subscription.isPremium ? "check-circle" : "zap"}
         title={subscription.isPremium ? "Premium Active" : "Upgrade to Premium"}
-        subtitle={subscription.isPremium 
-          ? `${subscription.plan === "yearly" ? "Yearly" : "Monthly"} plan` 
-          : monthlyReflectionCount >= 10 
-            ? "Check-in limit reached" 
-            : `${10 - monthlyReflectionCount} check-ins left this month`}
+        subtitle={
+          subscription.isPremium
+            ? `${subscription.plan === "yearly" ? "Yearly" : "Monthly"} plan`
+            : monthlyReflectionCount >= 10
+              ? "Check-in limit reached"
+              : `${10 - monthlyReflectionCount} check-ins left this month`
+        }
         onPress={() => navigation.navigate("Subscription")}
       />
 
@@ -497,18 +656,23 @@ export default function ProfileScreen() {
         </View>
         <View style={styles.settingsContent}>
           <ThemedText style={styles.settingsTitle}>Daily Reminders</ThemedText>
-          <ThemedText style={[styles.settingsSubtitle, { color: theme.textSecondary }]}>
-            {Platform.OS === "web" 
-              ? "Available on mobile" 
-              : notificationsEnabled 
-                ? "Reminder at 8:00 PM" 
+          <ThemedText
+            style={[styles.settingsSubtitle, { color: theme.textSecondary }]}
+          >
+            {Platform.OS === "web"
+              ? "Available on mobile"
+              : notificationsEnabled
+                ? "Reminder at 8:00 PM"
                 : "Off"}
           </ThemedText>
         </View>
         <Switch
           value={notificationsEnabled}
           onValueChange={handleToggleNotifications}
-          trackColor={{ false: theme.backgroundSecondary, true: Colors.dark.accent }}
+          trackColor={{
+            false: theme.backgroundSecondary,
+            true: Colors.dark.accent,
+          }}
           thumbColor={notificationsEnabled ? "#FFFFFF" : "#FFFFFF"}
           disabled={Platform.OS === "web"}
         />
@@ -517,14 +681,16 @@ export default function ProfileScreen() {
       <SettingsRow
         icon="info"
         title="About Resolution Companion"
-        subtitle="Version 1.0.0"
+        subtitle={`Version ${Constants.expoConfig?.version || "1.0.0"}`}
         onPress={() => {
           if (Platform.OS === "web") {
-            window.alert("Resolution Companion is your AI-powered partner for achieving your resolutions. It helps you define who you want to become and builds personalized daily habits to get you there.");
+            window.alert(
+              "Resolution Companion is your AI-powered partner for achieving your resolutions. It helps you define who you want to become and builds personalized daily habits to get you there.",
+            );
           } else {
             Alert.alert(
               "About Resolution Companion",
-              "Resolution Companion is your AI-powered partner for achieving your resolutions. It helps you define who you want to become and builds personalized daily habits to get you there."
+              "Resolution Companion is your AI-powered partner for achieving your resolutions. It helps you define who you want to become and builds personalized daily habits to get you there.",
             );
           }
         }}
@@ -548,29 +714,27 @@ export default function ProfileScreen() {
         onPress={() => Linking.openURL(`${getApiUrl()}/terms`)}
       />
 
+      <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
+        Danger Zone
+      </ThemedText>
+
       {hasOnboarded ? (
-        <>
-          <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
-            Danger Zone
-          </ThemedText>
-
-          <SettingsRow
-            icon="trash-2"
-            title="Clear All Data"
-            subtitle="Delete local data and start fresh"
-            onPress={handleClearData}
-            destructive
-          />
-
-          <SettingsRow
-            icon="user-minus"
-            title="Delete My Account & Data"
-            subtitle="Remove all data from device and servers"
-            onPress={handleDeleteAccount}
-            destructive
-          />
-        </>
+        <SettingsRow
+          icon="trash-2"
+          title="Clear All Data"
+          subtitle="Delete local data and start fresh"
+          onPress={handleClearData}
+          destructive
+        />
       ) : null}
+
+      <SettingsRow
+        icon="user-minus"
+        title="Delete My Account & Data"
+        subtitle="Remove all data from device and servers"
+        onPress={handleDeleteAccount}
+        destructive
+      />
     </ScrollView>
   );
 }

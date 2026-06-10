@@ -15,7 +15,12 @@ export function ChatBubble({ message, isUser, isTyping }: ChatBubbleProps) {
   const { theme, isDark } = useTheme();
 
   return (
-    <View style={[styles.container, isUser ? styles.userContainer : styles.aiContainer]}>
+    <View
+      style={[
+        styles.container,
+        isUser ? styles.userContainer : styles.aiContainer,
+      ]}
+    >
       {!isUser ? (
         <View style={styles.avatarContainer}>
           <View style={styles.avatar}>
@@ -40,10 +45,7 @@ export function ChatBubble({ message, isUser, isTyping }: ChatBubbleProps) {
         ]}
       >
         <ThemedText
-          style={[
-            styles.text,
-            { color: isUser ? "#000000" : theme.text },
-          ]}
+          style={[styles.text, { color: isUser ? "#000000" : theme.text }]}
         >
           {isTyping ? `${message}...` : message}
         </ThemedText>

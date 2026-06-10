@@ -1,5 +1,22 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { storage, Persona, Benchmark, ElementalAction, DailyLog, Reflection, Subscription } from "@/lib/storage";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  ReactNode,
+} from "react";
+import {
+  storage,
+  Persona,
+  Benchmark,
+  ElementalAction,
+  DailyLog,
+  Reflection,
+  Subscription,
+} from "@/lib/storage";
+import { computeMomentumScore } from "@/lib/progress";
 import { logger } from "@/lib/logger";
 
 interface AppContextType {
@@ -15,22 +32,34 @@ interface AppContextType {
   isLoading: boolean;
   subscription: Subscription;
   monthlyReflectionCount: number;
-  
+
   setHasOnboarded: (value: boolean) => Promise<void>;
   setPersona: (persona: Omit<Persona, "id" | "createdAt">) => Promise<Persona>;
   addPersona: (persona: Omit<Persona, "id" | "createdAt">) => Promise<Persona>;
   switchPersona: (id: string) => Promise<void>;
   deletePersona: (id: string) => Promise<void>;
-  addBenchmark: (benchmark: Omit<Benchmark, "id" | "createdAt">) => Promise<Benchmark>;
-  updateBenchmark: (id: string, updates: Partial<Omit<Benchmark, "id" | "createdAt">>) => Promise<Benchmark | null>;
+  addBenchmark: (
+    benchmark: Omit<Benchmark, "id" | "createdAt">,
+  ) => Promise<Benchmark>;
+  updateBenchmark: (
+    id: string,
+    updates: Partial<Omit<Benchmark, "id" | "createdAt">>,
+  ) => Promise<Benchmark | null>;
   deleteBenchmark: (id: string) => Promise<void>;
   setBenchmarks: (benchmarks: Benchmark[]) => Promise<void>;
-  addAction: (action: Omit<ElementalAction, "id" | "createdAt">) => Promise<ElementalAction>;
-  updateAction: (id: string, updates: Partial<Omit<ElementalAction, "id" | "createdAt">>) => Promise<ElementalAction | null>;
+  addAction: (
+    action: Omit<ElementalAction, "id" | "createdAt">,
+  ) => Promise<ElementalAction>;
+  updateAction: (
+    id: string,
+    updates: Partial<Omit<ElementalAction, "id" | "createdAt">>,
+  ) => Promise<ElementalAction | null>;
   deleteAction: (id: string) => Promise<void>;
   setActions: (actions: ElementalAction[]) => Promise<void>;
   toggleDailyLog: (actionId: string, date: string) => Promise<DailyLog>;
-  addReflection: (reflection: Omit<Reflection, "id" | "createdAt">) => Promise<Reflection>;
+  addReflection: (
+    reflection: Omit<Reflection, "id" | "createdAt">,
+  ) => Promise<Reflection>;
   refreshData: () => Promise<void>;
   clearAllData: () => Promise<void>;
   upgradeToPremium: (plan: "monthly" | "yearly") => Promise<void>;
@@ -52,9 +81,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [actions, setActionsState] = useState<ElementalAction[]>([]);
   const [dailyLogs, setDailyLogsState] = useState<DailyLog[]>([]);
   const [reflections, setReflectionsState] = useState<Reflection[]>([]);
-  const [momentumScore, setMomentumScore] = useState(0);
-  const [personaAlignment, setPersonaAlignment] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Derived from the persona-scoped state, so they can never drift from the
+  // data they describe (state mirrors storage via refreshData + mutators)
+  const momentumScore = useMemo(
+    () => computeMomentumScore(actions, dailyLogs, 7),
+    [actions, dailyLogs],
+  );
+  const personaAlignment = useMemo(
+    () => computeMomentumScore(actions, dailyLogs, 30),
+    [actions, dailyLogs],
+  );
   const [subscription, setSubscriptionState] = useState<Subscription>({
     isPremium: false,
     plan: "free",
@@ -93,30 +131,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setHasOnboardedState(onboarded);
       setPersonaState(personaData);
       setPersonasState(personasData);
-      
+
       if (personaData) {
-        const personaBenchmarks = benchmarksData.filter((b) => b.personaId === personaData.id);
+        const personaBenchmarks = benchmarksData.filter(
+          (b) => b.personaId === personaData.id,
+        );
         const personaBenchmarkIds = personaBenchmarks.map((b) => b.id);
-        const personaActions = actionsData.filter((a) => personaBenchmarkIds.includes(a.benchmarkId));
+        const personaActions = actionsData.filter((a) =>
+          personaBenchmarkIds.includes(a.benchmarkId),
+        );
         const personaActionIds = personaActions.map((a) => a.id);
-        const personaLogs = logsData.filter((l) => personaActionIds.includes(l.actionId));
-        
+        const personaLogs = logsData.filter((l) =>
+          personaActionIds.includes(l.actionId),
+        );
+
         setBenchmarksState(personaBenchmarks);
         setActionsState(personaActions);
         setDailyLogsState(personaLogs);
-        
-        const [momentum, alignment] = await Promise.all([
-          storage.calculateMomentumScoreForPersona(personaData.id),
-          storage.getPersonaAlignmentScoreForPersona(personaData.id),
-        ]);
-        setMomentumScore(momentum);
-        setPersonaAlignment(alignment);
       } else {
         setBenchmarksState([]);
         setActionsState([]);
         setDailyLogsState([]);
-        setMomentumScore(0);
-        setPersonaAlignment(0);
       }
       setReflectionsState(reflectionsData);
     } catch (error) {
@@ -160,13 +195,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setBenchmarksState([]);
     setActionsState([]);
     setDailyLogsState([]);
-    setMomentumScore(0);
-    setPersonaAlignment(0);
     await storage.deletePersona(id);
     await refreshData();
   };
 
-  const addBenchmark = async (benchmark: Omit<Benchmark, "id" | "createdAt">) => {
+  const addBenchmark = async (
+    benchmark: Omit<Benchmark, "id" | "createdAt">,
+  ) => {
     const newBenchmark = await storage.addBenchmark(benchmark);
     setBenchmarksState((prev) => [...prev, newBenchmark]);
     return newBenchmark;
@@ -177,37 +212,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setBenchmarksState(benchmarksData);
   };
 
-  const updateBenchmark = async (id: string, updates: Partial<Omit<Benchmark, "id" | "createdAt">>) => {
+  const updateBenchmark = async (
+    id: string,
+    updates: Partial<Omit<Benchmark, "id" | "createdAt">>,
+  ) => {
     const updated = await storage.updateBenchmark(id, updates);
     if (updated) {
-      setBenchmarksState((prev) => prev.map((b) => (b.id === id ? updated : b)));
+      setBenchmarksState((prev) =>
+        prev.map((b) => (b.id === id ? updated : b)),
+      );
     }
     return updated;
   };
 
   const deleteBenchmark = async (id: string) => {
-    const actionIdsToDelete = actions.filter((a) => a.benchmarkId === id).map((a) => a.id);
+    const actionIdsToDelete = actions
+      .filter((a) => a.benchmarkId === id)
+      .map((a) => a.id);
     await storage.deleteBenchmark(id);
     setBenchmarksState((prev) => prev.filter((b) => b.id !== id));
     setActionsState((prev) => prev.filter((a) => a.benchmarkId !== id));
-    setDailyLogsState((prev) => prev.filter((l) => !actionIdsToDelete.includes(l.actionId)));
-    if (persona) {
-      const [momentum, alignment] = await Promise.all([
-        storage.calculateMomentumScoreForPersona(persona.id),
-        storage.getPersonaAlignmentScoreForPersona(persona.id),
-      ]);
-      setMomentumScore(momentum);
-      setPersonaAlignment(alignment);
-    }
+    setDailyLogsState((prev) =>
+      prev.filter((l) => !actionIdsToDelete.includes(l.actionId)),
+    );
   };
 
-  const addAction = async (action: Omit<ElementalAction, "id" | "createdAt">) => {
+  const addAction = async (
+    action: Omit<ElementalAction, "id" | "createdAt">,
+  ) => {
     const newAction = await storage.addElementalAction(action);
     setActionsState((prev) => [...prev, newAction]);
     return newAction;
   };
 
-  const updateAction = async (id: string, updates: Partial<Omit<ElementalAction, "id" | "createdAt">>) => {
+  const updateAction = async (
+    id: string,
+    updates: Partial<Omit<ElementalAction, "id" | "createdAt">>,
+  ) => {
     const updated = await storage.updateElementalAction(id, updates);
     if (updated) {
       setActionsState((prev) => prev.map((a) => (a.id === id ? updated : a)));
@@ -219,14 +260,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await storage.deleteElementalAction(id);
     setActionsState((prev) => prev.filter((a) => a.id !== id));
     setDailyLogsState((prev) => prev.filter((l) => l.actionId !== id));
-    if (persona) {
-      const [momentum, alignment] = await Promise.all([
-        storage.calculateMomentumScoreForPersona(persona.id),
-        storage.getPersonaAlignmentScoreForPersona(persona.id),
-      ]);
-      setMomentumScore(momentum);
-      setPersonaAlignment(alignment);
-    }
   };
 
   const setActions = async (actionsData: ElementalAction[]) => {
@@ -234,40 +267,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActionsState(actionsData);
   };
 
-  const toggleDailyLog = async (actionId: string, date: string) => {
+  // Upsert into state directly — no storage re-reads. Both toggle surfaces
+  // (Today, Calendar) only operate on the active persona's actions, so the
+  // persona-scoped state invariant holds. Momentum/alignment recompute via
+  // the useMemo above.
+  const toggleDailyLog = useCallback(async (actionId: string, date: string) => {
     const log = await storage.toggleDailyLog(actionId, date);
-    
-    const activePersona = await storage.getActivePersona();
-    if (activePersona) {
-      const [allBenchmarks, allActions, allLogs] = await Promise.all([
-        storage.getBenchmarks(),
-        storage.getElementalActions(),
-        storage.getDailyLogs(),
-      ]);
-      
-      const personaBenchmarks = allBenchmarks.filter((b) => b.personaId === activePersona.id);
-      const personaBenchmarkIds = personaBenchmarks.map((b) => b.id);
-      const personaActions = allActions.filter((a) => personaBenchmarkIds.includes(a.benchmarkId));
-      const personaActionIds = personaActions.map((a) => a.id);
-      const personaLogs = allLogs.filter((l) => personaActionIds.includes(l.actionId));
-      
-      setDailyLogsState(personaLogs);
-      
-      const [momentum, alignment] = await Promise.all([
-        storage.calculateMomentumScoreForPersona(activePersona.id),
-        storage.getPersonaAlignmentScoreForPersona(activePersona.id),
-      ]);
-      setMomentumScore(momentum);
-      setPersonaAlignment(alignment);
-    } else {
-      const allLogs = await storage.getDailyLogs();
-      setDailyLogsState(allLogs);
-    }
-    
+    setDailyLogsState((prev) =>
+      prev.some((l) => l.id === log.id)
+        ? prev.map((l) => (l.id === log.id ? log : l))
+        : [...prev, log],
+    );
     return log;
-  };
+  }, []);
 
-  const addReflection = async (reflection: Omit<Reflection, "id" | "createdAt">) => {
+  const addReflection = async (
+    reflection: Omit<Reflection, "id" | "createdAt">,
+  ) => {
     const newReflection = await storage.addReflection(reflection);
     setReflectionsState((prev) => [...prev, newReflection]);
     return newReflection;
@@ -282,9 +298,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActionsState([]);
     setDailyLogsState([]);
     setReflectionsState([]);
-    setMomentumScore(0);
-    setPersonaAlignment(0);
-    setSubscriptionState({ isPremium: false, plan: "free", expiresAt: null, purchasedAt: null });
+    setSubscriptionState({
+      isPremium: false,
+      plan: "free",
+      expiresAt: null,
+      purchasedAt: null,
+    });
     setMonthlyReflectionCount(0);
   };
 

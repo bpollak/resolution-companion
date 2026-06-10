@@ -44,8 +44,8 @@ Preferred communication style: Simple, everyday language.
 - **Onboarding Flow**: Multi-screen walkthrough introducing the app, followed by an AI chat for persona definition with a visual progress indicator.
 - **Action Logging**: Users can log actions for past dates via the Calendar, with visual feedback.
 - **Notifications**: Daily reminder push notifications scheduled for 8:00 PM to log actions, with proper permission handling.
-- **Subscription Management**: Implemented Stripe payment integration for premium subscriptions with product creation (Monthly, Yearly), checkout flow, and webhook handling. Includes device-based subscription tracking, restore features, and persistence in a PostgreSQL `device_subscriptions` table.
-- **Native In-App Purchases**: expo-in-app-purchases integration for iOS App Store and Google Play Store. Platform detection uses native IAP on iOS/Android and Stripe on web. Server-side receipt validation for both Apple and Google. Environment variables needed for production: APPLE_SHARED_SECRET, GOOGLE_SERVICE_ACCOUNT_KEY, ANDROID_PACKAGE_NAME.
+- **Subscription Management**: Native in-app purchases only (no Stripe). Device-based subscription tracking with restore support, persisted in a PostgreSQL `device_subscriptions` table. Apple and Google server-to-server webhooks keep subscription status in sync.
+- **Native In-App Purchases**: react-native-iap (v14, StoreKit 2 / Google Play Billing) for iOS App Store and Google Play Store. Web builds show an informational message instead of a paywall. Server-side receipt validation for both Apple and Google. See DEPLOYMENT.md for the required environment variables.
 
 ## External Dependencies
 
@@ -59,6 +59,6 @@ Preferred communication style: Simple, everyday language.
 - **Express.js**: Backend server framework.
 - **TypeScript**: For type-safe development.
 - **esbuild**: For bundling the backend server.
-- **Stripe**: For subscription payments and management.
+- **react-native-iap**: Native in-app purchases (App Store / Google Play).
 - **PostgreSQL**: Database for storing website feedback and subscription data (used with Drizzle ORM).
 - **expo-notifications / expo-device**: For push notifications.

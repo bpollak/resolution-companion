@@ -23,7 +23,15 @@ export type MainTabParamList = {
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAYS_OF_WEEK = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
 
 export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
@@ -33,14 +41,19 @@ export default function MainTabNavigator() {
     const today = new Date();
     const dayOfWeek = DAYS_OF_WEEK[today.getDay()];
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-    
-    const todayActions = actions.filter((action) => action.frequency.includes(dayOfWeek));
-    const completedToday = dailyLogs.filter(
-      (log) => log.logDate.split("T")[0] === todayStr && log.status
+
+    const todayActions = actions.filter((action) =>
+      action.frequency.includes(dayOfWeek),
     );
-    const completedActionIds = new Set(completedToday.map((log) => log.actionId));
-    
-    return todayActions.filter((action) => !completedActionIds.has(action.id)).length;
+    const completedToday = dailyLogs.filter(
+      (log) => log.logDate.split("T")[0] === todayStr && log.status,
+    );
+    const completedActionIds = new Set(
+      completedToday.map((log) => log.actionId),
+    );
+
+    return todayActions.filter((action) => !completedActionIds.has(action.id))
+      .length;
   }, [actions, dailyLogs]);
 
   return (
@@ -62,7 +75,10 @@ export default function MainTabNavigator() {
         },
         tabBarItemStyle: {
           paddingTop: Spacing.xs,
-          paddingBottom: Platform.select({ ios: Spacing.lg, android: Spacing.sm }),
+          paddingBottom: Platform.select({
+            ios: Spacing.lg,
+            android: Spacing.sm,
+          }),
         },
         tabBarLabelStyle: {
           fontSize: 11,
@@ -97,7 +113,12 @@ export default function MainTabNavigator() {
               style={StyleSheet.absoluteFill}
             />
           ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.backgroundRoot }]} />
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                { backgroundColor: theme.backgroundRoot },
+              ]}
+            />
           ),
         headerTitleStyle: {
           color: theme.text,
@@ -113,7 +134,8 @@ export default function MainTabNavigator() {
           tabBarIcon: ({ color, size }) => (
             <Feather name="sun" size={size} color={color} />
           ),
-          tabBarBadge: remainingTasksCount > 0 ? remainingTasksCount : undefined,
+          tabBarBadge:
+            remainingTasksCount > 0 ? remainingTasksCount : undefined,
           tabBarBadgeStyle: {
             backgroundColor: "#FF6B9D",
             color: "#FFFFFF",

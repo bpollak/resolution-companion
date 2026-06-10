@@ -46,7 +46,10 @@ export async function requestNotificationPermissions(): Promise<boolean> {
   return finalStatus === "granted";
 }
 
-export async function scheduleDailyReminder(hour: number = 20, minute: number = 0): Promise<string | null> {
+export async function scheduleDailyReminder(
+  hour: number = 20,
+  minute: number = 0,
+): Promise<string | null> {
   if (Platform.OS === "web") {
     return null;
   }

@@ -17,7 +17,7 @@ function setupCors(app: express.Application) {
   // Configure allowed origins via ALLOWED_ORIGINS env var (comma-separated).
   // Falls back to allowing any HTTPS origin if not set (for backward compatibility).
   const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim())
+    ? process.env.ALLOWED_ORIGINS.split(",").map((o: string) => o.trim())
     : null;
 
   app.use((req, res, next) => {
@@ -30,8 +30,14 @@ function setupCors(app: express.Application) {
 
       if (isAllowed) {
         res.header("Access-Control-Allow-Origin", origin);
-        res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        res.header("Access-Control-Allow-Headers", "Content-Type, Cache-Control, Pragma, X-Requested-With");
+        res.header(
+          "Access-Control-Allow-Methods",
+          "GET, POST, PUT, DELETE, OPTIONS",
+        );
+        res.header(
+          "Access-Control-Allow-Headers",
+          "Content-Type, Cache-Control, Pragma, X-Requested-With, X-API-Key",
+        );
         res.header("Access-Control-Allow-Credentials", "true");
       }
     }
@@ -56,17 +62,30 @@ function setupBodyParsing(app: express.Application) {
   app.use(express.urlencoded({ extended: false }));
 }
 
+// Endpoints whose responses contain device-linked data — log status only
+const SENSITIVE_LOG_PREFIXES = [
+  "/api/subscription",
+  "/api/user-data",
+  "/api/iap",
+];
+
 function setupRequestLogging(app: express.Application) {
   app.use((req, res, next) => {
     const start = Date.now();
     const path = req.path;
     let capturedJsonResponse: Record<string, unknown> | undefined = undefined;
 
-    const originalResJson = res.json;
-    res.json = function (bodyJson, ...args) {
-      capturedJsonResponse = bodyJson;
-      return originalResJson.apply(res, [bodyJson, ...args]);
-    };
+    const isSensitive = SENSITIVE_LOG_PREFIXES.some((prefix) =>
+      path.startsWith(prefix),
+    );
+
+    if (!isSensitive) {
+      const originalResJson = res.json;
+      res.json = function (bodyJson, ...args) {
+        capturedJsonResponse = bodyJson;
+        return originalResJson.apply(res, [bodyJson, ...args]);
+      };
+    }
 
     res.on("finish", () => {
       if (!path.startsWith("/api")) return;
@@ -153,13 +172,16 @@ function configureExpoAndLanding(app: express.Application) {
     app.use("/_expo", express.static(path.join(staticBuildDir)));
 
     log("Expo routing: Checking expo-platform header on / and /manifest");
-    app.get(["/", "/manifest"], (req: Request, res: Response, next: Function) => {
-      const platform = req.header("expo-platform");
-      if (platform) {
-        return serveExpoManifest(platform, res);
-      }
-      next();
-    });
+    app.get(
+      ["/", "/manifest"],
+      (req: Request, res: Response, next: Function) => {
+        const platform = req.header("expo-platform");
+        if (platform) {
+          return serveExpoManifest(platform, res);
+        }
+        next();
+      },
+    );
   }
 
   app.get("/", (req: Request, res: Response) => {
