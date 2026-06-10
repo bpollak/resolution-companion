@@ -391,6 +391,41 @@ async function createGoogleJWT(credentials: { client_email: string; private_key:
   return `${signatureInput}.${signature}`;
 }
 
+// Guard the OpenAI-backed endpoints against oversized payloads (token burn)
+const MAX_MESSAGES = 50;
+const MAX_MESSAGE_CHARS = 4000;
+const MAX_TOTAL_CHARS = 50000;
+const VALID_ROLES = new Set(["user", "assistant", "system"]);
+
+function validateMessages(messages: unknown): string | null {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return "messages must be a non-empty array";
+  }
+  if (messages.length > MAX_MESSAGES) {
+    return `messages must contain at most ${MAX_MESSAGES} entries`;
+  }
+  let totalChars = 0;
+  for (const message of messages) {
+    if (
+      typeof message !== "object" ||
+      message === null ||
+      typeof (message as any).content !== "string" ||
+      !VALID_ROLES.has((message as any).role)
+    ) {
+      return "each message must have a valid role and string content";
+    }
+    const length = (message as any).content.length;
+    if (length > MAX_MESSAGE_CHARS) {
+      return `each message must be at most ${MAX_MESSAGE_CHARS} characters`;
+    }
+    totalChars += length;
+  }
+  if (totalChars > MAX_TOTAL_CHARS) {
+    return `messages must total at most ${MAX_TOTAL_CHARS} characters`;
+  }
+  return null;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check for deployment platforms
   app.get("/api/health", (_req: Request, res: Response) => {
@@ -407,6 +442,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/chat", requireApiKey, aiRateLimit, async (req: Request, res: Response) => {
     try {
       const { messages } = req.body;
+
+      const validationError = validateMessages(messages);
+      if (validationError) {
+        res.status(400).json({ error: validationError });
+        return;
+      }
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
@@ -439,6 +480,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/extract-persona", requireApiKey, aiRateLimit, async (req: Request, res: Response) => {
     try {
       const { messages, extractionPrompt } = req.body;
+
+      const validationError = validateMessages(messages);
+      if (validationError) {
+        res.status(400).json({ error: validationError });
+        return;
+      }
+      if (typeof extractionPrompt !== "string" || extractionPrompt.length > 10000) {
+        res.status(400).json({ error: "extractionPrompt must be a string of at most 10000 characters" });
+        return;
+      }
 
       const conversationText = messages
         .filter((m: { role: string }) => m.role !== "system")
@@ -474,6 +525,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/reflection", requireApiKey, aiRateLimit, async (req: Request, res: Response) => {
     try {
       const { messages } = req.body;
+
+      const validationError = validateMessages(messages);
+      if (validationError) {
+        res.status(400).json({ error: validationError });
+        return;
+      }
 
       const response = await getOpenAI().chat.completions.create({
         model: "gpt-4o",
@@ -650,7 +707,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/iap/validate", requireApiKey, apiRateLimit, async (req: Request, res: Response) => {
     try {
-      const { deviceId, platform, productId, transactionId, receipt, purchaseTime } = req.body;
+      const { deviceId, platform, productId, transactionId, receipt } = req.body;
       
       if (!deviceId || !platform || !productId || !receipt) {
         res.status(400).json({ error: "Missing required fields", valid: false });
@@ -680,12 +737,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (isValid && db) {
         const plan = productId.toLowerCase().includes("yearly") || productId.toLowerCase().includes("year") || productId.toLowerCase().includes("annual")
-          ? "yearly" 
+          ? "yearly"
           : "monthly";
-        
+
+        // For Android, store the purchase token so Play webhooks can be matched
+        // to this exact subscription. For iOS, the transaction ID is the key.
+        let providerCustomerId = `iap_ios_${transactionId}`;
+        if (platform === "android") {
+          let purchaseToken = receipt;
+          try {
+            purchaseToken = JSON.parse(receipt).purchaseToken || receipt;
+          } catch {}
+          providerCustomerId = `iap_android_${purchaseToken}`;
+        }
+
         const subscriptionData = {
-          stripeCustomerId: `iap_${platform}_${transactionId}`,
-          stripeSubscriptionId: `iap_${transactionId}`,
+          providerCustomerId,
+          providerTransactionId: `iap_${transactionId}`,
           plan: plan,
           status: "active" as const,
           currentPeriodEnd: expirationDate,
@@ -753,7 +821,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // The nested signedTransactionInfo is also JWS-signed by Apple
       const txInfo = verifyAppleJWS(payload.data.signedTransactionInfo);
       const originalTransactionId = txInfo.originalTransactionId || txInfo.transactionId;
-      const productId = txInfo.productId;
       const expiresDate = txInfo.expiresDate ? new Date(txInfo.expiresDate) : null;
 
       if (!db) {
@@ -762,15 +829,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      // Look up the subscription by the IAP transaction ID stored in stripeSubscriptionId
+      // Look up the subscription by the IAP transaction ID stored in providerTransactionId
       const lookupId = `iap_${originalTransactionId}`;
       const results = await db.select().from(deviceSubscriptions)
-        .where(eq(deviceSubscriptions.stripeSubscriptionId, lookupId));
+        .where(eq(deviceSubscriptions.providerTransactionId, lookupId));
 
       if (results.length === 0) {
         // Also try with the prefix format used during validation
         const altResults = await db.select().from(deviceSubscriptions)
-          .where(sql`${deviceSubscriptions.stripeSubscriptionId} LIKE ${'iap_%' + originalTransactionId}`);
+          .where(sql`${deviceSubscriptions.providerTransactionId} LIKE ${'iap_%' + originalTransactionId}`);
 
         if (altResults.length === 0) {
           console.log(`Apple webhook: no subscription found for transaction ${originalTransactionId}`);
@@ -878,9 +945,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 1=RECOVERED, 2=RENEWED, 3=CANCELED, 4=PURCHASED, 5=ON_HOLD,
       // 6=IN_GRACE_PERIOD, 7=RESTARTED, 12=REVOKED, 13=EXPIRED
 
-      // Look up subscription by purchase token stored in stripeCustomerId
+      // Match the exact subscription this notification concerns via the stored
+      // purchase token — never act on an arbitrary record.
       const results = await db.select().from(deviceSubscriptions)
-        .where(sql`${deviceSubscriptions.stripeCustomerId} LIKE ${'iap_android_%'}`);
+        .where(eq(deviceSubscriptions.providerCustomerId, `iap_android_${purchaseToken}`));
 
       // For Google, we need to re-verify with the Play API to get current status
       if (results.length > 0) {
@@ -905,16 +973,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
             break;
 
-          case 3:  // CANCELED
+          case 3:  // CANCELED (auto-renew off — access continues until expiry)
           case 12: // REVOKED
           case 13: // EXPIRED
-            await db.update(deviceSubscriptions)
-              .set({
-                status: "inactive",
-                updatedAt: new Date(),
-              })
-              .where(eq(deviceSubscriptions.id, sub.id));
-            console.log(`Google webhook: deactivated subscription for device ${sub.deviceId}`);
+            // Never trust the unauthenticated Pub/Sub payload to revoke access:
+            // re-verify the actual subscription state with the Play API first.
+            // This also keeps CANCELED subscriptions active until they expire.
+            const cancelResult = await validateGoogleReceipt(
+              JSON.stringify({ purchaseToken }),
+              subscriptionId
+            );
+            if (cancelResult.valid) {
+              await db.update(deviceSubscriptions)
+                .set({
+                  status: "active",
+                  currentPeriodEnd: cancelResult.expiresDate,
+                  updatedAt: new Date(),
+                })
+                .where(eq(deviceSubscriptions.id, sub.id));
+              console.log(`Google webhook: type=${notificationType} but Play API reports active until ${cancelResult.expiresDate?.toISOString()} — keeping access for device ${sub.deviceId}`);
+            } else {
+              await db.update(deviceSubscriptions)
+                .set({
+                  status: "inactive",
+                  updatedAt: new Date(),
+                })
+                .where(eq(deviceSubscriptions.id, sub.id));
+              console.log(`Google webhook: deactivated subscription for device ${sub.deviceId}`);
+            }
             break;
 
           case 5: // ON_HOLD

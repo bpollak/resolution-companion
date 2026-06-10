@@ -56,17 +56,24 @@ function setupBodyParsing(app: express.Application) {
   app.use(express.urlencoded({ extended: false }));
 }
 
+// Endpoints whose responses contain device-linked data — log status only
+const SENSITIVE_LOG_PREFIXES = ["/api/subscription", "/api/user-data", "/api/iap"];
+
 function setupRequestLogging(app: express.Application) {
   app.use((req, res, next) => {
     const start = Date.now();
     const path = req.path;
     let capturedJsonResponse: Record<string, unknown> | undefined = undefined;
 
-    const originalResJson = res.json;
-    res.json = function (bodyJson, ...args) {
-      capturedJsonResponse = bodyJson;
-      return originalResJson.apply(res, [bodyJson, ...args]);
-    };
+    const isSensitive = SENSITIVE_LOG_PREFIXES.some((prefix) => path.startsWith(prefix));
+
+    if (!isSensitive) {
+      const originalResJson = res.json;
+      res.json = function (bodyJson, ...args) {
+        capturedJsonResponse = bodyJson;
+        return originalResJson.apply(res, [bodyJson, ...args]);
+      };
+    }
 
     res.on("finish", () => {
       if (!path.startsWith("/api")) return;

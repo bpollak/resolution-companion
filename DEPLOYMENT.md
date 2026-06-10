@@ -30,6 +30,9 @@ Deploy the Express server (Dockerfile in repo root) and point
 > (`APPLE_ISSUER_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`).
 
 Run `npm run db:push` once against the production database to create tables.
+(The `device_subscriptions` provider columns are named `provider_customer_id`
+and `provider_transaction_id` — if you created the schema before this rename,
+re-run `npm run db:push` before deploying.)
 
 ## 2. App builds (EAS)
 

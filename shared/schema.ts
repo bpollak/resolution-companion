@@ -80,8 +80,11 @@ export const websiteFeedback = pgTable("website_feedback", {
 export const deviceSubscriptions = pgTable("device_subscriptions", {
   id: serial("id").primaryKey(),
   deviceId: text("device_id").notNull().unique(),
-  stripeCustomerId: text("stripe_customer_id"),
-  stripeSubscriptionId: text("stripe_subscription_id"),
+  // IAP provider references: for iOS this holds `iap_ios_<transactionId>`;
+  // for Android it holds `iap_android_<purchaseToken>` so Play webhooks can
+  // be matched to the exact subscription they concern.
+  providerCustomerId: text("provider_customer_id"),
+  providerTransactionId: text("provider_transaction_id"),
   plan: text("plan").default("free").notNull(),
   status: text("status").default("inactive").notNull(),
   currentPeriodEnd: timestamp("current_period_end"),
