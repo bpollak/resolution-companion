@@ -157,6 +157,14 @@ function SelectedDateDetails({
               key={action.id}
               style={styles.selectedDateAction}
               onPress={() => handleToggle(action.id, completed)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: completed }}
+              accessibilityLabel={`${action.title}${benchmark ? `, ${benchmark.title}` : ""}`}
+              accessibilityHint={
+                completed
+                  ? "Marks this action as not done"
+                  : "Marks this action as done"
+              }
             >
               <Feather
                 name={completed ? "check-circle" : "circle"}
@@ -420,13 +428,23 @@ export default function CalendarScreen() {
         scrollIndicatorInsets={{ bottom: insets.bottom }}
       >
         <View style={styles.monthHeader}>
-          <Pressable onPress={prevMonth} style={styles.navButton}>
+          <Pressable
+            onPress={prevMonth}
+            style={styles.navButton}
+            accessibilityRole="button"
+            accessibilityLabel="Previous month"
+          >
             <Feather name="chevron-left" size={24} color={theme.text} />
           </Pressable>
           <ThemedText style={styles.monthTitle}>
             {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
           </ThemedText>
-          <Pressable onPress={nextMonth} style={styles.navButton}>
+          <Pressable
+            onPress={nextMonth}
+            style={styles.navButton}
+            accessibilityRole="button"
+            accessibilityLabel="Next month"
+          >
             <Feather name="chevron-right" size={24} color={theme.text} />
           </Pressable>
         </View>
@@ -460,11 +478,28 @@ export default function CalendarScreen() {
               dayInfo.date < new Date() &&
               isAfterPersonaCreated;
 
+            const isSelected =
+              selectedDate !== null &&
+              dayInfo.date.toDateString() === selectedDate.toDateString();
+            const dateLabel = dayInfo.date.toLocaleDateString("en-US", {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+            });
+            const statusLabel =
+              dayInfo.totalCount === 0
+                ? "no actions scheduled"
+                : `${dayInfo.completedCount} of ${dayInfo.totalCount} action${dayInfo.totalCount === 1 ? "" : "s"} completed`;
+
             return (
               <Pressable
                 key={index}
                 onPress={() => setSelectedDate(dayInfo.date)}
                 style={styles.dayCell}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSelected }}
+                accessibilityLabel={`${dayInfo.isToday ? "Today, " : ""}${dateLabel}, ${statusLabel}`}
+                accessibilityHint="Shows this day's actions below the calendar"
               >
                 {dayInfo.hasStreak ? (
                   <View
