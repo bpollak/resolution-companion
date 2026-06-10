@@ -8,10 +8,28 @@ import { sql, eq } from "drizzle-orm";
 import { rateLimiter } from "./rate-limit";
 import { requireApiKey } from "./auth";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+// Lazily construct the OpenAI client so a missing API key degrades the AI
+// endpoints instead of crashing the whole server (website, webhooks, legal pages).
+let openaiClient: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+  if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+    throw new Error("AI_INTEGRATIONS_OPENAI_API_KEY is not configured");
+  }
+  if (!openaiClient) {
+    openaiClient = new OpenAI({
+      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    });
+  }
+  return openaiClient;
+}
+
+if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+  console.error(
+    "WARNING: AI_INTEGRATIONS_OPENAI_API_KEY is not set — AI chat, onboarding, and reflection endpoints will fail."
+  );
+}
 
 // --- App Store Server API v2 (preferred) ---
 // Uses JWS signed transactions. Requires APPLE_ISSUER_ID, APPLE_KEY_ID, and
@@ -381,6 +399,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Rate limit AI endpoints: 30 requests per minute per IP
   const aiRateLimit = rateLimiter(30, 60 * 1000);
+  // General rate limit for subscription/account endpoints: 60 requests per minute per IP
+  const apiRateLimit = rateLimiter(60, 60 * 1000);
+  // Webhooks and public forms: 120 requests per minute per IP
+  const publicRateLimit = rateLimiter(120, 60 * 1000);
 
   app.post("/api/chat", requireApiKey, aiRateLimit, async (req: Request, res: Response) => {
     try {
@@ -391,7 +413,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader("Connection", "keep-alive");
       res.flushHeaders();
 
-      const stream = await openai.chat.completions.create({
+      const stream = await getOpenAI().chat.completions.create({
         model: "gpt-4o",
         messages,
         max_completion_tokens: 1024,
@@ -423,7 +445,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .map((m: { role: string; content: string }) => `${m.role}: ${m.content}`)
         .join("\n");
 
-      const response = await openai.chat.completions.create({
+      const response = await getOpenAI().chat.completions.create({
         model: "gpt-4o",
         messages: [
           {
@@ -453,7 +475,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { messages } = req.body;
 
-      const response = await openai.chat.completions.create({
+      const response = await getOpenAI().chat.completions.create({
         model: "gpt-4o",
         messages,
         max_completion_tokens: 1024,
@@ -467,12 +489,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/feedback", async (req: Request, res: Response) => {
+  app.post("/api/feedback", publicRateLimit, async (req: Request, res: Response) => {
     try {
       const { name, email, type, message } = req.body;
 
       if (!name || !email || !type || !message) {
         res.status(400).json({ error: "All fields are required" });
+        return;
+      }
+
+      if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        res.status(400).json({ error: "A valid email address is required" });
         return;
       }
 
@@ -497,7 +524,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/feedback", async (req: Request, res: Response) => {
+  // Admin-only: feedback entries contain names and email addresses
+  app.get("/api/feedback", requireApiKey, async (req: Request, res: Response) => {
     try {
       if (!db) {
         res.json([]);
@@ -512,7 +540,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
-  app.get("/api/subscription/status/:deviceId", async (req: Request, res: Response) => {
+  app.get("/api/subscription/status/:deviceId", requireApiKey, apiRateLimit, async (req: Request, res: Response) => {
     try {
       const { deviceId } = req.params;
       
@@ -549,7 +577,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Restore subscription by looking up the active record in the database for this device.
   // Native IAP purchases are tracked server-side via /api/iap/validate; this endpoint
   // lets the client re-sync that state (e.g. after a reinstall).
-  app.post("/api/subscription/restore", async (req: Request, res: Response) => {
+  app.post("/api/subscription/restore", requireApiKey, apiRateLimit, async (req: Request, res: Response) => {
     try {
       const { deviceId } = req.body;
 
@@ -592,7 +620,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/user-data/:deviceId", async (req: Request, res: Response) => {
+  app.delete("/api/user-data/:deviceId", requireApiKey, apiRateLimit, async (req: Request, res: Response) => {
     try {
       const { deviceId } = req.params;
 
@@ -620,7 +648,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/iap/validate", async (req: Request, res: Response) => {
+  app.post("/api/iap/validate", requireApiKey, apiRateLimit, async (req: Request, res: Response) => {
     try {
       const { deviceId, platform, productId, transactionId, receipt, purchaseTime } = req.body;
       
@@ -692,7 +720,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // --- Apple App Store Server Notifications V2 ---
   // Configure this URL in App Store Connect > App > App Store Server Notifications
   // Apple sends JWS-signed notifications for subscription lifecycle events.
-  app.post("/api/webhooks/apple", async (req: Request, res: Response) => {
+  app.post("/api/webhooks/apple", publicRateLimit, async (req: Request, res: Response) => {
     try {
       const { signedPayload } = req.body;
       if (!signedPayload) {
@@ -819,7 +847,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // --- Google Real-time Developer Notifications ---
   // Configure via Google Cloud Pub/Sub push subscription pointing to this endpoint.
   // Set up in Google Play Console > Monetization > Monetization setup > Real-time developer notifications.
-  app.post("/api/webhooks/google", async (req: Request, res: Response) => {
+  app.post("/api/webhooks/google", publicRateLimit, async (req: Request, res: Response) => {
     try {
       const { message } = req.body;
       if (!message?.data) {

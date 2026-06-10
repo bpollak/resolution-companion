@@ -14,7 +14,6 @@
       "bundleIdentifier": "com.resolutioncompanion.app",
       "buildNumber": "1",
       "infoPlist": {
-        "NSUserTrackingUsageDescription": "Resolution Companion uses a device identifier to manage your subscription status and restore purchases across sessions. We do not track you across other apps or websites.",
         "ITSAppUsesNonExemptEncryption": false
       },
       "privacyManifests": {
@@ -71,7 +70,7 @@
         }
       ],
       "expo-web-browser",
-      "expo-in-app-purchases",
+      "react-native-iap",
       [
         "expo-notifications",
         {

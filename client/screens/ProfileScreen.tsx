@@ -16,7 +16,9 @@ import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
-import { getApiUrl } from "@/lib/query-client";
+import Constants from "expo-constants";
+
+import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { storage } from "@/lib/storage";
 import {
   requestNotificationPermissions,
@@ -74,6 +76,8 @@ function SettingsRow({ icon, title, subtitle, onPress, destructive }: SettingsRo
       onPress={handlePress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
+      accessibilityRole="button"
+      accessibilityLabel={subtitle ? `${title}. ${subtitle}` : title}
     >
       <Animated.View
         style={[
@@ -156,6 +160,24 @@ export default function ProfileScreen() {
     }
 
     if (value) {
+      // Give the user context before the OS permission prompt appears
+      if (!hasPermission) {
+        const proceed = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            "Daily Reminders",
+            "Resolution Companion will send one reminder at 8:00 PM each day to log your actions. You can turn this off anytime.",
+            [
+              { text: "Not Now", style: "cancel", onPress: () => resolve(false) },
+              { text: "Enable", onPress: () => resolve(true) },
+            ]
+          );
+        });
+        if (!proceed) {
+          setNotificationsEnabled(false);
+          return;
+        }
+      }
+
       const granted = await requestNotificationPermissions();
       if (granted) {
         await scheduleDailyReminder(20, 0);
@@ -283,6 +305,7 @@ export default function ProfileScreen() {
               const deviceId = await storage.getDeviceId();
               await fetch(new URL(`/api/user-data/${deviceId}`, getApiUrl()).toString(), {
                 method: "DELETE",
+                headers: getAuthHeaders(),
               });
               await clearAllData();
               if (Platform.OS === "web") {
@@ -391,6 +414,9 @@ export default function ProfileScreen() {
             <ThemedText style={styles.sectionTitle}>My Personas</ThemedText>
             <Pressable
               onPress={handleAddNewPersona}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={canAddPersona() ? "Add a new persona" : "Upgrade to Premium to add more personas"}
               style={({ pressed }) => [styles.addPersonaButton, { opacity: pressed ? 0.7 : 1 }]}
             >
               {!canAddPersona() ? (
@@ -437,7 +463,9 @@ export default function ProfileScreen() {
                 {p.id !== persona?.id ? (
                   <Pressable
                     onPress={() => handleDeletePersona(p.id, p.name)}
-                    hitSlop={8}
+                    hitSlop={14}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete persona ${p.name}`}
                     style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
                   >
                     <Feather name="trash-2" size={18} color={Colors.dark.error} />
@@ -517,7 +545,7 @@ export default function ProfileScreen() {
       <SettingsRow
         icon="info"
         title="About Resolution Companion"
-        subtitle="Version 1.0.0"
+        subtitle={`Version ${Constants.expoConfig?.version || "1.0.0"}`}
         onPress={() => {
           if (Platform.OS === "web") {
             window.alert("Resolution Companion is your AI-powered partner for achieving your resolutions. It helps you define who you want to become and builds personalized daily habits to get you there.");
@@ -548,29 +576,27 @@ export default function ProfileScreen() {
         onPress={() => Linking.openURL(`${getApiUrl()}/terms`)}
       />
 
+      <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
+        Danger Zone
+      </ThemedText>
+
       {hasOnboarded ? (
-        <>
-          <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
-            Danger Zone
-          </ThemedText>
-
-          <SettingsRow
-            icon="trash-2"
-            title="Clear All Data"
-            subtitle="Delete local data and start fresh"
-            onPress={handleClearData}
-            destructive
-          />
-
-          <SettingsRow
-            icon="user-minus"
-            title="Delete My Account & Data"
-            subtitle="Remove all data from device and servers"
-            onPress={handleDeleteAccount}
-            destructive
-          />
-        </>
+        <SettingsRow
+          icon="trash-2"
+          title="Clear All Data"
+          subtitle="Delete local data and start fresh"
+          onPress={handleClearData}
+          destructive
+        />
       ) : null}
+
+      <SettingsRow
+        icon="user-minus"
+        title="Delete My Account & Data"
+        subtitle="Remove all data from device and servers"
+        onPress={handleDeleteAccount}
+        destructive
+      />
     </ScrollView>
   );
 }

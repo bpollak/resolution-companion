@@ -118,6 +118,13 @@ export default function ReflectScreen() {
       logger.error("Failed to start reflection:", error);
       setIsStreaming(false);
       setStreamingText("");
+      // Don't leave the user stranded in an empty session
+      setIsInSession(false);
+      setSelectedPeriod(null);
+      Alert.alert(
+        "Connection Issue",
+        "We couldn't reach your AI coach. Please check your internet connection and try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -393,6 +400,12 @@ export default function ReflectScreen() {
 
         <Pressable
           onPress={() => startReflection("monthly")}
+          accessibilityRole="button"
+          accessibilityLabel={
+            canUseReflection()
+              ? "Review monthly progress with your AI coach"
+              : "Monthly check-in limit reached. Upgrade to Premium for unlimited coaching"
+          }
           style={({ pressed }) => [
             styles.periodButton,
             {
@@ -405,17 +418,19 @@ export default function ReflectScreen() {
         >
           <View style={styles.periodIcon}>
             <Feather
-              name="trending-up"
+              name={canUseReflection() ? "trending-up" : "lock"}
               size={24}
               color={Colors.dark.accent}
             />
           </View>
           <View style={styles.periodContent}>
             <ThemedText style={styles.periodTitle}>
-              Review Monthly Progress
+              {canUseReflection() ? "Review Monthly Progress" : "Limit Reached — Upgrade"}
             </ThemedText>
             <ThemedText style={[styles.periodDescription, { color: theme.textSecondary }]}>
-              Get AI coaching based on your actions this month
+              {canUseReflection()
+                ? "Get AI coaching based on your actions this month"
+                : "You've used all 10 free check-ins this month. Go Premium for unlimited coaching."}
             </ThemedText>
           </View>
           <Feather name="chevron-right" size={20} color={theme.textSecondary} />

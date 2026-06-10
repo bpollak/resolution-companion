@@ -17,7 +17,7 @@ function setupCors(app: express.Application) {
   // Configure allowed origins via ALLOWED_ORIGINS env var (comma-separated).
   // Falls back to allowing any HTTPS origin if not set (for backward compatibility).
   const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim())
+    ? process.env.ALLOWED_ORIGINS.split(",").map((o: string) => o.trim())
     : null;
 
   app.use((req, res, next) => {
@@ -31,7 +31,7 @@ function setupCors(app: express.Application) {
       if (isAllowed) {
         res.header("Access-Control-Allow-Origin", origin);
         res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        res.header("Access-Control-Allow-Headers", "Content-Type, Cache-Control, Pragma, X-Requested-With");
+        res.header("Access-Control-Allow-Headers", "Content-Type, Cache-Control, Pragma, X-Requested-With, X-API-Key");
         res.header("Access-Control-Allow-Credentials", "true");
       }
     }

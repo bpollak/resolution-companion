@@ -95,7 +95,20 @@ export async function sendChatMessageStreaming(
     let fullContent = "";
     let streamDone = false;
     const queue = { pending: [] as string[], processing: false };
-    
+
+    // Abort if the stream stalls so the UI never spins forever
+    const IDLE_TIMEOUT_MS = 45000;
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    const resetIdleTimer = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        es.close();
+        if (!streamDone) {
+          reject(new Error("The connection timed out. Please check your internet and try again."));
+        }
+      }, IDLE_TIMEOUT_MS);
+    };
+
     const processQueue = async () => {
       if (queue.processing) return;
       queue.processing = true;
@@ -123,8 +136,12 @@ export async function sendChatMessageStreaming(
       body: JSON.stringify({ messages }),
     });
 
+    resetIdleTimer();
+
     es.addEventListener("message", (event) => {
+      resetIdleTimer();
       if (event.data === "[DONE]") {
+        if (idleTimer) clearTimeout(idleTimer);
         es.close();
         streamDone = true;
         if (!queue.processing && queue.pending.length === 0) {
@@ -132,7 +149,7 @@ export async function sendChatMessageStreaming(
         }
         return;
       }
-      
+
       try {
         const parsed = JSON.parse(event.data || "{}");
         if (parsed.content) {
@@ -140,15 +157,17 @@ export async function sendChatMessageStreaming(
           delayedChunkEmitter(parsed.content, onChunk, queue, processQueue);
         }
         if (parsed.error) {
+          if (idleTimer) clearTimeout(idleTimer);
           es.close();
           reject(new Error(parsed.error));
         }
       } catch {}
     });
 
-    es.addEventListener("error", (event) => {
+    es.addEventListener("error", () => {
+      if (idleTimer) clearTimeout(idleTimer);
       es.close();
-      reject(new Error("Stream connection failed"));
+      reject(new Error("We couldn't reach the coaching service. Please check your internet connection and try again."));
     });
   });
 }
