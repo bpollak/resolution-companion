@@ -1,4 +1,5 @@
 import express from "express";
+import compression from "compression";
 import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import * as fs from "fs";
@@ -163,7 +164,11 @@ function configureExpoAndLanding(app: express.Application) {
 
   const publicDir = path.resolve(process.cwd(), "public");
   if (fs.existsSync(publicDir)) {
-    app.use("/assets", express.static(path.join(publicDir, "assets")));
+    // Images change rarely; let browsers and the CDN cache them for a week
+    app.use(
+      "/assets",
+      express.static(path.join(publicDir, "assets"), { maxAge: "7d" }),
+    );
   }
 
   const staticBuildDir = path.resolve(process.cwd(), "static-build");
@@ -184,6 +189,13 @@ function configureExpoAndLanding(app: express.Application) {
     );
   }
 
+  // Short-lived caching for HTML: fast repeat views, updates propagate quickly
+  const sendHtml = (res: Response, html: string) => {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.status(200).send(html);
+  };
+
   app.get("/", (req: Request, res: Response) => {
     const forwardedProto = req.header("x-forwarded-proto");
     const protocol = forwardedProto || req.protocol || "https";
@@ -197,23 +209,19 @@ function configureExpoAndLanding(app: express.Application) {
       .replace(/EXPS_URL_PLACEHOLDER/g, expsUrl)
       .replace(/APP_NAME_PLACEHOLDER/g, appName);
 
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.status(200).send(html);
+    sendHtml(res, html);
   });
 
   app.get("/privacy", (_req: Request, res: Response) => {
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.status(200).send(privacyTemplate);
+    sendHtml(res, privacyTemplate);
   });
 
   app.get("/terms", (_req: Request, res: Response) => {
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.status(200).send(termsTemplate);
+    sendHtml(res, termsTemplate);
   });
 
   app.get("/feedback", (_req: Request, res: Response) => {
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.status(200).send(feedbackTemplate);
+    sendHtml(res, feedbackTemplate);
   });
 }
 
@@ -235,6 +243,15 @@ function setupErrorHandler(app: express.Application) {
 }
 
 (async () => {
+  app.use(
+    compression({
+      filter: (req, res) => {
+        // Never buffer the SSE chat stream — chunks must flush immediately
+        if (req.path === "/api/chat") return false;
+        return compression.filter(req, res);
+      },
+    }),
+  );
   setupCors(app);
   setupBodyParsing(app);
   setupRequestLogging(app);
