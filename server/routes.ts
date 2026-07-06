@@ -1,9 +1,13 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "node:http";
 import * as crypto from "node:crypto";
 import OpenAI from "openai";
 import { db } from "./db";
-import { websiteFeedback, deviceSubscriptions } from "@shared/schema";
+import {
+  websiteFeedback,
+  deviceSubscriptions,
+  deviceAiUsage,
+} from "@shared/schema";
 import { sql, eq } from "drizzle-orm";
 import { rateLimiter } from "./rate-limit";
 import { requireApiKey, requireAdminKey } from "./auth";
@@ -527,6 +531,86 @@ function validateMessages(messages: unknown): string | null {
   return null;
 }
 
+// --- Server-side monthly AI quota ---
+// The client enforces the advertised free tier (10 check-in SESSIONS/month);
+// these limits count individual API requests (a session is many requests), so
+// they are abuse ceilings far above legitimate use — hard walls against an
+// extracted bundle key burning OpenAI budget, not user-visible caps.
+const AI_QUOTAS = {
+  chat: { free: 150, premium: 1500 },
+  reflection: { free: 150, premium: 1500 },
+  extract: { free: 20, premium: 200 },
+} as const;
+
+function aiQuota(endpoint: keyof typeof AI_QUOTAS) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      // Without a database there is nowhere to count — same degraded mode as
+      // the rest of the app. The per-IP rate limiter still applies.
+      if (!db) return next();
+
+      const deviceId = req.header("X-Device-Id");
+      const usageKey = deviceId || `ip:${req.ip}`;
+      const month = new Date().toISOString().slice(0, 7);
+
+      let isPremium = false;
+      if (deviceId) {
+        const subs = await db
+          .select()
+          .from(deviceSubscriptions)
+          .where(eq(deviceSubscriptions.deviceId, deviceId));
+        const sub = subs[0];
+        isPremium =
+          !!sub &&
+          sub.status === "active" &&
+          (!sub.currentPeriodEnd ||
+            new Date(sub.currentPeriodEnd) > new Date());
+      }
+      const limit = isPremium
+        ? AI_QUOTAS[endpoint].premium
+        : AI_QUOTAS[endpoint].free;
+
+      const rows = await db
+        .insert(deviceAiUsage)
+        .values({
+          deviceId: usageKey,
+          month,
+          endpoint,
+          count: 1,
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [
+            deviceAiUsage.deviceId,
+            deviceAiUsage.month,
+            deviceAiUsage.endpoint,
+          ],
+          set: {
+            count: sql`${deviceAiUsage.count} + 1`,
+            updatedAt: new Date(),
+          },
+        })
+        .returning({ count: deviceAiUsage.count });
+
+      if (rows[0].count > limit) {
+        res.status(429).json({
+          error: isPremium
+            ? "Monthly usage limit reached. Please try again next month."
+            : "You've reached this month's free limit. Upgrade to Premium for unlimited coaching.",
+        });
+        return;
+      }
+
+      next();
+    } catch (error) {
+      // Fail open: the quota is abuse protection, not a feature gate, and a
+      // counter outage must not take down onboarding or coaching.
+      console.error("AI quota check error:", error);
+      next();
+    }
+  };
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check for deployment platforms
   app.get("/api/health", (_req: Request, res: Response) => {
@@ -544,6 +628,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/chat",
     requireApiKey,
     aiRateLimit,
+    aiQuota("chat"),
     async (req: Request, res: Response) => {
       try {
         const { messages } = req.body;
@@ -589,6 +674,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/extract-persona",
     requireApiKey,
     aiRateLimit,
+    aiQuota("extract"),
     async (req: Request, res: Response) => {
       try {
         const { messages, extractionPrompt } = req.body;
@@ -647,6 +733,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/reflection",
     requireApiKey,
     aiRateLimit,
+    aiQuota("reflection"),
     async (req: Request, res: Response) => {
       try {
         const { messages } = req.body;

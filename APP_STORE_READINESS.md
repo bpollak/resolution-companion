@@ -59,10 +59,21 @@ Apple App Store submission. Companion to `DEPLOYMENT.md` (operational setup).
    on-device; the server only stores feedback + subscriptions).
 10. **Account deletion now verifies the server response** instead of treating
     any HTTP status as success.
+11. **Server-side monthly AI quotas** (follow-up PR): the OpenAI-backed
+    endpoints now enforce per-device monthly ceilings in the database
+    (`device_ai_usage` table) — free 150 chat / 150 reflection / 20 extract
+    requests per month, 10× for premium devices. The client-side "10
+    check-ins" gate remains the user-visible free tier; the server quota is
+    the hard wall against an extracted bundle key burning OpenAI budget.
+    Requests without a device ID fall back to a per-IP bucket. Fails open if
+    the database is down (abuse protection, not a feature gate).
+12. **CI added** (follow-up PR): GitHub Actions runs typecheck, lint, format
+    check, and the server production build on every push to main and PR.
 
 ## Submission checklist (actions only you can do)
 
 ### 1. Backend (Railway)
+
 Hosting: keep Railway — `railway.json` (Dockerfile build, `/api/health`
 healthcheck) is already configured; add the managed Postgres plugin and point
 `resolutioncompanion.com` at the service. Run a single instance (in-memory
@@ -76,6 +87,7 @@ rate limits).
 - [ ] `npm run db:push` against the production database.
 
 ### 2. EAS build & submit
+
 - [ ] Create EAS env var `EXPO_PUBLIC_API_SECRET` = server `API_SECRET`
       (verify with `eas env:list`). Missing ⇒ all API calls 401 in prod.
 - [ ] Fill `eas.json` → `submit.production.ios`: `appleId`, `ascAppId`,
@@ -83,6 +95,7 @@ rate limits).
 - [ ] `npm run build:ios`, then `npm run submit:ios`.
 
 ### 3. App Store Connect
+
 - [ ] Create the app: bundle ID `com.resolutioncompanion.app`, name
       "Resolution Companion AI".
 - [ ] Create both auto-renew subscriptions in one group —
@@ -104,6 +117,7 @@ rate limits).
       sandbox account.
 
 ### 4. TestFlight smoke test (from DEPLOYMENT.md §5)
+
 - [ ] Offline launch shows banner, no crash.
 - [ ] Onboarding AI chat streams.
 - [ ] Paywall shows real prices; sandbox purchase succeeds.
@@ -114,22 +128,18 @@ rate limits).
 
 ## Recommended follow-ups (not submission blockers)
 
-- **Server-side free-tier quota.** The "10 AI check-ins/month" free limit is
-  enforced only client-side; the API key ships in the bundle and is
-  extractable, so the OpenAI-backed endpoints are effectively uncapped.
-  Add a per-device counter server-side.
 - **Server-pinned system prompts.** `/api/chat` and `/api/extract-persona`
   accept fully client-supplied prompts — an extracted key turns them into a
-  general-purpose GPT-4o proxy. Move system prompts server-side.
+  general-purpose GPT-4o proxy (now bounded by the monthly quotas). Move
+  system prompts server-side.
 - **Per-device ownership tokens** to fully close the IDOR on device-keyed
   endpoints (crypto-random IDs shrink the practical risk, but a
   device-bound secret issued at first contact would eliminate it).
 - **Feedback PII in deletion flow**: website feedback is keyed by email, not
   device ID, so in-app account deletion cannot remove it; handle via the
   support channel if a user requests it.
-- **Tests & CI**: the project has no automated tests and no CI; lint,
-  typecheck, and format checks exist as npm scripts and could run in a
-  GitHub Action.
+- **Automated tests**: CI runs typecheck/lint/format/build, but there is no
+  unit or integration test suite yet.
 - **Landing page**: `server/templates/landing-page.html` still has a TODO
   placeholder where the App Store badge link belongs — fill in after the app
   is live.

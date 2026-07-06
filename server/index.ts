@@ -43,7 +43,7 @@ function setupCors(app: express.Application) {
         );
         res.header(
           "Access-Control-Allow-Headers",
-          "Content-Type, Cache-Control, Pragma, X-Requested-With, X-API-Key",
+          "Content-Type, Cache-Control, Pragma, X-Requested-With, X-API-Key, X-Device-Id",
         );
         res.header("Access-Control-Allow-Credentials", "true");
       }

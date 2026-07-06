@@ -1,5 +1,12 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, serial, timestamp } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  serial,
+  integer,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -36,6 +43,31 @@ export const deviceSubscriptions = pgTable("device_subscriptions", {
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
 });
+
+// Server-side monthly usage counters for the OpenAI-backed endpoints. The
+// client-side free-tier limit is advisory only — the API key ships in the app
+// bundle — so this table is the enforcement of record. Keyed by device (or
+// client IP when no device header is present) + calendar month + endpoint.
+export const deviceAiUsage = pgTable(
+  "device_ai_usage",
+  {
+    id: serial("id").primaryKey(),
+    deviceId: text("device_id").notNull(),
+    month: text("month").notNull(), // YYYY-MM
+    endpoint: text("endpoint").notNull(), // chat | reflection | extract
+    count: integer("count").default(0).notNull(),
+    updatedAt: timestamp("updated_at")
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  },
+  (table) => ({
+    deviceMonthEndpoint: uniqueIndex("device_ai_usage_key").on(
+      table.deviceId,
+      table.month,
+      table.endpoint,
+    ),
+  }),
+);
 
 export const insertWebsiteFeedbackSchema = createInsertSchema(
   websiteFeedback,
