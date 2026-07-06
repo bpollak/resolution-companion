@@ -2,6 +2,7 @@ import express from "express";
 import compression from "compression";
 import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { ensureSchema } from "./db";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -262,6 +263,8 @@ function setupErrorHandler(app: express.Application) {
   setupBodyParsing(app);
   setupRequestLogging(app);
   configureExpoAndLanding(app);
+
+  await ensureSchema();
 
   const server = await registerRoutes(app);
 
