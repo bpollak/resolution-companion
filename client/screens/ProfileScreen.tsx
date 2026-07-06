@@ -711,14 +711,18 @@ export default function ProfileScreen() {
         icon="file-text"
         title="Privacy Policy"
         subtitle="How we handle your data"
-        onPress={() => Linking.openURL(`${getApiUrl()}/privacy`)}
+        onPress={() =>
+          Linking.openURL(new URL("/privacy", getApiUrl()).toString())
+        }
       />
 
       <SettingsRow
         icon="book-open"
         title="Terms of Use"
         subtitle="App usage terms and conditions"
-        onPress={() => Linking.openURL(`${getApiUrl()}/terms`)}
+        onPress={() =>
+          Linking.openURL(new URL("/terms", getApiUrl()).toString())
+        }
       />
 
       <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>

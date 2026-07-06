@@ -829,7 +829,11 @@ export default function SubscriptionScreen() {
 
         <View style={styles.legalLinks}>
           <Pressable
-            onPress={() => WebBrowser.openBrowserAsync(`${getApiUrl()}/terms`)}
+            onPress={() =>
+              WebBrowser.openBrowserAsync(
+                new URL("/terms", getApiUrl()).toString(),
+              )
+            }
             style={styles.legalLink}
           >
             <ThemedText
@@ -845,7 +849,9 @@ export default function SubscriptionScreen() {
           </ThemedText>
           <Pressable
             onPress={() =>
-              WebBrowser.openBrowserAsync(`${getApiUrl()}/privacy`)
+              WebBrowser.openBrowserAsync(
+                new URL("/privacy", getApiUrl()).toString(),
+              )
             }
             style={styles.legalLink}
           >
