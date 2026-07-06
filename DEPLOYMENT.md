@@ -8,22 +8,22 @@ production and passes App Store review.
 Deploy the Express server (Dockerfile in repo root) and point
 `resolutioncompanion.com` at it. Required environment variables:
 
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `NODE_ENV` | yes (`production`) | Enables fail-closed API auth |
-| `DATABASE_URL` | yes | PostgreSQL connection (subscriptions, feedback) |
-| `API_SECRET` | yes | Shared key for app↔server auth. Must match `EXPO_PUBLIC_API_SECRET` in EAS. In production, protected endpoints return 503 until this is set. |
-| `AI_INTEGRATIONS_OPENAI_API_KEY` | yes | OpenAI key for chat/onboarding/reflection |
-| `AI_INTEGRATIONS_OPENAI_BASE_URL` | no | Optional OpenAI-compatible base URL |
-| `APPLE_ISSUER_ID` | yes (iOS) | App Store Connect > Users and Access > Integrations > In-App Purchase keys |
-| `APPLE_KEY_ID` | yes (iOS) | Key ID of the In-App Purchase key |
-| `APPLE_PRIVATE_KEY` | yes (iOS) | Contents of the .p8 key (newlines may be escaped as `\n`) |
-| `APPLE_SHARED_SECRET` | no | Only used by the legacy verifyReceipt fallback |
-| `APPLE_SANDBOX` | no | Set `true` to force the StoreKit sandbox endpoint |
-| `GOOGLE_SERVICE_ACCOUNT_KEY` | yes (Android) | JSON service-account key with Play Android Publisher access |
-| `ANDROID_PACKAGE_NAME` | no | Defaults to `com.resolutioncompanion.app` |
-| `ALLOWED_ORIGINS` | no | Comma-separated CORS allowlist. Unset = no cross-origin browser access (the native app and same-origin website don't need CORS). |
-| `ADMIN_API_SECRET` | no | Operator-only key for `GET /api/feedback` (sent as `X-Admin-Key`). The endpoint returns 404 until this is set. Do NOT reuse `API_SECRET` — that value ships inside the app bundle. |
+| Variable                          | Required           | Purpose                                                                                                                                                                            |
+| --------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                        | yes (`production`) | Enables fail-closed API auth                                                                                                                                                       |
+| `DATABASE_URL`                    | yes                | PostgreSQL connection (subscriptions, feedback)                                                                                                                                    |
+| `API_SECRET`                      | yes                | Shared key for app↔server auth. Must match `EXPO_PUBLIC_API_SECRET` in EAS. In production, protected endpoints return 503 until this is set.                                      |
+| `AI_INTEGRATIONS_OPENAI_API_KEY`  | yes                | OpenAI key for chat/onboarding/reflection                                                                                                                                          |
+| `AI_INTEGRATIONS_OPENAI_BASE_URL` | no                 | Optional OpenAI-compatible base URL                                                                                                                                                |
+| `APPLE_ISSUER_ID`                 | yes (iOS)          | App Store Connect > Users and Access > Integrations > In-App Purchase keys                                                                                                         |
+| `APPLE_KEY_ID`                    | yes (iOS)          | Key ID of the In-App Purchase key                                                                                                                                                  |
+| `APPLE_PRIVATE_KEY`               | yes (iOS)          | Contents of the .p8 key (newlines may be escaped as `\n`)                                                                                                                          |
+| `APPLE_SHARED_SECRET`             | no                 | Only used by the legacy verifyReceipt fallback                                                                                                                                     |
+| `APPLE_SANDBOX`                   | no                 | Set `true` to force the StoreKit sandbox endpoint                                                                                                                                  |
+| `GOOGLE_SERVICE_ACCOUNT_KEY`      | yes (Android)      | JSON service-account key with Play Android Publisher access                                                                                                                        |
+| `ANDROID_PACKAGE_NAME`            | no                 | Defaults to `com.resolutioncompanion.app`                                                                                                                                          |
+| `ALLOWED_ORIGINS`                 | no                 | Comma-separated CORS allowlist. Unset = no cross-origin browser access (the native app and same-origin website don't need CORS).                                                   |
+| `ADMIN_API_SECRET`                | no                 | Operator-only key for `GET /api/feedback` (sent as `X-Admin-Key`). The endpoint returns 404 until this is set. Do NOT reuse `API_SECRET` — that value ships inside the app bundle. |
 
 > **Important (StoreKit 2):** the app now uses `react-native-iap` v14, which
 > returns JWS transactions instead of legacy receipts. iOS receipt validation
@@ -40,10 +40,16 @@ in-memory: run a single instance (Railway's default).
 Run `npm run db:push` once against the production database to create tables.
 (The `device_subscriptions` provider columns are named `provider_customer_id`
 and `provider_transaction_id` — if you created the schema before this rename,
-re-run `npm run db:push` before deploying. The schema now contains only
-`website_feedback` and `device_subscriptions`; the previously defined unused
-tables — users, personas, benchmarks, etc. — were removed, and `db:push` will
-offer to drop them if they exist. All app data lives on-device.)
+re-run `npm run db:push` before deploying. The schema now contains
+`website_feedback`, `device_subscriptions`, and `device_ai_usage` (monthly
+per-device AI quota counters); the previously defined unused tables — users,
+personas, benchmarks, etc. — were removed, and `db:push` will offer to drop
+them if they exist. All app data lives on-device.)
+
+The OpenAI-backed endpoints enforce server-side monthly quotas per device
+(free: 150 chat / 150 reflection / 20 extract requests; premium devices get
+10×). These are abuse ceilings above legitimate use — the user-visible free
+tier (10 check-ins/month) is still enforced in the client.
 
 ## 2. App builds (EAS)
 
@@ -75,8 +81,8 @@ before running submit.
 2. Create two auto-renewable subscriptions in one subscription group:
    - `com.resolutioncompanion.monthly` (1 month)
    - `com.resolutioncompanion.annual` (1 year)
-   Both must be "Ready to Submit" and attached to the app version, or the
-   paywall will show "couldn't load subscription options" and review will fail.
+     Both must be "Ready to Submit" and attached to the app version, or the
+     paywall will show "couldn't load subscription options" and review will fail.
 3. App Privacy questionnaire (must match the privacy manifest in app.json):
    - Identifiers > Device ID — collected, app functionality, NOT linked to
      identity, NOT used for tracking.

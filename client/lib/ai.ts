@@ -1,6 +1,17 @@
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { logger } from "@/lib/logger";
+import { storage } from "@/lib/storage";
 import EventSource from "react-native-sse";
+
+// The server keys its monthly AI usage quotas on this header; without it,
+// requests fall back to a shared per-IP bucket.
+async function getAiHeaders(): Promise<Record<string, string>> {
+  return {
+    "Content-Type": "application/json",
+    "X-Device-Id": await storage.getDeviceId(),
+    ...getAuthHeaders(),
+  };
+}
 
 export interface AIMessage {
   role: "user" | "assistant" | "system";
@@ -101,6 +112,7 @@ export async function sendChatMessageStreaming(
   onChunk: (chunk: string) => void,
 ): Promise<string> {
   const url = new URL("/api/chat", getApiUrl());
+  const headers = await getAiHeaders();
 
   return new Promise((resolve, reject) => {
     let fullContent = "";
@@ -144,10 +156,7 @@ export async function sendChatMessageStreaming(
 
     const es = new EventSource<"message">(url.toString(), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
+      headers,
       body: JSON.stringify({ messages }),
     });
 
@@ -217,10 +226,7 @@ export async function extractPersonaFromConversation(
 
   const response = await fetch(url.toString(), {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
+    headers: await getAiHeaders(),
     body: JSON.stringify({
       messages,
       extractionPrompt: EXTRACTION_PROMPT,
@@ -305,10 +311,7 @@ Be warm and practical. No bullet points or lists in responses.`,
 
   const response = await fetch(url.toString(), {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
+    headers: await getAiHeaders(),
     body: JSON.stringify({ messages: [systemMessage, ...messages] }),
   });
 
