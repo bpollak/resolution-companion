@@ -406,6 +406,8 @@ export default function OnboardingScreen() {
             <Pressable
               onPress={() => navigation.goBack()}
               style={styles.closeButton}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
             >
               <Feather name="x" size={24} color={theme.text} />
             </Pressable>
@@ -564,6 +566,8 @@ export default function OnboardingScreen() {
         <Pressable
           onPress={() => navigation.goBack()}
           style={styles.closeButton}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
         >
           <Feather name="x" size={24} color={theme.text} />
         </Pressable>
