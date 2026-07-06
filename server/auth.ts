@@ -39,3 +39,33 @@ export function requireApiKey(req: Request, res: Response, next: NextFunction) {
 
   next();
 }
+
+/**
+ * Admin-only authentication middleware.
+ *
+ * Guards endpoints that expose collected user data (e.g. feedback PII). The
+ * regular API_SECRET ships inside the app bundle and is extractable, so it is
+ * not sufficient for admin surfaces. Fails closed when ADMIN_API_SECRET is
+ * unset — these endpoints are for operators, not the app.
+ */
+export function requireAdminKey(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  const adminSecret = process.env.ADMIN_API_SECRET;
+
+  if (!adminSecret) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const providedKey = req.header("X-Admin-Key");
+
+  if (!providedKey || providedKey !== adminSecret) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  next();
+}

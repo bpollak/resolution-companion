@@ -1,13 +1,12 @@
 # Design Guidelines: Persona-Driven Evolution App
 
 ## Authentication & User Management
-**Auth Required**: Yes - Google Sign-In via Expo AuthSession (specified by user)
-- **Login Screen**: Single Google Sign-In button (centered, high contrast)
+**Auth Required**: No — the app has no login. Users are identified by an
+anonymous, device-local ID; all goal/progress data lives on-device in
+AsyncStorage and only subscription entitlements are stored server-side.
 - **Account Screen**: Access via Profile tab
-  - Display name from Google
-  - Email (read-only)
-  - Log out button (confirmation alert)
-  - Delete account (nested: Settings > Account > Delete, double confirmation)
+  - Delete My Account & Data (double confirmation) — removes server-side
+    subscription record and all local data
 
 ## Navigation Architecture
 **Tab Navigation** (5 tabs):
@@ -22,7 +21,7 @@
 ### 1. Onboarding Flow (Stack-Only)
 **Welcome Screen**
 - Full-screen with persona concept introduction
-- Google Sign-In button at bottom
+- "Get Started" button at bottom (no sign-in)
 - Safe area: top: insets.top + Spacing.xl, bottom: insets.bottom + Spacing.xl
 
 **AI Interview Screen**

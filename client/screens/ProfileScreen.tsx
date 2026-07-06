@@ -347,14 +347,21 @@ export default function ProfileScreen() {
           onPress: async () => {
             try {
               const deviceId = await storage.getDeviceId();
-              await fetch(
+              const response = await fetch(
                 new URL(`/api/user-data/${deviceId}`, getApiUrl()).toString(),
                 {
                   method: "DELETE",
                   headers: getAuthHeaders(),
                 },
               );
+              if (!response.ok) {
+                throw new Error(`Server deletion failed (${response.status})`);
+              }
               await clearAllData();
+              // Server record is gone — drop the device identity too so a
+              // fresh one is minted on next launch. (Kept on failure below so
+              // a retry can still target the server-side record.)
+              await storage.removeDeviceId();
               if (Platform.OS === "web") {
                 window.alert(
                   "All your data has been deleted from this device and our servers.",
