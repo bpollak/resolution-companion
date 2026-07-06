@@ -6,7 +6,7 @@ import { db } from "./db";
 import { websiteFeedback, deviceSubscriptions } from "@shared/schema";
 import { sql, eq } from "drizzle-orm";
 import { rateLimiter } from "./rate-limit";
-import { requireApiKey } from "./auth";
+import { requireApiKey, requireAdminKey } from "./auth";
 
 // Lazily construct the OpenAI client so a missing API key degrades the AI
 // endpoints instead of crashing the whole server (website, webhooks, legal pages).
@@ -186,7 +186,11 @@ function verifyAppleJWS(jws: string): any {
 async function validateAppleReceiptV2(
   transactionId: string,
   productId: string,
-): Promise<{ valid: boolean; expiresDate: Date | null }> {
+): Promise<{
+  valid: boolean;
+  expiresDate: Date | null;
+  originalTransactionId: string | null;
+}> {
   try {
     const jwt = await createAppStoreJWT();
     const baseUrl =
@@ -215,7 +219,11 @@ async function validateAppleReceiptV2(
             "App Store Server API v2: sandbox lookup failed",
             sandboxResponse.status,
           );
-          return { valid: false, expiresDate: null };
+          return {
+            valid: false,
+            expiresDate: null,
+            originalTransactionId: null,
+          };
         }
         const sandboxData = await sandboxResponse.json();
         const txInfo = decodeJWSPayload(sandboxData.signedTransactionInfo);
@@ -224,12 +232,16 @@ async function validateAppleReceiptV2(
           txInfo.expiresDate &&
           txInfo.expiresDate > Date.now()
         ) {
-          return { valid: true, expiresDate: new Date(txInfo.expiresDate) };
+          return {
+            valid: true,
+            expiresDate: new Date(txInfo.expiresDate),
+            originalTransactionId: txInfo.originalTransactionId || null,
+          };
         }
-        return { valid: false, expiresDate: null };
+        return { valid: false, expiresDate: null, originalTransactionId: null };
       }
       console.error("App Store Server API v2: lookup failed", response.status);
-      return { valid: false, expiresDate: null };
+      return { valid: false, expiresDate: null, originalTransactionId: null };
     }
 
     const data = await response.json();
@@ -241,13 +253,17 @@ async function validateAppleReceiptV2(
       txInfo.expiresDate > Date.now()
     ) {
       console.log("Apple receipt validated via App Store Server API v2");
-      return { valid: true, expiresDate: new Date(txInfo.expiresDate) };
+      return {
+        valid: true,
+        expiresDate: new Date(txInfo.expiresDate),
+        originalTransactionId: txInfo.originalTransactionId || null,
+      };
     }
 
-    return { valid: false, expiresDate: null };
+    return { valid: false, expiresDate: null, originalTransactionId: null };
   } catch (error) {
     console.error("App Store Server API v2 validation error:", error);
-    return { valid: false, expiresDate: null };
+    return { valid: false, expiresDate: null, originalTransactionId: null };
   }
 }
 
@@ -302,7 +318,11 @@ async function validateAppleReceipt(
   receipt: string,
   productId: string,
   transactionId?: string,
-): Promise<{ valid: boolean; expiresDate: Date | null }> {
+): Promise<{
+  valid: boolean;
+  expiresDate: Date | null;
+  originalTransactionId: string | null;
+}> {
   // Prefer App Store Server API v2 when configured and transactionId is available
   if (isAppStoreServerAPIConfigured() && transactionId) {
     console.log("Using App Store Server API v2 for validation");
@@ -328,11 +348,12 @@ async function validateAppleReceipt(
         expiresDate: prodResult.expiresDateMs
           ? new Date(prodResult.expiresDateMs)
           : null,
+        originalTransactionId: null,
       };
     }
 
     if (prodResult.status === -1) {
-      return { valid: false, expiresDate: null };
+      return { valid: false, expiresDate: null, originalTransactionId: null };
     }
 
     if (prodResult.status === 21007) {
@@ -350,6 +371,7 @@ async function validateAppleReceipt(
           expiresDate: sandboxResult.expiresDateMs
             ? new Date(sandboxResult.expiresDateMs)
             : null,
+          originalTransactionId: null,
         };
       }
 
@@ -357,22 +379,22 @@ async function validateAppleReceipt(
         "Sandbox validation failed with status:",
         sandboxResult.status,
       );
-      return { valid: false, expiresDate: null };
+      return { valid: false, expiresDate: null, originalTransactionId: null };
     }
 
     if (prodResult.status === 21008) {
       console.log("Production receipt rejected by production endpoint");
-      return { valid: false, expiresDate: null };
+      return { valid: false, expiresDate: null, originalTransactionId: null };
     }
 
     console.log(
       "Apple receipt validation failed with status:",
       prodResult.status,
     );
-    return { valid: false, expiresDate: null };
+    return { valid: false, expiresDate: null, originalTransactionId: null };
   } catch (error) {
     console.error("Apple receipt validation error:", error);
-    return { valid: false, expiresDate: null };
+    return { valid: false, expiresDate: null, originalTransactionId: null };
   }
 }
 
@@ -697,10 +719,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
   );
 
-  // Admin-only: feedback entries contain names and email addresses
+  // Admin-only: feedback entries contain names and email addresses.
+  // The regular API key ships in the app bundle, so this uses a separate
+  // operator-only secret and 404s when it isn't configured.
   app.get(
     "/api/feedback",
-    requireApiKey,
+    requireAdminKey,
     async (req: Request, res: Response) => {
       try {
         if (!db) {
@@ -872,8 +896,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
+        // StoreKit 2 validation is keyed by transaction ID; without it the
+        // legacy verifyReceipt fallback would be handed a JWS token it cannot
+        // parse, and the subscription row would be stored as "iap_undefined".
+        if (platform === "ios" && !transactionId) {
+          res
+            .status(400)
+            .json({ error: "transactionId is required for iOS", valid: false });
+          return;
+        }
+
         let isValid = false;
         let expirationDate: Date | null = null;
+        let originalTransactionId: string | null = null;
 
         if (platform === "ios") {
           const result = await validateAppleReceipt(
@@ -883,6 +918,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
           isValid = result.valid;
           expirationDate = result.expiresDate;
+          originalTransactionId = result.originalTransactionId;
         } else if (platform === "android") {
           const result = await validateGoogleReceipt(receipt, productId);
           isValid = result.valid;
@@ -909,8 +945,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               : "monthly";
 
           // For Android, store the purchase token so Play webhooks can be matched
-          // to this exact subscription. For iOS, the transaction ID is the key.
-          let providerCustomerId = `iap_ios_${transactionId}`;
+          // to this exact subscription. For iOS, key by the ORIGINAL transaction
+          // ID: App Store Server Notifications identify subscriptions by
+          // originalTransactionId, which stays stable across renewals while the
+          // per-renewal transactionId changes.
+          const appleId = originalTransactionId || transactionId;
+          let providerCustomerId = `iap_ios_${appleId}`;
           if (platform === "android") {
             let purchaseToken = receipt;
             try {
@@ -921,7 +961,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           const subscriptionData = {
             providerCustomerId,
-            providerTransactionId: `iap_${transactionId}`,
+            providerTransactionId: `iap_${platform === "ios" ? appleId : transactionId}`,
             plan: plan,
             status: "active" as const,
             currentPeriodEnd: expirationDate,

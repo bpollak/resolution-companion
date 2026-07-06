@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Crypto from "expo-crypto";
 import { logger } from "@/lib/logger";
 
 const STORAGE_KEYS = {
@@ -14,7 +15,6 @@ const STORAGE_KEYS = {
   SUBSCRIPTION: "subscription",
   MONTHLY_REFLECTION_COUNT: "monthlyReflectionCount",
   DEVICE_ID: "deviceId",
-  STRIPE_CUSTOMER_ID: "stripeCustomerId",
 };
 
 export interface Persona {
@@ -473,8 +473,14 @@ export const storage = {
     );
   },
 
+  // Keeps DEVICE_ID: server-side subscription records are keyed by it, so
+  // wiping it would permanently orphan purchase restore after a data reset.
+  // Account deletion removes it explicitly via removeDeviceId().
   async clearAll(): Promise<void> {
-    await AsyncStorage.multiRemove(Object.values(STORAGE_KEYS));
+    const keys = Object.values(STORAGE_KEYS).filter(
+      (key) => key !== STORAGE_KEYS.DEVICE_ID,
+    );
+    await AsyncStorage.multiRemove(keys);
   },
 
   async getSubscription(): Promise<Subscription> {
@@ -561,17 +567,17 @@ export const storage = {
   async getDeviceId(): Promise<string> {
     let deviceId = await AsyncStorage.getItem(STORAGE_KEYS.DEVICE_ID);
     if (!deviceId) {
-      deviceId = generateId() + "-" + generateId();
+      // The deviceId is the only credential tying this install to its
+      // server-side subscription record, so it must not be guessable.
+      deviceId = Crypto.randomUUID();
       await AsyncStorage.setItem(STORAGE_KEYS.DEVICE_ID, deviceId);
     }
     return deviceId;
   },
 
-  async getStripeCustomerId(): Promise<string | null> {
-    return AsyncStorage.getItem(STORAGE_KEYS.STRIPE_CUSTOMER_ID);
-  },
-
-  async setStripeCustomerId(customerId: string): Promise<void> {
-    await AsyncStorage.setItem(STORAGE_KEYS.STRIPE_CUSTOMER_ID, customerId);
+  // Only for account deletion: mints a fresh identity on next launch after
+  // the server-side record has been deleted.
+  async removeDeviceId(): Promise<void> {
+    await AsyncStorage.removeItem(STORAGE_KEYS.DEVICE_ID);
   },
 };

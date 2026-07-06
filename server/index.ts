@@ -8,6 +8,11 @@ import * as path from "path";
 const app = express();
 const log = console.log;
 
+// Railway (and most PaaS hosts) terminate TLS at a reverse proxy. Without this,
+// req.ip is the proxy address — which collapses all per-IP rate limiting into a
+// single shared bucket — and req.protocol is always "http".
+app.set("trust proxy", 1);
+
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
@@ -16,7 +21,8 @@ declare module "http" {
 
 function setupCors(app: express.Application) {
   // Configure allowed origins via ALLOWED_ORIGINS env var (comma-separated).
-  // Falls back to allowing any HTTPS origin if not set (for backward compatibility).
+  // The native app sends no Origin header and the website's feedback form is
+  // same-origin, so no cross-origin access is needed unless explicitly granted.
   const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(",").map((o: string) => o.trim())
     : null;
@@ -27,7 +33,7 @@ function setupCors(app: express.Application) {
     if (origin) {
       const isAllowed = allowedOrigins
         ? allowedOrigins.includes(origin)
-        : origin.startsWith("https://");
+        : false;
 
       if (isAllowed) {
         res.header("Access-Control-Allow-Origin", origin);

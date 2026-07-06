@@ -22,17 +22,28 @@ Deploy the Express server (Dockerfile in repo root) and point
 | `APPLE_SANDBOX` | no | Set `true` to force the StoreKit sandbox endpoint |
 | `GOOGLE_SERVICE_ACCOUNT_KEY` | yes (Android) | JSON service-account key with Play Android Publisher access |
 | `ANDROID_PACKAGE_NAME` | no | Defaults to `com.resolutioncompanion.app` |
-| `ALLOWED_ORIGINS` | recommended | Comma-separated CORS allowlist (e.g. `https://resolutioncompanion.com`) |
+| `ALLOWED_ORIGINS` | no | Comma-separated CORS allowlist. Unset = no cross-origin browser access (the native app and same-origin website don't need CORS). |
+| `ADMIN_API_SECRET` | no | Operator-only key for `GET /api/feedback` (sent as `X-Admin-Key`). The endpoint returns 404 until this is set. Do NOT reuse `API_SECRET` — that value ships inside the app bundle. |
 
 > **Important (StoreKit 2):** the app now uses `react-native-iap` v14, which
 > returns JWS transactions instead of legacy receipts. iOS receipt validation
 > therefore REQUIRES the App Store Server API credentials
-> (`APPLE_ISSUER_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`).
+> (`APPLE_ISSUER_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`). The legacy
+> `verifyReceipt` fallback cannot parse JWS tokens — without these three
+> variables, EVERY iOS purchase fails validation and users are charged
+> without receiving premium.
+
+The server sets `trust proxy` (Railway terminates TLS at a reverse proxy), so
+per-IP rate limiting uses the real client address. Rate limit state is
+in-memory: run a single instance (Railway's default).
 
 Run `npm run db:push` once against the production database to create tables.
 (The `device_subscriptions` provider columns are named `provider_customer_id`
 and `provider_transaction_id` — if you created the schema before this rename,
-re-run `npm run db:push` before deploying.)
+re-run `npm run db:push` before deploying. The schema now contains only
+`website_feedback` and `device_subscriptions`; the previously defined unused
+tables — users, personas, benchmarks, etc. — were removed, and `db:push` will
+offer to drop them if they exist. All app data lives on-device.)
 
 ## 2. App builds (EAS)
 
@@ -41,6 +52,11 @@ preview/production builds. Additionally set, in the EAS project (Environment
 Variables, visibility "secret" is fine for builds):
 
 - `EXPO_PUBLIC_API_SECRET` — same value as the server's `API_SECRET`.
+
+> **Pre-flight blocker:** if this EAS variable is missing at build time, the
+> production app ships without an API key and EVERY protected endpoint
+> (onboarding AI, coaching, purchase validation, restore, account deletion)
+> returns 401. Verify with `eas env:list` before building.
 
 Then:
 

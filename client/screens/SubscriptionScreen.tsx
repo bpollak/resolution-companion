@@ -772,14 +772,8 @@ export default function SubscriptionScreen() {
           />
           <FeatureRow
             icon="plus-circle"
-            title="Custom Actions"
-            description="Add your own actions to benchmarks beyond AI suggestions"
-            isPremium
-          />
-          <FeatureRow
-            icon="bar-chart-2"
-            title="Advanced Insights"
-            description="Deeper analytics on your progress and patterns"
+            title="Unlimited Benchmarks"
+            description="Add new benchmarks to any persona as your goals evolve"
             isPremium
           />
         </View>
