@@ -20,6 +20,7 @@ import { useApp } from "@/context/AppContext";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ChatBubble } from "@/components/ChatBubble";
+import { AIConsentModal } from "@/components/AIConsentModal";
 import {
   getOnboardingResponse,
   extractPersonaFromConversation,
@@ -29,6 +30,38 @@ import { logger } from "@/lib/logger";
 
 const MIN_ACTIONS_PER_PERSONA = 3;
 const MAX_ACTIONS_PER_PERSONA = 5;
+
+// Also serves as the no-AI starter plan when the user declines to share data
+// with OpenAI, so onboarding never dead-ends without consent.
+const DEFAULT_BENCHMARKS = [
+  {
+    title: "Build Daily Momentum",
+    elementalAction: {
+      title: "Complete one action toward your goal",
+      frequency: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      kickstartVersion: "Spend 2 minutes planning your next step",
+      anchorLink: "After I check my phone in the morning",
+    },
+  },
+  {
+    title: "Develop Mindfulness Practice",
+    elementalAction: {
+      title: "Practice mindful breathing",
+      frequency: ["Monday", "Wednesday", "Friday"],
+      kickstartVersion: "Take 3 deep breaths",
+      anchorLink: "After I sit down at my desk",
+    },
+  },
+  {
+    title: "Maintain Physical Wellness",
+    elementalAction: {
+      title: "Move your body intentionally",
+      frequency: ["Tuesday", "Thursday", "Saturday"],
+      kickstartVersion: "Do 10 jumping jacks",
+      anchorLink: "After I wake up",
+    },
+  },
+];
 
 interface ChatMessage {
   id: string;
@@ -92,7 +125,7 @@ const INTRO_PAGES: IntroPage[] = [
       },
       {
         icon: "shield",
-        text: "Your answers stay private",
+        text: "AI powered by OpenAI — only with your consent",
         color: ACCENT_COLORS.green,
       },
     ],
@@ -131,10 +164,18 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { theme, isDark } = useTheme();
-  const { setHasOnboarded, setPersona, setBenchmarks, setActions } = useApp();
+  const {
+    setHasOnboarded,
+    setPersona,
+    setBenchmarks,
+    setActions,
+    aiConsent,
+    setAiConsent,
+  } = useApp();
 
   const [introPage, setIntroPage] = useState(0);
   const [showIntro, setShowIntro] = useState(true);
+  const [showConsentModal, setShowConsentModal] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -147,11 +188,107 @@ export default function OnboardingScreen() {
   const messageCount = useRef(0);
 
   const handleBeginOnboarding = async () => {
+    if (!aiConsent) {
+      setShowConsentModal(true);
+      return;
+    }
+    await beginChat();
+  };
+
+  const beginChat = async () => {
     setShowIntro(false);
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     await startConversation();
+  };
+
+  const handleConsentAgree = async () => {
+    setShowConsentModal(false);
+    await setAiConsent(true);
+    await beginChat();
+  };
+
+  const handleConsentDecline = () => {
+    setShowConsentModal(false);
+    const message =
+      "No problem — AI coaching stays off. You can start with a ready-made starter plan and enable AI coaching later in Profile.";
+    if (Platform.OS === "web") {
+      if (window.confirm(message)) {
+        createStarterPlan();
+      }
+      return;
+    }
+    Alert.alert("Continue Without AI?", message, [
+      { text: "Go Back", style: "cancel" },
+      { text: "Use Starter Plan", onPress: () => createStarterPlan() },
+    ]);
+  };
+
+  // Builds a persona locally from the default benchmarks — no network calls,
+  // so declining AI consent still produces a fully working app.
+  const createStarterPlan = async () => {
+    setIsExtracting(true);
+    try {
+      const persona = await setPersona({
+        name: "Momentum Builder",
+        description: "Building better habits one small daily action at a time.",
+      });
+      await savePlan(persona.id, DEFAULT_BENCHMARKS);
+      await setHasOnboarded(true);
+
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+
+      navigation.reset({
+        index: 0,
+        routes: [
+          {
+            name: "Main",
+            state: {
+              routes: [{ name: "ProgressTab" }],
+            },
+          },
+        ],
+      });
+    } catch (error) {
+      logger.error("Failed to create starter plan:", error);
+      Alert.alert("Error", "We couldn't set up your plan. Please try again.");
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  const savePlan = async (
+    personaId: string,
+    benchmarksToUse: typeof DEFAULT_BENCHMARKS,
+  ) => {
+    const results = benchmarksToUse.map((b) => {
+      const benchmark = {
+        id: Date.now().toString() + Math.random().toString(36).substr(2),
+        personaId,
+        title: b.title,
+        targetDate: null,
+        status: "active" as const,
+        createdAt: new Date().toISOString(),
+      };
+      return { benchmark, action: b.elementalAction };
+    });
+
+    const allBenchmarks = results.map((r) => r.benchmark);
+    const allActions = results.map((r, index) => ({
+      id: Date.now().toString() + index + Math.random().toString(36).substr(2),
+      benchmarkId: allBenchmarks[index].id,
+      title: r.action.title,
+      frequency: r.action.frequency,
+      anchorLink: r.action.anchorLink,
+      kickstartVersion: r.action.kickstartVersion,
+      createdAt: new Date().toISOString(),
+    }));
+
+    await setBenchmarks(allBenchmarks);
+    await setActions(allActions);
   };
 
   const startConversation = async () => {
@@ -245,49 +382,12 @@ export default function OnboardingScreen() {
       const personaData = await extractPersonaFromConversation(aiMessages);
 
       let benchmarksToUse = personaData.benchmarks;
-      if (benchmarksToUse.length < MIN_ACTIONS_PER_PERSONA) {
-        const defaultBenchmarks = [
-          {
-            title: "Build Daily Momentum",
-            elementalAction: {
-              title: "Complete one action toward your goal",
-              frequency: [
-                "Monday",
-                "Tuesday",
-                "Wednesday",
-                "Thursday",
-                "Friday",
-              ],
-              kickstartVersion: "Spend 2 minutes planning your next step",
-              anchorLink: "After I check my phone in the morning",
-            },
-          },
-          {
-            title: "Develop Mindfulness Practice",
-            elementalAction: {
-              title: "Practice mindful breathing",
-              frequency: ["Monday", "Wednesday", "Friday"],
-              kickstartVersion: "Take 3 deep breaths",
-              anchorLink: "After I sit down at my desk",
-            },
-          },
-          {
-            title: "Maintain Physical Wellness",
-            elementalAction: {
-              title: "Move your body intentionally",
-              frequency: ["Tuesday", "Thursday", "Saturday"],
-              kickstartVersion: "Do 10 jumping jacks",
-              anchorLink: "After I wake up",
-            },
-          },
-        ];
-        while (benchmarksToUse.length < MIN_ACTIONS_PER_PERSONA) {
-          const nextDefault = defaultBenchmarks[benchmarksToUse.length];
-          if (nextDefault) {
-            benchmarksToUse.push(nextDefault);
-          } else {
-            break;
-          }
+      while (benchmarksToUse.length < MIN_ACTIONS_PER_PERSONA) {
+        const nextDefault = DEFAULT_BENCHMARKS[benchmarksToUse.length];
+        if (nextDefault) {
+          benchmarksToUse.push(nextDefault);
+        } else {
+          break;
         }
       }
       if (benchmarksToUse.length > MAX_ACTIONS_PER_PERSONA) {
@@ -299,34 +399,7 @@ export default function OnboardingScreen() {
         description: personaData.personaDescription,
       });
 
-      const benchmarkPromises = benchmarksToUse.map(async (b) => {
-        const benchmark = {
-          id: Date.now().toString() + Math.random().toString(36).substr(2),
-          personaId: persona.id,
-          title: b.title,
-          targetDate: null,
-          status: "active" as const,
-          createdAt: new Date().toISOString(),
-        };
-        return { benchmark, action: b.elementalAction };
-      });
-
-      const results = await Promise.all(benchmarkPromises);
-
-      const allBenchmarks = results.map((r) => r.benchmark);
-      const allActions = results.map((r, index) => ({
-        id:
-          Date.now().toString() + index + Math.random().toString(36).substr(2),
-        benchmarkId: allBenchmarks[index].id,
-        title: r.action.title,
-        frequency: r.action.frequency,
-        anchorLink: r.action.anchorLink,
-        kickstartVersion: r.action.kickstartVersion,
-        createdAt: new Date().toISOString(),
-      }));
-
-      await setBenchmarks(allBenchmarks);
-      await setActions(allActions);
+      await savePlan(persona.id, benchmarksToUse);
       await setHasOnboarded(true);
 
       if (Platform.OS !== "web") {
@@ -552,6 +625,12 @@ export default function OnboardingScreen() {
             </ThemedText>
           ) : null}
         </View>
+
+        <AIConsentModal
+          visible={showConsentModal}
+          onAgree={handleConsentAgree}
+          onDecline={handleConsentDecline}
+        />
       </View>
     );
   }

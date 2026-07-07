@@ -23,6 +23,7 @@ import { useApp } from "@/context/AppContext";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ChatBubble } from "@/components/ChatBubble";
+import { AIConsentModal } from "@/components/AIConsentModal";
 import { getReflectionResponse, AIMessage, getMonthlyContext } from "@/lib/ai";
 import { logger } from "@/lib/logger";
 
@@ -50,10 +51,14 @@ export default function ReflectScreen() {
     subscription,
     monthlyReflectionCount,
     reflections,
+    aiConsent,
+    setAiConsent,
   } = useApp();
 
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType | null>(null);
   const [isInSession, setIsInSession] = useState(false);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [pendingPeriod, setPendingPeriod] = useState<PeriodType | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -85,6 +90,37 @@ export default function ReflectScreen() {
 
     if (!canUseReflection()) {
       navigation.navigate("Subscription");
+      return;
+    }
+
+    if (!aiConsent) {
+      setPendingPeriod(period);
+      setShowConsentModal(true);
+      return;
+    }
+
+    await beginReflectionSession(period);
+  };
+
+  const handleConsentAgree = async () => {
+    setShowConsentModal(false);
+    await setAiConsent(true);
+    const period = pendingPeriod;
+    setPendingPeriod(null);
+    // Call the session starter directly: the aiConsent value captured by
+    // startReflection's closure is still false until the next render.
+    if (period) {
+      await beginReflectionSession(period);
+    }
+  };
+
+  const handleConsentDecline = () => {
+    setShowConsentModal(false);
+    setPendingPeriod(null);
+  };
+
+  const beginReflectionSession = async (period: PeriodType) => {
+    if (!persona) {
       return;
     }
 
@@ -583,6 +619,12 @@ export default function ReflectScreen() {
             ))}
           </>
         ) : null}
+
+        <AIConsentModal
+          visible={showConsentModal}
+          onAgree={handleConsentAgree}
+          onDecline={handleConsentDecline}
+        />
       </ScrollView>
     );
   }
