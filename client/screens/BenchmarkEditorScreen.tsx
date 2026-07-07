@@ -17,6 +17,7 @@ import { useApp } from "@/context/AppContext";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { formatScheduleDays } from "@/lib/progress";
 import { logger } from "@/lib/logger";
 
 const MIN_ACTIONS_PER_PERSONA = 3;
@@ -392,7 +393,7 @@ export default function BenchmarkEditorScreen() {
                           { color: theme.textSecondary },
                         ]}
                       >
-                        {action.frequency.map((d) => d.slice(0, 3)).join(", ")}
+                        {formatScheduleDays(action.frequency)}
                       </ThemedText>
                     </View>
                     <View style={styles.actionButtons}>

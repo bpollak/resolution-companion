@@ -20,6 +20,8 @@ import {
   computeWeeklyRecap,
   computeLapse,
   MILESTONE_TARGET_DAYS,
+  sortWeekdays,
+  formatScheduleDays,
 } from "@/lib/progress";
 import type { Benchmark, ElementalAction, DailyLog } from "@/lib/storage";
 
@@ -896,5 +898,53 @@ describe("computeLapse", () => {
       missedDays: 0,
       lastMissedDate: null,
     });
+  });
+});
+
+describe("sortWeekdays", () => {
+  it("orders days Monday-first regardless of input order", () => {
+    expect(sortWeekdays(["Thursday", "Monday", "Sunday", "Wednesday"])).toEqual(
+      ["Monday", "Wednesday", "Thursday", "Sunday"],
+    );
+  });
+
+  it("does not mutate the input array", () => {
+    const input = ["Friday", "Monday"];
+    sortWeekdays(input);
+    expect(input).toEqual(["Friday", "Monday"]);
+  });
+});
+
+describe("formatScheduleDays", () => {
+  it("labels all seven days as Every day", () => {
+    expect(
+      formatScheduleDays([
+        "Sunday",
+        "Saturday",
+        "Friday",
+        "Thursday",
+        "Wednesday",
+        "Tuesday",
+        "Monday",
+      ]),
+    ).toBe("Every day");
+  });
+
+  it("labels Mon-Fri as Weekdays", () => {
+    expect(
+      formatScheduleDays([
+        "Friday",
+        "Wednesday",
+        "Monday",
+        "Thursday",
+        "Tuesday",
+      ]),
+    ).toBe("Weekdays");
+  });
+
+  it("abbreviates other sets in calendar order", () => {
+    expect(formatScheduleDays(["Saturday", "Wednesday", "Monday"])).toBe(
+      "Mon · Wed · Sat",
+    );
   });
 });

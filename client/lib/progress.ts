@@ -26,6 +26,34 @@ function parseLocalDate(dateStr: string): Date {
   return new Date(year, month - 1, day);
 }
 
+export const WEEKDAY_ORDER = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+
+/** Sort weekday names into calendar order (Monday first). */
+export function sortWeekdays(days: string[]): string[] {
+  return [...days].sort(
+    (a, b) => WEEKDAY_ORDER.indexOf(a) - WEEKDAY_ORDER.indexOf(b),
+  );
+}
+
+/** Human schedule summary: "Every day", "Weekdays", or "Mon · Wed · Fri". */
+export function formatScheduleDays(days: string[]): string {
+  const sorted = sortWeekdays(days);
+  if (sorted.length === 7) return "Every day";
+  const weekdaysOnly = WEEKDAY_ORDER.slice(0, 5);
+  if (sorted.length === 5 && weekdaysOnly.every((d) => sorted.includes(d))) {
+    return "Weekdays";
+  }
+  return sorted.map((d) => d.slice(0, 3)).join(" · ");
+}
+
 /**
  * Index logs by `${actionId}|${YYYY-MM-DD}`. First occurrence wins, mirroring
  * Array.prototype.find semantics if duplicate logs exist for the same day.

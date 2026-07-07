@@ -27,6 +27,7 @@ import {
   extractPersonaFromConversation,
   AIMessage,
 } from "@/lib/ai";
+import { sortWeekdays } from "@/lib/progress";
 import { logger } from "@/lib/logger";
 
 const MIN_ACTIONS_PER_PERSONA = 3;
@@ -312,7 +313,7 @@ export default function OnboardingScreen() {
         ),
       )
       .filter((d): d is string => Boolean(d));
-    return cleaned.length > 0 ? [...new Set(cleaned)] : fallback;
+    return sortWeekdays(cleaned.length > 0 ? [...new Set(cleaned)] : fallback);
   };
 
   const savePlan = async (

@@ -122,7 +122,10 @@ export default function ActionEditorScreen() {
     if (frequency.includes(day)) {
       setFrequency(frequency.filter((d) => d !== day));
     } else {
-      setFrequency([...frequency, day]);
+      // Keep calendar order regardless of the order days were toggled
+      setFrequency(
+        [...frequency, day].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)),
+      );
     }
   };
 

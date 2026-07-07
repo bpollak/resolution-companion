@@ -14,6 +14,7 @@ import {
   buildLogIndex,
   computeMilestoneProgress,
   computeStreak,
+  formatScheduleDays,
   getLocalDateString,
 } from "@/lib/progress";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
@@ -1058,19 +1059,19 @@ export default function JourneyScreen() {
                       <View style={styles.actionDetails}>
                         <View style={styles.actionDetail}>
                           <Feather
-                            name="zap"
+                            name="calendar"
                             size={14}
-                            color={Colors.dark.warning}
+                            color={Colors.dark.accent}
                             style={styles.actionDetailIcon}
                           />
                           <View style={styles.actionDetailContent}>
                             <ThemedText
                               style={[
                                 styles.actionDetailLabel,
-                                { color: Colors.dark.warning },
+                                { color: Colors.dark.accent },
                               ]}
                             >
-                              Too busy? Just:
+                              On:
                             </ThemedText>
                             <ThemedText
                               style={[
@@ -1078,7 +1079,8 @@ export default function JourneyScreen() {
                                 { color: theme.textSecondary },
                               ]}
                             >
-                              {action.kickstartVersion}
+                              {formatScheduleDays(action.frequency)} — each
+                              completed day fills this milestone
                             </ThemedText>
                           </View>
                         </View>
@@ -1108,29 +1110,31 @@ export default function JourneyScreen() {
                             </ThemedText>
                           </View>
                         </View>
-                        <View style={styles.frequencyTags}>
-                          {action.frequency.map((day: string) => (
-                            <View
-                              key={day}
+                        <View style={styles.actionDetail}>
+                          <Feather
+                            name="zap"
+                            size={14}
+                            color={Colors.dark.warning}
+                            style={styles.actionDetailIcon}
+                          />
+                          <View style={styles.actionDetailContent}>
+                            <ThemedText
                               style={[
-                                styles.frequencyTag,
-                                {
-                                  backgroundColor: isDark
-                                    ? Colors.dark.backgroundTertiary
-                                    : Colors.light.backgroundTertiary,
-                                },
+                                styles.actionDetailLabel,
+                                { color: Colors.dark.warning },
                               ]}
                             >
-                              <ThemedText
-                                style={[
-                                  styles.frequencyTagText,
-                                  { color: Colors.dark.accent },
-                                ]}
-                              >
-                                {day.slice(0, 3)}
-                              </ThemedText>
-                            </View>
-                          ))}
+                              Too busy? Just:
+                            </ThemedText>
+                            <ThemedText
+                              style={[
+                                styles.actionDetailText,
+                                { color: theme.textSecondary },
+                              ]}
+                            >
+                              {action.kickstartVersion}
+                            </ThemedText>
+                          </View>
                         </View>
                       </View>
                     </View>
