@@ -724,7 +724,13 @@ export default function SubscriptionScreen() {
             </ThemedText>
             <Pressable
               onPress={() => initializePurchases()}
-              style={styles.retryButton}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading subscription options"
+              style={({ pressed }) => [
+                styles.retryButton,
+                { opacity: pressed ? 0.7 : 1 },
+              ]}
             >
               <ThemedText
                 style={[styles.retryButtonText, { color: Colors.dark.accent }]}
@@ -994,9 +1000,13 @@ export default function SubscriptionScreen() {
               <Pressable
                 onPress={handleRestorePurchases}
                 disabled={checkingStatus}
+                hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel="Restore previous purchases"
-                style={styles.footerLink}
+                style={({ pressed }) => [
+                  styles.footerLink,
+                  { opacity: pressed ? 0.6 : 1 },
+                ]}
               >
                 <ThemedText
                   style={[
@@ -1023,9 +1033,13 @@ export default function SubscriptionScreen() {
                 new URL("/terms", getApiUrl()).toString(),
               )
             }
+            hitSlop={8}
             accessibilityRole="link"
             accessibilityLabel="Terms of Use"
-            style={styles.footerLink}
+            style={({ pressed }) => [
+              styles.footerLink,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
           >
             <ThemedText
               style={[styles.footerLinkText, { color: theme.textSecondary }]}
@@ -1044,9 +1058,13 @@ export default function SubscriptionScreen() {
                 new URL("/privacy", getApiUrl()).toString(),
               )
             }
+            hitSlop={8}
             accessibilityRole="link"
             accessibilityLabel="Privacy Policy"
-            style={styles.footerLink}
+            style={({ pressed }) => [
+              styles.footerLink,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
           >
             <ThemedText
               style={[styles.footerLinkText, { color: theme.textSecondary }]}
@@ -1155,7 +1173,7 @@ const styles = StyleSheet.create({
   },
   compareFeatureDescription: {
     ...Typography.caption,
-    lineHeight: 16,
+    lineHeight: 17,
   },
   compareValueCol: {
     width: 74,
@@ -1249,7 +1267,7 @@ const styles = StyleSheet.create({
   cancelHint: {
     ...Typography.caption,
     textAlign: "center",
-    lineHeight: 16,
+    lineHeight: 17,
     paddingHorizontal: Spacing.md,
   },
   footer: {
@@ -1334,7 +1352,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: Spacing.sm,
     paddingHorizontal: Spacing.sm,
-    lineHeight: 16,
+    lineHeight: 17,
   },
   errorBanner: {
     flexDirection: "row",

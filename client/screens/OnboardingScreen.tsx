@@ -507,7 +507,11 @@ export default function OnboardingScreen() {
           {navigation.canGoBack() ? (
             <Pressable
               onPress={() => navigation.goBack()}
-              style={styles.closeButton}
+              hitSlop={4}
+              style={({ pressed }) => [
+                styles.closeButton,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
               accessibilityRole="button"
               accessibilityLabel="Close"
             >
@@ -623,6 +627,8 @@ export default function OnboardingScreen() {
             {introPage > 0 ? (
               <Pressable
                 onPress={handlePrevPage}
+                accessibilityRole="button"
+                accessibilityLabel="Previous page"
                 style={({ pressed }) => [
                   styles.backButton,
                   {
@@ -677,7 +683,11 @@ export default function OnboardingScreen() {
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
         <Pressable
           onPress={() => navigation.goBack()}
-          style={styles.closeButton}
+          hitSlop={4}
+          style={({ pressed }) => [
+            styles.closeButton,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
           accessibilityRole="button"
           accessibilityLabel="Close"
         >
@@ -768,6 +778,8 @@ export default function OnboardingScreen() {
           </View>
           <Pressable
             onPress={finishOnboarding}
+            accessibilityRole="button"
+            accessibilityLabel="Create my plan"
             style={({ pressed }) => [
               styles.finishButton,
               { opacity: pressed ? 0.8 : 1 },
@@ -830,6 +842,9 @@ export default function OnboardingScreen() {
           <Pressable
             onPress={sendMessage}
             disabled={!inputText.trim() || isLoading}
+            accessibilityRole="button"
+            accessibilityLabel="Send message"
+            accessibilityState={{ disabled: !inputText.trim() || isLoading }}
             style={({ pressed }) => [
               styles.sendButton,
               {

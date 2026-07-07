@@ -935,8 +935,11 @@ const styles = StyleSheet.create({
   },
   chipRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
     gap: Spacing.sm,
     marginTop: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
   },
   dateContainer: {
     flexDirection: "row",

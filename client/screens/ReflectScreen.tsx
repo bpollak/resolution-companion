@@ -385,7 +385,13 @@ export default function ReflectScreen() {
           >
             <Pressable
               onPress={() => setViewingPastSession(null)}
-              style={styles.closeButton}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Back to check-in list"
+              style={({ pressed }) => [
+                styles.closeButton,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
             >
               <Feather name="arrow-left" size={24} color={theme.text} />
             </Pressable>
@@ -528,47 +534,77 @@ export default function ReflectScreen() {
 
         <ThemedText style={styles.sectionTitle}>Monthly Check-in</ThemedText>
 
-        <Pressable
-          onPress={() => startReflection("monthly")}
-          accessibilityRole="button"
-          accessibilityLabel={
-            canUseReflection()
-              ? "Review monthly progress with your AI coach"
-              : "Monthly check-in limit reached. Upgrade to Premium for unlimited coaching"
-          }
-          style={({ pressed }) => [
-            styles.periodButton,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundDefault
-                : Colors.light.backgroundDefault,
-              opacity: pressed ? 0.8 : 1,
-            },
-          ]}
-        >
-          <View style={styles.periodIcon}>
-            <Feather
-              name={canUseReflection() ? "trending-up" : "lock"}
-              size={24}
-              color={Colors.dark.accent}
-            />
-          </View>
-          <View style={styles.periodContent}>
-            <ThemedText style={styles.periodTitle}>
-              {canUseReflection()
-                ? "Review Monthly Progress"
-                : "Limit Reached — Upgrade"}
-            </ThemedText>
-            <ThemedText
-              style={[styles.periodDescription, { color: theme.textSecondary }]}
+        {canUseReflection() ? (
+          <Pressable
+            onPress={() => startReflection("monthly")}
+            accessibilityRole="button"
+            accessibilityLabel="Review monthly progress with your AI coach"
+            style={({ pressed }) => [
+              styles.heroCta,
+              pressed && styles.heroCtaPressed,
+            ]}
+          >
+            <View style={styles.heroCtaIcon}>
+              <Feather name="message-circle" size={24} color="#000000" />
+            </View>
+            <View style={styles.heroCtaContent}>
+              <ThemedText style={styles.heroCtaTitle}>
+                Start Monthly Check-in
+              </ThemedText>
+              <ThemedText style={styles.heroCtaSubtitle}>
+                Reflect with your coach on this month&rsquo;s progress
+              </ThemedText>
+            </View>
+            <Feather name="arrow-right" size={20} color="#000000" />
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={() => startReflection("monthly")}
+            accessibilityRole="button"
+            accessibilityLabel="Monthly check-in limit reached. Upgrade to Premium for unlimited coaching"
+            style={({ pressed }) => [
+              styles.heroCtaLocked,
+              {
+                backgroundColor: isDark
+                  ? Colors.dark.backgroundDefault
+                  : Colors.light.backgroundDefault,
+                borderColor: theme.border,
+              },
+              pressed && styles.heroCtaPressed,
+            ]}
+          >
+            <View
+              style={[
+                styles.heroCtaLockedIcon,
+                {
+                  backgroundColor: isDark
+                    ? Colors.dark.backgroundTertiary
+                    : Colors.light.backgroundTertiary,
+                },
+              ]}
             >
-              {canUseReflection()
-                ? "Get AI coaching based on your actions this month"
-                : "You've used all 10 free check-ins this month. Go Premium for unlimited coaching."}
-            </ThemedText>
-          </View>
-          <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-        </Pressable>
+              <Feather name="lock" size={24} color={theme.textSecondary} />
+            </View>
+            <View style={styles.heroCtaContent}>
+              <ThemedText style={styles.heroCtaLockedTitle}>
+                Limit reached
+              </ThemedText>
+              <ThemedText
+                style={[
+                  styles.heroCtaLockedSubtitle,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                Premium removes the cap &mdash; unlimited check-ins
+              </ThemedText>
+            </View>
+            <Feather
+              name="chevron-right"
+              size={20}
+              color={theme.textSecondary}
+            />
+          </Pressable>
+        )}
 
         {sortedReflections.length > 0 ? (
           <>
@@ -581,6 +617,8 @@ export default function ReflectScreen() {
               <Pressable
                 key={reflection.id}
                 onPress={() => setViewingPastSession(reflection.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`Open check-in from ${formatDate(reflection.createdAt)}, momentum ${reflection.momentumScore} percent`}
                 style={({ pressed }) => [
                   styles.pastSessionCard,
                   {
@@ -589,6 +627,7 @@ export default function ReflectScreen() {
                       : Colors.light.backgroundDefault,
                     opacity: pressed ? 0.8 : 1,
                   },
+                  pressed && styles.cardPressed,
                 ]}
               >
                 <View style={styles.pastSessionIcon}>
@@ -650,14 +689,32 @@ export default function ReflectScreen() {
       <View
         style={[styles.chatHeader, { paddingTop: headerHeight + Spacing.sm }]}
       >
-        <Pressable onPress={handleCloseSession} style={styles.closeButton}>
+        <Pressable
+          onPress={handleCloseSession}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="End session"
+          style={({ pressed }) => [
+            styles.closeButton,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
+        >
           <Feather name="x" size={24} color={theme.text} />
         </Pressable>
         <ThemedText style={styles.chatHeaderTitle}>
           {selectedPeriod?.charAt(0).toUpperCase()}
           {selectedPeriod?.slice(1)} Check-in
         </ThemedText>
-        <Pressable onPress={finishReflection} style={styles.doneButton}>
+        <Pressable
+          onPress={finishReflection}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Save this session"
+          style={({ pressed }) => [
+            styles.doneButton,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
+        >
           <ThemedText
             style={[styles.doneButtonText, { color: Colors.dark.accent }]}
           >
@@ -717,6 +774,9 @@ export default function ReflectScreen() {
         <Pressable
           onPress={sendMessage}
           disabled={!inputText.trim() || isLoading}
+          accessibilityRole="button"
+          accessibilityLabel="Send message"
+          accessibilityState={{ disabled: !inputText.trim() || isLoading }}
           style={({ pressed }) => [
             styles.sendButton,
             {
@@ -803,7 +863,7 @@ const styles = StyleSheet.create({
   },
   sessionsCard: {
     backgroundColor: "rgba(0, 217, 255, 0.08)",
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.md,
     padding: Spacing.xl,
     marginBottom: Spacing["2xl"],
     alignItems: "center",
@@ -846,36 +906,72 @@ const styles = StyleSheet.create({
     ...Typography.headline,
     marginBottom: Spacing.md,
   },
-  periodButton: {
+  heroCta: {
     flexDirection: "row",
     alignItems: "center",
-    padding: Spacing.lg,
+    backgroundColor: Colors.dark.accent,
+    padding: Spacing.xl,
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.md,
   },
-  periodIcon: {
+  heroCtaPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
+  },
+  heroCtaIcon: {
     width: 48,
     height: 48,
     borderRadius: BorderRadius.full,
-    backgroundColor: "rgba(0, 217, 255, 0.1)",
+    backgroundColor: "rgba(0, 0, 0, 0.15)",
     alignItems: "center",
     justifyContent: "center",
     marginRight: Spacing.lg,
   },
-  periodContent: {
+  heroCtaContent: {
     flex: 1,
+    marginRight: Spacing.md,
   },
-  periodTitle: {
+  heroCtaTitle: {
+    ...Typography.headline,
+    color: "#000000",
+    marginBottom: Spacing.xs,
+  },
+  heroCtaSubtitle: {
+    ...Typography.small,
+    lineHeight: 20,
+    color: "rgba(0, 0, 0, 0.7)",
+  },
+  heroCtaLocked: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.xl,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginBottom: Spacing.md,
+  },
+  heroCtaLockedIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.lg,
+  },
+  heroCtaLockedTitle: {
     ...Typography.headline,
     marginBottom: Spacing.xs,
   },
-  periodDescription: {
+  heroCtaLockedSubtitle: {
     ...Typography.small,
+    lineHeight: 20,
+  },
+  cardPressed: {
+    transform: [{ scale: 0.98 }],
   },
   pastSessionCard: {
     flexDirection: "row",
     alignItems: "center",
-    padding: Spacing.md,
+    padding: Spacing.lg,
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.sm,
   },

@@ -90,7 +90,7 @@ export function WeeklyRecapCard({
       <View style={styles.detailRow}>
         {lastWeek.bestDay ? (
           <View style={styles.detailItem}>
-            <Feather name="star" size={13} color={Colors.dark.warning} />
+            <Feather name="star" size={14} color={Colors.dark.warning} />
             <ThemedText
               style={[styles.detailText, { color: theme.textSecondary }]}
             >
@@ -100,7 +100,7 @@ export function WeeklyRecapCard({
         ) : null}
         <View style={styles.detailItem}>
           {streak.shieldUsed ? (
-            <Feather name="shield" size={13} color={Colors.dark.accent} />
+            <Feather name="shield" size={14} color={Colors.dark.accent} />
           ) : (
             <MaterialCommunityIcons
               name="fire"
@@ -224,6 +224,7 @@ const styles = StyleSheet.create({
   },
   detailText: {
     ...Typography.caption,
+    lineHeight: 17,
   },
   identityLine: {
     ...Typography.small,

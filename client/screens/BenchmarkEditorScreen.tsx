@@ -260,7 +260,13 @@ export default function BenchmarkEditorScreen() {
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
         <Pressable
           onPress={() => navigation.goBack()}
-          style={styles.headerButton}
+          hitSlop={4}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          style={({ pressed }) => [
+            styles.headerButton,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
         >
           <Feather name="x" size={24} color={theme.text} />
         </Pressable>
@@ -270,6 +276,10 @@ export default function BenchmarkEditorScreen() {
         <Pressable
           onPress={handleSave}
           disabled={isSaving}
+          hitSlop={4}
+          accessibilityRole="button"
+          accessibilityLabel="Save benchmark"
+          accessibilityState={{ disabled: isSaving }}
           style={({ pressed }) => [
             styles.headerButton,
             { opacity: pressed || isSaving ? 0.5 : 1 },
@@ -323,6 +333,14 @@ export default function BenchmarkEditorScreen() {
               <Pressable
                 onPress={handleAddAction}
                 disabled={!canAddAction}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  canAddAction
+                    ? "Add a new action"
+                    : "Action limit reached for this persona"
+                }
+                accessibilityState={{ disabled: !canAddAction }}
                 style={({ pressed }) => [
                   styles.addButton,
                   { opacity: pressed || !canAddAction ? 0.5 : 1 },
@@ -380,12 +398,12 @@ export default function BenchmarkEditorScreen() {
                     <View style={styles.actionButtons}>
                       <Pressable
                         onPress={() => handleEditAction(action.id)}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Edit action ${action.title}`}
                         style={({ pressed }) => [
                           styles.editActionButton,
-                          {
-                            opacity: pressed ? 0.7 : 1,
-                            backgroundColor: "rgba(0, 217, 255, 0.15)",
-                          },
+                          { opacity: pressed ? 0.7 : 1 },
                         ]}
                       >
                         <Feather
@@ -400,6 +418,10 @@ export default function BenchmarkEditorScreen() {
                       <Pressable
                         onPress={() => handleDeleteAction(action)}
                         disabled={!canDeleteAction}
+                        hitSlop={4}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Delete action ${action.title}`}
+                        accessibilityState={{ disabled: !canDeleteAction }}
                         style={({ pressed }) => [
                           styles.actionButton,
                           { opacity: pressed || !canDeleteAction ? 0.4 : 1 },
@@ -587,15 +609,18 @@ const styles = StyleSheet.create({
   editActionButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: "rgba(0, 217, 255, 0.5)",
+    backgroundColor: "rgba(0, 217, 255, 0.12)",
   },
   editActionButtonText: {
-    ...Typography.caption,
+    ...Typography.small,
     color: Colors.dark.accent,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   minActionsHint: {
     ...Typography.caption,

@@ -238,7 +238,13 @@ export default function ActionEditorScreen() {
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
         <Pressable
           onPress={() => navigation.goBack()}
-          style={styles.headerButton}
+          hitSlop={4}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          style={({ pressed }) => [
+            styles.headerButton,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
         >
           <Feather name="x" size={24} color={theme.text} />
         </Pressable>
@@ -248,6 +254,10 @@ export default function ActionEditorScreen() {
         <Pressable
           onPress={handleSave}
           disabled={isSaving}
+          hitSlop={4}
+          accessibilityRole="button"
+          accessibilityLabel="Save action"
+          accessibilityState={{ disabled: isSaving }}
           style={({ pressed }) => [
             styles.headerButton,
             { opacity: pressed || isSaving ? 0.5 : 1 },
@@ -301,7 +311,10 @@ export default function ActionEditorScreen() {
               <Pressable
                 key={day}
                 onPress={() => toggleDay(day)}
-                style={[
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: frequency.includes(day) }}
+                accessibilityLabel={day}
+                style={({ pressed }) => [
                   styles.dayButton,
                   {
                     backgroundColor: frequency.includes(day)
@@ -309,6 +322,7 @@ export default function ActionEditorScreen() {
                       : isDark
                         ? Colors.dark.backgroundDefault
                         : Colors.light.backgroundDefault,
+                    opacity: pressed ? 0.7 : 1,
                   },
                 ]}
               >
@@ -490,7 +504,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.sm,
     minWidth: 48,
+    minHeight: 44,
     alignItems: "center",
+    justifyContent: "center",
   },
   dayText: {
     ...Typography.small,

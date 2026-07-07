@@ -54,9 +54,14 @@ export function LapseRecoveryCard({
       </ThemedText>
       <Pressable
         onPress={onCoachPress}
+        hitSlop={4}
         accessibilityRole="button"
         accessibilityLabel="Open the Coach tab to adjust your plan"
-        style={({ pressed }) => [styles.cta, { opacity: pressed ? 0.7 : 1 }]}
+        style={({ pressed }) => [
+          styles.cta,
+          { opacity: pressed ? 0.7 : 1 },
+          pressed && styles.ctaPressed,
+        ]}
       >
         <Feather name="message-circle" size={16} color={Colors.dark.accent} />
         <ThemedText style={[styles.ctaText, { color: Colors.dark.accent }]}>
@@ -93,13 +98,21 @@ const styles = StyleSheet.create({
   body: {
     ...Typography.small,
     lineHeight: 20,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   cta: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xs,
     paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: "rgba(0, 217, 255, 0.5)",
+    alignSelf: "flex-start",
+  },
+  ctaPressed: {
+    transform: [{ scale: 0.97 }],
   },
   ctaText: {
     ...Typography.small,

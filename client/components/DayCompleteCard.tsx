@@ -239,9 +239,12 @@ const styles = StyleSheet.create({
   momentumRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    flexWrap: "wrap",
     gap: Spacing.xs,
     marginTop: Spacing.lg,
     marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.sm,
   },
   momentumText: {
     ...Typography.body,

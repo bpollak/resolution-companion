@@ -174,7 +174,16 @@ export const ActionCard = React.memo(function ActionCard({
           </View>
         ) : null}
 
-        <Pressable onPress={handlePress}>
+        <Pressable
+          onPress={handlePress}
+          accessibilityRole="button"
+          accessibilityState={{ selected: isCompleted }}
+          accessibilityLabel={
+            isCompleted
+              ? `${action.title} completed. Tap to undo`
+              : `Mark ${action.title} complete`
+          }
+        >
           <Animated.View
             style={[
               styles.toggleButton,
@@ -184,6 +193,9 @@ export const ActionCard = React.memo(function ActionCard({
                   : isDark
                     ? Colors.dark.backgroundTertiary
                     : Colors.light.backgroundTertiary,
+                borderColor: isCompleted
+                  ? "transparent"
+                  : "rgba(0, 217, 255, 0.5)",
               },
               buttonAnimatedStyle,
               isCompleted ? glowStyle : undefined,
@@ -193,13 +205,13 @@ export const ActionCard = React.memo(function ActionCard({
               <Feather
                 name={isCompleted ? "check" : "circle"}
                 size={24}
-                color={isCompleted ? "#000000" : theme.textSecondary}
+                color={isCompleted ? "#000000" : Colors.dark.accent}
               />
             </Animated.View>
             <ThemedText
               style={[
                 styles.toggleText,
-                { color: isCompleted ? "#000000" : theme.text },
+                { color: isCompleted ? "#000000" : Colors.dark.accent },
               ]}
             >
               {isCompleted ? "Completed" : "Mark Complete"}
@@ -332,6 +344,7 @@ const styles = StyleSheet.create({
   },
   kickstart: {
     ...Typography.kickstart,
+    lineHeight: 27,
   },
   anchorContainer: {
     flexDirection: "row",
@@ -354,6 +367,7 @@ const styles = StyleSheet.create({
   },
   anchor: {
     ...Typography.small,
+    lineHeight: 20,
   },
   toggleButton: {
     flexDirection: "row",
@@ -361,6 +375,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.sm,
+    borderWidth: 1.5,
     gap: Spacing.sm,
   },
   toggleText: {

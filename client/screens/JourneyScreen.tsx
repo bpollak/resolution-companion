@@ -157,7 +157,10 @@ function SelectedDateDetails({
           {actionStatuses.map(({ action, benchmark, completed }) => (
             <Pressable
               key={action.id}
-              style={styles.selectedDateAction}
+              style={({ pressed }) => [
+                styles.selectedDateAction,
+                { opacity: pressed && !isFutureDate ? 0.6 : 1 },
+              ]}
               onPress={() => handleToggle(action.id, completed)}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: completed }}
@@ -224,6 +227,7 @@ export default function JourneyScreen() {
     dailyLogs,
     personaAlignment,
     toggleDailyLog,
+    canAddBenchmark,
   } = useApp();
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -643,7 +647,11 @@ export default function JourneyScreen() {
         <View style={styles.monthHeader}>
           <Pressable
             onPress={prevMonth}
-            style={styles.navButton}
+            hitSlop={4}
+            style={({ pressed }) => [
+              styles.navButton,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
             accessibilityRole="button"
             accessibilityLabel="Previous month"
           >
@@ -654,7 +662,11 @@ export default function JourneyScreen() {
           </ThemedText>
           <Pressable
             onPress={nextMonth}
-            style={styles.navButton}
+            hitSlop={4}
+            style={({ pressed }) => [
+              styles.navButton,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
             accessibilityRole="button"
             accessibilityLabel="Next month"
           >
@@ -758,7 +770,7 @@ export default function JourneyScreen() {
                     <View style={styles.shieldBadge}>
                       <Feather
                         name="shield"
-                        size={10}
+                        size={12}
                         color={Colors.dark.accent}
                       />
                     </View>
@@ -868,17 +880,24 @@ export default function JourneyScreen() {
           <ThemedText style={styles.sectionTitle}>Milestones</ThemedText>
           <Pressable
             onPress={() => navigation.navigate("BenchmarkEditor", {})}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={
+              canAddBenchmark()
+                ? "Add a new milestone"
+                : "Add milestone, Premium feature"
+            }
             style={({ pressed }) => [
               styles.addButton,
-              { opacity: pressed ? 0.8 : 1 },
+              pressed && styles.addButtonPressed,
             ]}
           >
-            <Feather name="plus" size={20} color={Colors.dark.accent} />
-            <ThemedText
-              style={[styles.addButtonText, { color: Colors.dark.accent }]}
-            >
-              Add
-            </ThemedText>
+            <Feather
+              name={canAddBenchmark() ? "plus" : "lock"}
+              size={16}
+              color="#000000"
+            />
+            <ThemedText style={styles.addButtonText}>Add milestone</ThemedText>
           </Pressable>
         </View>
 
@@ -894,6 +913,12 @@ export default function JourneyScreen() {
             <View key={benchmark.id}>
               <Pressable
                 onPress={() => toggleExpand(benchmark.id)}
+                accessibilityRole="button"
+                accessibilityState={{
+                  expanded: expandedBenchmarks.has(benchmark.id),
+                }}
+                accessibilityLabel={`${benchmark.title} milestone, ${daysDone} of ${target} days done`}
+                accessibilityHint="Shows the daily actions for this milestone"
                 style={({ pressed }) => [
                   styles.benchmarkCard,
                   {
@@ -906,20 +931,20 @@ export default function JourneyScreen() {
                 ]}
               >
                 <View style={styles.benchmarkHeader}>
-                  <View style={styles.benchmarkTitleRow}>
-                    <Feather
-                      name={completed ? "check-circle" : "circle"}
-                      size={16}
-                      color={
-                        completed ? Colors.dark.success : Colors.dark.accent
-                      }
-                      style={styles.milestoneStatusIcon}
-                    />
-                    <ThemedText style={styles.benchmarkTitle}>
-                      {benchmark.title}
-                    </ThemedText>
-                  </View>
-                  <View style={styles.benchmarkMeta}>
+                  <View style={styles.benchmarkTitleCol}>
+                    <View style={styles.benchmarkTitleRow}>
+                      <Feather
+                        name={completed ? "check-circle" : "circle"}
+                        size={16}
+                        color={
+                          completed ? Colors.dark.success : Colors.dark.accent
+                        }
+                        style={styles.milestoneStatusIcon}
+                      />
+                      <ThemedText style={styles.benchmarkTitle}>
+                        {benchmark.title}
+                      </ThemedText>
+                    </View>
                     {actionProgress[0]?.action.frequency ? (
                       <ThemedText
                         style={[
@@ -932,30 +957,8 @@ export default function JourneyScreen() {
                           : `${actionProgress[0].action.frequency.length}×/week`}
                       </ThemedText>
                     ) : null}
-                    <Pressable
-                      onPress={() =>
-                        navigation.navigate("BenchmarkEditor", {
-                          benchmarkId: benchmark.id,
-                        })
-                      }
-                      hitSlop={8}
-                      style={({ pressed }) => [
-                        styles.editButton,
-                        {
-                          opacity: pressed ? 0.7 : 1,
-                          backgroundColor: "rgba(0, 217, 255, 0.15)",
-                        },
-                      ]}
-                    >
-                      <Feather
-                        name="edit-2"
-                        size={14}
-                        color={Colors.dark.accent}
-                      />
-                      <ThemedText style={styles.editButtonText}>
-                        Edit
-                      </ThemedText>
-                    </Pressable>
+                  </View>
+                  <View style={styles.benchmarkMeta}>
                     <ThemedText
                       style={[
                         styles.benchmarkDays,
@@ -983,20 +986,44 @@ export default function JourneyScreen() {
                   progress={progress}
                   color={completed ? Colors.dark.success : Colors.dark.accent}
                 />
-                <ThemedText
-                  style={[
-                    styles.milestoneCaption,
-                    {
-                      color: completed
-                        ? Colors.dark.success
-                        : theme.textSecondary,
-                    },
-                  ]}
-                >
-                  {completed
-                    ? "Milestone complete — habit locked in"
-                    : `${daysDone} of ${target} days done — fills with every completed day`}
-                </ThemedText>
+                <View style={styles.benchmarkFooter}>
+                  <ThemedText
+                    style={[
+                      styles.milestoneCaption,
+                      {
+                        color: completed
+                          ? Colors.dark.success
+                          : theme.textSecondary,
+                      },
+                    ]}
+                  >
+                    {completed
+                      ? "Complete — habit locked in"
+                      : `${daysDone} of ${target} days done`}
+                  </ThemedText>
+                  <Pressable
+                    onPress={() =>
+                      navigation.navigate("BenchmarkEditor", {
+                        benchmarkId: benchmark.id,
+                      })
+                    }
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Edit ${benchmark.title} milestone`}
+                    style={({ pressed }) => [
+                      styles.editButton,
+                      { opacity: pressed ? 0.7 : 1 },
+                      pressed && styles.editButtonPressed,
+                    ]}
+                  >
+                    <Feather
+                      name="edit-2"
+                      size={14}
+                      color={Colors.dark.accent}
+                    />
+                    <ThemedText style={styles.editButtonText}>Edit</ThemedText>
+                  </Pressable>
+                </View>
               </Pressable>
 
               {expandedBenchmarks.has(benchmark.id) &&
@@ -1033,30 +1060,52 @@ export default function JourneyScreen() {
                             name="zap"
                             size={14}
                             color={Colors.dark.warning}
+                            style={styles.actionDetailIcon}
                           />
-                          <ThemedText
-                            style={[
-                              styles.actionDetailText,
-                              { color: theme.textSecondary },
-                            ]}
-                          >
-                            {action.kickstartVersion}
-                          </ThemedText>
+                          <View style={styles.actionDetailContent}>
+                            <ThemedText
+                              style={[
+                                styles.actionDetailLabel,
+                                { color: Colors.dark.warning },
+                              ]}
+                            >
+                              Too busy? Just:
+                            </ThemedText>
+                            <ThemedText
+                              style={[
+                                styles.actionDetailText,
+                                { color: theme.textSecondary },
+                              ]}
+                            >
+                              {action.kickstartVersion}
+                            </ThemedText>
+                          </View>
                         </View>
                         <View style={styles.actionDetail}>
                           <Feather
                             name="link"
                             size={14}
-                            color={theme.textSecondary}
+                            color={Colors.dark.accent}
+                            style={styles.actionDetailIcon}
                           />
-                          <ThemedText
-                            style={[
-                              styles.actionDetailText,
-                              { color: theme.textSecondary },
-                            ]}
-                          >
-                            {action.anchorLink}
-                          </ThemedText>
+                          <View style={styles.actionDetailContent}>
+                            <ThemedText
+                              style={[
+                                styles.actionDetailLabel,
+                                { color: Colors.dark.accent },
+                              ]}
+                            >
+                              When:
+                            </ThemedText>
+                            <ThemedText
+                              style={[
+                                styles.actionDetailText,
+                                { color: theme.textSecondary },
+                              ]}
+                            >
+                              {action.anchorLink}
+                            </ThemedText>
+                          </View>
                         </View>
                         <View style={styles.frequencyTags}>
                           {action.frequency.map((day: string) => (
@@ -1184,7 +1233,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: Spacing.xs,
     backgroundColor: Colors.dark.accent,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
     borderRadius: BorderRadius.full,
   },
   guideCtaText: {
@@ -1307,12 +1356,13 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   selectedDateActions: {
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   selectedDateAction: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
   },
   selectedDateActionInfo: {
     flex: 1,
@@ -1343,10 +1393,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xs,
+    backgroundColor: Colors.dark.accent,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+  },
+  addButtonPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.97 }],
   },
   addButtonText: {
-    ...Typography.body,
-    fontWeight: "500",
+    ...Typography.small,
+    fontWeight: "600",
+    color: "#000000",
   },
   benchmarkCard: {
     padding: Spacing.lg,
@@ -1361,49 +1420,69 @@ const styles = StyleSheet.create({
   benchmarkHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.sm,
+    alignItems: "flex-start",
+    marginBottom: Spacing.md,
+  },
+  benchmarkTitleCol: {
+    flex: 1,
+    marginRight: Spacing.md,
   },
   benchmarkTitleRow: {
     flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
+    alignItems: "flex-start",
   },
   milestoneStatusIcon: {
     marginRight: Spacing.sm,
+    marginTop: 3,
   },
   benchmarkTitle: {
-    ...Typography.body,
-    fontWeight: "500",
+    ...Typography.headline,
+    lineHeight: 22,
     flex: 1,
   },
   benchmarkMeta: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  benchmarkFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.md,
+    marginTop: Spacing.md,
   },
   editButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: "rgba(0, 217, 255, 0.5)",
+    backgroundColor: "rgba(0, 217, 255, 0.12)",
+  },
+  editButtonPressed: {
+    transform: [{ scale: 0.96 }],
   },
   editButtonText: {
-    ...Typography.caption,
+    ...Typography.small,
     color: Colors.dark.accent,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   benchmarkDays: {
     ...Typography.headline,
   },
   milestoneCaption: {
     ...Typography.caption,
-    marginTop: Spacing.sm,
+    lineHeight: 17,
+    flex: 1,
   },
   frequencyBadge: {
     ...Typography.caption,
+    marginTop: Spacing.xs,
+    marginLeft: Spacing.sm + 16,
   },
   actionsContainer: {
     marginLeft: Spacing.lg,
@@ -1422,24 +1501,36 @@ const styles = StyleSheet.create({
   },
   actionTitle: {
     ...Typography.small,
-    fontWeight: "500",
+    fontWeight: "600",
     flex: 1,
+    marginRight: Spacing.sm,
   },
   actionDays: {
     ...Typography.small,
     fontWeight: "600",
   },
   actionDetails: {
-    gap: Spacing.xs,
+    gap: Spacing.sm,
   },
   actionDetail: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+  },
+  actionDetailIcon: {
+    marginTop: 2,
+  },
+  actionDetailContent: {
+    flex: 1,
+  },
+  actionDetailLabel: {
+    ...Typography.caption,
+    fontWeight: "600",
+    marginBottom: 2,
   },
   actionDetailText: {
-    ...Typography.caption,
-    flex: 1,
+    ...Typography.small,
+    lineHeight: 20,
   },
   frequencyTags: {
     flexDirection: "row",
