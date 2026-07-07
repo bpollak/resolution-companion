@@ -137,17 +137,7 @@ export default function ReflectScreen() {
     setIsStreaming(true);
     setStreamingText("");
 
-    const monthlyContext = getMonthlyContext(momentumScore);
-
-    if (persona.createdAt) {
-      const createdDate = new Date(persona.createdAt);
-      const today = new Date();
-      const daysSince = Math.floor(
-        (today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24),
-      );
-      monthlyContext.personaCreatedAt = persona.createdAt;
-      monthlyContext.daysSincePersonaCreated = daysSince;
-    }
+    const monthlyContext = getMonthlyContext(momentumScore, persona.createdAt);
 
     try {
       const response = await getReflectionResponse(
@@ -215,17 +205,10 @@ export default function ReflectScreen() {
       }));
       aiMessages.push({ role: "user", content: userMessage.content });
 
-      const monthlyContext = getMonthlyContext(momentumScore);
-
-      if (persona?.createdAt) {
-        const createdDate = new Date(persona.createdAt);
-        const today = new Date();
-        const daysSince = Math.floor(
-          (today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24),
-        );
-        monthlyContext.personaCreatedAt = persona.createdAt;
-        monthlyContext.daysSincePersonaCreated = daysSince;
-      }
+      const monthlyContext = getMonthlyContext(
+        momentumScore,
+        persona?.createdAt,
+      );
 
       const response = await getReflectionResponse(
         aiMessages,

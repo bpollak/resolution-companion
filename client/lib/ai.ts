@@ -261,7 +261,10 @@ export interface MonthlyContext {
   daysSincePersonaCreated?: number;
 }
 
-export function getMonthlyContext(momentumScore: number): MonthlyContext {
+export function getMonthlyContext(
+  momentumScore: number,
+  personaCreatedAt?: string,
+): MonthlyContext {
   const now = new Date();
   const dayOfMonth = now.getDate();
   const daysInMonth = new Date(
@@ -271,10 +274,13 @@ export function getMonthlyContext(momentumScore: number): MonthlyContext {
   ).getDate();
   const percentThroughMonth = Math.round((dayOfMonth / daysInMonth) * 100);
   const completionRate = momentumScore;
-  const isAhead = completionRate >= percentThroughMonth;
-  const isBehind = completionRate < percentThroughMonth - 10;
+  // Consistency already measures only scheduled days since the plan existed,
+  // so it is judged on its own scale — comparing it to % of the calendar
+  // month elapsed misreads anyone who started mid-month.
+  const isAhead = completionRate >= 80;
+  const isBehind = completionRate < 50;
 
-  return {
+  const context: MonthlyContext = {
     dayOfMonth,
     daysInMonth,
     percentThroughMonth,
@@ -282,6 +288,16 @@ export function getMonthlyContext(momentumScore: number): MonthlyContext {
     isAhead,
     isBehind,
   };
+
+  if (personaCreatedAt) {
+    const createdDate = new Date(personaCreatedAt);
+    context.personaCreatedAt = personaCreatedAt;
+    context.daysSincePersonaCreated = Math.floor(
+      (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24),
+    );
+  }
+
+  return context;
 }
 
 export async function getReflectionResponse(
@@ -294,18 +310,23 @@ export async function getReflectionResponse(
   const isFirstMessage = messages.length === 1;
   const ctx = monthlyContext || getMonthlyContext(momentumScore);
 
+  const daysSince = ctx.daysSincePersonaCreated;
+  const justStarted = daysSince !== undefined && daysSince <= 7;
+  const startedMidMonth =
+    daysSince !== undefined && daysSince + 1 < ctx.dayOfMonth;
+
   const personaAgeContext =
-    ctx.daysSincePersonaCreated !== undefined
-      ? `\n- Persona was created ${ctx.daysSincePersonaCreated} days ago${ctx.daysSincePersonaCreated <= 7 ? " (they just started - be encouraging and set realistic expectations)" : ctx.daysSincePersonaCreated <= 30 ? " (still building habits - focus on consistency over perfection)" : " (established user - can discuss deeper patterns)"}`
+    daysSince !== undefined
+      ? `\n- They started their plan ${daysSince === 0 ? "today" : daysSince === 1 ? "yesterday" : `${daysSince} days ago`}${justStarted ? " (brand new - be encouraging and set realistic expectations)" : daysSince <= 30 ? " (still building habits - focus on consistency over perfection)" : " (established user - can discuss deeper patterns)"}`
       : "";
 
   const progressContext = `
 MONTHLY CONTEXT:
-- Today is day ${ctx.dayOfMonth} of ${ctx.daysInMonth} (${ctx.percentThroughMonth}% through the month)
-- User's task completion rate: ${ctx.completionRate}%
-- Status: ${ctx.isAhead ? "Ahead of pace - they're doing great!" : ctx.isBehind ? "Behind pace - may need encouragement or to reduce friction" : "On track - maintaining good consistency"}${personaAgeContext}
+- Today is day ${ctx.dayOfMonth} of ${ctx.daysInMonth} in the calendar month.${personaAgeContext}
+- Consistency since they started: ${ctx.completionRate}% of scheduled actions completed.
+- Read on that number: ${ctx.isAhead ? "strong - celebrate it" : ctx.isBehind ? "struggling - reduce friction, never scold" : "building - steady progress worth encouraging"}
 
-IMPORTANT: The user's progress is only tracked from when they created their persona (${ctx.daysSincePersonaCreated !== undefined ? ctx.daysSincePersonaCreated : "unknown"} days ago). Days before that don't count as "missed" - they simply weren't tracking yet. When discussing their progress, focus only on the time since they started.
+IMPORTANT: Progress only counts from the day they started their plan${startedMidMonth ? " (they started partway through this month)" : ""}. Frame everything around how long THEY have been at it — days since they started — never around the calendar month. Never say they are "ahead of pace" or "behind pace" relative to the month, and never describe pre-start days as missed; those days simply weren't tracked.
 `;
 
   const systemMessage: AIMessage = {
@@ -318,7 +339,7 @@ VOICE RULES:
 - Identity framing: completed actions are votes for who they're becoming. A missed stretch is a plan problem, not a character problem — respond by shrinking the action or moving its schedule, never by scolding.
 - You are not a therapist or medical professional. If health, medication, or mental-health treatment comes up, be kind and suggest a qualified professional while staying supportive about their habits.
 
-${isFirstMessage ? `FIRST MESSAGE: Be brief (2-3 sentences max). Acknowledge where they are in the month and their consistency relative to that. If they're ${ctx.isAhead ? "ahead, celebrate their consistency" : ctx.isBehind ? "behind, be encouraging and ask what's been challenging" : "on track, note their good pacing"}. Ask ONE simple question about their experience. No lengthy explanations.` : `Continue the conversation naturally. Keep responses concise (2-4 sentences). Use the monthly context to give relevant advice. If behind pace, gently suggest smaller actions, easier kickstart versions, or fewer scheduled days. If ahead, acknowledge their momentum and ask about what's working.`}
+${isFirstMessage ? `FIRST MESSAGE: Be brief (2-3 sentences max). Anchor on how long they've been at their plan${justStarted ? " — they just started, so welcome them to their first days and celebrate showing up at all" : " and their consistency over that time"}. ${ctx.isAhead ? "Their consistency is strong — celebrate it." : ctx.isBehind ? "They're struggling — be encouraging and ask what's been challenging." : "They're building — note the steady progress."} Ask ONE simple question about their experience. No lengthy explanations.` : `Continue the conversation naturally. Keep responses concise (2-4 sentences). Use the monthly context to give relevant advice. If they're struggling, gently suggest smaller actions, easier kickstart versions, or fewer scheduled days. If consistency is strong, acknowledge their momentum and ask about what's working.`}
 
 Be warm and practical. No bullet points or lists in responses.`,
   };
