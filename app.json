@@ -80,6 +80,12 @@
     ],
     "experiments": {
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d859501c-8b40-4c99-a0ff-7572a09cc434"
+      }
+    },
+    "owner": "bpollak99"
   }
 }
