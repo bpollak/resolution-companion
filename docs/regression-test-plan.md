@@ -32,6 +32,18 @@ marked ▢ remain for the final device pass.
   the adjacent AI Data Sharing switch alert works. ▢ Verify the
   reminders toggle end-to-end on a physical device (item 18).
 
+## 2026-07-07 build 39 simulator pass — release candidate verified
+
+- ✅ Fresh onboarding → 3-action Tue/Thu/Sun reading plan, sorted days.
+- ✅ Monthly Consistency creation-date cutoff: perfect first day reads
+  "July · 100% +100 today" on chip, Journey ring, and day-complete card
+  (was 8% pre-fix). Calendar day 7 green, "3/3 done" matches.
+- ✅ Milestone detail text wraps on first mount (both long kickstarts);
+  "On: Tue · Thu · Sun" ordering correct; milestones credited 1/21.
+- ✅ Optimistic logging: ring/chips/card flip immediately on tap;
+  completed rows collapse; toasts fire.
+- Build 39 uploaded to TestFlight = the resubmission candidate.
+
 ## A. Schedule (frequency) edits
 
 1. ✅ **Edit an action to Daily** → Journey milestone badge reads "Daily";
