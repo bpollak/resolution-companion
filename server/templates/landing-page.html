@@ -8,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Transform your resolutions into reality with AI-powered coaching, daily habit tracking, and personalized persona-driven growth."
+      content="Transform your resolutions into reality with AI-powered coaching, daily habit tracking, and coaching built around who you're becoming."
     />
     <link rel="icon" type="image/png" href="/assets/icon.png" />
     <link rel="canonical" href="BASE_URL_PLACEHOLDER/" />
@@ -22,7 +22,7 @@
     />
     <meta
       property="og:description"
-      content="Transform your resolutions into reality with AI-powered coaching, daily habit tracking, and personalized persona-driven growth."
+      content="Transform your resolutions into reality with AI-powered coaching, daily habit tracking, and coaching built around who you're becoming."
     />
     <meta
       property="og:image"
@@ -35,7 +35,7 @@
     />
     <meta
       name="twitter:description"
-      content="Transform your resolutions into reality with AI-powered coaching, daily habit tracking, and personalized persona-driven growth."
+      content="Transform your resolutions into reality with AI-powered coaching, daily habit tracking, and coaching built around who you're becoming."
     />
     <meta
       name="twitter:image"
@@ -54,7 +54,7 @@
         "@context": "https://schema.org",
         "@type": "MobileApplication",
         "name": "Resolution Companion",
-        "description": "An AI-powered personal growth app using identity-based behavior change. Define your Target Persona through AI interviews, track daily Elemental Actions, and receive personalized coaching to become who you want to be.",
+        "description": "An AI-powered personal growth app using identity-based behavior change. Describe who you want to become in a short AI conversation, get a plan of milestones and small daily actions, and check in with an AI coach as your consistency grows.",
         "applicationCategory": "LifestyleApplication",
         "operatingSystem": "iOS",
         "offers": {
@@ -88,7 +88,7 @@
             "name": "What is identity-based behavior change?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Instead of focusing on goals, identity-based change focuses on who you want to become. You define a Target Persona and align your daily actions with that identity, making habits sustainable because they become part of who you are."
+              "text": "Instead of focusing on goals, identity-based change focuses on who you want to become. You describe that identity, and your daily actions are scheduled to reinforce it — every completed action is a vote for who you're becoming, which makes habits sustainable."
             }
           },
           {
@@ -137,6 +137,11 @@
 
       html {
         scroll-behavior: smooth;
+        overflow-x: clip;
+      }
+
+      body.menu-open {
+        overflow: hidden;
       }
 
       body {
@@ -491,7 +496,8 @@
 
       .phone-mockup {
         width: 220px;
-        height: 460px;
+        height: auto;
+        aspect-ratio: 1206 / 2622;
         background: var(--bg-card);
         border-radius: 32px;
         border: 2px solid var(--border);
@@ -503,7 +509,8 @@
 
       .phone-mockup.featured {
         width: 260px;
-        height: 530px;
+        height: auto;
+        aspect-ratio: 1206 / 2622;
         z-index: 2;
         border-color: var(--accent);
         box-shadow:
@@ -1255,7 +1262,8 @@
 
       .mission-phone {
         width: 320px;
-        height: 640px;
+        height: auto;
+        aspect-ratio: 1206 / 2622;
         background: var(--bg-card);
         border-radius: 44px;
         border: 3px solid rgba(139, 92, 246, 0.5);
@@ -1675,7 +1683,7 @@
 
         .phone-mockup.featured {
           width: 240px;
-          height: 490px;
+          height: auto;
         }
       }
 
@@ -2400,7 +2408,7 @@
         </div>
         <button
           class="mobile-menu-btn"
-          onclick="document.getElementById('mobileNav').classList.add('open')"
+          onclick="document.getElementById('mobileNav').classList.add('open');document.body.classList.add('menu-open')"
         >
           <svg
             viewBox="0 0 24 24"
@@ -2420,7 +2428,7 @@
     <div class="mobile-nav" id="mobileNav">
       <button
         class="mobile-nav-close"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
+        onclick="document.getElementById('mobileNav').classList.remove('open');document.body.classList.remove('menu-open')"
       >
         <svg
           viewBox="0 0 24 24"
@@ -2434,28 +2442,28 @@
       </button>
       <a
         href="#features"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
+        onclick="document.getElementById('mobileNav').classList.remove('open');document.body.classList.remove('menu-open')"
         >Features</a
       >
       <a
         href="/feedback"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
+        onclick="document.getElementById('mobileNav').classList.remove('open');document.body.classList.remove('menu-open')"
         >Support</a
       >
       <a
         href="/privacy"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
+        onclick="document.getElementById('mobileNav').classList.remove('open');document.body.classList.remove('menu-open')"
         >Privacy</a
       >
       <a
         href="/terms"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
+        onclick="document.getElementById('mobileNav').classList.remove('open');document.body.classList.remove('menu-open')"
         >Terms</a
       >
       <a
         href="#download"
         class="mobile-cta"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
+        onclick="document.getElementById('mobileNav').classList.remove('open');document.body.classList.remove('menu-open')"
         >Get Started</a
       >
     </div>
@@ -2606,7 +2614,7 @@
           <div class="privacy-content">
             <h3>Your Data Stays on Your Device</h3>
             <p>
-              Your personas, actions, and progress live locally on your phone.
+              Your plans, actions, and progress live locally on your phone.
               We never sell your data or track you across apps — our servers
               store only an anonymous device identifier and your subscription
               status so purchases can be restored. AI conversations are
@@ -2623,7 +2631,7 @@
       <div class="container">
         <div class="section-header">
           <div class="section-label">Try It Now</div>
-          <h2 class="section-title">Discover Your Target Persona</h2>
+          <h2 class="section-title">Preview Who You Could Become</h2>
           <p class="section-subtitle">
             Answer 3 quick questions to see a preview of what your personalized
             growth journey could look like.
@@ -2744,9 +2752,9 @@
 
           <!-- Result -->
           <div class="quiz-result" id="quizResult">
-            <h3>Your Persona Preview</h3>
+            <h3>Your Identity Preview</h3>
             <div class="persona-preview">
-              <h4>Target Persona</h4>
+              <h4>Who you're becoming</h4>
               <p id="personaText"></p>
             </div>
             <div class="quiz-cta">
@@ -2792,7 +2800,7 @@
                 <line x1="19" y1="10" x2="21" y2="10" />
               </svg>
             </div>
-            <h3>Target Persona</h3>
+            <h3>Who You're Becoming</h3>
             <p class="feature-problem">
               Problem: Vague goals like "get healthier" lack direction and fade
               quickly.
@@ -3172,7 +3180,7 @@
                 />
               </svg>
             </div>
-            <h3>Define Your Persona</h3>
+            <h3>Define Who You're Becoming</h3>
             <p>
               Chat with our AI to discover who you want to become. No forms or
               guesswork - just a conversation about your aspirations.
@@ -3196,7 +3204,7 @@
             </div>
             <h3>Track Daily Actions</h3>
             <p>
-              Complete 3-5 small daily actions that align with your persona. Use
+              Complete 3-5 small daily actions that reinforce that identity. Use
               120-second versions when motivation is low.
             </p>
           </div>
@@ -3423,7 +3431,7 @@
                 <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
                 <polyline points="22 4 12 14.01 9 11.01" />
               </svg>
-              Visual momentum to keep you motivated
+              A calendar and consistency score that keep you motivated
             </li>
           </ul>
         </div>
@@ -3498,7 +3506,7 @@
               </thead>
               <tbody>
                 <tr>
-                  <td>Target Personas</td>
+                  <td>Plans</td>
                   <td>1</td>
                   <td class="premium-col">Unlimited</td>
                 </tr>
