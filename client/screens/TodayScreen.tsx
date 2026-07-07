@@ -1,10 +1,24 @@
-import React, { useMemo, useEffect, useCallback, useState } from "react";
-import { View, ScrollView, StyleSheet, Pressable } from "react-native";
+import React, {
+  useMemo,
+  useEffect,
+  useCallback,
+  useState,
+  useRef,
+} from "react";
+import {
+  View,
+  ScrollView,
+  StyleSheet,
+  Pressable,
+  Alert,
+  Platform,
+} from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, {
   useAnimatedStyle,
@@ -18,12 +32,25 @@ import Animated, {
 
 import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
+import { computeMomentumScore, computeStreak } from "@/lib/progress";
+import {
+  areNotificationsEnabled,
+  requestNotificationPermissions,
+  scheduleDailyReminder,
+  suppressReminderForToday,
+  ensureReminderScheduled,
+} from "@/lib/notifications";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { CircularProgress } from "@/components/CircularProgress";
 import { ActionCard } from "@/components/ActionCard";
+import { StatChip } from "@/components/StatChip";
+import { DayCompleteCard } from "@/components/DayCompleteCard";
 import { Toast } from "@/components/Toast";
 import { logger } from "@/lib/logger";
+
+const CONTEXTUAL_NOTIF_ASK_KEY = "today_contextual_notif_ask_done";
+const FIRST_DAY_COMPLETE_KEY = "today_first_day_complete_seen";
 
 function getLocalDateString(date: Date): string {
   const year = date.getFullYear();
@@ -266,18 +293,118 @@ export default function TodayScreen() {
     return benchmarks.find((b) => b.id === action.benchmarkId);
   };
 
+  const completedTodayCount = useMemo(() => {
+    return todayActions.filter((action) => {
+      const log = dailyLogs.find((l) => {
+        const logDateStr = l.logDate.includes("T")
+          ? l.logDate.split("T")[0]
+          : l.logDate;
+        return l.actionId === action.id && logDateStr === todayDateStr;
+      });
+      return log?.status === true;
+    }).length;
+  }, [todayActions, dailyLogs, todayDateStr]);
+
+  const scheduledTodayCount = todayActions.length;
+  const dayComplete =
+    scheduledTodayCount > 0 && completedTodayCount === scheduledTodayCount;
+
+  const streak = useMemo(
+    () => computeStreak(actions, dailyLogs),
+    [actions, dailyLogs],
+  );
+  const streakCurrent = streak.current;
+
+  // Monthly Consistency as of last night (today's logs removed): the
+  // difference is what today's check-offs have earned. Month-to-date window
+  // matches personaAlignment in AppContext — ONE long-arc metric everywhere.
+  const consistencyBeforeToday = useMemo(() => {
+    const logsExcludingToday = dailyLogs.filter(
+      (log) => log.logDate.split("T")[0] !== todayDateStr,
+    );
+    return computeMomentumScore(
+      actions,
+      logsExcludingToday,
+      new Date().getDate(),
+    );
+  }, [actions, dailyLogs, todayDateStr]);
+  const momentumDelta = personaAlignment - consistencyBeforeToday;
+
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
+  // True only when the final action was checked in this session, so
+  // reopening the app shows the completed state without re-animating
+  const [celebrateDayComplete, setCelebrateDayComplete] = useState(false);
+  const [isFirstDayComplete, setIsFirstDayComplete] = useState(false);
+
+  // Latest per-render data for the stable handleToggle callback — widening
+  // its deps would re-render every memoized ActionCard on each toggle
+  const latestRef = useRef({
+    todayActions,
+    dailyLogs,
+    actions,
+    personaName: persona?.name ?? "",
+  });
+  useEffect(() => {
+    latestRef.current = {
+      todayActions,
+      dailyLogs,
+      actions,
+      personaName: persona?.name ?? "",
+    };
+  });
+  const toastVariantRef = useRef(0);
 
   // Stable reference so memoized ActionCards skip re-rendering on each toggle
   const handleToggle = useCallback(
     async (actionId: string) => {
       try {
         const log = await toggleDailyLog(actionId, todayDateStr);
-        if (log.status) {
-          setToastMessage("Logged — nice work!");
-          setToastVisible(true);
+        if (!log.status) return;
+
+        const {
+          todayActions: currentActions,
+          dailyLogs: currentLogs,
+          actions: allActions,
+          personaName,
+        } = latestRef.current;
+        // The ref may not hold the post-toggle state yet — upsert the log
+        const newLogs = currentLogs.some((l) => l.id === log.id)
+          ? currentLogs.map((l) => (l.id === log.id ? log : l))
+          : [...currentLogs, log];
+        const isDone = (id: string) =>
+          newLogs.some((l) => {
+            const logDateStr = l.logDate.includes("T")
+              ? l.logDate.split("T")[0]
+              : l.logDate;
+            return l.actionId === id && logDateStr === todayDateStr && l.status;
+          });
+        const remaining = currentActions.filter((a) => !isDone(a.id)).length;
+
+        if (remaining === 0 && currentActions.length > 0) {
+          // Final action of the day: the celebration card takes over, with a
+          // double haptic so it reads as an event, not an acknowledgment
+          setCelebrateDayComplete(true);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setTimeout(() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+          }, 300);
+          return;
         }
+
+        // Identity-framed toast variants (variable reward, rotating).
+        // Delta uses the month-to-date window so the number matches the
+        // Monthly Consistency chip and Progress ring.
+        const monthWindow = new Date().getDate();
+        const delta =
+          computeMomentumScore(allActions, newLogs, monthWindow) -
+          computeMomentumScore(allActions, currentLogs, monthWindow);
+        const variants = [`A vote for ${personaName} ✓`];
+        if (delta > 0) variants.push(`Consistency +${delta}%`);
+        variants.push(`${remaining} to go — ring's filling up`);
+        setToastMessage(variants[toastVariantRef.current % variants.length]);
+        toastVariantRef.current += 1;
+        setToastVisible(true);
       } catch (error) {
         logger.error("Failed to toggle action:", error);
       }
@@ -296,6 +423,66 @@ export default function TodayScreen() {
       .filter((action) => personaBenchmarkIds.includes(action.benchmarkId))
       .filter((action) => action.frequency.includes(tomorrowDayOfWeek));
   }, [actions, personaBenchmarkIds, tomorrowDayOfWeek]);
+
+  // First-ever completion gets a one-time extra line on the celebration card
+  useEffect(() => {
+    if (!celebrateDayComplete) return;
+    AsyncStorage.getItem(FIRST_DAY_COMPLETE_KEY).then((seen) => {
+      if (!seen) {
+        setIsFirstDayComplete(true);
+        AsyncStorage.setItem(FIRST_DAY_COMPLETE_KEY, "true");
+      }
+    });
+  }, [celebrateDayComplete]);
+
+  // Evening reminder goes quiet once the day is done; restored otherwise
+  useEffect(() => {
+    if (Platform.OS === "web" || !hasOnboarded) return;
+    if (dayComplete) {
+      suppressReminderForToday(streakCurrent);
+    } else {
+      ensureReminderScheduled(streakCurrent);
+    }
+  }, [dayComplete, hasOnboarded, streakCurrent]);
+
+  // Contextual permission ask, once, right after the first day-complete —
+  // the moment the user has something worth protecting
+  useEffect(() => {
+    if (!celebrateDayComplete || Platform.OS === "web") return;
+    let cancelled = false;
+    (async () => {
+      const [asked, enabled] = await Promise.all([
+        AsyncStorage.getItem(CONTEXTUAL_NOTIF_ASK_KEY),
+        areNotificationsEnabled(),
+      ]);
+      if (asked || enabled || cancelled) return;
+      await AsyncStorage.setItem(CONTEXTUAL_NOTIF_ASK_KEY, "true");
+      // Let the celebration land before asking
+      setTimeout(() => {
+        Alert.alert(
+          "Keep the streak alive?",
+          "Want a nudge tomorrow so the streak holds? One evening reminder — and only on days you haven't finished.",
+          [
+            { text: "Not now", style: "cancel" },
+            {
+              text: "Remind me",
+              onPress: async () => {
+                const granted = await requestNotificationPermissions();
+                if (granted) {
+                  await scheduleDailyReminder(20, 0, streakCurrent);
+                  // Today is already complete — stay quiet tonight
+                  await suppressReminderForToday(streakCurrent);
+                }
+              },
+            },
+          ],
+        );
+      }, 1500);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [celebrateDayComplete, streakCurrent]);
 
   if (!hasOnboarded || !persona) {
     return (
@@ -350,15 +537,61 @@ export default function TodayScreen() {
 
         <View style={styles.alignmentContainer}>
           <CircularProgress
-            progress={personaAlignment}
+            progress={
+              scheduledTodayCount === 0
+                ? 100
+                : (completedTodayCount / scheduledTodayCount) * 100
+            }
             size={160}
-            label="Persona Alignment"
+            label="Today"
+            valueText={
+              scheduledTodayCount === 0
+                ? "Rest"
+                : `${completedTodayCount}/${scheduledTodayCount}`
+            }
           />
-          <ThemedText
-            style={[styles.alignmentHint, { color: theme.textSecondary }]}
-          >
-            % of scheduled actions completed over the last 30 days
-          </ThemedText>
+          <View style={styles.chipRow}>
+            <StatChip
+              icon={
+                streak.shieldUsed ? (
+                  <Feather
+                    name="shield"
+                    size={14}
+                    color={theme.textSecondary}
+                  />
+                ) : (
+                  <MaterialCommunityIcons
+                    name="fire"
+                    size={16}
+                    color={
+                      streak.current > 0
+                        ? Colors.dark.warning
+                        : theme.textSecondary
+                    }
+                  />
+                )
+              }
+              text={
+                streak.shieldUsed
+                  ? "Streak protected"
+                  : `${streak.current}-day streak`
+              }
+            />
+            <StatChip
+              icon={<Feather name="zap" size={14} color={Colors.dark.accent} />}
+              text={`${today.toLocaleDateString("en-US", { month: "long" })} ${personaAlignment}%`}
+              detail={
+                momentumDelta > 0
+                  ? `▲${momentumDelta}`
+                  : momentumDelta < 0
+                    ? `▼${Math.abs(momentumDelta)}`
+                    : undefined
+              }
+              detailColor={
+                momentumDelta > 0 ? Colors.dark.success : Colors.dark.error
+              }
+            />
+          </View>
         </View>
 
         <View style={styles.dateContainer}>
@@ -375,7 +608,21 @@ export default function TodayScreen() {
           </View>
         </View>
 
-        {todayActions.length === 0 ? (
+        {dayComplete ? (
+          <DayCompleteCard
+            streak={streak.current}
+            personaName={persona.name}
+            momentum={personaAlignment}
+            momentumDelta={momentumDelta}
+            tomorrowCount={tomorrowActions.length}
+            tomorrowFirstTitle={tomorrowActions[0]?.title}
+            isFirstEver={isFirstDayComplete}
+            celebrate={celebrateDayComplete}
+            onTomorrowPress={() => {
+              navigation.navigate("CalendarTab" as never);
+            }}
+          />
+        ) : todayActions.length === 0 ? (
           <View
             style={[
               styles.noActionsCard,
@@ -425,18 +672,50 @@ export default function TodayScreen() {
             ) : null}
           </View>
         ) : (
-          todayActions.map((action) => {
-            const benchmark = getBenchmarkForAction(action);
-            return (
-              <ActionCard
-                key={action.id}
-                action={action}
-                log={getLogForAction(action.id)}
-                onToggle={handleToggle}
-                benchmarkTitle={benchmark?.title}
-              />
-            );
-          })
+          <>
+            {todayActions.map((action) => {
+              const benchmark = getBenchmarkForAction(action);
+              return (
+                <ActionCard
+                  key={action.id}
+                  action={action}
+                  log={getLogForAction(action.id)}
+                  onToggle={handleToggle}
+                  benchmarkTitle={benchmark?.title}
+                />
+              );
+            })}
+            {tomorrowActions.length > 0 ? (
+              <Pressable
+                onPress={() => {
+                  navigation.navigate("CalendarTab" as never);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${tomorrowActions.length} ${tomorrowActions.length === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
+                style={({ pressed }) => [
+                  styles.tomorrowLink,
+                  styles.tomorrowLinkCentered,
+                  { opacity: pressed ? 0.7 : 1 },
+                ]}
+              >
+                <Feather name="calendar" size={16} color={Colors.dark.accent} />
+                <ThemedText
+                  style={[
+                    styles.tomorrowLinkText,
+                    { color: Colors.dark.accent },
+                  ]}
+                >
+                  {tomorrowActions.length} action
+                  {tomorrowActions.length !== 1 ? "s" : ""} tomorrow
+                </ThemedText>
+                <Feather
+                  name="chevron-right"
+                  size={16}
+                  color={Colors.dark.accent}
+                />
+              </Pressable>
+            ) : null}
+          </>
         )}
       </ScrollView>
       <Toast
@@ -513,10 +792,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing["3xl"],
   },
-  alignmentHint: {
-    ...Typography.small,
-    marginTop: Spacing.sm,
-    textAlign: "center",
+  chipRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: Spacing.lg,
   },
   dateContainer: {
     flexDirection: "row",
@@ -548,6 +827,10 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
+  },
+  tomorrowLinkCentered: {
+    alignSelf: "center",
+    marginTop: Spacing.sm,
   },
   tomorrowLinkText: {
     ...Typography.small,

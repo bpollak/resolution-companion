@@ -225,7 +225,7 @@ export default function ProfileScreen() {
         const proceed = await new Promise<boolean>((resolve) => {
           Alert.alert(
             "Daily Reminders",
-            "Resolution Companion will send one reminder at 8:00 PM each day to log your actions. You can turn this off anytime.",
+            "Resolution Companion will send one reminder at 8:00 PM on days you haven't finished your actions — it stays quiet once your day is complete. You can turn this off anytime.",
             [
               {
                 text: "Not Now",
@@ -697,7 +697,7 @@ export default function ProfileScreen() {
             {Platform.OS === "web"
               ? "Available on mobile"
               : notificationsEnabled
-                ? "Reminder at 8:00 PM"
+                ? "8:00 PM · skipped once your day is done"
                 : "Off"}
           </ThemedText>
         </View>

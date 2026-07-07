@@ -26,6 +26,8 @@ interface CircularProgressProps {
   strokeWidth?: number;
   label?: string;
   animated?: boolean;
+  /** Replaces the animated percentage in the ring's center (e.g. "2/3"). */
+  valueText?: string;
 }
 
 const springConfig = {
@@ -40,6 +42,7 @@ export function CircularProgress({
   strokeWidth = 12,
   label,
   animated = true,
+  valueText,
 }: CircularProgressProps) {
   const { isDark } = useTheme();
   const radius = (size - strokeWidth) / 2;
@@ -121,7 +124,16 @@ export function CircularProgress({
         </G>
       </Svg>
       <View style={[styles.labelContainer, { width: size, height: size }]}>
-        <AnimatedPercentage progress={displayProgress} color={progressColor} />
+        {valueText !== undefined ? (
+          <ThemedText style={[styles.percentage, { color: progressColor }]}>
+            {valueText}
+          </ThemedText>
+        ) : (
+          <AnimatedPercentage
+            progress={displayProgress}
+            color={progressColor}
+          />
+        )}
         {label ? <ThemedText style={styles.label}>{label}</ThemedText> : null}
       </View>
     </Animated.View>

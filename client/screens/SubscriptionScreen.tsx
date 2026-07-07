@@ -33,11 +33,48 @@ function estimateExpiryIso(plan: PlanType): string {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 }
 
+// "about $2.08/mo" from the live yearly store price. Returns null when the
+// store didn't provide a numeric amount or the runtime can't format the
+// currency — callers must degrade gracefully rather than hardcode a price.
+function formatMonthlyEquivalent(yearly: IAPProduct): string | null {
+  if (!yearly.priceAmountMicros || !yearly.priceCurrencyCode) {
+    return null;
+  }
+  const perMonth = yearly.priceAmountMicros / 1_000_000 / 12;
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: yearly.priceCurrencyCode,
+    }).format(perMonth);
+  } catch {
+    return null;
+  }
+}
+
+// Savings of yearly vs. 12 months of monthly, from live store prices only.
+function computeYearlySavingsPercent(
+  monthly: IAPProduct | undefined,
+  yearly: IAPProduct | undefined,
+): number | null {
+  if (!monthly?.priceAmountMicros || !yearly?.priceAmountMicros) {
+    return null;
+  }
+  const fullYearAtMonthly = monthly.priceAmountMicros * 12;
+  if (fullYearAtMonthly <= yearly.priceAmountMicros) {
+    return null;
+  }
+  const percent = Math.round(
+    (1 - yearly.priceAmountMicros / fullYearAtMonthly) * 100,
+  );
+  return percent >= 5 ? percent : null;
+}
+
 interface PlanCardProps {
   type: PlanType;
   price: string;
   period: string;
-  savings?: string;
+  subline?: string;
+  badge?: string;
   selected: boolean;
   onSelect: () => void;
 }
@@ -46,30 +83,42 @@ function PlanCard({
   type,
   price,
   period,
-  savings,
+  subline,
+  badge,
   selected,
   onSelect,
 }: PlanCardProps) {
   const { theme, isDark } = useTheme();
+  const title = type === "yearly" ? "Yearly" : "Monthly";
 
   return (
     <Pressable
       onPress={onSelect}
       accessibilityRole="radio"
       accessibilityState={{ selected }}
-      accessibilityLabel={`${type === "yearly" ? "Yearly" : "Monthly"} plan, ${price} ${period}${savings ? `, ${savings}` : ""}`}
+      accessibilityLabel={`${title} plan, ${price} ${period}${
+        subline ? `, ${subline}` : ""
+      }${badge ? `, ${badge}` : ""}`}
       style={({ pressed }) => [
         styles.planCard,
         {
-          backgroundColor: isDark
-            ? Colors.dark.backgroundDefault
-            : Colors.light.backgroundDefault,
+          backgroundColor: selected
+            ? "rgba(0, 217, 255, 0.08)"
+            : isDark
+              ? Colors.dark.backgroundDefault
+              : Colors.light.backgroundDefault,
           borderColor: selected ? Colors.dark.accent : "transparent",
-          borderWidth: 2,
           opacity: pressed ? 0.9 : 1,
         },
       ]}
     >
+      {badge ? (
+        <View
+          style={[styles.planBadge, { backgroundColor: Colors.dark.accent }]}
+        >
+          <ThemedText style={styles.planBadgeText}>{badge}</ThemedText>
+        </View>
+      ) : null}
       <View style={styles.planHeader}>
         <View
           style={[
@@ -89,6 +138,16 @@ function PlanCard({
           ) : null}
         </View>
         <View style={styles.planInfo}>
+          <ThemedText style={styles.planTitle}>{title}</ThemedText>
+          {subline ? (
+            <ThemedText
+              style={[styles.planSubline, { color: theme.textSecondary }]}
+            >
+              {subline}
+            </ThemedText>
+          ) : null}
+        </View>
+        <View style={styles.planPriceCol}>
           <ThemedText style={styles.planPrice}>{price}</ThemedText>
           <ThemedText
             style={[styles.planPeriod, { color: theme.textSecondary }]}
@@ -97,72 +156,77 @@ function PlanCard({
           </ThemedText>
         </View>
       </View>
-      {savings ? (
-        <View
-          style={[
-            styles.savingsBadge,
-            { backgroundColor: "rgba(0, 217, 255, 0.15)" },
-          ]}
-        >
-          <ThemedText
-            style={[styles.savingsText, { color: Colors.dark.accent }]}
-          >
-            {savings}
-          </ThemedText>
-        </View>
-      ) : null}
     </Pressable>
   );
 }
 
-interface FeatureRowProps {
-  icon: keyof typeof Feather.glyphMap;
+interface CompareRowProps {
   title: string;
   description: string;
-  isPremium?: boolean;
+  /** Column value; null renders an "included" check mark. */
+  free: string | null;
+  premium: string | null;
+  isLast?: boolean;
 }
 
-function FeatureRow({
-  icon,
+function CompareRow({
   title,
   description,
-  isPremium = false,
-}: FeatureRowProps) {
+  free,
+  premium,
+  isLast = false,
+}: CompareRowProps) {
   const { theme } = useTheme();
 
   return (
-    <View style={styles.featureRow}>
-      <View
-        style={[
-          styles.featureIcon,
-          {
-            backgroundColor: isPremium
-              ? "rgba(0, 217, 255, 0.1)"
-              : "rgba(255,255,255,0.05)",
-          },
-        ]}
-      >
-        <Feather
-          name={icon}
-          size={18}
-          color={isPremium ? Colors.dark.accent : theme.textSecondary}
-        />
-      </View>
-      <View style={styles.featureContent}>
-        <ThemedText style={styles.featureTitle}>{title}</ThemedText>
+    <View
+      accessible
+      accessibilityLabel={`${title}: free plan ${free ?? "included"}, premium ${premium ?? "included"}`}
+      style={[
+        styles.compareRow,
+        !isLast && {
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: theme.border,
+        },
+      ]}
+    >
+      <View style={styles.compareFeatureCol}>
+        <ThemedText style={styles.compareFeatureTitle}>{title}</ThemedText>
         <ThemedText
-          style={[styles.featureDescription, { color: theme.textSecondary }]}
+          style={[
+            styles.compareFeatureDescription,
+            { color: theme.textSecondary },
+          ]}
         >
           {description}
         </ThemedText>
       </View>
-      {isPremium ? (
-        <View
-          style={[styles.premiumBadge, { backgroundColor: Colors.dark.accent }]}
-        >
-          <ThemedText style={styles.premiumBadgeText}>PRO</ThemedText>
-        </View>
-      ) : null}
+      <View style={styles.compareValueCol}>
+        {free === null ? (
+          <Feather name="check" size={16} color={theme.textSecondary} />
+        ) : (
+          <ThemedText
+            style={[styles.compareValue, { color: theme.textSecondary }]}
+          >
+            {free}
+          </ThemedText>
+        )}
+      </View>
+      <View style={styles.compareValueCol}>
+        {premium === null ? (
+          <Feather name="check" size={16} color={Colors.dark.accent} />
+        ) : (
+          <ThemedText
+            style={[
+              styles.compareValue,
+              styles.compareValuePremium,
+              { color: Colors.dark.accent },
+            ]}
+          >
+            {premium}
+          </ThemedText>
+        )}
+      </View>
     </View>
   );
 }
@@ -516,6 +580,22 @@ export default function SubscriptionScreen() {
   const selectedProduct =
     selectedPlan === "yearly" ? yearlyProduct : monthlyProduct;
 
+  // Derived, live-price-only marketing math (never hardcoded amounts)
+  const savingsPercent = computeYearlySavingsPercent(
+    monthlyProduct,
+    yearlyProduct,
+  );
+  const yearlyPerMonth = yearlyProduct
+    ? formatMonthlyEquivalent(yearlyProduct)
+    : null;
+  const yearlyBadge =
+    savingsPercent !== null
+      ? `BEST VALUE · SAVE ${savingsPercent}%`
+      : "BEST VALUE";
+  const yearlySubline = yearlyPerMonth
+    ? `about ${yearlyPerMonth}/mo`
+    : "12 months, one payment";
+
   if (subscription.isPremium) {
     const expiresAtDate = subscription.expiresAt
       ? new Date(subscription.expiresAt)
@@ -617,7 +697,9 @@ export default function SubscriptionScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: insets.bottom + 120 },
+          {
+            paddingBottom: insets.bottom + (Platform.OS === "web" ? 140 : 260),
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -652,14 +734,72 @@ export default function SubscriptionScreen() {
             <Feather name="zap" size={32} color="#000000" />
           </View>
           <ThemedText style={styles.heroTitle}>
-            Unlock Your Full Potential
+            Become who you&rsquo;re becoming &mdash; without limits
           </ThemedText>
           <ThemedText
             style={[styles.heroSubtitle, { color: theme.textSecondary }]}
           >
-            Get unlimited access to all premium features and accelerate your
-            personal evolution.
+            Premium takes the caps off everything you use to grow.
           </ThemedText>
+        </View>
+
+        <View
+          style={[
+            styles.compareCard,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+            },
+          ]}
+        >
+          <View
+            style={styles.compareHeaderRow}
+            accessible
+            accessibilityLabel="Comparison of the Free and Premium plans"
+          >
+            <View style={styles.compareFeatureCol} />
+            <View style={styles.compareValueCol}>
+              <ThemedText
+                style={[styles.compareColLabel, { color: theme.textSecondary }]}
+              >
+                FREE
+              </ThemedText>
+            </View>
+            <View style={styles.compareValueCol}>
+              <ThemedText
+                style={[styles.compareColLabel, { color: Colors.dark.accent }]}
+              >
+                PREMIUM
+              </ThemedText>
+            </View>
+          </View>
+
+          <CompareRow
+            title="Personas"
+            description={"Every identity you’re building, side by side"}
+            free="1"
+            premium="Unlimited"
+          />
+          <CompareRow
+            title="AI coaching check-ins"
+            description="Reflect with your coach as often as you need"
+            free="10/mo"
+            premium="Unlimited"
+          />
+          <CompareRow
+            title="Benchmarks per persona"
+            description="Add new milestones as your goals evolve"
+            free="Starter set"
+            premium="Unlimited"
+          />
+          <CompareRow
+            title="Daily action tracking"
+            description="Log actions and build momentum every day"
+            free={null}
+            premium={null}
+            isLast
+          />
         </View>
 
         {Platform.OS === "web" ? (
@@ -735,11 +875,15 @@ export default function SubscriptionScreen() {
           </View>
         ) : (
           <View style={styles.plansSection}>
+            <ThemedText style={styles.plansSectionTitle}>
+              Choose your plan
+            </ThemedText>
             <PlanCard
               type="yearly"
               price={yearlyProduct!.price}
               period="per year"
-              savings="Best Value"
+              subline={yearlySubline}
+              badge={yearlyBadge}
               selected={selectedPlan === "yearly"}
               onSelect={() => setSelectedPlan("yearly")}
             />
@@ -747,59 +891,19 @@ export default function SubscriptionScreen() {
               type="monthly"
               price={monthlyProduct!.price}
               period="per month"
+              subline="Month to month"
               selected={selectedPlan === "monthly"}
               onSelect={() => setSelectedPlan("monthly")}
             />
+            <ThemedText
+              style={[styles.cancelHint, { color: theme.textSecondary }]}
+            >
+              Cancel anytime in{" "}
+              {Platform.OS === "ios" ? "Settings" : "Google Play"} &mdash; you
+              keep Premium until your period ends.
+            </ThemedText>
           </View>
         )}
-
-        <View style={styles.featuresSection}>
-          <ThemedText style={styles.featuresSectionTitle}>
-            Premium Features
-          </ThemedText>
-
-          <FeatureRow
-            icon="users"
-            title="Unlimited Personas"
-            description="Create as many personas as you need for different areas of your life"
-            isPremium
-          />
-          <FeatureRow
-            icon="message-circle"
-            title="Unlimited Coaching"
-            description="No monthly cap on AI check-ins — reflect and adjust your plan whenever you need"
-            isPremium
-          />
-          <FeatureRow
-            icon="plus-circle"
-            title="Unlimited Benchmarks"
-            description="Add new benchmarks to any persona as your goals evolve"
-            isPremium
-          />
-        </View>
-
-        <View style={styles.freeFeatures}>
-          <ThemedText
-            style={[styles.freeFeaturesTitle, { color: theme.textSecondary }]}
-          >
-            Free Plan Includes
-          </ThemedText>
-          <FeatureRow
-            icon="user"
-            title="1 Persona"
-            description="Start with one Target Persona to focus your growth"
-          />
-          <FeatureRow
-            icon="calendar"
-            title="Daily Tracking"
-            description="Track your actions and build momentum chains"
-          />
-          <FeatureRow
-            icon="message-square"
-            title="10 Check-ins/Month"
-            description="Monthly AI coaching check-ins to stay on track"
-          />
-        </View>
       </ScrollView>
 
       <View
@@ -827,23 +931,79 @@ export default function SubscriptionScreen() {
           </ThemedText>
         ) : null}
 
-        <View style={styles.legalLinks}>
+        {Platform.OS !== "web" ? (
+          <Pressable
+            onPress={handleSubscribe}
+            disabled={isLoading || !storeReady}
+            accessibilityRole="button"
+            accessibilityLabel={
+              storeReady && selectedProduct
+                ? `Subscribe for ${selectedProduct.price} per ${selectedPlan === "yearly" ? "year" : "month"}`
+                : "Subscribe"
+            }
+            accessibilityState={{ disabled: isLoading || !storeReady }}
+            style={({ pressed }) => [
+              styles.subscribeButton,
+              { opacity: !storeReady ? 0.4 : pressed || isLoading ? 0.8 : 1 },
+            ]}
+          >
+            <ThemedText style={styles.subscribeButtonText}>
+              {isLoading
+                ? "Processing..."
+                : storeReady && selectedProduct
+                  ? `Subscribe for ${selectedProduct.price}/${selectedPlan === "yearly" ? "year" : "month"}`
+                  : "Subscribe"}
+            </ThemedText>
+          </Pressable>
+        ) : null}
+
+        <View style={styles.footerLinksRow}>
+          {Platform.OS !== "web" ? (
+            <>
+              <Pressable
+                onPress={handleRestorePurchases}
+                disabled={checkingStatus}
+                accessibilityRole="button"
+                accessibilityLabel="Restore previous purchases"
+                style={styles.footerLink}
+              >
+                <ThemedText
+                  style={[
+                    styles.footerLinkText,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  {checkingStatus ? "Checking…" : "Restore Purchases"}
+                </ThemedText>
+              </Pressable>
+              <ThemedText
+                style={[
+                  styles.footerLinkSeparator,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                |
+              </ThemedText>
+            </>
+          ) : null}
           <Pressable
             onPress={() =>
               WebBrowser.openBrowserAsync(
                 new URL("/terms", getApiUrl()).toString(),
               )
             }
-            style={styles.legalLink}
+            accessibilityRole="link"
+            accessibilityLabel="Terms of Use"
+            style={styles.footerLink}
           >
             <ThemedText
-              style={[styles.legalLinkText, { color: theme.textSecondary }]}
+              style={[styles.footerLinkText, { color: theme.textSecondary }]}
             >
               Terms of Use
             </ThemedText>
           </Pressable>
           <ThemedText
-            style={[styles.legalSeparator, { color: theme.textSecondary }]}
+            style={[styles.footerLinkSeparator, { color: theme.textSecondary }]}
           >
             |
           </ThemedText>
@@ -853,60 +1013,17 @@ export default function SubscriptionScreen() {
                 new URL("/privacy", getApiUrl()).toString(),
               )
             }
-            style={styles.legalLink}
+            accessibilityRole="link"
+            accessibilityLabel="Privacy Policy"
+            style={styles.footerLink}
           >
             <ThemedText
-              style={[styles.legalLinkText, { color: theme.textSecondary }]}
+              style={[styles.footerLinkText, { color: theme.textSecondary }]}
             >
               Privacy Policy
             </ThemedText>
           </Pressable>
         </View>
-
-        {Platform.OS !== "web" ? (
-          <>
-            <Pressable
-              onPress={handleSubscribe}
-              disabled={isLoading || !storeReady}
-              accessibilityRole="button"
-              accessibilityLabel={
-                storeReady && selectedProduct
-                  ? `Subscribe for ${selectedProduct.price} per ${selectedPlan === "yearly" ? "year" : "month"}`
-                  : "Subscribe"
-              }
-              accessibilityState={{ disabled: isLoading || !storeReady }}
-              style={({ pressed }) => [
-                styles.subscribeButton,
-                { opacity: !storeReady ? 0.4 : pressed || isLoading ? 0.8 : 1 },
-              ]}
-            >
-              <ThemedText style={styles.subscribeButtonText}>
-                {isLoading
-                  ? "Processing..."
-                  : storeReady && selectedProduct
-                    ? `Subscribe for ${selectedProduct.price}/${selectedPlan === "yearly" ? "year" : "month"}`
-                    : "Subscribe"}
-              </ThemedText>
-            </Pressable>
-
-            <Pressable
-              onPress={handleRestorePurchases}
-              disabled={checkingStatus}
-              accessibilityRole="button"
-              accessibilityLabel="Restore previous purchases"
-              style={styles.restoreButton}
-            >
-              <ThemedText
-                style={[
-                  styles.restoreButtonText,
-                  { color: theme.textSecondary },
-                ]}
-              >
-                {checkingStatus ? "Checking…" : "Restore Purchases"}
-              </ThemedText>
-            </Pressable>
-          </>
-        ) : null}
       </View>
     </View>
   );
@@ -938,29 +1055,82 @@ const styles = StyleSheet.create({
   },
   heroSection: {
     alignItems: "center",
-    marginBottom: Spacing["2xl"],
+    marginBottom: Spacing.xl,
   },
   heroIcon: {
-    width: 72,
-    height: 72,
+    width: 64,
+    height: 64,
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Spacing.lg,
   },
   heroTitle: {
-    ...Typography.title,
+    ...Typography.h3,
     textAlign: "center",
+    maxWidth: 320,
     marginBottom: Spacing.sm,
   },
   heroSubtitle: {
-    ...Typography.body,
+    ...Typography.small,
     textAlign: "center",
     maxWidth: 300,
   },
+  compareCard: {
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.xl,
+  },
+  compareHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+  },
+  compareColLabel: {
+    ...Typography.caption,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    fontSize: 11,
+  },
+  compareRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+  },
+  compareFeatureCol: {
+    flex: 1,
+    paddingRight: Spacing.sm,
+  },
+  compareFeatureTitle: {
+    ...Typography.small,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  compareFeatureDescription: {
+    ...Typography.caption,
+    lineHeight: 16,
+  },
+  compareValueCol: {
+    width: 74,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  compareValue: {
+    ...Typography.caption,
+    fontSize: 13,
+    textAlign: "center",
+  },
+  compareValuePremium: {
+    fontWeight: "700",
+  },
   plansSection: {
     gap: Spacing.md,
-    marginBottom: Spacing["2xl"],
+    marginBottom: Spacing.xl,
+  },
+  plansSectionTitle: {
+    ...Typography.headline,
+    marginBottom: Spacing.xs,
   },
   storeStateCard: {
     alignItems: "center",
@@ -974,15 +1144,27 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   planCard: {
-    flexDirection: "row",
-    alignItems: "center",
     padding: Spacing.lg,
     borderRadius: BorderRadius.md,
+    borderWidth: 2,
+  },
+  planBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+    marginBottom: Spacing.md,
+  },
+  planBadgeText: {
+    ...Typography.caption,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    color: "#000000",
   },
   planHeader: {
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
   },
   radioOuter: {
     width: 24,
@@ -998,69 +1180,31 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
   },
-  planInfo: {},
-  planPrice: {
-    ...Typography.title,
-  },
-  planPeriod: {
-    ...Typography.small,
-  },
-  savingsBadge: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
-  },
-  savingsText: {
-    ...Typography.small,
-    fontWeight: "600",
-  },
-  featuresSection: {
-    marginBottom: Spacing["2xl"],
-  },
-  featuresSectionTitle: {
-    ...Typography.headline,
-    marginBottom: Spacing.lg,
-  },
-  featureRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.lg,
-  },
-  featureIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.md,
-  },
-  featureContent: {
+  planInfo: {
     flex: 1,
+    paddingRight: Spacing.sm,
   },
-  featureTitle: {
-    ...Typography.body,
-    fontWeight: "500",
+  planTitle: {
+    ...Typography.headline,
     marginBottom: 2,
   },
-  featureDescription: {
+  planSubline: {
     ...Typography.small,
   },
-  premiumBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
+  planPriceCol: {
+    alignItems: "flex-end",
   },
-  premiumBadgeText: {
+  planPrice: {
+    ...Typography.h4,
+  },
+  planPeriod: {
     ...Typography.caption,
-    color: "#000000",
-    fontWeight: "700",
   },
-  freeFeatures: {
-    marginBottom: Spacing.xl,
-  },
-  freeFeaturesTitle: {
-    ...Typography.headline,
-    marginBottom: Spacing.lg,
+  cancelHint: {
+    ...Typography.caption,
+    textAlign: "center",
+    lineHeight: 16,
+    paddingHorizontal: Spacing.md,
   },
   footer: {
     position: "absolute",
@@ -1075,18 +1219,28 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
     borderRadius: BorderRadius.full,
     alignItems: "center",
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   subscribeButtonText: {
     ...Typography.headline,
     color: "#000000",
   },
-  restoreButton: {
+  footerLinksRow: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingVertical: Spacing.sm,
+    justifyContent: "center",
+    flexWrap: "wrap",
   },
-  restoreButtonText: {
-    ...Typography.small,
+  footerLink: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  footerLinkText: {
+    ...Typography.caption,
+    textDecorationLine: "underline",
+  },
+  footerLinkSeparator: {
+    ...Typography.caption,
   },
   premiumActiveContainer: {
     flex: 1,
@@ -1129,29 +1283,12 @@ const styles = StyleSheet.create({
     ...Typography.body,
     fontWeight: "600",
   },
-  legalLinks: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: Spacing.md,
-  },
-  legalLink: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-  },
-  legalLinkText: {
-    ...Typography.caption,
-    textDecorationLine: "underline",
-  },
-  legalSeparator: {
-    ...Typography.caption,
-  },
   subscriptionDisclosure: {
     ...Typography.caption,
     textAlign: "center",
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.sm,
     paddingHorizontal: Spacing.sm,
-    lineHeight: 18,
+    lineHeight: 16,
   },
   errorBanner: {
     flexDirection: "row",

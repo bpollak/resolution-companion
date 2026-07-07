@@ -91,8 +91,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => computeMomentumScore(actions, dailyLogs, 7),
     [actions, dailyLogs],
   );
+  // Monthly Consistency: completion % of scheduled actions this calendar
+  // month (month-to-date). Resets on the 1st — a deliberate fresh start —
+  // and is THE long-arc metric everywhere (the 7-day momentum score above
+  // stays internal coach context, not a user-facing headline).
   const personaAlignment = useMemo(
-    () => computeMomentumScore(actions, dailyLogs, 30),
+    () => computeMomentumScore(actions, dailyLogs, new Date().getDate()),
     [actions, dailyLogs],
   );
   const [subscription, setSubscriptionState] = useState<Subscription>({

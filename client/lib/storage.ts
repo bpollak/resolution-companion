@@ -229,6 +229,11 @@ export const storage = {
     if (personaActions.length === 0) return 0;
 
     const today = new Date();
+    const todayStr = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, "0"),
+      String(today.getDate()).padStart(2, "0"),
+    ].join("-");
     let totalExpected = 0;
     let totalCompleted = 0;
 
@@ -246,11 +251,17 @@ export const storage = {
 
       for (const action of personaActions) {
         if (action.frequency.includes(dayOfWeek)) {
-          totalExpected++;
           const log = logs.find(
             (l) =>
               l.actionId === action.id && l.logDate.split("T")[0] === dateStr,
           );
+          // Today's still-unlogged actions are pending, not missed —
+          // counting them as expected from midnight demotes the score
+          // every morning (mirrors progress.computeMomentumScore)
+          if (dateStr === todayStr && !log?.status) {
+            continue;
+          }
+          totalExpected++;
           if (log?.status) {
             totalCompleted++;
           }
@@ -550,6 +561,11 @@ export const storage = {
     if (actions.length === 0) return 0;
 
     const today = new Date();
+    const todayStr = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, "0"),
+      String(today.getDate()).padStart(2, "0"),
+    ].join("-");
     let totalExpected = 0;
     let totalCompleted = 0;
 
@@ -567,11 +583,17 @@ export const storage = {
 
       for (const action of actions) {
         if (action.frequency.includes(dayOfWeek)) {
-          totalExpected++;
           const log = logs.find(
             (l) =>
               l.actionId === action.id && l.logDate.split("T")[0] === dateStr,
           );
+          // Today's still-unlogged actions are pending, not missed —
+          // counting them as expected from midnight demotes the score
+          // every morning (mirrors progress.computeMomentumScore)
+          if (dateStr === todayStr && !log?.status) {
+            continue;
+          }
+          totalExpected++;
           if (log?.status) {
             totalCompleted++;
           }

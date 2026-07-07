@@ -146,6 +146,11 @@ export function computeBenchmarkProgress(
  * Completion rate (%) over the last `days` days for already persona-scoped
  * actions and logs. days=7 is the momentum score, days=30 persona alignment.
  *
+ * Today's still-unlogged scheduled actions are pending, not missed: they are
+ * excluded from the expected count (today counts only for completions).
+ * Counting them from midnight showed every user a lower score each morning
+ * than the night before, purely because the day had started.
+ *
  * Mirrors storage.calculateMomentumScoreForPersona exactly: unlike
  * computeBenchmarkProgress, day-of-week comes from the local-time date object
  * and there is no persona-creation-date cutoff.
@@ -159,6 +164,7 @@ export function computeMomentumScore(
 
   const logIndex = buildLogIndex(logs);
   const today = new Date();
+  const todayStr = getLocalDateString(today);
   let totalExpected = 0;
   let totalCompleted = 0;
 
@@ -170,8 +176,11 @@ export function computeMomentumScore(
 
     for (const action of actions) {
       if (action.frequency.includes(dayOfWeek)) {
-        totalExpected++;
         const log = logIndex.get(`${action.id}|${dateStr}`);
+        if (dateStr === todayStr && !log?.status) {
+          continue;
+        }
+        totalExpected++;
         if (log?.status) {
           totalCompleted++;
         }
@@ -182,4 +191,114 @@ export function computeMomentumScore(
   return totalExpected > 0
     ? Math.round((totalCompleted / totalExpected) * 100)
     : 0;
+}
+
+export interface StreakResult {
+  /** Fully-completed scheduled days in the active run (today joins live once complete). */
+  current: number;
+  /** Best run ever under the same rules. */
+  longest: number;
+  /** True while the current run is being held together by the streak shield. */
+  shieldUsed: boolean;
+}
+
+const STREAK_LOOKBACK_DAYS = 365;
+const SHIELD_WINDOW_DAYS = 7;
+
+/**
+ * Streak with grace, derived purely from actions + logs (no stored state).
+ *
+ * Rules:
+ * - A day counts when every action scheduled that day was completed.
+ * - Days with nothing scheduled are free: they bridge a streak, never break it.
+ * - Streak shield: one missed scheduled day per rolling 7 is bridged; a second
+ *   miss within SHIELD_WINDOW_DAYS of the bridged one resets the run.
+ * - Today is pending until complete: it never breaks a run, and increments it
+ *   live once every scheduled action is logged.
+ *
+ * Days before an action existed are never "missed" — each action only counts
+ * from its local creation date.
+ */
+export function computeStreak(
+  actions: ElementalAction[],
+  logs: DailyLog[],
+): StreakResult {
+  if (actions.length === 0) {
+    return { current: 0, longest: 0, shieldUsed: false };
+  }
+
+  const logIndex = buildLogIndex(logs);
+
+  const actionStartDates = new Map<string, string>();
+  let earliest: string | null = null;
+  for (const action of actions) {
+    const created = getLocalDateString(new Date(action.createdAt));
+    actionStartDates.set(action.id, created);
+    if (earliest === null || created < earliest) earliest = created;
+  }
+  for (const log of logs) {
+    const logDate = log.logDate.split("T")[0];
+    if (earliest === null || logDate < earliest) earliest = logDate;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = getLocalDateString(today);
+
+  const lookbackStart = new Date(today);
+  lookbackStart.setDate(lookbackStart.getDate() - (STREAK_LOOKBACK_DAYS - 1));
+  const earliestDate = earliest ? parseLocalDate(earliest) : today;
+  const cursor = earliestDate > lookbackStart ? earliestDate : lookbackStart;
+
+  let run = 0;
+  let longest = 0;
+  let lastBridgedMiss: Date | null = null;
+
+  // Day-count deltas use Math.round to absorb DST's ±1h on local midnights
+  const daysBetween = (from: Date, to: Date) =>
+    Math.round((to.getTime() - from.getTime()) / 86400000);
+
+  while (cursor <= today) {
+    const dateStr = getLocalDateString(cursor);
+    const dayOfWeek = cursor.toLocaleDateString("en-US", { weekday: "long" });
+
+    let scheduled = 0;
+    let completed = 0;
+    for (const action of actions) {
+      if (!action.frequency.includes(dayOfWeek)) continue;
+      const startDate = actionStartDates.get(action.id);
+      if (startDate !== undefined && dateStr < startDate) continue;
+      scheduled++;
+      if (logIndex.get(`${action.id}|${dateStr}`)?.status) completed++;
+    }
+
+    if (scheduled === 0) {
+      // Rest day: part of the plan, bridges the run
+    } else if (completed === scheduled) {
+      run++;
+      if (run > longest) longest = run;
+    } else if (dateStr === todayStr) {
+      // Today is pending, never broken
+    } else if (run > 0) {
+      if (
+        lastBridgedMiss !== null &&
+        daysBetween(lastBridgedMiss, cursor) <= SHIELD_WINDOW_DAYS
+      ) {
+        // Second miss inside the shield window: fresh start
+        run = 0;
+        lastBridgedMiss = null;
+      } else {
+        lastBridgedMiss = new Date(cursor);
+      }
+    }
+
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  const shieldUsed =
+    run > 0 &&
+    lastBridgedMiss !== null &&
+    daysBetween(lastBridgedMiss, today) <= SHIELD_WINDOW_DAYS;
+
+  return { current: run, longest, shieldUsed };
 }

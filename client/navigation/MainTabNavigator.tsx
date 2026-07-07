@@ -37,7 +37,9 @@ export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
   const { actions, dailyLogs } = useApp();
 
-  const remainingTasksCount = useMemo(() => {
+  // The badge is an invite, not a nag: it shows only before the first log of
+  // the day, then hands off to the Today ring
+  const { remainingTasksCount, hasLoggedToday } = useMemo(() => {
     const today = new Date();
     const dayOfWeek = DAYS_OF_WEEK[today.getDay()];
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -52,8 +54,14 @@ export default function MainTabNavigator() {
       completedToday.map((log) => log.actionId),
     );
 
-    return todayActions.filter((action) => !completedActionIds.has(action.id))
-      .length;
+    return {
+      remainingTasksCount: todayActions.filter(
+        (action) => !completedActionIds.has(action.id),
+      ).length,
+      hasLoggedToday: todayActions.some((action) =>
+        completedActionIds.has(action.id),
+      ),
+    };
   }, [actions, dailyLogs]);
 
   return (
@@ -138,7 +146,9 @@ export default function MainTabNavigator() {
             <Feather name="sun" size={size} color={color} />
           ),
           tabBarBadge:
-            remainingTasksCount > 0 ? remainingTasksCount : undefined,
+            !hasLoggedToday && remainingTasksCount > 0
+              ? remainingTasksCount
+              : undefined,
           tabBarBadgeStyle: {
             backgroundColor: "#FF6B9D",
             color: "#FFFFFF",

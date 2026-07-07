@@ -218,17 +218,18 @@ export default function ProgressScreen() {
         <CircularProgress
           progress={personaAlignment}
           size={140}
-          label="30-Day Alignment"
+          label={`${new Date().toLocaleDateString("en-US", { month: "long" })} Consistency`}
         />
         <ThemedText
           style={[styles.alignmentHint, { color: theme.textSecondary }]}
         >
-          % of scheduled actions completed over the last 30 days
+          % of scheduled actions completed so far this month — fresh start on
+          the 1st
         </ThemedText>
       </View>
 
       <View style={styles.sectionHeader}>
-        <ThemedText style={styles.sectionTitle}>Core Benchmarks</ThemedText>
+        <ThemedText style={styles.sectionTitle}>Milestones</ThemedText>
         <Pressable
           onPress={() => navigation.navigate("BenchmarkEditor", {})}
           style={({ pressed }) => [

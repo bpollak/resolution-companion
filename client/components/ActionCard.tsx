@@ -130,9 +130,16 @@ export const ActionCard = React.memo(function ActionCard({
             color={Colors.dark.warning}
             style={styles.zapIcon}
           />
-          <ThemedText style={styles.kickstart}>
-            {action.kickstartVersion}
-          </ThemedText>
+          <View style={styles.kickstartContent}>
+            <ThemedText
+              style={[styles.kickstartLabel, { color: Colors.dark.warning }]}
+            >
+              Too busy? Just:
+            </ThemedText>
+            <ThemedText style={styles.kickstart}>
+              {action.kickstartVersion}
+            </ThemedText>
+          </View>
         </View>
 
         {action.anchorLink ? (
@@ -156,7 +163,7 @@ export const ActionCard = React.memo(function ActionCard({
               <ThemedText
                 style={[styles.anchorLabel, { color: Colors.dark.accent }]}
               >
-                Anchor
+                When:
               </ThemedText>
               <ThemedText
                 style={[styles.anchor, { color: theme.textSecondary }]}
@@ -230,9 +237,16 @@ const styles = StyleSheet.create({
     marginRight: Spacing.xs,
     marginTop: 2,
   },
+  kickstartContent: {
+    flex: 1,
+  },
+  kickstartLabel: {
+    ...Typography.caption,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
   kickstart: {
     ...Typography.kickstart,
-    flex: 1,
   },
   anchorContainer: {
     flexDirection: "row",

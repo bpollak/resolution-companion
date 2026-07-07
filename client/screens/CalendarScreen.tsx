@@ -8,14 +8,8 @@ import * as Haptics from "expo-haptics";
 
 import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
-import {
-  buildLogIndex,
-  getTrackableDays,
-  computeBenchmarkProgress,
-} from "@/lib/progress";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
-import { ProgressBar } from "@/components/ProgressBar";
 import { Toast } from "@/components/Toast";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -380,21 +374,6 @@ export default function CalendarScreen() {
     );
   };
 
-  const personaBenchmarks = useMemo(() => {
-    return benchmarks.filter((b) => b.personaId === persona?.id);
-  }, [benchmarks, persona?.id]);
-
-  const benchmarkProgress = useMemo(() => {
-    const logIndex = buildLogIndex(dailyLogs);
-    const trackableDays = getTrackableDays(personaCreatedDate);
-    return computeBenchmarkProgress(
-      personaBenchmarks,
-      personaActions,
-      logIndex,
-      trackableDays,
-    );
-  }, [personaBenchmarks, personaActions, dailyLogs, personaCreatedDate]);
-
   if (!hasOnboarded) {
     return (
       <View
@@ -598,34 +577,6 @@ export default function CalendarScreen() {
             onToggleAction={handleToggleAction}
           />
         ) : null}
-
-        <ThemedText style={styles.sectionTitle}>Benchmark Progress</ThemedText>
-
-        {benchmarkProgress.map(({ benchmark, progress }) => (
-          <View
-            key={benchmark.id}
-            style={[
-              styles.benchmarkCard,
-              {
-                backgroundColor: isDark
-                  ? Colors.dark.backgroundDefault
-                  : Colors.light.backgroundDefault,
-              },
-            ]}
-          >
-            <View style={styles.benchmarkHeader}>
-              <ThemedText style={styles.benchmarkTitle}>
-                {benchmark.title}
-              </ThemedText>
-              <ThemedText
-                style={[styles.benchmarkPercent, { color: Colors.dark.accent }]}
-              >
-                {progress}%
-              </ThemedText>
-            </View>
-            <ProgressBar progress={progress} />
-          </View>
-        ))}
       </ScrollView>
       <Toast
         message={toastMessage}
@@ -728,29 +679,6 @@ const styles = StyleSheet.create({
   },
   legendText: {
     ...Typography.caption,
-  },
-  sectionTitle: {
-    ...Typography.headline,
-    marginBottom: Spacing.lg,
-  },
-  benchmarkCard: {
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.md,
-  },
-  benchmarkHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.sm,
-  },
-  benchmarkTitle: {
-    ...Typography.body,
-    fontWeight: "500",
-    flex: 1,
-  },
-  benchmarkPercent: {
-    ...Typography.headline,
   },
   selectedDateContainer: {
     padding: Spacing.lg,

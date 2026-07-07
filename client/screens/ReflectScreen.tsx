@@ -653,7 +653,7 @@ export default function ReflectScreen() {
         </Pressable>
         <ThemedText style={styles.chatHeaderTitle}>
           {selectedPeriod?.charAt(0).toUpperCase()}
-          {selectedPeriod?.slice(1)} Reflection
+          {selectedPeriod?.slice(1)} Check-in
         </ThemedText>
         <Pressable onPress={finishReflection} style={styles.doneButton}>
           <ThemedText
