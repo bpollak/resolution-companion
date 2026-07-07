@@ -101,6 +101,16 @@ class IAPService {
       // purchase whose server validation failed). Unfinished transactions
       // block every future purchase attempt on this device with an
       // immediate StoreKit error, so sweep them before anything else.
+      // getAvailablePurchases only covers CURRENT entitlements — an expired
+      // subscription's unfinished transaction is invisible to it, so also
+      // clear the pending-transaction queue directly on iOS.
+      if (Platform.OS === "ios") {
+        try {
+          await IAP.clearTransactionIOS();
+        } catch (error) {
+          logger.log("clearTransactionIOS failed (non-fatal):", error);
+        }
+      }
       try {
         const stuck = await IAP.getAvailablePurchases();
         for (const purchase of stuck ?? []) {

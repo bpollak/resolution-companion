@@ -270,7 +270,7 @@ export default function SubscriptionScreen() {
 
               Alert.alert(
                 "Purchase Failed",
-                "We couldn't complete your purchase. Please try again or contact support if the issue persists.",
+                `We couldn't complete your purchase. Please try again or contact support if the issue persists.\n\nDetails: ${errorMessage}`,
                 [
                   { text: "OK", style: "default" },
                   { text: "Restore", onPress: () => handleRestorePurchases() },
@@ -408,7 +408,7 @@ export default function SubscriptionScreen() {
 
       Alert.alert(
         "Purchase Error",
-        "We couldn't complete your purchase. Please check your connection and try again.",
+        `We couldn't complete your purchase. Please check your connection and try again.${errorMessage ? `\n\nDetails: ${errorMessage}` : ""}`,
         [
           { text: "OK", style: "default" },
           { text: "Retry", onPress: () => handleSubscribe() },
