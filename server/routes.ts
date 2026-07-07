@@ -16,6 +16,10 @@ import { requireApiKey, requireAdminKey } from "./auth";
 // endpoints instead of crashing the whole server (website, webhooks, legal pages).
 let openaiClient: OpenAI | null = null;
 
+// gpt-5-mini outperforms gpt-4o on instruction-following and structured
+// output at roughly a tenth of the input cost; override via env if needed
+const OPENAI_MODEL = process.env.AI_MODEL || "gpt-5-mini";
+
 function getOpenAI(): OpenAI {
   if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
     throw new Error("AI_INTEGRATIONS_OPENAI_API_KEY is not configured");
@@ -648,7 +652,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.flushHeaders();
 
         const stream = await getOpenAI().chat.completions.create({
-          model: "gpt-4o",
+          model: OPENAI_MODEL,
           messages,
           max_completion_tokens: 1024,
           stream: true,
@@ -706,7 +710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .join("\n");
 
         const response = await getOpenAI().chat.completions.create({
-          model: "gpt-4o",
+          model: OPENAI_MODEL,
           messages: [
             {
               role: "system",
@@ -748,7 +752,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const response = await getOpenAI().chat.completions.create({
-          model: "gpt-4o",
+          model: OPENAI_MODEL,
           messages,
           max_completion_tokens: 1024,
         });

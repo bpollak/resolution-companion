@@ -538,24 +538,44 @@ export default function ReflectScreen() {
           <Pressable
             onPress={() => startReflection("monthly")}
             accessibilityRole="button"
-            accessibilityLabel="Review monthly progress with your AI coach"
+            accessibilityLabel={`Your coach is ready for your ${new Date().toLocaleDateString("en-US", { month: "long" })} check-in. Start the conversation.`}
             style={({ pressed }) => [
-              styles.heroCta,
+              styles.coachInvite,
+              {
+                backgroundColor: isDark
+                  ? Colors.dark.backgroundDefault
+                  : Colors.light.backgroundDefault,
+              },
               pressed && styles.heroCtaPressed,
             ]}
           >
-            <View style={styles.heroCtaIcon}>
-              <Feather name="message-circle" size={24} color="#000000" />
+            <View style={styles.coachInviteRow}>
+              <View style={styles.coachInviteAvatar}>
+                <Feather name="compass" size={22} color={Colors.dark.accent} />
+              </View>
+              <View
+                style={[
+                  styles.coachInviteBubble,
+                  {
+                    backgroundColor: isDark
+                      ? Colors.dark.backgroundSecondary
+                      : Colors.light.backgroundSecondary,
+                  },
+                ]}
+              >
+                <ThemedText style={styles.coachInviteText}>
+                  Ready to look at{" "}
+                  {new Date().toLocaleDateString("en-US", { month: "long" })}{" "}
+                  together? Let&rsquo;s see what&rsquo;s working.
+                </ThemedText>
+              </View>
             </View>
-            <View style={styles.heroCtaContent}>
-              <ThemedText style={styles.heroCtaTitle}>
-                Start Monthly Check-in
+            <View style={styles.coachInviteButton}>
+              <ThemedText style={styles.coachInviteButtonText}>
+                Start check-in
               </ThemedText>
-              <ThemedText style={styles.heroCtaSubtitle}>
-                Reflect with your coach on this month&rsquo;s progress
-              </ThemedText>
+              <Feather name="arrow-right" size={18} color="#000000" />
             </View>
-            <Feather name="arrow-right" size={20} color="#000000" />
           </Pressable>
         ) : (
           <Pressable
@@ -913,6 +933,51 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.md,
+  },
+  coachInvite: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: "rgba(0, 217, 255, 0.25)",
+    marginBottom: Spacing.md,
+    gap: Spacing.md,
+  },
+  coachInviteRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: Spacing.sm,
+  },
+  coachInviteAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: "rgba(0, 217, 255, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  coachInviteBubble: {
+    flex: 1,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderBottomLeftRadius: Spacing.xs,
+  },
+  coachInviteText: {
+    ...Typography.body,
+    lineHeight: 24,
+  },
+  coachInviteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    backgroundColor: Colors.dark.accent,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.full,
+  },
+  coachInviteButtonText: {
+    ...Typography.body,
+    fontWeight: "600",
+    color: "#000000",
   },
   heroCtaPressed: {
     opacity: 0.85,
