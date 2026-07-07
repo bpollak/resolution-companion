@@ -251,6 +251,19 @@ export const storage = {
 
       for (const action of personaActions) {
         if (action.frequency.includes(dayOfWeek)) {
+          // Days before the action existed don't count against the score
+          // (mirrors progress.computeMomentumScore)
+          if (action.createdAt) {
+            const created = new Date(action.createdAt);
+            const createdStr = [
+              created.getFullYear(),
+              String(created.getMonth() + 1).padStart(2, "0"),
+              String(created.getDate()).padStart(2, "0"),
+            ].join("-");
+            if (dateStr < createdStr) {
+              continue;
+            }
+          }
           const log = logs.find(
             (l) =>
               l.actionId === action.id && l.logDate.split("T")[0] === dateStr,

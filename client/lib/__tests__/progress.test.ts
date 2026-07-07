@@ -285,6 +285,24 @@ describe("computeBenchmarkProgress", () => {
 });
 
 describe("computeMomentumScore", () => {
+  it("gives a perfect first day 100%, not 1/(scheduled days all month)", () => {
+    // Plan created and completed on July 7: the six earlier July days were
+    // before the plan existed and must not drag the month-to-date score down
+    jest.setSystemTime(new Date(2026, 6, 7, 20, 0));
+    const action = makeAction(DAILY, "2026-07-07T08:30:00");
+    const logs = [makeLog(action.id, "2026-07-07")];
+    expect(computeMomentumScore([action], logs, 7)).toBe(100);
+  });
+
+  it("only counts scheduled days since each action was created", () => {
+    jest.setSystemTime(new Date(2026, 6, 7, 20, 0)); // Tuesday July 7
+    // Created Sunday July 5: trackable scheduled days in the window are
+    // Jul 5, 6, 7 — two completed, one missed = 67
+    const action = makeAction(DAILY, "2026-07-05T09:00:00");
+    const logs = logsFor(action, ["2026-07-05", "2026-07-07"]);
+    expect(computeMomentumScore([action], logs, 7)).toBe(67);
+  });
+
   it("does not penalize an unlogged today in the morning", () => {
     // 9 AM Monday: today's action is pending, not missed. If today were
     // counted as expected the score would drop to 86 overnight.

@@ -1585,6 +1585,10 @@ const styles = StyleSheet.create({
   actionDetailText: {
     ...Typography.small,
     lineHeight: 20,
+    // Fabric can measure a Text unconstrained on first layout, rendering it
+    // as one clipped line; an explicit width forces wrap on the first pass
+    width: "100%",
+    flexShrink: 1,
   },
   frequencyTags: {
     flexDirection: "row",
