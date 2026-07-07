@@ -85,6 +85,11 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
+/** For optimistic UI paths that build the record before persisting it. */
+export function generateStorageId(): string {
+  return generateId();
+}
+
 // Corrupted AsyncStorage data should degrade to defaults, never crash the app
 function safeParse<T>(value: string | null, fallback: T): T {
   if (value == null) return fallback;
@@ -425,6 +430,32 @@ export const storage = {
 
   async setDailyLogs(logs: DailyLog[]): Promise<void> {
     await AsyncStorage.setItem(STORAGE_KEYS.DAILY_LOGS, JSON.stringify(logs));
+  },
+
+  // Serializes log writes so concurrent optimistic persists can't interleave
+  // their read-modify-write cycles and drop each other's updates
+  _logWriteQueue: Promise.resolve() as Promise<void>,
+
+  /**
+   * Persist a log the UI already applied optimistically. Writes are queued
+   * FIFO so rapid taps can't lose updates to interleaved array rewrites.
+   */
+  upsertDailyLog(log: DailyLog): Promise<void> {
+    const write = this._logWriteQueue.then(async () => {
+      const logs = await this.getDailyLogs();
+      const index = logs.findIndex((l) => l.id === log.id);
+      if (index >= 0) {
+        logs[index] = log;
+      } else {
+        logs.push(log);
+      }
+      await this.setDailyLogs(logs);
+    });
+    // The queue itself never rejects; callers still see this write's error
+    this._logWriteQueue = write.catch((error) => {
+      logger.error("Failed to persist daily log:", error);
+    });
+    return write;
   },
 
   async toggleDailyLog(actionId: string, date: string): Promise<DailyLog> {

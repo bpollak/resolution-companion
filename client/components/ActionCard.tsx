@@ -60,16 +60,23 @@ export const ActionCard = React.memo(function ActionCard({
     wasCompleted.value = isCompleted;
   }, [isCompleted]);
 
-  const handlePress = async () => {
-    buttonScale.value = withSequence(
-      withSpring(0.92, { damping: 15, stiffness: 400 }),
-      withSpring(1, springConfig),
-    );
+  // Scale down the moment the finger lands — feedback while the touch is
+  // still held reads as "responsive"; waiting for release reads as lag
+  const handlePressIn = () => {
+    buttonScale.value = withSpring(0.92, { damping: 15, stiffness: 400 });
+  };
 
+  const handlePressOut = () => {
+    buttonScale.value = withSpring(1, springConfig);
+  };
+
+  const handlePress = () => {
+    // Fire-and-forget: awaiting the haptic engine here delayed the actual
+    // toggle by a native round-trip, making taps feel dead under load
     if (!isCompleted) {
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } else {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     onToggle(action.id);
   };
@@ -176,6 +183,8 @@ export const ActionCard = React.memo(function ActionCard({
 
         <Pressable
           onPress={handlePress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
           accessibilityRole="button"
           accessibilityState={{ selected: isCompleted }}
           accessibilityLabel={
@@ -249,8 +258,8 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
     transform: [{ translateY: translateY.value }],
   }));
 
-  const handlePress = async () => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onToggle(action.id);
   };
 

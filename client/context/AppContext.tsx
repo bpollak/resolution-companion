@@ -12,6 +12,7 @@ import { AppState, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   storage,
+  generateStorageId,
   Persona,
   Benchmark,
   ElementalAction,
@@ -330,19 +331,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActionsState(actionsData);
   }, []);
 
-  // Upsert into state directly — no storage re-reads. Both toggle surfaces
+  // Optimistic: the ring/streak/chips must respond on the same frame as the
+  // tap. State is computed and applied synchronously; the AsyncStorage write
+  // happens behind it on a FIFO queue (upsertDailyLog). Both toggle surfaces
   // (Today, Calendar) only operate on the active persona's actions, so the
-  // persona-scoped state invariant holds. Momentum/alignment recompute via
-  // the useMemo above.
-  const toggleDailyLog = useCallback(async (actionId: string, date: string) => {
-    const log = await storage.toggleDailyLog(actionId, date);
-    setDailyLogsState((prev) =>
-      prev.some((l) => l.id === log.id)
-        ? prev.map((l) => (l.id === log.id ? log : l))
-        : [...prev, log],
-    );
-    return log;
-  }, []);
+  // persona-scoped state invariant holds.
+  const dailyLogsRef = useRef(dailyLogs);
+  dailyLogsRef.current = dailyLogs;
+  const toggleDailyLog = useCallback(
+    async (actionId: string, date: string) => {
+      const dateStr = date.includes("T") ? date.split("T")[0] : date;
+      const existing = dailyLogsRef.current.find((l) => {
+        const logDateStr = l.logDate.includes("T")
+          ? l.logDate.split("T")[0]
+          : l.logDate;
+        return l.actionId === actionId && logDateStr === dateStr;
+      });
+      const log: DailyLog = existing
+        ? { ...existing, status: !existing.status }
+        : {
+            id: generateStorageId(),
+            actionId,
+            logDate: dateStr,
+            status: true,
+            createdAt: new Date().toISOString(),
+          };
+      setDailyLogsState((prev) =>
+        prev.some((l) => l.id === log.id)
+          ? prev.map((l) => (l.id === log.id ? log : l))
+          : [...prev, log],
+      );
+      storage.upsertDailyLog(log).catch(() => {
+        // Persist failed — reload persisted truth so the UI doesn't drift
+        refreshData();
+      });
+      return log;
+    },
+    [refreshData],
+  );
 
   const addReflection = useCallback(
     async (reflection: Omit<Reflection, "id" | "createdAt">) => {
