@@ -73,7 +73,10 @@ async function createAppStoreJWT(): Promise<string> {
 
   const sign = crypto.createSign("SHA256");
   sign.update(signatureInput);
-  const signature = sign.sign(privateKey, "base64url");
+  // ES256 JWTs require the raw R||S signature format, not DER
+  const signature = sign
+    .sign({ key: privateKey, dsaEncoding: "ieee-p1363" })
+    .toString("base64url");
 
   return `${signatureInput}.${signature}`;
 }
@@ -952,6 +955,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .delete(deviceSubscriptions)
           .where(eq(deviceSubscriptions.deviceId, deviceId))
           .returning();
+
+        await db
+          .delete(deviceAiUsage)
+          .where(eq(deviceAiUsage.deviceId, deviceId));
 
         res.json({
           success: true,
