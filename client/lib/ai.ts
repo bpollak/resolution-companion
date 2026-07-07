@@ -87,6 +87,7 @@ Return ONLY valid JSON in this exact format:
 
 RULES:
 - Create between 3 and 5 benchmarks (minimum 3, maximum 5). Each is presented to the user as a milestone that completes once its action has been done on about 21 scheduled days — make each a meaningful, achievable consistency target with ONE specific action.
+- "frequency" values MUST be exact weekday names from this set only: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday. Monthly or ordinal cadences ("First Thursday", "Last Tuesday", "every other week") are NOT supported — if a behavior would be occasional, schedule it weekly on one of the user's available days instead.
 - SCHEDULING MUST MATCH WHAT THE USER SAID. If they said "weekday mornings," schedule weekdays; if they mentioned limited time, schedule fewer days. Never default everything to 7 days/week — total scheduled actions across all benchmarks should fit realistically inside the time they described. Vary cadence: at most one daily action; support actions 2-4 days/week.
 - ANCHORS MUST COME FROM THE USER'S OWN ROUTINE when they mentioned one (their words: coffee, commute, lunch, kids' bedtime). Only invent a generic anchor if they gave nothing.
 - Actions must not overlap or double-count each other (two benchmarks must never be satisfied by the same behavior).

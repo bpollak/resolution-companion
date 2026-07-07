@@ -287,6 +287,34 @@ export default function OnboardingScreen() {
     }
   };
 
+  const VALID_DAYS = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ];
+
+  // The AI occasionally returns cadences the schedule model can't represent
+  // ("First Thursday", "Last Tuesday"). Keep only real weekday names; an
+  // action with none left falls back to the plan's most common weekdays so
+  // it can actually be scheduled (and its milestone can progress).
+  const sanitizeFrequency = (
+    frequency: string[],
+    fallback: string[],
+  ): string[] => {
+    const cleaned = (frequency || [])
+      .map((day) =>
+        VALID_DAYS.find(
+          (d) => d.toLowerCase() === String(day).trim().toLowerCase(),
+        ),
+      )
+      .filter((d): d is string => Boolean(d));
+    return cleaned.length > 0 ? [...new Set(cleaned)] : fallback;
+  };
+
   const savePlan = async (
     personaId: string,
     benchmarksToUse: typeof DEFAULT_BENCHMARKS,
@@ -303,12 +331,28 @@ export default function OnboardingScreen() {
       return { benchmark, action: b.elementalAction };
     });
 
+    // Fallback days = the most common valid weekdays across the plan, so a
+    // sanitized action lands on days the user actually said they're free
+    const dayCounts = new Map<string, number>();
+    for (const r of results) {
+      for (const day of r.action.frequency || []) {
+        const valid = VALID_DAYS.find(
+          (d) => d.toLowerCase() === String(day).trim().toLowerCase(),
+        );
+        if (valid) dayCounts.set(valid, (dayCounts.get(valid) || 0) + 1);
+      }
+    }
+    const fallbackDays =
+      dayCounts.size > 0
+        ? [[...dayCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]]
+        : ["Monday", "Wednesday", "Friday"];
+
     const allBenchmarks = results.map((r) => r.benchmark);
     const allActions = results.map((r, index) => ({
       id: Date.now().toString() + index + Math.random().toString(36).substr(2),
       benchmarkId: allBenchmarks[index].id,
       title: r.action.title,
-      frequency: r.action.frequency,
+      frequency: sanitizeFrequency(r.action.frequency, fallbackDays),
       anchorLink: r.action.anchorLink,
       kickstartVersion: r.action.kickstartVersion,
       createdAt: new Date().toISOString(),
