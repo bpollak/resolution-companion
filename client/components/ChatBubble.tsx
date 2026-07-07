@@ -20,6 +20,9 @@ export function ChatBubble({ message, isUser, isTyping }: ChatBubbleProps) {
         styles.container,
         isUser ? styles.userContainer : styles.aiContainer,
       ]}
+      accessible={true}
+      accessibilityRole="text"
+      accessibilityLabel={`${isUser ? "You" : "AI coach"}: ${message}${isTyping ? " (typing)" : ""}`}
     >
       {!isUser ? (
         <View style={styles.avatarContainer}>

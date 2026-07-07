@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import {
   View,
   ScrollView,
@@ -70,8 +70,13 @@ export default function ReflectScreen() {
 
   const flatListRef = useRef<FlatList>(null);
 
-  const sortedReflections = [...reflections].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  const sortedReflections = useMemo(
+    () =>
+      [...reflections].sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      ),
+    [reflections],
   );
 
   const formatDate = (dateString: string) => {
@@ -462,6 +467,11 @@ export default function ReflectScreen() {
                 ? "Good progress! Let's keep the momentum going."
                 : "Every step counts. Let's find ways to reduce friction."}
           </ThemedText>
+          <ThemedText
+            style={[styles.scoreExplain, { color: theme.textSecondary }]}
+          >
+            Your completion rate for scheduled actions over the past 7 days
+          </ThemedText>
         </View>
 
         <View style={styles.sessionsCard}>
@@ -783,6 +793,11 @@ const styles = StyleSheet.create({
   scoreHint: {
     ...Typography.body,
     textAlign: "center",
+  },
+  scoreExplain: {
+    ...Typography.caption,
+    textAlign: "center",
+    marginTop: Spacing.sm,
   },
   sessionsCard: {
     backgroundColor: "rgba(0, 217, 255, 0.08)",

@@ -279,6 +279,21 @@ export default function CalendarScreen() {
     return date;
   }, [persona?.createdAt]);
 
+  // Completed-log lookup keyed by actionId|date. Only completions of
+  // actions actually scheduled on a given day count toward that day — a
+  // flat by-date filter over-counted when unscheduled actions were logged.
+  const completedLogIndex = useMemo(() => {
+    const index = new Set<string>();
+    for (const log of dailyLogs) {
+      if (!log.status) continue;
+      const dateStr = log.logDate.includes("T")
+        ? log.logDate.split("T")[0]
+        : log.logDate;
+      index.add(`${log.actionId}|${dateStr}`);
+    }
+    return index;
+  }, [dailyLogs]);
+
   const calendarDays = useMemo(() => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -290,6 +305,19 @@ export default function CalendarScreen() {
     const days: DayInfo[] = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+
+    const dayStats = (date: Date) => {
+      const dateStr = getLocalDateString(date);
+      const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
+      let total = 0;
+      let completed = 0;
+      for (const action of personaActions) {
+        if (!action.frequency.includes(dayOfWeek)) continue;
+        total++;
+        if (completedLogIndex.has(`${action.id}|${dateStr}`)) completed++;
+      }
+      return { total, completed };
+    };
 
     for (let i = startPadding - 1; i >= 0; i--) {
       const date = new Date(year, month, -i);
@@ -305,46 +333,21 @@ export default function CalendarScreen() {
 
     for (let day = 1; day <= lastDay.getDate(); day++) {
       const date = new Date(year, month, day);
-      const dateStr = getLocalDateString(date);
-      const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
-
-      const todayActions = personaActions.filter((a) =>
-        a.frequency.includes(dayOfWeek),
-      );
-      const completedLogs = dailyLogs.filter((log) => {
-        const logDateStr = log.logDate.includes("T")
-          ? log.logDate.split("T")[0]
-          : log.logDate;
-        return logDateStr === dateStr && log.status;
-      });
-
-      const prevDate = new Date(year, month, day - 1);
-      const prevDateStr = getLocalDateString(prevDate);
-      const prevDayOfWeek = prevDate.toLocaleDateString("en-US", {
-        weekday: "long",
-      });
-      const prevActions = personaActions.filter((a) =>
-        a.frequency.includes(prevDayOfWeek),
-      );
-      const prevCompletedLogs = dailyLogs.filter((log) => {
-        const logDateStr = log.logDate.includes("T")
-          ? log.logDate.split("T")[0]
-          : log.logDate;
-        return logDateStr === prevDateStr && log.status;
-      });
+      const { total, completed } = dayStats(date);
+      const prev = dayStats(new Date(year, month, day - 1));
 
       const hasStreak =
-        prevActions.length > 0 &&
-        prevCompletedLogs.length === prevActions.length &&
-        todayActions.length > 0 &&
-        completedLogs.length === todayActions.length;
+        prev.total > 0 &&
+        prev.completed === prev.total &&
+        total > 0 &&
+        completed === total;
 
       days.push({
         date,
         isCurrentMonth: true,
         isToday: date.getTime() === today.getTime(),
-        completedCount: completedLogs.length,
-        totalCount: todayActions.length,
+        completedCount: completed,
+        totalCount: total,
         hasStreak,
       });
     }
@@ -363,7 +366,7 @@ export default function CalendarScreen() {
     }
 
     return days;
-  }, [currentDate, personaActions, dailyLogs]);
+  }, [currentDate, personaActions, completedLogIndex]);
 
   const prevMonth = () => {
     setCurrentDate(

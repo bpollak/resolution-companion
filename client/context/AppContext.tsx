@@ -171,73 +171,95 @@ export function AppProvider({ children }: { children: ReactNode }) {
     refreshData();
   }, [refreshData]);
 
-  const setHasOnboarded = async (value: boolean) => {
+  // All mutators are memoized (and the provider value below is useMemo'd):
+  // an unmemoized value object re-renders every consumer screen on every
+  // state change, which made tab navigation feel sluggish.
+  const setHasOnboarded = useCallback(async (value: boolean) => {
     await storage.setHasOnboarded(value);
     setHasOnboardedState(value);
-  };
+  }, []);
 
-  const setAiConsent = async (value: boolean) => {
+  const setAiConsent = useCallback(async (value: boolean) => {
     await storage.setAiConsent(value);
     setAiConsentState(value);
-  };
+  }, []);
 
-  const setPersona = async (personaData: Omit<Persona, "id" | "createdAt">) => {
-    const newPersona = await storage.setPersona(personaData);
-    setPersonaState(newPersona);
-    const allPersonas = await storage.getPersonas();
-    setPersonasState(allPersonas);
-    return newPersona;
-  };
+  const setPersona = useCallback(
+    async (personaData: Omit<Persona, "id" | "createdAt">) => {
+      const newPersona = await storage.setPersona(personaData);
+      setPersonaState(newPersona);
+      const allPersonas = await storage.getPersonas();
+      setPersonasState(allPersonas);
+      return newPersona;
+    },
+    [],
+  );
 
-  const addPersona = async (personaData: Omit<Persona, "id" | "createdAt">) => {
-    const newPersona = await storage.addPersona(personaData);
-    setPersonaState(newPersona);
-    const allPersonas = await storage.getPersonas();
-    setPersonasState(allPersonas);
-    return newPersona;
-  };
+  const addPersona = useCallback(
+    async (personaData: Omit<Persona, "id" | "createdAt">) => {
+      const newPersona = await storage.addPersona(personaData);
+      setPersonaState(newPersona);
+      const allPersonas = await storage.getPersonas();
+      setPersonasState(allPersonas);
+      return newPersona;
+    },
+    [],
+  );
 
-  const switchPersona = async (id: string) => {
-    await storage.setActivePersonaId(id);
-    await refreshData();
-  };
+  const switchPersona = useCallback(
+    async (id: string) => {
+      await storage.setActivePersonaId(id);
+      await refreshData();
+    },
+    [refreshData],
+  );
 
-  const deletePersona = async (id: string) => {
-    setBenchmarksState([]);
-    setActionsState([]);
-    setDailyLogsState([]);
-    await storage.deletePersona(id);
-    await refreshData();
-  };
+  const deletePersona = useCallback(
+    async (id: string) => {
+      setBenchmarksState([]);
+      setActionsState([]);
+      setDailyLogsState([]);
+      await storage.deletePersona(id);
+      await refreshData();
+    },
+    [refreshData],
+  );
 
-  const addBenchmark = async (
-    benchmark: Omit<Benchmark, "id" | "createdAt">,
-  ) => {
-    const newBenchmark = await storage.addBenchmark(benchmark);
-    setBenchmarksState((prev) => [...prev, newBenchmark]);
-    return newBenchmark;
-  };
+  const addBenchmark = useCallback(
+    async (benchmark: Omit<Benchmark, "id" | "createdAt">) => {
+      const newBenchmark = await storage.addBenchmark(benchmark);
+      setBenchmarksState((prev) => [...prev, newBenchmark]);
+      return newBenchmark;
+    },
+    [],
+  );
 
-  const setBenchmarks = async (benchmarksData: Benchmark[]) => {
+  const setBenchmarks = useCallback(async (benchmarksData: Benchmark[]) => {
     await storage.setBenchmarks(benchmarksData);
     setBenchmarksState(benchmarksData);
-  };
+  }, []);
 
-  const updateBenchmark = async (
-    id: string,
-    updates: Partial<Omit<Benchmark, "id" | "createdAt">>,
-  ) => {
-    const updated = await storage.updateBenchmark(id, updates);
-    if (updated) {
-      setBenchmarksState((prev) =>
-        prev.map((b) => (b.id === id ? updated : b)),
-      );
-    }
-    return updated;
-  };
+  const updateBenchmark = useCallback(
+    async (
+      id: string,
+      updates: Partial<Omit<Benchmark, "id" | "createdAt">>,
+    ) => {
+      const updated = await storage.updateBenchmark(id, updates);
+      if (updated) {
+        setBenchmarksState((prev) =>
+          prev.map((b) => (b.id === id ? updated : b)),
+        );
+      }
+      return updated;
+    },
+    [],
+  );
 
-  const deleteBenchmark = async (id: string) => {
-    const actionIdsToDelete = actions
+  const deleteBenchmark = useCallback(async (id: string) => {
+    // Read actions from storage rather than the closure so the id list is
+    // never stale (this callback is intentionally dependency-free)
+    const currentActions = await storage.getElementalActions();
+    const actionIdsToDelete = currentActions
       .filter((a) => a.benchmarkId === id)
       .map((a) => a.id);
     await storage.deleteBenchmark(id);
@@ -246,37 +268,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDailyLogsState((prev) =>
       prev.filter((l) => !actionIdsToDelete.includes(l.actionId)),
     );
-  };
+  }, []);
 
-  const addAction = async (
-    action: Omit<ElementalAction, "id" | "createdAt">,
-  ) => {
-    const newAction = await storage.addElementalAction(action);
-    setActionsState((prev) => [...prev, newAction]);
-    return newAction;
-  };
+  const addAction = useCallback(
+    async (action: Omit<ElementalAction, "id" | "createdAt">) => {
+      const newAction = await storage.addElementalAction(action);
+      setActionsState((prev) => [...prev, newAction]);
+      return newAction;
+    },
+    [],
+  );
 
-  const updateAction = async (
-    id: string,
-    updates: Partial<Omit<ElementalAction, "id" | "createdAt">>,
-  ) => {
-    const updated = await storage.updateElementalAction(id, updates);
-    if (updated) {
-      setActionsState((prev) => prev.map((a) => (a.id === id ? updated : a)));
-    }
-    return updated;
-  };
+  const updateAction = useCallback(
+    async (
+      id: string,
+      updates: Partial<Omit<ElementalAction, "id" | "createdAt">>,
+    ) => {
+      const updated = await storage.updateElementalAction(id, updates);
+      if (updated) {
+        setActionsState((prev) => prev.map((a) => (a.id === id ? updated : a)));
+      }
+      return updated;
+    },
+    [],
+  );
 
-  const deleteAction = async (id: string) => {
+  const deleteAction = useCallback(async (id: string) => {
     await storage.deleteElementalAction(id);
     setActionsState((prev) => prev.filter((a) => a.id !== id));
     setDailyLogsState((prev) => prev.filter((l) => l.actionId !== id));
-  };
+  }, []);
 
-  const setActions = async (actionsData: ElementalAction[]) => {
+  const setActions = useCallback(async (actionsData: ElementalAction[]) => {
     await storage.setElementalActions(actionsData);
     setActionsState(actionsData);
-  };
+  }, []);
 
   // Upsert into state directly — no storage re-reads. Both toggle surfaces
   // (Today, Calendar) only operate on the active persona's actions, so the
@@ -292,15 +318,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return log;
   }, []);
 
-  const addReflection = async (
-    reflection: Omit<Reflection, "id" | "createdAt">,
-  ) => {
-    const newReflection = await storage.addReflection(reflection);
-    setReflectionsState((prev) => [...prev, newReflection]);
-    return newReflection;
-  };
+  const addReflection = useCallback(
+    async (reflection: Omit<Reflection, "id" | "createdAt">) => {
+      const newReflection = await storage.addReflection(reflection);
+      setReflectionsState((prev) => [...prev, newReflection]);
+      return newReflection;
+    },
+    [],
+  );
 
-  const clearAllData = async () => {
+  const clearAllData = useCallback(async () => {
     await storage.clearAll();
     setHasOnboardedState(false);
     setPersonaState(null);
@@ -317,9 +344,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     setMonthlyReflectionCount(0);
     setAiConsentState(false);
-  };
+  }, []);
 
-  const upgradeToPremium = async (plan: "monthly" | "yearly") => {
+  const upgradeToPremium = useCallback(async (plan: "monthly" | "yearly") => {
     const now = new Date();
     const expiresAt = new Date(now);
     if (plan === "monthly") {
@@ -335,72 +362,108 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     await storage.setSubscription(newSubscription);
     setSubscriptionState(newSubscription);
-  };
+  }, []);
 
-  const incrementReflectionCountFn = async () => {
+  const incrementReflectionCountFn = useCallback(async () => {
     const count = await storage.incrementReflectionCount();
     setMonthlyReflectionCount(count);
     return count;
-  };
+  }, []);
 
-  const canUseReflection = () => {
+  const canUseReflection = useCallback(() => {
     if (subscription.isPremium) return true;
     return monthlyReflectionCount < FREE_REFLECTION_LIMIT;
-  };
+  }, [subscription.isPremium, monthlyReflectionCount]);
 
-  const canAddPersona = () => {
+  const canAddPersona = useCallback(() => {
     if (subscription.isPremium) return true;
     return personas.length < 1;
-  };
+  }, [subscription.isPremium, personas.length]);
 
-  const canAddBenchmark = () => {
+  const canAddBenchmark = useCallback(() => {
     return subscription.isPremium;
-  };
+  }, [subscription.isPremium]);
 
-  return (
-    <AppContext.Provider
-      value={{
-        hasOnboarded,
-        persona,
-        personas,
-        benchmarks,
-        actions,
-        dailyLogs,
-        reflections,
-        momentumScore,
-        personaAlignment,
-        isLoading,
-        subscription,
-        monthlyReflectionCount,
-        aiConsent,
-        setHasOnboarded,
-        setAiConsent,
-        setPersona,
-        addPersona,
-        switchPersona,
-        deletePersona,
-        addBenchmark,
-        updateBenchmark,
-        deleteBenchmark,
-        setBenchmarks,
-        addAction,
-        updateAction,
-        deleteAction,
-        setActions,
-        toggleDailyLog,
-        addReflection,
-        refreshData,
-        clearAllData,
-        upgradeToPremium,
-        incrementReflectionCount: incrementReflectionCountFn,
-        canUseReflection,
-        canAddPersona,
-        canAddBenchmark,
-      }}
-    >
-      {children}
-    </AppContext.Provider>
+  const value = useMemo(
+    () => ({
+      hasOnboarded,
+      persona,
+      personas,
+      benchmarks,
+      actions,
+      dailyLogs,
+      reflections,
+      momentumScore,
+      personaAlignment,
+      isLoading,
+      subscription,
+      monthlyReflectionCount,
+      aiConsent,
+      setHasOnboarded,
+      setAiConsent,
+      setPersona,
+      addPersona,
+      switchPersona,
+      deletePersona,
+      addBenchmark,
+      updateBenchmark,
+      deleteBenchmark,
+      setBenchmarks,
+      addAction,
+      updateAction,
+      deleteAction,
+      setActions,
+      toggleDailyLog,
+      addReflection,
+      refreshData,
+      clearAllData,
+      upgradeToPremium,
+      incrementReflectionCount: incrementReflectionCountFn,
+      canUseReflection,
+      canAddPersona,
+      canAddBenchmark,
+    }),
+    [
+      hasOnboarded,
+      persona,
+      personas,
+      benchmarks,
+      actions,
+      dailyLogs,
+      reflections,
+      momentumScore,
+      personaAlignment,
+      isLoading,
+      subscription,
+      monthlyReflectionCount,
+      aiConsent,
+      setHasOnboarded,
+      setAiConsent,
+      setPersona,
+      addPersona,
+      switchPersona,
+      deletePersona,
+      addBenchmark,
+      updateBenchmark,
+      deleteBenchmark,
+      setBenchmarks,
+      addAction,
+      updateAction,
+      deleteAction,
+      setActions,
+      toggleDailyLog,
+      addReflection,
+      refreshData,
+      clearAllData,
+      upgradeToPremium,
+      incrementReflectionCountFn,
+      canUseReflection,
+      canAddPersona,
+      canAddBenchmark,
+    ],
   );
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
 export function useApp() {

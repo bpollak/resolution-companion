@@ -348,7 +348,8 @@ export default function ActionEditorScreen() {
             maxLength={150}
           />
           <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
-            A tiny version to reduce friction on hard days
+            On low-energy days, do this ~2-minute version instead of the full
+            action. It still counts — showing up is what builds the habit.
           </ThemedText>
         </View>
 
@@ -375,7 +376,8 @@ export default function ActionEditorScreen() {
             maxLength={100}
           />
           <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
-            An existing habit to attach this action to
+            Attach this action to a habit you already have — doing it right
+            after something automatic makes it far easier to remember
           </ThemedText>
         </View>
 

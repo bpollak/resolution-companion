@@ -242,13 +242,15 @@ export default function OnboardingScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
 
+      // Land on Today so the first thing users see is the actions they can
+      // check off right now (the Progress tab shows the plan-review guide)
       navigation.reset({
         index: 0,
         routes: [
           {
             name: "Main",
             state: {
-              routes: [{ name: "ProgressTab" }],
+              routes: [{ name: "TodayTab" }],
             },
           },
         ],
@@ -407,13 +409,15 @@ export default function OnboardingScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
 
+      // Land on Today so the first thing users see is the actions they can
+      // check off right now (the Progress tab shows the plan-review guide)
       navigation.reset({
         index: 0,
         routes: [
           {
             name: "Main",
             state: {
-              routes: [{ name: "ProgressTab" }],
+              routes: [{ name: "TodayTab" }],
             },
           },
         ],

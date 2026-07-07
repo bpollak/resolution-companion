@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useCallback } from "react";
+import React, { useMemo, useEffect, useCallback, useState } from "react";
 import { View, ScrollView, StyleSheet, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -22,6 +22,7 @@ import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { CircularProgress } from "@/components/CircularProgress";
 import { ActionCard } from "@/components/ActionCard";
+import { Toast } from "@/components/Toast";
 import { logger } from "@/lib/logger";
 
 function getLocalDateString(date: Date): string {
@@ -265,11 +266,18 @@ export default function TodayScreen() {
     return benchmarks.find((b) => b.id === action.benchmarkId);
   };
 
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+
   // Stable reference so memoized ActionCards skip re-rendering on each toggle
   const handleToggle = useCallback(
     async (actionId: string) => {
       try {
-        await toggleDailyLog(actionId, todayDateStr);
+        const log = await toggleDailyLog(actionId, todayDateStr);
+        if (log.status) {
+          setToastMessage("Logged — nice work!");
+          setToastVisible(true);
+        }
       } catch (error) {
         logger.error("Failed to toggle action:", error);
       }
@@ -321,108 +329,124 @@ export default function TodayScreen() {
   }
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
-      contentContainerStyle={{
-        paddingTop: headerHeight + Spacing.xl,
-        paddingBottom: tabBarHeight + Spacing.xl,
-        paddingHorizontal: Spacing.lg,
-      }}
-      scrollIndicatorInsets={{ bottom: insets.bottom }}
-    >
-      <View style={styles.header}>
-        <ThemedText
-          style={[styles.personaLabel, { color: Colors.dark.accent }]}
-        >
-          Becoming
-        </ThemedText>
-        <ThemedText style={styles.personaName}>{persona.name}</ThemedText>
-      </View>
-
-      <View style={styles.alignmentContainer}>
-        <CircularProgress
-          progress={personaAlignment}
-          size={160}
-          label="Persona Alignment"
-        />
-        <ThemedText
-          style={[styles.alignmentHint, { color: theme.textSecondary }]}
-        >
-          Based on your daily action completion
-        </ThemedText>
-      </View>
-
-      <View style={styles.dateContainer}>
-        <ThemedText style={[styles.dateText, { color: theme.textSecondary }]}>
-          {dateString}
-        </ThemedText>
-        <View style={styles.actionCount}>
+    <>
+      <ScrollView
+        style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
+        contentContainerStyle={{
+          paddingTop: headerHeight + Spacing.xl,
+          paddingBottom: tabBarHeight + Spacing.xl,
+          paddingHorizontal: Spacing.lg,
+        }}
+        scrollIndicatorInsets={{ bottom: insets.bottom }}
+      >
+        <View style={styles.header}>
           <ThemedText
-            style={[styles.actionCountText, { color: theme.textSecondary }]}
+            style={[styles.personaLabel, { color: Colors.dark.accent }]}
           >
-            {todayActions.length} action{todayActions.length !== 1 ? "s" : ""}{" "}
-            today
+            Becoming
           </ThemedText>
+          <ThemedText style={styles.personaName}>{persona.name}</ThemedText>
         </View>
-      </View>
 
-      {todayActions.length === 0 ? (
-        <View
-          style={[
-            styles.noActionsCard,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundDefault
-                : Colors.light.backgroundDefault,
-            },
-          ]}
-        >
-          <Feather name="check-circle" size={32} color={Colors.dark.success} />
-          <ThemedText style={styles.noActionsText}>
-            No actions scheduled for today. Rest and recharge!
+        <View style={styles.alignmentContainer}>
+          <CircularProgress
+            progress={personaAlignment}
+            size={160}
+            label="Persona Alignment"
+          />
+          <ThemedText
+            style={[styles.alignmentHint, { color: theme.textSecondary }]}
+          >
+            % of scheduled actions completed over the last 30 days
           </ThemedText>
-          {tomorrowActions.length > 0 ? (
-            <Pressable
-              onPress={() => {
-                navigation.navigate("CalendarTab" as never);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`View ${tomorrowActions.length} ${tomorrowActions.length === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
-              style={({ pressed }) => [
-                styles.tomorrowLink,
-                { opacity: pressed ? 0.7 : 1 },
-              ]}
-            >
-              <Feather name="calendar" size={16} color={Colors.dark.accent} />
-              <ThemedText
-                style={[styles.tomorrowLinkText, { color: Colors.dark.accent }]}
-              >
-                {tomorrowActions.length} action
-                {tomorrowActions.length !== 1 ? "s" : ""} tomorrow
-              </ThemedText>
-              <Feather
-                name="chevron-right"
-                size={16}
-                color={Colors.dark.accent}
-              />
-            </Pressable>
-          ) : null}
         </View>
-      ) : (
-        todayActions.map((action) => {
-          const benchmark = getBenchmarkForAction(action);
-          return (
-            <ActionCard
-              key={action.id}
-              action={action}
-              log={getLogForAction(action.id)}
-              onToggle={handleToggle}
-              benchmarkTitle={benchmark?.title}
+
+        <View style={styles.dateContainer}>
+          <ThemedText style={[styles.dateText, { color: theme.textSecondary }]}>
+            {dateString}
+          </ThemedText>
+          <View style={styles.actionCount}>
+            <ThemedText
+              style={[styles.actionCountText, { color: theme.textSecondary }]}
+            >
+              {todayActions.length} action{todayActions.length !== 1 ? "s" : ""}{" "}
+              today
+            </ThemedText>
+          </View>
+        </View>
+
+        {todayActions.length === 0 ? (
+          <View
+            style={[
+              styles.noActionsCard,
+              {
+                backgroundColor: isDark
+                  ? Colors.dark.backgroundDefault
+                  : Colors.light.backgroundDefault,
+              },
+            ]}
+          >
+            <Feather
+              name="check-circle"
+              size={32}
+              color={Colors.dark.success}
             />
-          );
-        })
-      )}
-    </ScrollView>
+            <ThemedText style={styles.noActionsText}>
+              No actions scheduled for today. Rest and recharge!
+            </ThemedText>
+            {tomorrowActions.length > 0 ? (
+              <Pressable
+                onPress={() => {
+                  navigation.navigate("CalendarTab" as never);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${tomorrowActions.length} ${tomorrowActions.length === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
+                style={({ pressed }) => [
+                  styles.tomorrowLink,
+                  { opacity: pressed ? 0.7 : 1 },
+                ]}
+              >
+                <Feather name="calendar" size={16} color={Colors.dark.accent} />
+                <ThemedText
+                  style={[
+                    styles.tomorrowLinkText,
+                    { color: Colors.dark.accent },
+                  ]}
+                >
+                  {tomorrowActions.length} action
+                  {tomorrowActions.length !== 1 ? "s" : ""} tomorrow
+                </ThemedText>
+                <Feather
+                  name="chevron-right"
+                  size={16}
+                  color={Colors.dark.accent}
+                />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : (
+          todayActions.map((action) => {
+            const benchmark = getBenchmarkForAction(action);
+            return (
+              <ActionCard
+                key={action.id}
+                action={action}
+                log={getLogForAction(action.id)}
+                onToggle={handleToggle}
+                benchmarkTitle={benchmark?.title}
+              />
+            );
+          })
+        )}
+      </ScrollView>
+      <Toast
+        message={toastMessage}
+        visible={toastVisible}
+        onHide={() => setToastVisible(false)}
+        type="success"
+        topOffset={headerHeight + Spacing.md}
+      />
+    </>
   );
 }
 

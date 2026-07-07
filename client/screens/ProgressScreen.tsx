@@ -48,9 +48,16 @@ export default function ProgressScreen() {
     Set<string>
   >(() => new Set(personaBenchmarks.map((b) => b.id)));
 
+  // Key on the id set, not array identity: personaBenchmarks is re-derived
+  // on unrelated state changes and would otherwise clobber the user's
+  // expand/collapse choices on every render
+  const benchmarkIdsKey = personaBenchmarks
+    .map((b) => b.id)
+    .sort()
+    .join(",");
   React.useEffect(() => {
-    setExpandedBenchmarks(new Set(personaBenchmarks.map((b) => b.id)));
-  }, [personaBenchmarks]);
+    setExpandedBenchmarks(new Set(benchmarkIdsKey.split(",").filter(Boolean)));
+  }, [benchmarkIdsKey]);
 
   const benchmarkProgress = useMemo(() => {
     const logIndex = buildLogIndex(dailyLogs);
@@ -182,12 +189,13 @@ export default function ProgressScreen() {
           <ThemedText
             style={[styles.guideText, { color: theme.textSecondary }]}
           >
-            1. Review your benchmarks below — tap Edit to adjust any of them or
-            change which days of the week they repeat.{"\n"}
-            2. Each benchmark has one small daily action on its scheduled days.
-            {"\n"}
-            3. Check off your actions every day in the Today tab — that&rsquo;s
-            what moves these progress bars.
+            1. Your AI coach created the benchmarks below — milestones on the
+            way to becoming your persona. Tap Edit to adjust one or change which
+            days it repeats.{"\n"}
+            2. Each benchmark comes with one small daily action on its scheduled
+            days.{"\n"}
+            3. Check off your actions in the Today tab — that&rsquo;s what moves
+            these progress bars and your alignment score.
           </ThemedText>
           <Pressable
             onPress={() => navigation.navigate("TodayTab")}
@@ -212,6 +220,11 @@ export default function ProgressScreen() {
           size={140}
           label="30-Day Alignment"
         />
+        <ThemedText
+          style={[styles.alignmentHint, { color: theme.textSecondary }]}
+        >
+          % of scheduled actions completed over the last 30 days
+        </ThemedText>
       </View>
 
       <View style={styles.sectionHeader}>
@@ -479,6 +492,11 @@ const styles = StyleSheet.create({
   alignmentSection: {
     alignItems: "center",
     marginBottom: Spacing["2xl"],
+  },
+  alignmentHint: {
+    ...Typography.caption,
+    textAlign: "center",
+    marginTop: Spacing.sm,
   },
   guideCard: {
     padding: Spacing.lg,

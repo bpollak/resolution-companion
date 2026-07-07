@@ -767,7 +767,7 @@ export default function SubscriptionScreen() {
           <FeatureRow
             icon="message-circle"
             title="Unlimited Coaching"
-            description="Get AI-powered coaching whenever you need guidance"
+            description="No monthly cap on AI check-ins — reflect and adjust your plan whenever you need"
             isPremium
           />
           <FeatureRow

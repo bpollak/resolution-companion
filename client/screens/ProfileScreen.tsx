@@ -665,8 +665,8 @@ export default function ProfileScreen() {
           subscription.isPremium
             ? `${subscription.plan === "yearly" ? "Yearly" : "Monthly"} plan`
             : monthlyReflectionCount >= 10
-              ? "Check-in limit reached"
-              : `${10 - monthlyReflectionCount} check-ins left this month`
+              ? "Free check-in limit reached"
+              : `${10 - monthlyReflectionCount} free check-ins left this month`
         }
         onPress={() => navigation.navigate("Subscription")}
       />
