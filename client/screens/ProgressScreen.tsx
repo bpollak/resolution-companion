@@ -1,5 +1,6 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import { View, ScrollView, StyleSheet, Pressable } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -61,6 +62,20 @@ export default function ProgressScreen() {
       trackableDays,
     );
   }, [personaBenchmarks, actions, dailyLogs, personaCreatedDate]);
+
+  const GUIDE_DISMISSED_KEY = "progress_next_steps_dismissed";
+  const [showGuide, setShowGuide] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(GUIDE_DISMISSED_KEY).then((v) => {
+      if (!v) setShowGuide(true);
+    });
+  }, []);
+
+  const dismissGuide = () => {
+    setShowGuide(false);
+    AsyncStorage.setItem(GUIDE_DISMISSED_KEY, "true");
+  };
 
   const toggleExpand = (benchmarkId: string) => {
     setExpandedBenchmarks((prev) => {
@@ -140,6 +155,57 @@ export default function ProgressScreen() {
         ) : null}
       </View>
 
+      {showGuide ? (
+        <View
+          style={[
+            styles.guideCard,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+            },
+          ]}
+        >
+          <View style={styles.guideHeader}>
+            <Feather name="compass" size={18} color={Colors.dark.accent} />
+            <ThemedText style={styles.guideTitle}>Next Steps</ThemedText>
+            <Pressable
+              onPress={dismissGuide}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss next steps"
+              style={styles.guideClose}
+            >
+              <Feather name="x" size={18} color={theme.textSecondary} />
+            </Pressable>
+          </View>
+          <ThemedText
+            style={[styles.guideText, { color: theme.textSecondary }]}
+          >
+            1. Review your benchmarks below — tap Edit to adjust any of them or
+            change which days of the week they repeat.{"\n"}
+            2. Each benchmark has one small daily action on its scheduled days.
+            {"\n"}
+            3. Check off your actions every day in the Today tab — that&rsquo;s
+            what moves these progress bars.
+          </ThemedText>
+          <Pressable
+            onPress={() => navigation.navigate("TodayTab")}
+            accessibilityRole="button"
+            accessibilityLabel="Go to Today tab"
+            style={({ pressed }) => [
+              styles.guideCta,
+              { opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <ThemedText style={styles.guideCtaText}>
+              Log today&rsquo;s actions
+            </ThemedText>
+            <Feather name="arrow-right" size={16} color="#000000" />
+          </Pressable>
+        </View>
+      ) : null}
+
       <View style={styles.alignmentSection}>
         <CircularProgress
           progress={personaAlignment}
@@ -201,6 +267,18 @@ export default function ProgressScreen() {
                   </ThemedText>
                 </View>
                 <View style={styles.benchmarkMeta}>
+                  {actionProgress[0]?.action.frequency ? (
+                    <ThemedText
+                      style={[
+                        styles.frequencyBadge,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      {actionProgress[0].action.frequency.length >= 7
+                        ? "Daily"
+                        : `${actionProgress[0].action.frequency.length}×/week`}
+                    </ThemedText>
+                  ) : null}
                   <Pressable
                     onPress={() =>
                       navigation.navigate("BenchmarkEditor", {
@@ -401,6 +479,49 @@ const styles = StyleSheet.create({
   alignmentSection: {
     alignItems: "center",
     marginBottom: Spacing["2xl"],
+  },
+  guideCard: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.xl,
+    borderWidth: 1,
+    borderColor: "rgba(0, 217, 255, 0.3)",
+  },
+  guideHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  guideTitle: {
+    ...Typography.body,
+    fontWeight: "600",
+    flex: 1,
+  },
+  guideClose: {
+    padding: Spacing.xs,
+  },
+  guideText: {
+    ...Typography.small,
+    lineHeight: 20,
+    marginBottom: Spacing.md,
+  },
+  guideCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    backgroundColor: Colors.dark.accent,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+  },
+  guideCtaText: {
+    ...Typography.body,
+    fontWeight: "600",
+    color: "#000000",
+  },
+  frequencyBadge: {
+    ...Typography.caption,
   },
   sectionHeader: {
     flexDirection: "row",

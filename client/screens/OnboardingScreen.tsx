@@ -5,6 +5,7 @@ import {
   TextInput,
   Pressable,
   FlatList,
+  ScrollView,
   ActivityIndicator,
   Alert,
   Platform,
@@ -490,7 +491,11 @@ export default function OnboardingScreen() {
           <View style={styles.headerSpacer} />
         </View>
 
-        <View style={styles.introPageContent}>
+        <ScrollView
+          style={styles.introScroll}
+          contentContainerStyle={styles.introPageContent}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.introHero}>
             <View style={styles.heroLogoContainer}>
               <View
@@ -557,7 +562,7 @@ export default function OnboardingScreen() {
               ))}
             </View>
           ) : null}
-        </View>
+        </ScrollView>
 
         <View
           style={[
@@ -980,10 +985,6 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   introFooter: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
   },
@@ -1005,10 +1006,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: Spacing.sm,
   },
-  introPageContent: {
+  introScroll: {
     flex: 1,
+  },
+  introPageContent: {
+    flexGrow: 1,
     justifyContent: "center",
     paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
   },
   introDetailsContainer: {
     marginTop: Spacing.xl,

@@ -60,6 +60,9 @@ export default function MainTabNavigator() {
     <Tab.Navigator
       initialRouteName="TodayTab"
       screenOptions={{
+        // Don't re-render blurred tabs on every context change; they thaw
+        // with fresh state when focused again
+        freezeOnBlur: true,
         tabBarActiveTintColor: Colors.dark.accent,
         tabBarInactiveTintColor: theme.tabIconDefault,
         tabBarStyle: {

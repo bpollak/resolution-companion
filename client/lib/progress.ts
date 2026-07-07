@@ -2,13 +2,28 @@ import type { Benchmark, ElementalAction, DailyLog } from "@/lib/storage";
 
 /**
  * Pure progress/score math shared by AppContext, CalendarScreen, and
- * ProgressScreen. These functions intentionally preserve the existing
- * date-handling quirks (UTC date strings from toISOString, first-match log
- * lookup) so derived values stay identical to the previous inline loops.
+ * ProgressScreen. All date keys use LOCAL calendar dates (YYYY-MM-DD) and
+ * local weekdays, matching how TodayScreen/CalendarScreen write daily logs.
+ * Deriving either from UTC (toISOString / new Date("YYYY-MM-DD")) shifts the
+ * day for western timezones and silently drops scheduled-day completions.
  */
 
 function logDateKey(log: DailyLog): string {
   return `${log.actionId}|${log.logDate.split("T")[0]}`;
+}
+
+/** Local calendar date as YYYY-MM-DD (no UTC conversion). */
+export function getLocalDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/** Parse a YYYY-MM-DD string as a LOCAL date (new Date(str) would be UTC). */
+function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Date(year, month - 1, day);
 }
 
 /**
@@ -51,7 +66,7 @@ export function getTrackableDays(
       continue;
     }
 
-    trackableDays.push(date.toISOString().split("T")[0]);
+    trackableDays.push(getLocalDateString(date));
   }
 
   return trackableDays;
@@ -74,11 +89,9 @@ export function computeBenchmarkProgress(
   logIndex: Map<string, DailyLog>,
   trackableDays: string[],
 ): BenchmarkProgressResult[] {
-  // Day-of-week is derived by re-parsing the UTC date string, matching the
-  // previous per-screen loops
   const dayInfos = trackableDays.map((dateStr) => ({
     dateStr,
-    dayOfWeek: new Date(dateStr).toLocaleDateString("en-US", {
+    dayOfWeek: parseLocalDate(dateStr).toLocaleDateString("en-US", {
       weekday: "long",
     }),
   }));
@@ -152,7 +165,7 @@ export function computeMomentumScore(
   for (let i = 0; i < days; i++) {
     const date = new Date(today);
     date.setDate(date.getDate() - i);
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = getLocalDateString(date);
     const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
 
     for (const action of actions) {

@@ -235,7 +235,13 @@ export const storage = {
     for (let i = 0; i < days; i++) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split("T")[0];
+      // Local calendar date — toISOString() shifts the date across the UTC
+      // boundary (e.g. evenings in US timezones) and misses that day's logs
+      const dateStr = [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, "0"),
+        String(date.getDate()).padStart(2, "0"),
+      ].join("-");
       const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
 
       for (const action of personaActions) {
@@ -550,7 +556,13 @@ export const storage = {
     for (let i = 0; i < days; i++) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split("T")[0];
+      // Local calendar date — toISOString() shifts the date across the UTC
+      // boundary (e.g. evenings in US timezones) and misses that day's logs
+      const dateStr = [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, "0"),
+        String(date.getDate()).padStart(2, "0"),
+      ].join("-");
       const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
 
       for (const action of actions) {

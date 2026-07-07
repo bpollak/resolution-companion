@@ -469,7 +469,7 @@ export default function ReflectScreen() {
             <ThemedText style={styles.sessionsLabel}>
               {subscription.isPremium
                 ? "Unlimited Check-ins"
-                : "Check-ins Available"}
+                : "Free Check-ins"}
             </ThemedText>
             <ThemedText
               style={[
@@ -491,10 +491,10 @@ export default function ReflectScreen() {
             >
               {subscription.isPremium
                 ? "Premium members get unlimited coaching"
-                : "Resets at the start of each month"}
+                : "Included free — resets at the start of each month"}
             </ThemedText>
           </View>
-          {!subscription.isPremium ? (
+          {!subscription.isPremium && monthlyReflectionCount >= 7 ? (
             <Pressable
               onPress={() => navigation.navigate("Subscription")}
               accessibilityRole="button"
