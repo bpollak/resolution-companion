@@ -654,6 +654,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const stream = await getOpenAI().chat.completions.create({
           model: OPENAI_MODEL,
           messages,
+          // gpt-5 models reason before responding; minimal effort keeps
+          // first-token latency chat-grade and stops reasoning tokens from
+          // consuming the completion budget (which returned empty replies).
+          reasoning_effort: "minimal",
           max_completion_tokens: 1024,
           stream: true,
         });
@@ -722,7 +726,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             },
           ],
           response_format: { type: "json_object" },
-          max_completion_tokens: 2048,
+          // "low" keeps some reasoning for the rule-heavy extraction; budget
+          // raised because reasoning tokens count against it.
+          reasoning_effort: "low",
+          max_completion_tokens: 4096,
         });
 
         const content = response.choices[0]?.message?.content || "{}";
@@ -754,7 +761,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const response = await getOpenAI().chat.completions.create({
           model: OPENAI_MODEL,
           messages,
-          max_completion_tokens: 1024,
+          reasoning_effort: "minimal",
+          max_completion_tokens: 2048,
         });
 
         const content = response.choices[0]?.message?.content || "";

@@ -169,6 +169,15 @@ export async function sendChatMessageStreaming(
         if (idleTimer) clearTimeout(idleTimer);
         es.close();
         streamDone = true;
+        if (!fullContent) {
+          // Stream ended without any text — never leave an empty bubble
+          reject(
+            new Error(
+              "The coach didn't send a reply that time. Please try again.",
+            ),
+          );
+          return;
+        }
         if (!queue.processing && queue.pending.length === 0) {
           resolve(fullContent);
         }
