@@ -1,0 +1,74 @@
+# Functional Regression Test Plan — data mutations & propagation
+
+Purpose: every user edit must save and be reflected on every screen that
+derives from it. Run before each release (simulator or device). Items
+marked ✅ passed on 2026-07-07 (simulator, build 29 + fixes); items
+marked ▢ remain for the final device pass.
+
+## A. Schedule (frequency) edits
+
+1. ✅ **Edit an action to Daily** → Journey milestone badge reads "Daily";
+   action day-tags show all 7; Today shows the action and the ring
+   denominator updates; tomorrow preview updates; tab badge count updates.
+2. ✅ **Edit an action to specific days (Wed/Sat)** → badge/day-tags update;
+   Today only shows it on those days.
+3. ✅ **Monthly Consistency recalculates after schedule edits** (denominator
+   = scheduled days month-to-date; number moves immediately).
+4. ✅→🐛→fixed: **Editing an action with legacy invalid frequency values**
+   ("First Thursday") preserved the invalid value alongside new days.
+   Fixed: editor sanitizes frequency to real weekdays on load (commit
+   1eaaf44). ▢ Re-verify on build 33+: open an action, save, confirm only
+   real weekday tags remain.
+
+## B. Logging & backfill
+
+5. ✅ Toggling today's actions (Today + Journey day-detail) updates: ring,
+   chips (streak, consistency + delta), milestone N/21, day-complete state,
+   completed-row collapse. (Regression #1 + #2.)
+6. ▢ **Backfill a past day** from Journey day-detail → streak recomputes
+   (consecutive days), consistency rises, milestone N/21 increments.
+7. ✅ (negative) Days before plan creation don't count toward milestone
+   progress or July consistency (creation-date cutoff; unit-tested).
+8. ▢ Un-toggling a logged action reverses all of the above.
+9. ▢ Future dates cannot be logged (blocked with message).
+
+## C. Title/copy edits
+
+10. ▢ Edit milestone title → Journey list, Today card subtitle, and
+    Journey day-detail subtitle all update.
+11. ▢ Edit action title/kickstart/anchor → Today card and Journey
+    expanded details update.
+
+## D. Structural edits
+
+12. ▢ Add action to a milestone (max 5/plan enforced with alert).
+13. ▢ Delete action (min 3/plan enforced; logs removed; Today updates).
+14. ▢ Delete milestone → its action and logs disappear everywhere;
+    counts/scores recalc.
+15. ✅ (gate) "+ Add milestone" free-tier lock routes to paywall.
+16. ▢ Premium: add milestone → appears with 0/21, schedulable.
+
+## E. Settings propagation
+
+17. ▢ AI Data Sharing OFF → coach/chat gated with consent path to
+    re-enable; ON via consent modal → chat works.
+18. ▢ Notifications toggle + time bucket (Morning/Midday/Evening) →
+    subtitle updates; reminder reschedules.
+19. ▢ Delete My Account & Data → local wipe, server row removed
+    (device_subscriptions + device_ai_usage), app returns to empty state.
+
+## F. Purchase (device only)
+
+20. ✅ Purchase monthly in sandbox (validated 2026-07-07 on device).
+21. ▢ Delete app → reinstall → Restore Purchases → premium returns.
+22. ▢ Premium flips gates everywhere: unlimited check-ins copy, + Add
+    milestone unlocked, Journey premium card hidden, Profile shows
+    Premium Active.
+
+## G. Cross-cutting invariants (check after any mutation)
+
+- Today ring fraction == count of today's scheduled actions.
+- Journey day-detail "N/M done" == Today ring for today.
+- Consistency % identical on Today chip, Journey ring, day-complete card.
+- Streak chip identical on Today and Journey.
+- No day badge ever shows a non-weekday string.
