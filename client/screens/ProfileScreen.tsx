@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   ScrollView,
@@ -35,7 +35,13 @@ import {
   cancelDailyReminder,
   areNotificationsEnabled,
   getNotificationPermissionStatus,
+  getResolvedReminderTime,
+  setUserReminderBucket,
+  REMINDER_BUCKETS,
+  ReminderBucket,
+  ResolvedReminderTime,
 } from "@/lib/notifications";
+import { computeStreak } from "@/lib/progress";
 import { logger } from "@/lib/logger";
 
 const springConfig = {
@@ -157,6 +163,7 @@ export default function ProfileScreen() {
     personas,
     benchmarks,
     actions,
+    dailyLogs,
     reflections,
     clearAllData,
     switchPersona,
@@ -171,6 +178,15 @@ export default function ProfileScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
+  const [reminderTime, setReminderTime] = useState<ResolvedReminderTime | null>(
+    null,
+  );
+
+  // Streak feeds the reminder copy when the schedule is (re)created here
+  const streakCount = useMemo(
+    () => computeStreak(actions, dailyLogs).current,
+    [actions, dailyLogs],
+  );
 
   const handleToggleAiConsent = (value: boolean) => {
     if (value) {
@@ -198,15 +214,24 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     const checkNotificationStatus = async () => {
-      const [enabled, permission] = await Promise.all([
+      const [enabled, permission, resolvedTime] = await Promise.all([
         areNotificationsEnabled(),
         getNotificationPermissionStatus(),
+        getResolvedReminderTime(),
       ]);
       setNotificationsEnabled(enabled);
       setHasPermission(permission);
+      setReminderTime(resolvedTime);
     };
     checkNotificationStatus();
   }, []);
+
+  const handleSelectReminderBucket = async (bucket: ReminderBucket) => {
+    if (Platform.OS === "web") return;
+    Haptics.selectionAsync();
+    await setUserReminderBucket(bucket, { streakCount });
+    setReminderTime(await getResolvedReminderTime());
+  };
 
   const handleToggleNotifications = async (value: boolean) => {
     const isWeb = (Platform.OS as string) === "web";
@@ -218,12 +243,13 @@ export default function ProfileScreen() {
     }
 
     if (value) {
+      const resolved = await getResolvedReminderTime();
       // Give the user context before the OS permission prompt appears
       if (!hasPermission) {
         const proceed = await new Promise<boolean>((resolve) => {
           Alert.alert(
             "Daily Reminders",
-            "Resolution Companion will send one reminder at 8:00 PM on days you haven't finished your actions — it stays quiet once your day is complete. You can turn this off anytime.",
+            `Resolution Companion will send one reminder at ${resolved.label} on days you haven't finished your actions — it stays quiet once your day is complete. You can turn this off anytime.`,
             [
               {
                 text: "Not Now",
@@ -242,9 +268,10 @@ export default function ProfileScreen() {
 
       const granted = await requestNotificationPermissions();
       if (granted) {
-        await scheduleDailyReminder(20, 0);
+        await scheduleDailyReminder({ streakCount });
         setNotificationsEnabled(true);
         setHasPermission(true);
+        setReminderTime(await getResolvedReminderTime());
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
         setHasPermission(false);
@@ -695,9 +722,15 @@ export default function ProfileScreen() {
           >
             {Platform.OS === "web"
               ? "Available on mobile"
-              : notificationsEnabled
-                ? "8:00 PM · skipped once your day is done"
-                : "Off"}
+              : notificationsEnabled && reminderTime
+                ? `Reminder at ${reminderTime.label}${
+                    reminderTime.source === "routine"
+                      ? " — based on your routine"
+                      : ""
+                  } · quiet once your day is done`
+                : notificationsEnabled
+                  ? "On"
+                  : "Off"}
           </ThemedText>
         </View>
         <Switch
@@ -711,6 +744,61 @@ export default function ProfileScreen() {
           disabled={Platform.OS === "web"}
         />
       </View>
+
+      {notificationsEnabled && Platform.OS !== "web" ? (
+        <View
+          style={[
+            styles.bucketRow,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+            },
+          ]}
+        >
+          {(Object.keys(REMINDER_BUCKETS) as ReminderBucket[]).map((bucket) => {
+            const selected = reminderTime?.bucket === bucket;
+            return (
+              <Pressable
+                key={bucket}
+                onPress={() => handleSelectReminderBucket(bucket)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`Remind me in the ${bucket}, at ${REMINDER_BUCKETS[bucket].label}`}
+                style={({ pressed }) => [
+                  styles.bucketOption,
+                  selected && {
+                    backgroundColor: "rgba(0, 217, 255, 0.15)",
+                    borderColor: Colors.dark.accent,
+                  },
+                  { opacity: pressed ? 0.7 : 1 },
+                ]}
+              >
+                <ThemedText
+                  style={[
+                    styles.bucketName,
+                    selected && { color: Colors.dark.accent },
+                  ]}
+                >
+                  {REMINDER_BUCKETS[bucket].name}
+                </ThemedText>
+                <ThemedText
+                  style={[
+                    styles.bucketTime,
+                    {
+                      color: selected
+                        ? Colors.dark.accent
+                        : theme.textSecondary,
+                    },
+                  ]}
+                >
+                  {REMINDER_BUCKETS[bucket].label}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
 
       <View
         style={[
@@ -970,6 +1058,29 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   settingsSubtitle: {
+    ...Typography.caption,
+    marginTop: 2,
+  },
+  bucketRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+  },
+  bucketOption: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  bucketName: {
+    ...Typography.small,
+    fontWeight: "600",
+  },
+  bucketTime: {
     ...Typography.caption,
     marginTop: 2,
   },

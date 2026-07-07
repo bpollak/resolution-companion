@@ -14,8 +14,9 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 
-// Same palette as the onboarding logo's gradient dots
-const BURST_DOTS = [
+// Same palette as the onboarding logo's gradient dots. Exported (with
+// BurstDot) so the milestone celebration reuses the same visual language.
+export const BURST_DOTS = [
   { angle: 0, color: Colors.dark.accent },
   { angle: 60, color: "#FF6B9D" },
   { angle: 120, color: "#9B6BFF" },
@@ -25,7 +26,7 @@ const BURST_DOTS = [
 ];
 const BURST_DISTANCE = 72;
 
-function BurstDot({
+export function BurstDot({
   angle,
   color,
   active,

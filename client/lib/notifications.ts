@@ -7,13 +7,119 @@ import { logger } from "@/lib/logger";
 
 const NOTIFICATION_ID_KEY = "evolve_daily_reminder_id";
 const NOTIFICATIONS_ENABLED_KEY = "evolve_notifications_enabled";
-// "daily" for the repeating 8 PM reminder, or "oneshot:YYYY-MM-DD" while
+// "daily" for the repeating reminder, or "oneshot:YYYY-MM-DD" while
 // tonight's reminder is suppressed and a single reminder is queued for the
 // stored local fire date instead
 const REMINDER_MODE_KEY = "evolve_reminder_mode";
+// The user's explicit Morning/Midday/Evening pick from Profile — the master
+// override for reminder timing
+const REMINDER_BUCKET_USER_KEY = "evolve_reminder_bucket_user";
+// Bucket derived from the persona's anchor habits; used only when the user
+// hasn't picked a time themselves
+const REMINDER_BUCKET_SUGGESTED_KEY = "evolve_reminder_bucket_suggested";
 
-const REMINDER_HOUR = 20;
-const REMINDER_MINUTE = 0;
+export type ReminderBucket = "morning" | "midday" | "evening";
+
+export const REMINDER_BUCKETS: Record<
+  ReminderBucket,
+  { hour: number; minute: number; label: string; name: string }
+> = {
+  morning: { hour: 8, minute: 0, label: "8:00 AM", name: "Morning" },
+  midday: { hour: 12, minute: 0, label: "12:00 PM", name: "Midday" },
+  evening: { hour: 20, minute: 0, label: "8:00 PM", name: "Evening" },
+};
+
+const DEFAULT_BUCKET: ReminderBucket = "evening";
+
+// Keyword → time-of-day mapping for anchor habits ("after my morning
+// coffee", "before bed"). Deliberately conservative: ambiguous anchors
+// ("at my desk") cast no vote.
+const BUCKET_KEYWORDS: Record<ReminderBucket, string[]> = {
+  morning: ["morning", "wake", "coffee", "breakfast", "sunrise", "alarm"],
+  midday: ["lunch", "noon", "midday", "afternoon"],
+  evening: ["dinner", "evening", "bed", "night", "after work", "end of day"],
+};
+
+function isReminderBucket(value: string | null): value is ReminderBucket {
+  return value === "morning" || value === "midday" || value === "evening";
+}
+
+/**
+ * Derive a suggested reminder time bucket from the persona's action anchor
+ * habits. Each anchor casts one vote for the first bucket it matches;
+ * majority wins, ties and no-matches fall back to evening.
+ */
+export function suggestReminderBucket(anchorLinks: string[]): ReminderBucket {
+  const votes: Record<ReminderBucket, number> = {
+    morning: 0,
+    midday: 0,
+    evening: 0,
+  };
+  for (const anchor of anchorLinks) {
+    const text = anchor.toLowerCase();
+    const match = (Object.keys(BUCKET_KEYWORDS) as ReminderBucket[]).find(
+      (bucket) => BUCKET_KEYWORDS[bucket].some((kw) => text.includes(kw)),
+    );
+    if (match) votes[match]++;
+  }
+
+  let bestBucket: ReminderBucket = DEFAULT_BUCKET;
+  let bestVotes = votes[DEFAULT_BUCKET]; // ties go to the evening default
+  for (const bucket of ["morning", "midday"] as ReminderBucket[]) {
+    if (votes[bucket] > bestVotes) {
+      bestBucket = bucket;
+      bestVotes = votes[bucket];
+    }
+  }
+  return bestBucket;
+}
+
+export async function getUserReminderBucket(): Promise<ReminderBucket | null> {
+  try {
+    const value = await AsyncStorage.getItem(REMINDER_BUCKET_USER_KEY);
+    return isReminderBucket(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export interface ResolvedReminderTime {
+  hour: number;
+  minute: number;
+  label: string;
+  bucket: ReminderBucket;
+  /** "user" = Profile pick · "routine" = derived from anchors · "default" = 8 PM fallback. */
+  source: "user" | "routine" | "default";
+}
+
+/** The reminder time currently in effect: user pick > anchor-derived > 8 PM. */
+export async function getResolvedReminderTime(): Promise<ResolvedReminderTime> {
+  const userBucket = await getUserReminderBucket();
+  if (userBucket) {
+    return {
+      ...REMINDER_BUCKETS[userBucket],
+      bucket: userBucket,
+      source: "user",
+    };
+  }
+  try {
+    const suggested = await AsyncStorage.getItem(REMINDER_BUCKET_SUGGESTED_KEY);
+    if (isReminderBucket(suggested)) {
+      return {
+        ...REMINDER_BUCKETS[suggested],
+        bucket: suggested,
+        source: "routine",
+      };
+    }
+  } catch {
+    // fall through to the default
+  }
+  return {
+    ...REMINDER_BUCKETS[DEFAULT_BUCKET],
+    bucket: DEFAULT_BUCKET,
+    source: "default",
+  };
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -25,9 +131,22 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Streak-aware evening copy: loss aversion beats a generic nag, but only
-// once there is actually a streak at stake
-function reminderBody(streakCount?: number): string {
+export interface ReminderOptions {
+  /** Explicit fire time; omitted = the resolved bucket time (user pick > routine > 8 PM). */
+  hour?: number;
+  minute?: number;
+  /** Current streak, for loss-aversion copy once there is one worth keeping. */
+  streakCount?: number;
+  /** Consecutive fully-missed scheduled days, for gentle lapsed-state copy. */
+  missedRun?: number;
+}
+
+// Copy priority: a lapsed user gets the plan-can-bend re-engagement voice,
+// a streaking user gets loss aversion, everyone else the generic nudge
+function reminderBody(streakCount?: number, missedRun?: number): string {
+  if (missedRun !== undefined && missedRun >= 2) {
+    return "Rough couple of days? Your plan can bend — the 2-minute version still counts.";
+  }
   if (streakCount !== undefined && streakCount >= 2) {
     return `5 minutes to keep a ${streakCount}-day streak alive.`;
   }
@@ -74,9 +193,7 @@ async function cancelScheduled(): Promise<void> {
 }
 
 export async function scheduleDailyReminder(
-  hour: number = REMINDER_HOUR,
-  minute: number = REMINDER_MINUTE,
-  streakCount?: number,
+  options: ReminderOptions = {},
 ): Promise<string | null> {
   if (Platform.OS === "web") {
     return null;
@@ -85,10 +202,14 @@ export async function scheduleDailyReminder(
   try {
     await cancelScheduled();
 
+    const resolved = await getResolvedReminderTime();
+    const hour = options.hour ?? resolved.hour;
+    const minute = options.minute ?? resolved.minute;
+
     const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: "Resolution Companion",
-        body: reminderBody(streakCount),
+        body: reminderBody(options.streakCount, options.missedRun),
         sound: true,
         data: { type: "daily-reminder" },
       },
@@ -127,11 +248,12 @@ export async function cancelDailyReminder(): Promise<void> {
 
 /**
  * The day is already complete: silence tonight's reminder and queue a single
- * streak-aware reminder for tomorrow evening instead. The repeating daily
- * reminder is restored by ensureReminderScheduled on a later app open.
+ * streak-aware reminder for tomorrow (at the resolved bucket time) instead.
+ * The repeating daily reminder is restored by ensureReminderScheduled on a
+ * later app open.
  */
 export async function suppressReminderForToday(
-  streakCount?: number,
+  options: ReminderOptions = {},
 ): Promise<void> {
   if (Platform.OS === "web") {
     return;
@@ -143,14 +265,20 @@ export async function suppressReminderForToday(
 
     await cancelScheduled();
 
+    const resolved = await getResolvedReminderTime();
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(REMINDER_HOUR, REMINDER_MINUTE, 0, 0);
+    tomorrow.setHours(
+      options.hour ?? resolved.hour,
+      options.minute ?? resolved.minute,
+      0,
+      0,
+    );
 
     const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: "Resolution Companion",
-        body: reminderBody(streakCount),
+        body: reminderBody(options.streakCount, options.missedRun),
         sound: true,
         data: { type: "daily-reminder" },
       },
@@ -175,9 +303,10 @@ export async function suppressReminderForToday(
  * Restores the repeating daily reminder after a one-shot (queued when a day
  * completed) has fired or gone stale. No-op when reminders are disabled,
  * on web, while daily mode is intact, or while a future one-shot is pending.
+ * Cheap and idempotent — safe to call on every app foreground.
  */
 export async function ensureReminderScheduled(
-  streakCount?: number,
+  options: ReminderOptions = {},
 ): Promise<void> {
   if (Platform.OS === "web") {
     return;
@@ -194,20 +323,82 @@ export async function ensureReminderScheduled(
       const fireDate = mode.slice("oneshot:".length);
       const todayStr = getLocalDateString(new Date());
       // A one-shot due today is equivalent to the daily reminder (both fire
-      // tonight at 8 PM), so anything due today or earlier can be replaced
-      // with the repeating schedule
+      // today at the resolved time), so anything due today or earlier can be
+      // replaced with the repeating schedule
       if (fireDate <= todayStr) {
-        await scheduleDailyReminder(
-          REMINDER_HOUR,
-          REMINDER_MINUTE,
-          streakCount,
-        );
+        await scheduleDailyReminder(options);
       }
     } else if (!id) {
-      await scheduleDailyReminder(REMINDER_HOUR, REMINDER_MINUTE, streakCount);
+      await scheduleDailyReminder(options);
     }
   } catch (error) {
     logger.error("Failed to ensure reminder schedule:", error);
+  }
+}
+
+/**
+ * Persist the user's explicit Morning/Midday/Evening choice from Profile and
+ * move the pending reminder to the new time. When tonight is suppressed
+ * (day already complete, one-shot queued for tomorrow), the one-shot is
+ * re-queued at the new time instead of resurrecting tonight's reminder.
+ */
+export async function setUserReminderBucket(
+  bucket: ReminderBucket,
+  options: ReminderOptions = {},
+): Promise<void> {
+  if (Platform.OS === "web") {
+    return;
+  }
+
+  try {
+    await AsyncStorage.setItem(REMINDER_BUCKET_USER_KEY, bucket);
+
+    const enabled = await AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
+    if (enabled !== "true") return;
+
+    const mode = await AsyncStorage.getItem(REMINDER_MODE_KEY);
+    const todayStr = getLocalDateString(new Date());
+    if (
+      mode?.startsWith("oneshot:") &&
+      mode.slice("oneshot:".length) > todayStr
+    ) {
+      await suppressReminderForToday(options);
+    } else {
+      await scheduleDailyReminder(options);
+    }
+  } catch (error) {
+    logger.error("Failed to set reminder time:", error);
+  }
+}
+
+/**
+ * Records the anchor-derived reminder bucket. When the suggestion changed,
+ * the user hasn't picked a time themselves, and the repeating reminder is
+ * active, the reminder moves to the newly suggested time.
+ */
+export async function applySuggestedReminderBucket(
+  bucket: ReminderBucket,
+  options: ReminderOptions = {},
+): Promise<void> {
+  if (Platform.OS === "web") {
+    return;
+  }
+
+  try {
+    const previous = await AsyncStorage.getItem(REMINDER_BUCKET_SUGGESTED_KEY);
+    if (previous === bucket) return;
+    await AsyncStorage.setItem(REMINDER_BUCKET_SUGGESTED_KEY, bucket);
+
+    const [enabled, userBucket, mode] = await Promise.all([
+      AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY),
+      getUserReminderBucket(),
+      AsyncStorage.getItem(REMINDER_MODE_KEY),
+    ]);
+    if (enabled === "true" && !userBucket && mode === "daily") {
+      await scheduleDailyReminder(options);
+    }
+  } catch (error) {
+    logger.error("Failed to apply suggested reminder time:", error);
   }
 }
 

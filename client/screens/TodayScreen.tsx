@@ -32,13 +32,20 @@ import Animated, {
 
 import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
-import { computeMomentumScore, computeStreak } from "@/lib/progress";
+import {
+  computeLapse,
+  computeMomentumScore,
+  computeStreak,
+  computeWeeklyRecap,
+} from "@/lib/progress";
 import {
   areNotificationsEnabled,
   requestNotificationPermissions,
   scheduleDailyReminder,
   suppressReminderForToday,
   ensureReminderScheduled,
+  applySuggestedReminderBucket,
+  suggestReminderBucket,
 } from "@/lib/notifications";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
@@ -46,11 +53,22 @@ import { CircularProgress } from "@/components/CircularProgress";
 import { ActionCard, CompletedActionRow } from "@/components/ActionCard";
 import { StatChip } from "@/components/StatChip";
 import { DayCompleteCard } from "@/components/DayCompleteCard";
+import {
+  WeeklyRecapCard,
+  BeatLastWeekCard,
+} from "@/components/WeeklyRecapCard";
+import { LapseRecoveryCard } from "@/components/LapseRecoveryCard";
 import { Toast } from "@/components/Toast";
 import { logger } from "@/lib/logger";
 
 const CONTEXTUAL_NOTIF_ASK_KEY = "today_contextual_notif_ask_done";
 const FIRST_DAY_COMPLETE_KEY = "today_first_day_complete_seen";
+// Monday of the last-recapped week — the recap card shows once per week
+const WEEKLY_RECAP_SEEN_KEY = "today_weekly_recap_seen_week";
+const WEEKLY_NUDGE_SEEN_KEY = "today_weekly_nudge_seen_week";
+// Date of the most recent fully-missed day the lapse card was dismissed
+// for — the card only returns when a new missed day occurs
+const LAPSE_DISMISSED_KEY = "today_lapse_card_dismissed_for";
 
 function getLocalDateString(date: Date): string {
   const year = date.getFullYear();
@@ -315,6 +333,16 @@ export default function TodayScreen() {
   );
   const streakCurrent = streak.current;
 
+  const lapse = useMemo(
+    () => computeLapse(actions, dailyLogs),
+    [actions, dailyLogs],
+  );
+
+  const weeklyRecap = useMemo(
+    () => computeWeeklyRecap(actions, dailyLogs),
+    [actions, dailyLogs],
+  );
+
   // Monthly Consistency as of last night (today's logs removed): the
   // difference is what today's check-offs have earned. Month-to-date window
   // matches personaAlignment in AppContext — ONE long-arc metric everywhere.
@@ -336,6 +364,68 @@ export default function TodayScreen() {
   // reopening the app shows the completed state without re-animating
   const [celebrateDayComplete, setCelebrateDayComplete] = useState(false);
   const [isFirstDayComplete, setIsFirstDayComplete] = useState(false);
+
+  // Weekly recap / nudge / lapse-card dismissal state loads from AsyncStorage
+  // once; nothing renders until it has, so cards never flash-then-vanish
+  const [recapPrefsLoaded, setRecapPrefsLoaded] = useState(false);
+  const [recapSeenWeek, setRecapSeenWeek] = useState<string | null>(null);
+  const [nudgeSeenWeek, setNudgeSeenWeek] = useState<string | null>(null);
+  const [lapseDismissedFor, setLapseDismissedFor] = useState<string | null>(
+    null,
+  );
+
+  useEffect(() => {
+    Promise.all([
+      AsyncStorage.getItem(WEEKLY_RECAP_SEEN_KEY),
+      AsyncStorage.getItem(WEEKLY_NUDGE_SEEN_KEY),
+      AsyncStorage.getItem(LAPSE_DISMISSED_KEY),
+    ]).then(([recapSeen, nudgeSeen, lapseSeen]) => {
+      setRecapSeenWeek(recapSeen);
+      setNudgeSeenWeek(nudgeSeen);
+      setLapseDismissedFor(lapseSeen);
+      setRecapPrefsLoaded(true);
+    });
+  }, []);
+
+  const dismissWeeklyRecap = () => {
+    setRecapSeenWeek(weeklyRecap.weekKey);
+    AsyncStorage.setItem(WEEKLY_RECAP_SEEN_KEY, weeklyRecap.weekKey);
+  };
+
+  const dismissBeatLastWeek = () => {
+    setNudgeSeenWeek(weeklyRecap.weekKey);
+    AsyncStorage.setItem(WEEKLY_NUDGE_SEEN_KEY, weeklyRecap.weekKey);
+  };
+
+  const dismissLapseCard = () => {
+    if (!lapse.lastMissedDate) return;
+    setLapseDismissedFor(lapse.lastMissedDate);
+    AsyncStorage.setItem(LAPSE_DISMISSED_KEY, lapse.lastMissedDate);
+  };
+
+  const showWeeklyRecap =
+    recapPrefsLoaded &&
+    weeklyRecap.lastWeek.scheduled > 0 &&
+    recapSeenWeek !== weeklyRecap.weekKey;
+
+  // Sunday goal-gradient nudge: this week is exactly one log away from
+  // beating last week, and there is still something loggable today
+  const showBeatLastWeekNudge =
+    recapPrefsLoaded &&
+    !showWeeklyRecap &&
+    today.getDay() === 0 &&
+    !dayComplete &&
+    scheduledTodayCount > completedTodayCount &&
+    weeklyRecap.lastWeek.completed > 0 &&
+    weeklyRecap.currentWeekCompleted === weeklyRecap.lastWeek.completed &&
+    nudgeSeenWeek !== weeklyRecap.weekKey;
+
+  const showLapseCard =
+    recapPrefsLoaded &&
+    lapse.missedDays >= 2 &&
+    !dayComplete &&
+    lapse.lastMissedDate !== null &&
+    lapse.lastMissedDate !== lapseDismissedFor;
 
   // Latest per-render data for the stable handleToggle callback — widening
   // its deps would re-render every memoized ActionCard on each toggle
@@ -435,15 +525,26 @@ export default function TodayScreen() {
     });
   }, [celebrateDayComplete]);
 
-  // Evening reminder goes quiet once the day is done; restored otherwise
+  // Daily reminder maintenance: record the anchor-derived time suggestion,
+  // go quiet once the day is done, restore the chain otherwise
+  const lapseMissedDays = lapse.missedDays;
   useEffect(() => {
     if (Platform.OS === "web" || !hasOnboarded) return;
-    if (dayComplete) {
-      suppressReminderForToday(streakCurrent);
-    } else {
-      ensureReminderScheduled(streakCurrent);
-    }
-  }, [dayComplete, hasOnboarded, streakCurrent]);
+    const copy = { streakCount: streakCurrent, missedRun: lapseMissedDays };
+    (async () => {
+      await applySuggestedReminderBucket(
+        suggestReminderBucket(actions.map((a) => a.anchorLink)),
+        copy,
+      );
+      if (dayComplete) {
+        await suppressReminderForToday(copy);
+      } else {
+        await ensureReminderScheduled(copy);
+      }
+    })().catch((error) => {
+      logger.error("Failed to maintain reminder schedule:", error);
+    });
+  }, [dayComplete, hasOnboarded, streakCurrent, lapseMissedDays, actions]);
 
   // Contextual permission ask, once, right after the first day-complete —
   // the moment the user has something worth protecting
@@ -461,7 +562,7 @@ export default function TodayScreen() {
       setTimeout(() => {
         Alert.alert(
           "Keep the streak alive?",
-          "Want a nudge tomorrow so the streak holds? One evening reminder — and only on days you haven't finished.",
+          "Want a nudge tomorrow so the streak holds? One daily reminder, timed to your routine — and only on days you haven't finished.",
           [
             { text: "Not now", style: "cancel" },
             {
@@ -469,9 +570,11 @@ export default function TodayScreen() {
               onPress: async () => {
                 const granted = await requestNotificationPermissions();
                 if (granted) {
-                  await scheduleDailyReminder(20, 0, streakCurrent);
+                  await scheduleDailyReminder({ streakCount: streakCurrent });
                   // Today is already complete — stay quiet tonight
-                  await suppressReminderForToday(streakCurrent);
+                  await suppressReminderForToday({
+                    streakCount: streakCurrent,
+                  });
                 }
               },
             },
@@ -534,6 +637,20 @@ export default function TodayScreen() {
           </ThemedText>
           <ThemedText style={styles.personaName}>{persona.name}</ThemedText>
         </View>
+
+        {showWeeklyRecap ? (
+          <WeeklyRecapCard
+            recap={weeklyRecap}
+            streak={streak}
+            personaName={persona.name}
+            onDismiss={dismissWeeklyRecap}
+          />
+        ) : showBeatLastWeekNudge ? (
+          <BeatLastWeekCard
+            lastWeekCompleted={weeklyRecap.lastWeek.completed}
+            onDismiss={dismissBeatLastWeek}
+          />
+        ) : null}
 
         <View style={styles.alignmentContainer}>
           <CircularProgress
@@ -607,6 +724,15 @@ export default function TodayScreen() {
             </ThemedText>
           </View>
         </View>
+
+        {showLapseCard ? (
+          <LapseRecoveryCard
+            onCoachPress={() => {
+              navigation.navigate("ReflectTab" as never);
+            }}
+            onDismiss={dismissLapseCard}
+          />
+        ) : null}
 
         {dayComplete ? (
           <DayCompleteCard

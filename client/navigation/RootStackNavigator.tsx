@@ -17,7 +17,7 @@ export type RootStackParamList = {
   Onboarding: undefined;
   BenchmarkEditor: { benchmarkId?: string };
   ActionEditor: { benchmarkId: string; actionId?: string };
-  Subscription: undefined;
+  Subscription: { source?: "coach-limit" } | undefined;
   Profile: undefined;
 };
 

@@ -5,8 +5,11 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
   ReactNode,
 } from "react";
+import { AppState, Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   storage,
   Persona,
@@ -18,9 +21,12 @@ import {
 } from "@/lib/storage";
 import {
   buildLogIndex,
+  computeLapse,
   computeMilestoneProgress,
   computeMomentumScore,
+  computeStreak,
 } from "@/lib/progress";
+import { ensureReminderScheduled } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
 
 interface AppContextType {
@@ -37,6 +43,9 @@ interface AppContextType {
   subscription: Subscription;
   monthlyReflectionCount: number;
   aiConsent: boolean;
+  /** Milestone that just flipped to completed and hasn't been celebrated yet. */
+  milestoneCelebration: Benchmark | null;
+  dismissMilestoneCelebration: () => void;
 
   setHasOnboarded: (value: boolean) => Promise<void>;
   setAiConsent: (value: boolean) => Promise<void>;
@@ -79,6 +88,10 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const FREE_REFLECTION_LIMIT = 10;
 
+// Milestone ids whose completion celebration has already been shown — each
+// milestone is celebrated exactly once, ever (survives restarts)
+const MILESTONE_CELEBRATION_SEEN_KEY = "milestone_celebration_seen_ids";
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [hasOnboarded, setHasOnboardedState] = useState(false);
   const [persona, setPersonaState] = useState<Persona | null>(null);
@@ -111,6 +124,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   });
   const [monthlyReflectionCount, setMonthlyReflectionCount] = useState(0);
   const [aiConsent, setAiConsentState] = useState(false);
+  const [milestoneCelebration, setMilestoneCelebration] =
+    useState<Benchmark | null>(null);
+  // Ids already being flipped this session, so the effect below can't fire
+  // twice for the same milestone while an update is in flight
+  const milestoneFlipsInFlight = useRef<Set<string>>(new Set());
 
   const refreshData = useCallback(async () => {
     try {
@@ -383,6 +401,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // status field to "completed". Runs whenever logs change, converges after
   // one pass, and never flips completed milestones back — progress only fills.
   // Legacy benchmarks stored without a status are treated as active.
+  // A fresh flip also queues the one-time celebration moment (seen ids are
+  // persisted, so a milestone is never celebrated twice).
   useEffect(() => {
     if (isLoading) return;
     const logIndex = buildLogIndex(dailyLogs);
@@ -393,15 +413,65 @@ export function AppProvider({ children }: { children: ReactNode }) {
         actions,
         logIndex,
       );
-      if (completed) {
-        updateBenchmark(benchmark.id, { status: "completed" }).catch(
-          (error) => {
-            logger.error("Failed to mark milestone completed:", error);
-          },
-        );
+      if (!completed || milestoneFlipsInFlight.current.has(benchmark.id)) {
+        continue;
       }
+      milestoneFlipsInFlight.current.add(benchmark.id);
+      (async () => {
+        const updated = await updateBenchmark(benchmark.id, {
+          status: "completed",
+        });
+        const raw = await AsyncStorage.getItem(MILESTONE_CELEBRATION_SEEN_KEY);
+        let seen: string[] = [];
+        try {
+          seen = raw ? JSON.parse(raw) : [];
+        } catch {
+          seen = [];
+        }
+        if (seen.includes(benchmark.id)) return;
+        await AsyncStorage.setItem(
+          MILESTONE_CELEBRATION_SEEN_KEY,
+          JSON.stringify([...seen, benchmark.id]),
+        );
+        setMilestoneCelebration(
+          updated ?? { ...benchmark, status: "completed" },
+        );
+      })().catch((error) => {
+        milestoneFlipsInFlight.current.delete(benchmark.id);
+        logger.error("Failed to mark milestone completed:", error);
+      });
     }
   }, [isLoading, benchmarks, actions, dailyLogs, updateBenchmark]);
+
+  const dismissMilestoneCelebration = useCallback(() => {
+    setMilestoneCelebration(null);
+  }, []);
+
+  // Reminder-chain self-heal: a suppressed night (one-shot queued for
+  // "tomorrow") followed by days of absence leaves no repeating reminder.
+  // Every app foreground restores the chain — idempotent and cheap, a no-op
+  // unless reminders are enabled and the schedule is actually stale.
+  const reminderStateRef = useRef({ hasOnboarded, actions, dailyLogs });
+  useEffect(() => {
+    reminderStateRef.current = { hasOnboarded, actions, dailyLogs };
+  });
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      const {
+        hasOnboarded: onboarded,
+        actions: currentActions,
+        dailyLogs: currentLogs,
+      } = reminderStateRef.current;
+      if (!onboarded) return;
+      ensureReminderScheduled({
+        streakCount: computeStreak(currentActions, currentLogs).current,
+        missedRun: computeLapse(currentActions, currentLogs).missedDays,
+      });
+    });
+    return () => subscription.remove();
+  }, []);
 
   const canUseReflection = useCallback(() => {
     if (subscription.isPremium) return true;
@@ -432,6 +502,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       subscription,
       monthlyReflectionCount,
       aiConsent,
+      milestoneCelebration,
+      dismissMilestoneCelebration,
       setHasOnboarded,
       setAiConsent,
       setPersona,
@@ -470,6 +542,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       subscription,
       monthlyReflectionCount,
       aiConsent,
+      milestoneCelebration,
+      dismissMilestoneCelebration,
       setHasOnboarded,
       setAiConsent,
       setPersona,

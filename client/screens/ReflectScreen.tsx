@@ -94,7 +94,9 @@ export default function ReflectScreen() {
     }
 
     if (!canUseReflection()) {
-      navigation.navigate("Subscription");
+      // Arriving from the 10/10 gate: the paywall opens with a context card
+      // explaining exactly which cap was hit
+      navigation.navigate("Subscription", { source: "coach-limit" });
       return;
     }
 

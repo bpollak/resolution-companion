@@ -294,6 +294,175 @@ export function computeMomentumScore(
     : 0;
 }
 
+export interface WeekStats {
+  /** Scheduled action-days in the week (per-action creation dates respected). */
+  scheduled: number;
+  /** Completed action-days in the week. */
+  completed: number;
+  /** Weekday name with the most completions; null when nothing was completed. */
+  bestDay: string | null;
+  /** 0-100 completion rate; 0 when nothing was scheduled. */
+  score: number;
+}
+
+export interface WeeklyRecapResult {
+  /** Local YYYY-MM-DD of the Monday starting the recapped (last complete) week. */
+  weekKey: string;
+  /** The most recent complete Monday–Sunday week. */
+  lastWeek: WeekStats;
+  /** The week before that, for consistency movement. */
+  prevWeek: WeekStats;
+  /** Completions so far in the current week (Monday through today). */
+  currentWeekCompleted: number;
+}
+
+/** Local midnight of the Monday starting the week containing `date`. */
+function startOfWeek(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d;
+}
+
+/**
+ * Weekly recap math for the WeeklyRecapCard, derived purely from actions +
+ * logs. Weeks run Monday–Sunday in local time. Days before an action existed
+ * are never counted as scheduled (each action counts from its creation date),
+ * so a first-week user isn't shown a week of phantom misses.
+ */
+export function computeWeeklyRecap(
+  actions: ElementalAction[],
+  logs: DailyLog[],
+  today: Date = new Date(),
+): WeeklyRecapResult {
+  const logIndex = buildLogIndex(logs);
+  const actionStartDates = new Map<string, string>(
+    actions.map((a) => [a.id, getLocalDateString(new Date(a.createdAt))]),
+  );
+
+  const todayLocal = new Date(today);
+  todayLocal.setHours(0, 0, 0, 0);
+
+  const weekStats = (weekStart: Date, endCap: Date | null): WeekStats => {
+    let scheduled = 0;
+    let completed = 0;
+    let bestDay: string | null = null;
+    let bestDayCompleted = 0;
+
+    const cursor = new Date(weekStart);
+    for (let i = 0; i < 7; i++) {
+      if (endCap && cursor > endCap) break;
+      const dateStr = getLocalDateString(cursor);
+      const dayOfWeek = cursor.toLocaleDateString("en-US", {
+        weekday: "long",
+      });
+
+      let dayCompleted = 0;
+      for (const action of actions) {
+        if (!action.frequency.includes(dayOfWeek)) continue;
+        const startDate = actionStartDates.get(action.id);
+        if (startDate !== undefined && dateStr < startDate) continue;
+        scheduled++;
+        if (logIndex.get(`${action.id}|${dateStr}`)?.status) {
+          completed++;
+          dayCompleted++;
+        }
+      }
+      if (dayCompleted > bestDayCompleted) {
+        bestDayCompleted = dayCompleted;
+        bestDay = dayOfWeek;
+      }
+
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return {
+      scheduled,
+      completed,
+      bestDay,
+      score: scheduled > 0 ? Math.round((completed / scheduled) * 100) : 0,
+    };
+  };
+
+  const currentWeekStart = startOfWeek(todayLocal);
+  const lastWeekStart = new Date(currentWeekStart);
+  lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+  const prevWeekStart = new Date(currentWeekStart);
+  prevWeekStart.setDate(prevWeekStart.getDate() - 14);
+
+  return {
+    weekKey: getLocalDateString(lastWeekStart),
+    lastWeek: weekStats(lastWeekStart, null),
+    prevWeek: weekStats(prevWeekStart, null),
+    currentWeekCompleted: weekStats(currentWeekStart, todayLocal).completed,
+  };
+}
+
+export interface LapseResult {
+  /**
+   * Consecutive fully-missed scheduled days in the most recent run, ending
+   * yesterday at the latest (today is pending, never a lapse). Rest days
+   * bridge the run; a day with any completion ends it.
+   */
+  missedDays: number;
+  /** Local YYYY-MM-DD of the most recent fully-missed day; null when no lapse. */
+  lastMissedDate: string | null;
+}
+
+const LAPSE_LOOKBACK_DAYS = 30;
+
+/**
+ * Lapse detection for the gentle re-engagement card and the lapsed reminder
+ * copy: how many consecutive scheduled days (walking back from yesterday)
+ * were fully missed. Days before an action existed are never missed.
+ */
+export function computeLapse(
+  actions: ElementalAction[],
+  logs: DailyLog[],
+): LapseResult {
+  if (actions.length === 0) {
+    return { missedDays: 0, lastMissedDate: null };
+  }
+
+  const logIndex = buildLogIndex(logs);
+  const actionStartDates = new Map<string, string>(
+    actions.map((a) => [a.id, getLocalDateString(new Date(a.createdAt))]),
+  );
+
+  let missedDays = 0;
+  let lastMissedDate: string | null = null;
+
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  cursor.setDate(cursor.getDate() - 1);
+
+  for (let i = 0; i < LAPSE_LOOKBACK_DAYS; i++) {
+    const dateStr = getLocalDateString(cursor);
+    const dayOfWeek = cursor.toLocaleDateString("en-US", { weekday: "long" });
+
+    let scheduled = 0;
+    let completed = 0;
+    for (const action of actions) {
+      if (!action.frequency.includes(dayOfWeek)) continue;
+      const startDate = actionStartDates.get(action.id);
+      if (startDate !== undefined && dateStr < startDate) continue;
+      scheduled++;
+      if (logIndex.get(`${action.id}|${dateStr}`)?.status) completed++;
+    }
+
+    if (scheduled > 0) {
+      if (completed > 0) break;
+      missedDays++;
+      if (lastMissedDate === null) lastMissedDate = dateStr;
+    }
+    // Rest days bridge the run — keep walking back
+
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  return { missedDays, lastMissedDate };
+}
+
 export interface StreakResult {
   /** Fully-completed scheduled days in the active run (today joins live once complete). */
   current: number;

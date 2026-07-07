@@ -10,8 +10,10 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/query-client";
 
 import RootStackNavigator from "@/navigation/RootStackNavigator";
+import { navigationRef } from "@/navigation/navigationRef";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { MilestoneCelebrationHost } from "@/components/MilestoneCompleteModal";
 import { AppProvider } from "@/context/AppContext";
 
 export default function App() {
@@ -22,9 +24,12 @@ export default function App() {
           <SafeAreaProvider>
             <GestureHandlerRootView style={styles.root}>
               <KeyboardProvider>
-                <NavigationContainer>
+                <NavigationContainer ref={navigationRef}>
                   <OfflineBanner />
                   <RootStackNavigator />
+                  {/* Milestone celebrations overlay whichever screen the
+                      completion flip happened on */}
+                  <MilestoneCelebrationHost />
                 </NavigationContainer>
                 <StatusBar style="light" />
               </KeyboardProvider>

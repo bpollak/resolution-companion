@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as WebBrowser from "expo-web-browser";
@@ -26,6 +26,10 @@ import { iapService, PRODUCT_IDS, IAPProduct, IAPPurchase } from "@/lib/iap";
 import { logger } from "@/lib/logger";
 
 type PlanType = "monthly" | "yearly";
+
+type SubscriptionRouteParams = {
+  Subscription: { source?: "coach-limit" } | undefined;
+};
 
 // Fallback expiry estimate when the server didn't return a store-validated date
 function estimateExpiryIso(plan: PlanType): string {
@@ -234,6 +238,10 @@ function CompareRow({
 export default function SubscriptionScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const route = useRoute<RouteProp<SubscriptionRouteParams, "Subscription">>();
+  // Presentation-only framing: arriving from the coach 10/10 gate explains
+  // which cap was hit before the generic hero
+  const fromCoachLimit = route.params?.source === "coach-limit";
   const { theme, isDark } = useTheme();
   const { subscription, refreshData } = useApp();
   const [selectedPlan, setSelectedPlan] = useState<PlanType>("yearly");
@@ -727,6 +735,29 @@ export default function SubscriptionScreen() {
           </View>
         ) : null}
 
+        {fromCoachLimit ? (
+          <View
+            style={[
+              styles.contextCard,
+              {
+                backgroundColor: isDark
+                  ? Colors.dark.backgroundDefault
+                  : Colors.light.backgroundDefault,
+              },
+            ]}
+          >
+            <Feather
+              name="message-circle"
+              size={20}
+              color={Colors.dark.accent}
+            />
+            <ThemedText style={styles.contextCardText}>
+              You&rsquo;ve used all 10 free check-ins this month &mdash; Premium
+              removes the cap.
+            </ThemedText>
+          </View>
+        ) : null}
+
         <View style={styles.heroSection}>
           <View
             style={[styles.heroIcon, { backgroundColor: Colors.dark.accent }]}
@@ -1052,6 +1083,21 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: Spacing.lg,
+  },
+  contextCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: "rgba(0, 217, 255, 0.3)",
+    marginBottom: Spacing.xl,
+  },
+  contextCardText: {
+    ...Typography.small,
+    flex: 1,
+    lineHeight: 20,
   },
   heroSection: {
     alignItems: "center",
