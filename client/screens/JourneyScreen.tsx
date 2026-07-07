@@ -228,6 +228,7 @@ export default function JourneyScreen() {
     personaAlignment,
     toggleDailyLog,
     canAddBenchmark,
+    subscription,
   } = useApp();
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -1139,6 +1140,55 @@ export default function JourneyScreen() {
             </View>
           ),
         )}
+
+        {!subscription.isPremium ? (
+          <Pressable
+            onPress={() => navigation.navigate("Subscription")}
+            accessibilityRole="button"
+            accessibilityLabel="Go further with Premium. Unlimited milestones, plans and coaching. See plans."
+            style={({ pressed }) => [
+              styles.premiumCard,
+              {
+                backgroundColor: isDark
+                  ? Colors.dark.backgroundDefault
+                  : Colors.light.backgroundDefault,
+                opacity: pressed ? 0.9 : 1,
+                transform: [{ scale: pressed ? 0.98 : 1 }],
+              },
+            ]}
+          >
+            <View style={styles.premiumIconRing}>
+              <View style={styles.premiumIconCore}>
+                <Feather name="zap" size={20} color={Colors.dark.accent} />
+              </View>
+              <View style={[styles.premiumDot, styles.premiumDotTop]} />
+              <View style={[styles.premiumDot, styles.premiumDotRight]} />
+              <View style={[styles.premiumDot, styles.premiumDotBottom]} />
+            </View>
+            <View style={styles.premiumContent}>
+              <ThemedText style={styles.premiumTitle}>
+                Go further with Premium
+              </ThemedText>
+              <ThemedText
+                style={[styles.premiumSubtitle, { color: theme.textSecondary }]}
+              >
+                Unlimited milestones, plans &amp; coaching
+              </ThemedText>
+            </View>
+            <View style={styles.premiumCta}>
+              <ThemedText
+                style={[styles.premiumCtaText, { color: Colors.dark.accent }]}
+              >
+                See plans
+              </ThemedText>
+              <Feather
+                name="chevron-right"
+                size={16}
+                color={Colors.dark.accent}
+              />
+            </View>
+          </Pressable>
+        ) : null}
       </ScrollView>
       <Toast
         message={toastMessage}
@@ -1546,5 +1596,71 @@ const styles = StyleSheet.create({
   frequencyTagText: {
     ...Typography.caption,
     fontWeight: "500",
+  },
+  premiumCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: "rgba(0, 217, 255, 0.35)",
+    marginTop: Spacing.xl,
+  },
+  premiumIconRing: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1.5,
+    borderColor: "rgba(0, 217, 255, 0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  premiumIconCore: {
+    width: 34,
+    height: 34,
+    borderRadius: BorderRadius.full,
+    backgroundColor: "rgba(0, 217, 255, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  premiumDot: {
+    position: "absolute",
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
+  premiumDotTop: {
+    top: -3,
+    backgroundColor: Colors.dark.accent,
+  },
+  premiumDotRight: {
+    right: -3,
+    backgroundColor: "#9B6BFF",
+  },
+  premiumDotBottom: {
+    bottom: -3,
+    backgroundColor: "#FF6B9D",
+  },
+  premiumContent: {
+    flex: 1,
+    gap: 2,
+  },
+  premiumTitle: {
+    ...Typography.body,
+    fontWeight: "600",
+  },
+  premiumSubtitle: {
+    ...Typography.small,
+    lineHeight: 20,
+  },
+  premiumCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  premiumCtaText: {
+    ...Typography.small,
+    fontWeight: "600",
   },
 });
