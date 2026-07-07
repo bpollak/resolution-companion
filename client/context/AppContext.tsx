@@ -32,8 +32,10 @@ interface AppContextType {
   isLoading: boolean;
   subscription: Subscription;
   monthlyReflectionCount: number;
+  aiConsent: boolean;
 
   setHasOnboarded: (value: boolean) => Promise<void>;
+  setAiConsent: (value: boolean) => Promise<void>;
   setPersona: (persona: Omit<Persona, "id" | "createdAt">) => Promise<Persona>;
   addPersona: (persona: Omit<Persona, "id" | "createdAt">) => Promise<Persona>;
   switchPersona: (id: string) => Promise<void>;
@@ -100,6 +102,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     purchasedAt: null,
   });
   const [monthlyReflectionCount, setMonthlyReflectionCount] = useState(0);
+  const [aiConsent, setAiConsentState] = useState(false);
 
   const refreshData = useCallback(async () => {
     try {
@@ -113,6 +116,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         reflectionsData,
         subscriptionData,
         reflectionCountData,
+        aiConsentData,
       ] = await Promise.all([
         storage.getHasOnboarded(),
         storage.getActivePersona(),
@@ -123,10 +127,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         storage.getReflections(),
         storage.getSubscription(),
         storage.getMonthlyReflectionCount(),
+        storage.getAiConsent(),
       ]);
 
       setSubscriptionState(subscriptionData);
       setMonthlyReflectionCount(reflectionCountData.count);
+      setAiConsentState(aiConsentData);
 
       setHasOnboardedState(onboarded);
       setPersonaState(personaData);
@@ -168,6 +174,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setHasOnboarded = async (value: boolean) => {
     await storage.setHasOnboarded(value);
     setHasOnboardedState(value);
+  };
+
+  const setAiConsent = async (value: boolean) => {
+    await storage.setAiConsent(value);
+    setAiConsentState(value);
   };
 
   const setPersona = async (personaData: Omit<Persona, "id" | "createdAt">) => {
@@ -305,6 +316,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       purchasedAt: null,
     });
     setMonthlyReflectionCount(0);
+    setAiConsentState(false);
   };
 
   const upgradeToPremium = async (plan: "monthly" | "yearly") => {
@@ -360,7 +372,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isLoading,
         subscription,
         monthlyReflectionCount,
+        aiConsent,
         setHasOnboarded,
+        setAiConsent,
         setPersona,
         addPersona,
         switchPersona,

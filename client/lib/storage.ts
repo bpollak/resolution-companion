@@ -15,6 +15,7 @@ const STORAGE_KEYS = {
   SUBSCRIPTION: "subscription",
   MONTHLY_REFLECTION_COUNT: "monthlyReflectionCount",
   DEVICE_ID: "deviceId",
+  AI_CONSENT: "aiConsent",
 };
 
 export interface Persona {
@@ -471,6 +472,17 @@ export const storage = {
       STORAGE_KEYS.ONBOARDING_MESSAGES,
       JSON.stringify(messages),
     );
+  },
+
+  // Apple guideline 5.1.1(i): AI features may only send data to OpenAI after
+  // the user has explicitly agreed. Defaults to false until consent is given.
+  async getAiConsent(): Promise<boolean> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.AI_CONSENT);
+    return value === "true";
+  },
+
+  async setAiConsent(value: boolean): Promise<void> {
+    await AsyncStorage.setItem(STORAGE_KEYS.AI_CONSENT, String(value));
   },
 
   // Keeps DEVICE_ID: server-side subscription records are keyed by it, so

@@ -25,6 +25,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
+import { AIConsentModal } from "@/components/AIConsentModal";
 import Constants from "expo-constants";
 
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
@@ -165,10 +166,37 @@ export default function ProfileScreen() {
     subscription,
     canAddPersona,
     monthlyReflectionCount,
+    aiConsent,
+    setAiConsent,
   } = useApp();
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+
+  const handleToggleAiConsent = (value: boolean) => {
+    if (value) {
+      // Re-enabling must go through the full disclosure, same as first use
+      setShowConsentModal(true);
+      return;
+    }
+    const message =
+      "Your messages will no longer be sent to OpenAI, and AI onboarding and coaching check-ins will be unavailable until you turn this back on.";
+    if (Platform.OS === "web") {
+      if (window.confirm(message)) {
+        setAiConsent(false);
+      }
+      return;
+    }
+    Alert.alert("Turn Off AI Data Sharing?", message, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Turn Off",
+        style: "destructive",
+        onPress: () => setAiConsent(false),
+      },
+    ]);
+  };
 
   useEffect(() => {
     const checkNotificationStatus = async () => {
@@ -685,6 +713,45 @@ export default function ProfileScreen() {
         />
       </View>
 
+      <View
+        style={[
+          styles.settingsRow,
+          {
+            backgroundColor: isDark
+              ? Colors.dark.backgroundDefault
+              : Colors.light.backgroundDefault,
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.settingsIcon,
+            { backgroundColor: "rgba(0, 217, 255, 0.1)" },
+          ]}
+        >
+          <Feather name="message-circle" size={20} color={Colors.dark.accent} />
+        </View>
+        <View style={styles.settingsContent}>
+          <ThemedText style={styles.settingsTitle}>AI Data Sharing</ThemedText>
+          <ThemedText
+            style={[styles.settingsSubtitle, { color: theme.textSecondary }]}
+          >
+            {aiConsent
+              ? "On — chat messages are sent to OpenAI"
+              : "Off — AI coaching disabled"}
+          </ThemedText>
+        </View>
+        <Switch
+          value={aiConsent}
+          onValueChange={handleToggleAiConsent}
+          trackColor={{
+            false: theme.backgroundSecondary,
+            true: Colors.dark.accent,
+          }}
+          thumbColor="#FFFFFF"
+        />
+      </View>
+
       <SettingsRow
         icon="info"
         title="About Resolution Companion"
@@ -745,6 +812,15 @@ export default function ProfileScreen() {
         subtitle="Remove all data from device and servers"
         onPress={handleDeleteAccount}
         destructive
+      />
+
+      <AIConsentModal
+        visible={showConsentModal}
+        onAgree={async () => {
+          setShowConsentModal(false);
+          await setAiConsent(true);
+        }}
+        onDecline={() => setShowConsentModal(false)}
       />
     </ScrollView>
   );
