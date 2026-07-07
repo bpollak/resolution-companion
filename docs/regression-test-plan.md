@@ -2,8 +2,35 @@
 
 Purpose: every user edit must save and be reflected on every screen that
 derives from it. Run before each release (simulator or device). Items
-marked ✅ passed on 2026-07-07 (simulator, build 29 + fixes); items
+marked ✅ passed on 2026-07-07 (simulator, builds 29 and 36); items
 marked ▢ remain for the final device pass.
+
+## 2026-07-07 build 36 simulator pass — results
+
+- ✅ Fresh onboarding end-to-end: consent gate → chat (first token ~2 s
+  after the gpt-5-mini reasoning_effort fix) → extraction → sane plan
+  (exact sorted weekdays, evening anchors honoring stated availability).
+- ✅ Weekday ordering everywhere: editor chips Mon-first, saved order
+  sorted, "Every day"/"Weekdays"/"Mon · Wed · Fri" labels, milestone
+  detail "On:" row tells the schedule→anchor story.
+- ✅ Schedule edit propagation (item 1): Sun-only → Every day updated
+  badge ("Daily"), detail row, Today ring denominator, tab badge count,
+  tomorrow preview ("3 actions").
+- ✅ Logging propagation (item 5): ring 1/1, streak 1-day, consistency
+  chip/card agree, day-complete card, delayed reminder ask.
+- ✅ Coach tab: momentum, "10 of 10 free check-ins" framing, check-in
+  invite bubble, no premature upsell. Premium discovery card on Journey.
+- 🐛→fixed (build 37): Monthly Consistency divided by scheduled days
+  before the plan existed (perfect day one showed 8%); creation-date
+  cutoff added to computeMomentumScore + unit tests.
+- 🐛→fixed (build 37): milestone detail text occasionally rendered as a
+  single clipped line on first layout (Fabric measurement); explicit
+  width + flexShrink on actionDetailText.
+- ⚠️ Simulator-only: Daily Reminders toggle cannot enable (notifications
+  lib intentionally returns false when !Device.isDevice) — but the
+  pre-permission context alert also did not appear on switch tap while
+  the adjacent AI Data Sharing switch alert works. ▢ Verify the
+  reminders toggle end-to-end on a physical device (item 18).
 
 ## A. Schedule (frequency) edits
 
