@@ -86,8 +86,8 @@ export function AIConsentModal({
             <ThemedText
               style={[styles.subtitle, { color: theme.textSecondary }]}
             >
-              Before you chat with your AI coach, here's exactly what happens
-              with your data.
+              Before you chat with your AI coach, here&apos;s exactly what
+              happens with your data.
             </ThemedText>
 
             {DISCLOSURE_ITEMS.map((item) => (
