@@ -497,12 +497,14 @@
       .phone-mockup {
         width: 220px;
         height: auto;
-        aspect-ratio: 1206 / 2622;
-        background: var(--bg-card);
-        border-radius: 32px;
-        border: 2px solid var(--border);
+        background: #16161f;
+        padding: 9px;
+        border-radius: 44px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
         overflow: hidden;
-        box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+        box-shadow:
+          inset 0 0 0 2px rgba(0, 0, 0, 0.6),
+          0 30px 60px rgba(0, 0, 0, 0.4);
         position: relative;
         flex-shrink: 0;
       }
@@ -510,7 +512,8 @@
       .phone-mockup.featured {
         width: 260px;
         height: auto;
-        aspect-ratio: 1206 / 2622;
+        padding: 10px;
+        border-radius: 50px;
         z-index: 2;
         border-color: var(--accent);
         box-shadow:
@@ -542,10 +545,11 @@
       }
 
       .phone-screen-image {
-        height: 100%;
         width: 100%;
+        aspect-ratio: 1206 / 2622;
         overflow: hidden;
-        border-radius: 30px;
+        border-radius: 34px;
+        background: #000;
       }
 
       .phone-screen-image img {
@@ -1263,9 +1267,9 @@
       .mission-phone {
         width: 320px;
         height: auto;
-        aspect-ratio: 1206 / 2622;
-        background: var(--bg-card);
-        border-radius: 44px;
+        background: #16161f;
+        padding: 11px;
+        border-radius: 54px;
         border: 3px solid rgba(139, 92, 246, 0.5);
         overflow: hidden;
         box-shadow:
@@ -1277,7 +1281,7 @@
       }
 
       .mission-phone .phone-screen-image {
-        border-radius: 41px;
+        border-radius: 42px;
       }
 
       /* Support Section */
@@ -2497,7 +2501,7 @@
           </p>
           <div class="hero-buttons">
             <a href="#download" class="btn-primary">
-              Start Free Today
+              Start Your Journey
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
@@ -2759,7 +2763,7 @@
             </div>
             <div class="quiz-cta">
               <a href="#download" class="btn-primary"
-                >Start Your Full Journey</a
+                >Start Your Journey</a
               >
               <button class="quiz-restart" onclick="restartQuiz()">
                 Take Quiz Again
@@ -3011,8 +3015,8 @@
           <div class="section-label">How It Works</div>
           <h2 class="section-title">Your AI Coach, Always There</h2>
           <p class="section-subtitle">
-            Get personalized guidance through real-time chat conversations and
-            monthly reflection check-ins.
+            Get personalized coaching to review your progress and receive
+            guidance — every check-in is a natural conversation.
           </p>
         </div>
 
@@ -3032,10 +3036,10 @@
                 </svg>
               </div>
               <div>
-                <h4>Real-Time Chat</h4>
+                <h4>Chat-Based Check-ins</h4>
                 <p>
-                  Have natural conversations with your AI coach whenever you
-                  need guidance, motivation, or help overcoming obstacles.
+                  Every check-in is a real back-and-forth with your coach — ask
+                  for guidance, motivation, or help getting unstuck.
                 </p>
               </div>
             </div>
@@ -3511,7 +3515,7 @@
                   <td class="premium-col">Unlimited</td>
                 </tr>
                 <tr>
-                  <td>AI Coaching Sessions</td>
+                  <td>Coaching Check-ins</td>
                   <td>10/month</td>
                   <td class="premium-col">Unlimited</td>
                 </tr>
