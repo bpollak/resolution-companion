@@ -558,7 +558,9 @@ export default function TodayScreen() {
       ]);
       if (asked || enabled || cancelled) return;
       await AsyncStorage.setItem(CONTEXTUAL_NOTIF_ASK_KEY, "true");
-      // Let the celebration land before asking
+      // Let the celebration fully land before asking — the day-complete
+      // card is the best moment in the app; don't step on it (verified on
+      // simulator: 1.5s still interrupted the burst animation)
       setTimeout(() => {
         Alert.alert(
           "Keep the streak alive?",
@@ -580,7 +582,7 @@ export default function TodayScreen() {
             },
           ],
         );
-      }, 1500);
+      }, 4000);
     })();
     return () => {
       cancelled = true;
@@ -696,7 +698,7 @@ export default function TodayScreen() {
             />
             <StatChip
               icon={<Feather name="zap" size={14} color={Colors.dark.accent} />}
-              text={`${today.toLocaleDateString("en-US", { month: "long" })} ${personaAlignment}%`}
+              text={`${today.toLocaleDateString("en-US", { month: "long" })} · ${personaAlignment}%`}
               detail={
                 momentumDelta > 0
                   ? `▲${momentumDelta}`

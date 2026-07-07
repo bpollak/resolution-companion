@@ -138,12 +138,12 @@ const INTRO_PAGES: IntroPage[] = [
     details: [
       {
         icon: "user",
-        text: "Free: 1 persona, 10 check-ins/month",
+        text: "Free: 1 plan, 10 coaching check-ins/month",
         color: ACCENT_COLORS.cyan,
       },
       {
         icon: "star",
-        text: "Premium: Unlimited personas & coaching",
+        text: "Premium: Unlimited plans & coaching",
         color: ACCENT_COLORS.orange,
       },
       {
@@ -182,6 +182,30 @@ export default function OnboardingScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [conversationComplete, setConversationComplete] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [extractStage, setExtractStage] = useState(0);
+
+  const EXTRACT_STAGES = [
+    "Reading your goals...",
+    "Shaping who you're becoming...",
+    "Designing your milestones...",
+    "Scheduling your first week...",
+  ];
+
+  // Cycle staged copy while the plan is being built so the wait reads as
+  // craftsmanship rather than a stuck spinner
+  React.useEffect(() => {
+    if (!isExtracting) {
+      setExtractStage(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setExtractStage((prev) =>
+        prev < EXTRACT_STAGES.length - 1 ? prev + 1 : prev,
+      );
+    }, 4000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExtracting]);
   const [streamingText, setStreamingText] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
 
@@ -427,7 +451,7 @@ export default function OnboardingScreen() {
       if (Platform.OS === "web") {
         if (
           window.confirm(
-            "We couldn't create your persona. Check your internet connection and retry?",
+            "We couldn't create your plan. Check your internet connection and retry?",
           )
         ) {
           setIsExtracting(false);
@@ -437,7 +461,7 @@ export default function OnboardingScreen() {
       } else {
         Alert.alert(
           "Connection Issue",
-          "We couldn't create your persona. Please check your internet connection and try again.",
+          "We couldn't create your plan. Please check your internet connection and try again.",
           [
             { text: "Not Now", style: "cancel" },
             { text: "Retry", onPress: () => finishOnboarding() },
@@ -697,10 +721,10 @@ export default function OnboardingScreen() {
           style={[styles.progressStepLabel, { color: theme.textSecondary }]}
         >
           {conversationComplete
-            ? "Ready to create your persona"
+            ? "Step 3 of 3: Build your plan"
             : messageCount.current >= 1
-              ? "Step 2 of 2: Tell us more"
-              : "Step 1 of 2: Share your vision"}
+              ? "Step 2 of 3: Tell us more"
+              : "Step 1 of 3: Share your vision"}
         </ThemedText>
       </View>
 
@@ -739,7 +763,7 @@ export default function OnboardingScreen() {
             <ThemedText
               style={[styles.progressText, { color: theme.textSecondary }]}
             >
-              Ready to create your persona
+              Your plan is ready to build
             </ThemedText>
           </View>
           <Pressable
@@ -750,7 +774,7 @@ export default function OnboardingScreen() {
             ]}
           >
             <ThemedText style={styles.finishButtonText}>
-              Create My Persona
+              Create My Plan
             </ThemedText>
             <Feather name="arrow-right" size={20} color="#000000" />
           </Pressable>
@@ -768,7 +792,7 @@ export default function OnboardingScreen() {
           <ThemedText
             style={[styles.extractingText, { color: theme.textSecondary }]}
           >
-            Creating your personalized evolution plan...
+            {EXTRACT_STAGES[extractStage]}
           </ThemedText>
         </View>
       ) : null}
