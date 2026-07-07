@@ -97,6 +97,18 @@ class IAPService {
 
       await Promise.race([connectPromise, timeoutPromise]);
       this.isConnected = true;
+      // Finish any transactions left unfinished by earlier sessions (e.g. a
+      // purchase whose server validation failed). Unfinished transactions
+      // block every future purchase attempt on this device with an
+      // immediate StoreKit error, so sweep them before anything else.
+      try {
+        const stuck = await IAP.getAvailablePurchases();
+        for (const purchase of stuck ?? []) {
+          try {
+            await IAP.finishTransaction({ purchase, isConsumable: false });
+          } catch {}
+        }
+      } catch {}
       return true;
     } catch (error) {
       logger.error("Failed to connect to IAP:", error);
@@ -215,8 +227,14 @@ class IAPService {
           };
 
           const validation = await this.validateReceipt(iapPurchase);
-          if (validation.valid) {
+          // Always finish the transaction — for subscriptions the
+          // entitlement lives with Apple and can be re-validated via
+          // Restore Purchases at any time. Leaving it unfinished blocks
+          // every future purchase attempt on this device.
+          try {
             await iap.finishTransaction({ purchase, isConsumable: false });
+          } catch {}
+          if (validation.valid) {
             iapPurchase.expirationDate = validation.expirationDate;
             onPurchase(iapPurchase);
           } else {
@@ -337,6 +355,11 @@ class IAPService {
           iapPurchase.expirationDate = validation.expirationDate;
           purchases.push(iapPurchase);
         }
+        // Acknowledge regardless of validity so stale transactions can't
+        // clog the queue (entitlements remain restorable from Apple).
+        try {
+          await IAP.finishTransaction({ purchase, isConsumable: false });
+        } catch {}
       }
 
       return purchases;
