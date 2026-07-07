@@ -106,9 +106,16 @@ export default function ActionEditorScreen() {
   const [anchorLink, setAnchorLink] = useState(
     existingAction?.anchorLink || "",
   );
-  const [frequency, setFrequency] = useState<string[]>(
-    existingAction?.frequency || ["Monday", "Wednesday", "Friday"],
-  );
+  // Drop any legacy non-weekday values (e.g. "First Thursday" from early
+  // AI-generated plans) so they can't survive an edit-save round trip
+  const [frequency, setFrequency] = useState<string[]>(() => {
+    const valid = (existingAction?.frequency || []).filter((d) =>
+      DAYS.includes(d),
+    );
+    return valid.length > 0 || existingAction
+      ? valid
+      : ["Monday", "Wednesday", "Friday"];
+  });
   const [isSaving, setIsSaving] = useState(false);
 
   const toggleDay = (day: string) => {
