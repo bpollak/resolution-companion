@@ -1,9 +1,9 @@
 import type { Benchmark, ElementalAction, DailyLog } from "@/lib/storage";
 
 /**
- * Pure progress/score math shared by AppContext, CalendarScreen, and
- * ProgressScreen. All date keys use LOCAL calendar dates (YYYY-MM-DD) and
- * local weekdays, matching how TodayScreen/CalendarScreen write daily logs.
+ * Pure progress/score math shared by AppContext, JourneyScreen, and
+ * TodayScreen. All date keys use LOCAL calendar dates (YYYY-MM-DD) and
+ * local weekdays, matching how TodayScreen/JourneyScreen write daily logs.
  * Deriving either from UTC (toISOString / new Date("YYYY-MM-DD")) shifts the
  * day for western timezones and silently drops scheduled-day completions.
  */
@@ -142,6 +142,107 @@ export function computeBenchmarkProgress(
   });
 }
 
+/** Default consistency target: a milestone completes after this many fully-completed scheduled days. */
+export const MILESTONE_TARGET_DAYS = 21;
+
+export interface MilestoneActionProgress {
+  action: ElementalAction;
+  /** Scheduled days (since the milestone was created) on which this action was completed. */
+  daysDone: number;
+}
+
+export interface MilestoneProgressResult {
+  benchmark: Benchmark;
+  actions: MilestoneActionProgress[];
+  /** Completed scheduled days counted toward the target, capped at `target`. */
+  daysDone: number;
+  target: number;
+  /** 0-100, fill-only — misses never subtract. */
+  progress: number;
+  /** True once the target is reached (or the benchmark is already marked completed). */
+  completed: boolean;
+}
+
+/**
+ * Milestone consistency target: a benchmark (milestone) completes when its
+ * scheduled action(s) have been fully completed on MILESTONE_TARGET_DAYS
+ * scheduled days since the benchmark was created.
+ *
+ * Progress is monotonically increasing — it counts completed days only, so a
+ * missed scheduled day never lowers it (endowed progress is never revoked).
+ * A day counts when the benchmark had at least one action scheduled and every
+ * scheduled action that day was completed. Benchmarks already stored as
+ * "completed" stay pinned at the full target regardless of later log edits;
+ * legacy benchmarks without a status field are treated as active.
+ */
+export function computeMilestoneProgress(
+  benchmark: Benchmark,
+  actions: ElementalAction[],
+  logIndex: Map<string, DailyLog>,
+  target: number = MILESTONE_TARGET_DAYS,
+): MilestoneProgressResult {
+  const benchmarkActions = actions.filter(
+    (a) => a.benchmarkId === benchmark.id,
+  );
+  const alreadyCompleted = benchmark.status === "completed";
+
+  if (benchmarkActions.length === 0) {
+    return {
+      benchmark,
+      actions: [],
+      daysDone: alreadyCompleted ? target : 0,
+      target,
+      progress: alreadyCompleted ? 100 : 0,
+      completed: alreadyCompleted,
+    };
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const startDate = new Date(benchmark.createdAt);
+  startDate.setHours(0, 0, 0, 0);
+
+  const perActionDays = new Map<string, number>(
+    benchmarkActions.map((a) => [a.id, 0]),
+  );
+  let fullDays = 0;
+
+  const cursor = new Date(startDate);
+  while (cursor <= today) {
+    const dateStr = getLocalDateString(cursor);
+    const dayOfWeek = cursor.toLocaleDateString("en-US", { weekday: "long" });
+
+    let scheduled = 0;
+    let completed = 0;
+    for (const action of benchmarkActions) {
+      if (!action.frequency.includes(dayOfWeek)) continue;
+      scheduled++;
+      if (logIndex.get(`${action.id}|${dateStr}`)?.status) {
+        completed++;
+        perActionDays.set(action.id, (perActionDays.get(action.id) ?? 0) + 1);
+      }
+    }
+    if (scheduled > 0 && completed === scheduled) fullDays++;
+
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  const daysDone = alreadyCompleted ? target : Math.min(fullDays, target);
+  const completed = alreadyCompleted || fullDays >= target;
+
+  return {
+    benchmark,
+    actions: benchmarkActions.map((action) => ({
+      action,
+      daysDone: perActionDays.get(action.id) ?? 0,
+    })),
+    daysDone,
+    target,
+    progress: Math.min(100, Math.round((daysDone / target) * 100)),
+    completed,
+  };
+}
+
 /**
  * Completion rate (%) over the last `days` days for already persona-scoped
  * actions and logs. days=7 is the momentum score, days=30 persona alignment.
@@ -200,6 +301,12 @@ export interface StreakResult {
   longest: number;
   /** True while the current run is being held together by the streak shield. */
   shieldUsed: boolean;
+  /**
+   * Local YYYY-MM-DD dates of missed scheduled days that the shield bridged
+   * (within the lookback window). The Journey calendar renders these with a
+   * shield-outline marker instead of the red "missed" ring.
+   */
+  shieldedDays: string[];
 }
 
 const STREAK_LOOKBACK_DAYS = 365;
@@ -224,7 +331,7 @@ export function computeStreak(
   logs: DailyLog[],
 ): StreakResult {
   if (actions.length === 0) {
-    return { current: 0, longest: 0, shieldUsed: false };
+    return { current: 0, longest: 0, shieldUsed: false, shieldedDays: [] };
   }
 
   const logIndex = buildLogIndex(logs);
@@ -253,6 +360,9 @@ export function computeStreak(
   let run = 0;
   let longest = 0;
   let lastBridgedMiss: Date | null = null;
+  // Misses forgiven by the shield at the time they happened (kept even if a
+  // later second miss reset the run — the bridge was real when it was used)
+  const shieldedDays: string[] = [];
 
   // Day-count deltas use Math.round to absorb DST's ±1h on local midnights
   const daysBetween = (from: Date, to: Date) =>
@@ -289,6 +399,7 @@ export function computeStreak(
         lastBridgedMiss = null;
       } else {
         lastBridgedMiss = new Date(cursor);
+        shieldedDays.push(dateStr);
       }
     }
 
@@ -300,5 +411,5 @@ export function computeStreak(
     lastBridgedMiss !== null &&
     daysBetween(lastBridgedMiss, today) <= SHIELD_WINDOW_DAYS;
 
-  return { current: run, longest, shieldUsed };
+  return { current: run, longest, shieldUsed, shieldedDays };
 }

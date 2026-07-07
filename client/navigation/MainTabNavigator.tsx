@@ -2,26 +2,49 @@ import React, { useMemo } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 
 import TodayScreen from "@/screens/TodayScreen";
-import CalendarScreen from "@/screens/CalendarScreen";
+import JourneyScreen from "@/screens/JourneyScreen";
 import ReflectScreen from "@/screens/ReflectScreen";
-import ProgressScreen from "@/screens/ProgressScreen";
-import ProfileScreen from "@/screens/ProfileScreen";
 
 export type MainTabParamList = {
   TodayTab: undefined;
-  CalendarTab: undefined;
+  JourneyTab: undefined;
   ReflectTab: undefined;
-  ProgressTab: undefined;
-  ProfileTab: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
+
+// Profile is settings, not a daily destination: it lives behind this header
+// gear on Today/Journey and opens as a modal stack screen
+function ProfileHeaderButton({ navigation }: { navigation: any }) {
+  const { theme } = useTheme();
+  return (
+    <Pressable
+      onPress={() => navigation.navigate("Profile")}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel="Open profile and settings"
+      style={({ pressed }) => [
+        headerButtonStyles.button,
+        { opacity: pressed ? 0.6 : 1 },
+      ]}
+    >
+      <Feather name="settings" size={20} color={theme.text} />
+    </Pressable>
+  );
+}
+
+const headerButtonStyles = StyleSheet.create({
+  button: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+  },
+});
 
 const DAYS_OF_WEEK = [
   "Sunday",
@@ -140,11 +163,12 @@ export default function MainTabNavigator() {
       <Tab.Screen
         name="TodayTab"
         component={TodayScreen}
-        options={{
+        options={({ navigation }) => ({
           title: "Today",
           tabBarIcon: ({ color, size }) => (
             <Feather name="sun" size={size} color={color} />
           ),
+          headerRight: () => <ProfileHeaderButton navigation={navigation} />,
           tabBarBadge:
             !hasLoggedToday && remainingTasksCount > 0
               ? remainingTasksCount
@@ -157,17 +181,18 @@ export default function MainTabNavigator() {
             minWidth: 18,
             height: 18,
           },
-        }}
+        })}
       />
       <Tab.Screen
-        name="CalendarTab"
-        component={CalendarScreen}
-        options={{
-          title: "Calendar",
+        name="JourneyTab"
+        component={JourneyScreen}
+        options={({ navigation }) => ({
+          title: "Journey",
           tabBarIcon: ({ color, size }) => (
-            <Feather name="calendar" size={size} color={color} />
+            <Feather name="map" size={size} color={color} />
           ),
-        }}
+          headerRight: () => <ProfileHeaderButton navigation={navigation} />,
+        })}
       />
       <Tab.Screen
         name="ReflectTab"
@@ -188,26 +213,6 @@ export default function MainTabNavigator() {
             >
               <Feather name="edit-3" size={20} color="#000000" />
             </View>
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="ProgressTab"
-        component={ProgressScreen}
-        options={{
-          title: "Progress",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="trending-up" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="ProfileTab"
-        component={ProfileScreen}
-        options={{
-          title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="user" size={size} color={color} />
           ),
         }}
       />

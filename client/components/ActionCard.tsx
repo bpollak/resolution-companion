@@ -211,11 +211,96 @@ export const ActionCard = React.memo(function ActionCard({
   );
 });
 
+interface CompletedActionRowProps {
+  action: ElementalAction;
+  onToggle: (actionId: string) => void;
+}
+
+// Completed actions collapse to this compact row so the deck visually clears
+// as the day progresses. Memoized like ActionCard: onToggle must be a stable
+// reference so a toggle only re-renders the row whose log changed.
+export const CompletedActionRow = React.memo(function CompletedActionRow({
+  action,
+  onToggle,
+}: CompletedActionRowProps) {
+  const { theme, isDark } = useTheme();
+  const opacity = useSharedValue(0);
+  const translateY = useSharedValue(6);
+
+  useEffect(() => {
+    opacity.value = withTiming(1, { duration: 250 });
+    translateY.value = withSpring(0, springConfig);
+  }, [opacity, translateY]);
+
+  const rowStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  const handlePress = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onToggle(action.id);
+  };
+
+  return (
+    <Animated.View style={rowStyle}>
+      <Pressable
+        onPress={handlePress}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: true }}
+        accessibilityLabel={action.title}
+        accessibilityHint="Marks this action as not done"
+        style={({ pressed }) => [
+          styles.compactRow,
+          {
+            backgroundColor: isDark
+              ? Colors.dark.backgroundDefault
+              : Colors.light.backgroundDefault,
+            opacity: pressed ? 0.8 : 1,
+          },
+        ]}
+      >
+        <View style={styles.compactCheck}>
+          <Feather name="check" size={14} color="#000000" />
+        </View>
+        <ThemedText
+          style={[styles.compactTitle, { color: theme.textSecondary }]}
+          numberOfLines={1}
+        >
+          {action.title}
+        </ThemedText>
+      </Pressable>
+    </Animated.View>
+  );
+});
+
 const styles = StyleSheet.create({
   container: {
     borderRadius: BorderRadius.md,
     padding: Spacing.lg,
     marginBottom: Spacing.md,
+  },
+  compactRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  compactCheck: {
+    width: 22,
+    height: 22,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.dark.success,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  compactTitle: {
+    ...Typography.body,
+    flex: 1,
+    textDecorationLine: "line-through",
   },
   benchmark: {
     ...Typography.caption,

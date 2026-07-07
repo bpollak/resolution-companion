@@ -16,7 +16,11 @@ import {
   Reflection,
   Subscription,
 } from "@/lib/storage";
-import { computeMomentumScore } from "@/lib/progress";
+import {
+  buildLogIndex,
+  computeMilestoneProgress,
+  computeMomentumScore,
+} from "@/lib/progress";
 import { logger } from "@/lib/logger";
 
 interface AppContextType {
@@ -373,6 +377,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMonthlyReflectionCount(count);
     return count;
   }, []);
+
+  // Milestones are fill-only consistency targets: once a benchmark's action
+  // has been completed on enough scheduled days, flip its (previously dead)
+  // status field to "completed". Runs whenever logs change, converges after
+  // one pass, and never flips completed milestones back — progress only fills.
+  // Legacy benchmarks stored without a status are treated as active.
+  useEffect(() => {
+    if (isLoading) return;
+    const logIndex = buildLogIndex(dailyLogs);
+    for (const benchmark of benchmarks) {
+      if (benchmark.status === "completed") continue;
+      const { completed } = computeMilestoneProgress(
+        benchmark,
+        actions,
+        logIndex,
+      );
+      if (completed) {
+        updateBenchmark(benchmark.id, { status: "completed" }).catch(
+          (error) => {
+            logger.error("Failed to mark milestone completed:", error);
+          },
+        );
+      }
+    }
+  }, [isLoading, benchmarks, actions, dailyLogs, updateBenchmark]);
 
   const canUseReflection = useCallback(() => {
     if (subscription.isPremium) return true;

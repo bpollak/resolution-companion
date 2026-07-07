@@ -44,7 +44,7 @@ ${
 OPENING MESSAGE: Give a brief, friendly welcome. Explain that you'll help them:
 1. Define a clear goal or objective they want to achieve
 2. Create a "persona" - the version of themselves that achieves this goal
-3. Set up key benchmarks (milestones) and daily tasks to get them there
+3. Set up key milestones and small daily actions to get them there
 
 Ask: "What's a goal you're working toward, or something you'd like to accomplish in the next few months?"
 
@@ -54,7 +54,7 @@ Keep the tone motivating and approachable - like chatting with a supportive coac
       ? `
 STAGE 2: The user has shared their goal. Acknowledge it positively in 1 sentence.
 
-Briefly explain that you'll create a persona around this goal - think of it as the "future you" who has achieved it. Then you'll set up benchmarks (key milestones) with simple daily actions to build momentum.
+Briefly explain that you'll create a persona around this goal - think of it as the "future you" who has achieved it. Then you'll set up milestones with simple daily actions to build momentum - each milestone completes once its action has been done consistently.
 
 Suggest 1-2 specific small daily habits that could help them progress. Make them simple and easy to start.
 
@@ -64,7 +64,7 @@ Ask ONE brief follow-up: "Do these sound like good starting points, or do you ha
         ? `
 CRITICAL INSTRUCTION: You have enough information. Your response MUST be a warm, encouraging statement that:
 1. Briefly summarizes their goal
-2. Mentions you'll create their persona with benchmarks and daily actions
+2. Mentions you'll create their persona with milestones and daily actions
 3. Says their personalized plan is ready
 
 DO NOT END WITH A QUESTION. Keep it short and positive - they'll click "Create My Persona" next.
@@ -91,7 +91,7 @@ Return ONLY valid JSON in this exact format:
   ]
 }
 
-IMPORTANT: Create between 3 and 5 benchmarks (minimum 3, maximum 5). Each benchmark should be a meaningful milestone toward their goal, with one specific daily action that builds toward it. Focus on the most relevant areas that emerged from the conversation. Make the kickstart versions extremely easy (under 2 minutes) so they can build momentum from day one.`;
+IMPORTANT: Create between 3 and 5 benchmarks (minimum 3, maximum 5). Each benchmark is presented to the user as a milestone: it completes once its daily action has been done on about 21 scheduled days, so make each one a meaningful, achievable consistency target toward their goal with one specific daily action that builds toward it. Focus on the most relevant areas that emerged from the conversation. Make the kickstart versions extremely easy (under 2 minutes) so they can build momentum from day one.`;
 
 const STREAM_DELAY_MS = 30;
 

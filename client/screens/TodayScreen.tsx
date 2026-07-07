@@ -43,7 +43,7 @@ import {
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { CircularProgress } from "@/components/CircularProgress";
-import { ActionCard } from "@/components/ActionCard";
+import { ActionCard, CompletedActionRow } from "@/components/ActionCard";
 import { StatChip } from "@/components/StatChip";
 import { DayCompleteCard } from "@/components/DayCompleteCard";
 import { Toast } from "@/components/Toast";
@@ -619,7 +619,7 @@ export default function TodayScreen() {
             isFirstEver={isFirstDayComplete}
             celebrate={celebrateDayComplete}
             onTomorrowPress={() => {
-              navigation.navigate("CalendarTab" as never);
+              navigation.navigate("JourneyTab" as never);
             }}
           />
         ) : todayActions.length === 0 ? (
@@ -644,7 +644,7 @@ export default function TodayScreen() {
             {tomorrowActions.length > 0 ? (
               <Pressable
                 onPress={() => {
-                  navigation.navigate("CalendarTab" as never);
+                  navigation.navigate("JourneyTab" as never);
                 }}
                 accessibilityRole="button"
                 accessibilityLabel={`View ${tomorrowActions.length} ${tomorrowActions.length === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
@@ -673,22 +673,35 @@ export default function TodayScreen() {
           </View>
         ) : (
           <>
-            {todayActions.map((action) => {
-              const benchmark = getBenchmarkForAction(action);
-              return (
-                <ActionCard
+            {/* Pending actions stay full-size on top; completed ones collapse
+                to compact rows below, clearing the deck as the day fills */}
+            {todayActions
+              .filter((action) => getLogForAction(action.id)?.status !== true)
+              .map((action) => {
+                const benchmark = getBenchmarkForAction(action);
+                return (
+                  <ActionCard
+                    key={action.id}
+                    action={action}
+                    log={getLogForAction(action.id)}
+                    onToggle={handleToggle}
+                    benchmarkTitle={benchmark?.title}
+                  />
+                );
+              })}
+            {todayActions
+              .filter((action) => getLogForAction(action.id)?.status === true)
+              .map((action) => (
+                <CompletedActionRow
                   key={action.id}
                   action={action}
-                  log={getLogForAction(action.id)}
                   onToggle={handleToggle}
-                  benchmarkTitle={benchmark?.title}
                 />
-              );
-            })}
+              ))}
             {tomorrowActions.length > 0 ? (
               <Pressable
                 onPress={() => {
-                  navigation.navigate("CalendarTab" as never);
+                  navigation.navigate("JourneyTab" as never);
                 }}
                 accessibilityRole="button"
                 accessibilityLabel={`View ${tomorrowActions.length} ${tomorrowActions.length === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
