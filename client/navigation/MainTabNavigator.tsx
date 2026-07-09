@@ -131,19 +131,32 @@ const DAYS_OF_WEEK = [
   "Saturday",
 ];
 
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
 export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
   const { actions, dailyLogs, persona } = useApp();
 
   // "Wednesday, July 8" — pinned under the Today title so the day stays
-  // visible after the screen's own date header scrolls away
+  // visible after the screen's own date header scrolls away. Formatted
+  // manually rather than via toLocaleDateString(options), which Hermes on
+  // iOS can return empty for when Intl data is absent.
   const todayLabel = useMemo(() => {
     const now = new Date();
-    return now.toLocaleDateString(undefined, {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-    });
+    return `${DAYS_OF_WEEK[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}`;
   }, []);
 
   // The badge is an invite, not a nag: it shows only before the first log of
