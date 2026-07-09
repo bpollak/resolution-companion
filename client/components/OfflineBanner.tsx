@@ -20,7 +20,7 @@ export function OfflineBanner() {
   if (!isOffline) return null;
 
   return (
-    <View style={[styles.banner, { top: insets.top }]}>
+    <View pointerEvents="none" style={[styles.banner, { top: insets.top }]}>
       <Feather name="wifi-off" size={14} color="#FFFFFF" />
       <ThemedText style={styles.text}>
         No internet connection. Some features may be unavailable.

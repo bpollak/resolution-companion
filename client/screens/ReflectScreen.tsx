@@ -394,6 +394,7 @@ export default function ReflectScreen() {
           </View>
 
           <ScrollView
+            delaysContentTouches={false}
             style={{ flex: 1 }}
             contentContainerStyle={[
               styles.messageList,
@@ -426,6 +427,7 @@ export default function ReflectScreen() {
   if (!isInSession) {
     return (
       <ScrollView
+        delaysContentTouches={false}
         style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
         contentContainerStyle={{
           paddingTop: headerHeight + Spacing.xl,

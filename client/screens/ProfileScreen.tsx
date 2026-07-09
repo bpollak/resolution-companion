@@ -460,6 +460,7 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView
+      delaysContentTouches={false}
       style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
       contentContainerStyle={{
         paddingTop: headerHeight + Spacing.xl,

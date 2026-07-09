@@ -120,6 +120,7 @@ export function Toast({
 
   return (
     <Animated.View
+      pointerEvents="none"
       style={[
         styles.container,
         animatedStyle,

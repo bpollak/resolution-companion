@@ -569,6 +569,7 @@ export default function OnboardingScreen() {
         </View>
 
         <ScrollView
+          delaysContentTouches={false}
           style={styles.introScroll}
           contentContainerStyle={styles.introPageContent}
           showsVerticalScrollIndicator={false}

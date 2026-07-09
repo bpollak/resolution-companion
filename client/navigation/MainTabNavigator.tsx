@@ -49,6 +49,26 @@ export type MainTabParamList = {
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
+// Tab button with a haptic tick on touch-down. `topSlop` extends the hit
+// area upward — only the raised Coach circle needs it; giving it to the side
+// tabs would steal taps from the bottom edge of screen content.
+function makeTabBarButton(topSlop: number) {
+  return function TabBarButton(
+    props: React.ComponentProps<typeof PlatformPressable>,
+  ) {
+    return (
+      <PlatformPressable
+        {...props}
+        hitSlop={topSlop ? { top: topSlop } : undefined}
+        onPressIn={(ev) => {
+          Haptics.selectionAsync();
+          props.onPressIn?.(ev);
+        }}
+      />
+    );
+  };
+}
+
 // Profile is settings, not a daily destination: it lives behind this header
 // gear on Today/Journey and opens as a modal stack screen
 function ProfileHeaderButton({ navigation }: { navigation: any }) {
@@ -190,26 +210,21 @@ export default function MainTabNavigator() {
     <Tab.Navigator
       initialRouteName="TodayTab"
       screenOptions={{
-        // Don't re-render blurred tabs on every context change; they thaw
-        // with fresh state when focused again
-        freezeOnBlur: true,
         // All three tabs mount once at startup: switching tabs must never
-        // stall the JS thread mid-mount, or the next tap gets swallowed
+        // stall the JS thread mid-mount, or the next tap gets swallowed.
+        // freezeOnBlur is intentionally OFF — its thaw-on-focus frame was
+        // dropping the first tap on a just-focused screen, and the context
+        // value is already memoized so blurred tabs don't thrash without it.
         lazy: false,
-        // A visible transition acknowledges every tab change
-        animation: "shift",
-        // Haptic ack on touch-down plus an upward hit area that covers the
-        // raised Coach circle's overhang above the bar
-        tabBarButton: (props) => (
-          <PlatformPressable
-            {...props}
-            hitSlop={{ top: 12 }}
-            onPressIn={(ev) => {
-              Haptics.selectionAsync();
-              props.onPressIn?.(ev);
-            }}
-          />
-        ),
+        freezeOnBlur: false,
+        // "fade" acknowledges the switch WITHOUT translating controls — a
+        // "shift" slide left the destination's controls moving for ~250ms,
+        // so a quick tap after switching landed on an offset target and missed.
+        animation: "fade",
+        // Default tab button: haptic ack on touch-down, no upward hitSlop
+        // (that would steal the bottom edge of screen content). The Coach
+        // tab overrides this with an upward slop for its raised circle.
+        tabBarButton: makeTabBarButton(0),
         tabBarActiveTintColor: Colors.dark.accent,
         tabBarInactiveTintColor: theme.tabIconDefault,
         tabBarStyle: {
@@ -244,6 +259,7 @@ export default function MainTabNavigator() {
               intensity={100}
               tint={isDark ? "dark" : "light"}
               style={StyleSheet.absoluteFill}
+              pointerEvents="none"
             />
           ) : null,
         headerShown: true,
@@ -261,9 +277,11 @@ export default function MainTabNavigator() {
               intensity={100}
               tint={isDark ? "dark" : "light"}
               style={StyleSheet.absoluteFill}
+              pointerEvents="none"
             />
           ) : (
             <View
+              pointerEvents="none"
               style={[
                 StyleSheet.absoluteFill,
                 { backgroundColor: theme.backgroundRoot },
@@ -333,6 +351,9 @@ export default function MainTabNavigator() {
         component={ReflectScreen}
         options={{
           title: "Coach",
+          // Only this tab's raised circle overhangs the bar, so only it gets
+          // the upward hit-area extension
+          tabBarButton: makeTabBarButton(12),
           // The circle stays a bright call-to-action on every tab; a ring in
           // the text color marks it as the current location when focused
           tabBarIcon: ({ focused }) => (

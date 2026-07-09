@@ -623,6 +623,7 @@ export default function TodayScreen() {
   return (
     <>
       <ScrollView
+        delaysContentTouches={false}
         style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
         decelerationRate="fast"
         contentContainerStyle={{

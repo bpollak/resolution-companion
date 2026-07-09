@@ -706,6 +706,7 @@ export default function SubscriptionScreen() {
       </View>
 
       <ScrollView
+        delaysContentTouches={false}
         contentContainerStyle={[
           styles.content,
           {

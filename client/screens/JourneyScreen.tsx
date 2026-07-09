@@ -497,6 +497,7 @@ export default function JourneyScreen() {
   return (
     <>
       <ScrollView
+        delaysContentTouches={false}
         style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
         decelerationRate="fast"
         contentContainerStyle={{
@@ -733,6 +734,8 @@ export default function JourneyScreen() {
               <Pressable
                 key={index}
                 onPress={() => setSelectedDate(dayInfo.date)}
+                hitSlop={4}
+                pressRetentionOffset={12}
                 style={({ pressed }) => [
                   styles.dayCell,
                   { opacity: pressed ? 0.5 : 1 },

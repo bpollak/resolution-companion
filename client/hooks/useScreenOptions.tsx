@@ -33,9 +33,11 @@ export function useScreenOptions({
           intensity={100}
           tint={isDark ? "dark" : "light"}
           style={StyleSheet.absoluteFill}
+          pointerEvents="none"
         />
       ) : (
         <View
+          pointerEvents="none"
           style={[
             StyleSheet.absoluteFill,
             { backgroundColor: theme.backgroundRoot },
