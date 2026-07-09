@@ -8,6 +8,7 @@ import * as path from "path";
 
 const app = express();
 const log = console.log;
+const SITE_URL = "https://resolutioncompanion.com";
 
 // Railway (and most PaaS hosts) terminate TLS at a reverse proxy. Without this,
 // req.ip is the proxy address — which collapses all per-IP rate limiting into a
@@ -176,6 +177,17 @@ function configureExpoAndLanding(app: express.Application) {
       "/assets",
       express.static(path.join(publicDir, "assets"), { maxAge: "7d" }),
     );
+
+    // Root-level discovery files change with the site and should be reachable
+    // without routing each filename through Express separately.
+    app.use(
+      express.static(publicDir, {
+        dotfiles: "deny",
+        index: false,
+        redirect: false,
+        maxAge: "1h",
+      }),
+    );
   }
 
   const staticBuildDir = path.resolve(process.cwd(), "static-build");
@@ -203,17 +215,9 @@ function configureExpoAndLanding(app: express.Application) {
     res.status(200).send(html);
   };
 
-  app.get("/", (req: Request, res: Response) => {
-    const forwardedProto = req.header("x-forwarded-proto");
-    const protocol = forwardedProto || req.protocol || "https";
-    const forwardedHost = req.header("x-forwarded-host");
-    const host = forwardedHost || req.get("host");
-    const baseUrl = `${protocol}://${host}`;
-    const expsUrl = `${host}`;
-
+  app.get("/", (_req: Request, res: Response) => {
     const html = landingPageTemplate
-      .replace(/BASE_URL_PLACEHOLDER/g, baseUrl)
-      .replace(/EXPS_URL_PLACEHOLDER/g, expsUrl)
+      .replace(/BASE_URL_PLACEHOLDER/g, SITE_URL)
       .replace(/APP_NAME_PLACEHOLDER/g, appName);
 
     sendHtml(res, html);

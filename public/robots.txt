@@ -1,0 +1,23 @@
+# Resolution Companion is a public product and support website.
+# Search, answer-engine, and user-directed retrieval crawlers may access its
+# public pages. Product APIs and native-app bundles are not useful to index.
+
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: GPTBot
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: ClaudeBot
+User-agent: Google-Extended
+Allow: /
+Disallow: /api/
+Disallow: /_expo/
+Disallow: /manifest
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /_expo/
+Disallow: /manifest
+
+Sitemap: https://resolutioncompanion.com/sitemap.xml
