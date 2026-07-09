@@ -118,26 +118,26 @@ domain `resolutioncompanion.com`.
 
 - **App is LIVE** on the App Store (2026-07-09, v1.0, free, id 6757996708).
   Website updated with the live download link.
-- **v1.0.1 update SUBMITTED to review** (2026-07-09, build 47, auto-release on
-  approval, ~48h). Contents: black-screen tab fix (removed `animation`),
-  **consistent active-tab pill** across all three tabs (dropped the Coach
-  circle; stock tab buttons + `tabPress` haptic), **persona-aware Coach**
-  (`getReflectionResponse` injects the active persona name+description into the
-  system prompt), and the full first-tap-reliability pass
-  (`delaysContentTouches={false}` on all ScrollViews, hitSlop/pressRetentionOffset,
-  eager mount). "What's New" + the 2.1(b) subscription review note are set.
-- **🔴 OPEN — DEAD PAYWALL (top priority when resumed):** the two subscriptions
-  are stuck "Waiting for Review", never approved, so on production StoreKit
-  returns no products and the live paywall errors ("couldn't load subscription
-  options"). Client code is correct. Self-serve in the ASC web UI is exhausted.
-  Fix path is (A) Apple Developer Support callback [sure] or (B) an ASC API-key
-  route [gamble] — full decision + steps in the `app-store-resubmission-status`
-  memory ("CURRENT PICKUP POINT"). Submitting 1.0.1 *might* get a reviewer to
-  approve the subs as a side effect, but don't count on it.
+- **v1.0.1 APPROVED & released** (2026-07-09): black-screen tab fix (removed
+  `animation`), consistent active-tab pill across all three tabs,
+  persona-aware Coach (`getReflectionResponse` injects the active persona
+  name+description into the system prompt), first-tap-reliability pass
+  (`delaysContentTouches={false}` on all ScrollViews, hitSlop/
+  pressRetentionOffset, eager mount).
+- **🟡 PAYWALL FIX IN REVIEW:** v1.0.2 (build 49) + BOTH subscriptions
+  submitted together 2026-07-09 ~3:45pm PT per Apple's Guideline 3.1.1
+  instruction ("upload a new binary and resubmit the IAP products"). All
+  "Waiting for Review", auto-release on; new pill-tab-bar screenshots went
+  with it. On approval the subs finally exist on production StoreKit →
+  paywall works (VERIFY after release). If 3.1.1-rejected again → Apple
+  Developer Support callback. Gotcha: the version page's "In-App Purchases
+  and Subscriptions" section never renders on this app — the sub-page
+  "Submit for Review" button is the working path. Details in the
+  `app-store-resubmission-status` memory.
 - **Product direction:** progress-feeling, stickiness, a coherent daily loop.
   See `docs/ux-optimization-plan.md` and `docs/ux-redesign-proposal.md`.
-- **Screenshots** on the App Store still show the pre-pill UI — optional
-  refresh once 1.0.1 is live (not review-blocking).
+- **Screenshots** refreshed everywhere (2026-07-09): App Store 6.9" tier
+  (submitted with 1.0.2) and website (deployed) both show the pill tab bar.
 
 The persistent memory files carry the evolving detail; keep both current.
 Read `app-store-resubmission-status`, `navigation-ux-1-0-1`, and `local-builds`
