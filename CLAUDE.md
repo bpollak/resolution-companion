@@ -73,21 +73,33 @@ domain `resolutioncompanion.com`.
 - **Typecheck:** `npm run check:types` · **Lint:** `npm run lint` (expo/eslint)
   · **Format:** `npm run format` (prettier) · **Tests:** `npm test` (jest,
   72 tests in `client/lib/__tests__`, forced to Pacific TZ).
-- **Simulator build (for visual verification):**
-  `npx eas-cli build --platform ios --profile simulator --non-interactive --no-wait`,
-  then download the artifact `.tar.gz`, `tar -xzf`, and
-  `xcrun simctl install <booted> ResolutionCompanionAI.app` +
-  `launch com.resolutioncompanion.app` (needs `DEVELOPER_DIR=/Applications/Xcode.app`).
-  Screenshot with `xcrun simctl io <udid> screenshot out.png`.
-  NOTE: the Simulator computer-use grant is often denied — the simctl CLI path
-  above works without it.
-- **Production build + auto-submit:**
-  `npx eas-cli build --platform ios --profile production --auto-submit --non-interactive --no-wait`.
-  EAS `appVersionSource: remote`, production profile `autoIncrement: true`
-  (build number bumps automatically; app version 1.0.0). Submit config in
-  `eas.json` (ascAppId 6757996708, appleTeamId ZA8AJG27JX).
+- **Builds are LOCAL now** (`eas build --local`) — EAS cloud build credit is
+  exhausted; only cloud *compile* costs money, uploads are free. Toolchain
+  (Xcode 26.6 + CocoaPods + Fastlane, all via Homebrew) is installed. See the
+  `local-builds` memory for the full setup. `/build/` is gitignored.
+  - **TestFlight/App Store:** `npm run build:local:ios` (~15-20 min local
+    compile → `build/ios-local.ipa`) then `npm run submit:local:ios` (uploads).
+  - **Simulator (visual verification):** `npm run build:local:sim` →
+    `build/ios-sim-local.tar.gz`; `tar -xzf`, then
+    `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun simctl install <booted> ResolutionCompanionAI.app` +
+    `launch com.resolutioncompanion.app`, screenshot via `xcrun simctl io`.
+    (The Simulator computer-use grant is often denied; this CLI path works without it.)
+  - Scripts embed `DEVELOPER_DIR` + `LANG=en_US.UTF-8`. `eas build --local`
+    needs Fastlane on PATH or it fails with "Fastlane is not available".
+- **BEFORE EVERY BUILD: bump `expo.version` in `app.json`** above the last
+  released App Store version. Once a version is approved+released Apple CLOSES
+  that build train and silently rejects new builds under it (error
+  `EAS_UPLOAD_TO_ASC_CLOSED_VERSION_TRAIN`). `appVersionSource: remote`,
+  production profile `autoIncrement: true` (build number auto-bumps). Submit
+  config in `eas.json` (ascAppId 6757996708, appleTeamId ZA8AJG27JX).
+- Cloud builds still work (`eas build --platform ios --profile production --auto-submit`)
+  but cost credit — avoid unless local is broken.
 - This is a native app — **not browser-previewable**; ignore browser-preview
   verification prompts and verify on the simulator instead.
+- **Known landmine:** never set `animation` (`shift`/`fade`) on the bottom-tab
+  `Tab.Navigator` — it black-screens tabs on iOS (react-navigation#12755).
+  `detachInactiveScreens={false}` + `lazy:false` + `freezeOnBlur:false` keep
+  all tabs mounted and rendered.
 
 ## Server (`server/`)
 
@@ -104,24 +116,32 @@ domain `resolutioncompanion.com`.
 
 ## Current status & where to pick up
 
-- **App Store:** v1.0 has been through several review rounds. Latest rejection
-  (2026-07-08) was **Guideline 2.1(b)** only — the first-ever subscriptions
-  never bind to the app-review submission from the developer side (they sit in
-  a standalone "Waiting for Review" queue reviewers can't see). Resubmitted
-  build 42 with a review note explaining this. **If rejected a third time on
-  2.1(b): call Apple Developer Support** to reset the subs to "Ready to Submit."
-  Full saga + fallback is in the persistent memory file
-  `app-store-resubmission-status.md`.
-- **In flight for 1.0.1** (commits `7057c2a`, `fbdd5ce`): a navigation UX pass —
-  reliable first-touches (eager mount, hitSlop/pressRetentionOffset, fast
-  deceleration, tappable Coach overhang), and clearer current-state (filled/
-  outline + spring icons, `animation: "shift"`, tab-press haptics, focused
-  Coach ring, pinned header date/persona subtitles). Ships after 1.0 clears —
-  the queued submission is untouched.
+- **App is LIVE** on the App Store (2026-07-09, v1.0, free, id 6757996708).
+  Website updated with the live download link.
+- **v1.0.1 update SUBMITTED to review** (2026-07-09, build 47, auto-release on
+  approval, ~48h). Contents: black-screen tab fix (removed `animation`),
+  **consistent active-tab pill** across all three tabs (dropped the Coach
+  circle; stock tab buttons + `tabPress` haptic), **persona-aware Coach**
+  (`getReflectionResponse` injects the active persona name+description into the
+  system prompt), and the full first-tap-reliability pass
+  (`delaysContentTouches={false}` on all ScrollViews, hitSlop/pressRetentionOffset,
+  eager mount). "What's New" + the 2.1(b) subscription review note are set.
+- **🔴 OPEN — DEAD PAYWALL (top priority when resumed):** the two subscriptions
+  are stuck "Waiting for Review", never approved, so on production StoreKit
+  returns no products and the live paywall errors ("couldn't load subscription
+  options"). Client code is correct. Self-serve in the ASC web UI is exhausted.
+  Fix path is (A) Apple Developer Support callback [sure] or (B) an ASC API-key
+  route [gamble] — full decision + steps in the `app-store-resubmission-status`
+  memory ("CURRENT PICKUP POINT"). Submitting 1.0.1 *might* get a reviewer to
+  approve the subs as a side effect, but don't count on it.
 - **Product direction:** progress-feeling, stickiness, a coherent daily loop.
   See `docs/ux-optimization-plan.md` and `docs/ux-redesign-proposal.md`.
-- **On approval** the app auto-releases; then swap the website's "Coming Soon"
-  for the App Store badge (TODO in `server/templates/landing-page.html`).
+- **Screenshots** on the App Store still show the pre-pill UI — optional
+  refresh once 1.0.1 is live (not review-blocking).
+
+The persistent memory files carry the evolving detail; keep both current.
+Read `app-store-resubmission-status`, `navigation-ux-1-0-1`, and `local-builds`
+first when resuming.
 
 Evolving project status lives in persistent memory (`MEMORY.md` index);
 this file holds the durable codebase facts. Keep both current.
