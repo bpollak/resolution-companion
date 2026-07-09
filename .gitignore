@@ -49,3 +49,6 @@ app-example
 # attached assets (large binary files)
 /attached_assets/
 .claude/
+
+# Local EAS build artifacts (eas build --local output)
+/build/
