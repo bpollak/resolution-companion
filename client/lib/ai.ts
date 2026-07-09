@@ -306,6 +306,7 @@ export async function getReflectionResponse(
   periodType: string,
   onChunk?: (chunk: string) => void,
   monthlyContext?: MonthlyContext,
+  persona?: { name: string; description: string },
 ): Promise<string> {
   const isFirstMessage = messages.length === 1;
   const ctx = monthlyContext || getMonthlyContext(momentumScore);
@@ -329,9 +330,17 @@ MONTHLY CONTEXT:
 IMPORTANT: Progress only counts from the day they started their plan${startedMidMonth ? " (they started partway through this month)" : ""}. Frame everything around how long THEY have been at it — days since they started — never around the calendar month. Never say they are "ahead of pace" or "behind pace" relative to the month, and never describe pre-start days as missed; those days simply weren't tracked.
 `;
 
+  const identityContext = persona
+    ? `
+WHO THEY ARE BECOMING (the identity they chose — this is the person your coaching is in service of):
+"${persona.name}" — ${persona.description}
+Speak to them as this person-in-progress. Frame feedback around what "${persona.name}" would do, and treat every completed action as a vote for becoming them. Reference this identity naturally (e.g. "the ${persona.name} you're building toward") but NEVER use the word "persona."
+`
+    : "";
+
   const systemMessage: AIMessage = {
     role: "system",
-    content: `You are a supportive coach helping the user with their monthly progress check-in. ${progressContext}
+    content: `You are a supportive coach helping the user with their monthly progress check-in. ${progressContext}${identityContext}
 
 VOICE RULES:
 - NEVER use the word "persona" — say "your plan" or "who you're becoming."

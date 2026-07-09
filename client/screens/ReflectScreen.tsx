@@ -153,6 +153,7 @@ export default function ReflectScreen() {
           setStreamingText((prev) => prev + chunk);
         },
         monthlyContext,
+        { name: persona.name, description: persona.description },
       );
 
       setIsStreaming(false);
@@ -218,6 +219,9 @@ export default function ReflectScreen() {
           setStreamingText((prev) => prev + chunk);
         },
         monthlyContext,
+        persona
+          ? { name: persona.name, description: persona.description }
+          : undefined,
       );
 
       setIsStreaming(false);

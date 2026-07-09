@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { PlatformPressable } from "@react-navigation/elements";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
@@ -11,7 +10,7 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 import { useTheme } from "@/hooks/useTheme";
-import { Colors, Spacing, BorderRadius } from "@/constants/theme";
+import { Colors, Spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { ThemedText } from "@/components/ThemedText";
 
@@ -49,25 +48,49 @@ export type MainTabParamList = {
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-// Tab button with a haptic tick on touch-down. `topSlop` extends the hit
-// area upward — only the raised Coach circle needs it; giving it to the side
-// tabs would steal taps from the bottom edge of screen content.
-function makeTabBarButton(topSlop: number) {
-  return function TabBarButton(
-    props: React.ComponentProps<typeof PlatformPressable>,
-  ) {
-    return (
-      <PlatformPressable
-        {...props}
-        hitSlop={topSlop ? { top: topSlop } : undefined}
-        onPressIn={(ev) => {
-          Haptics.selectionAsync();
-          props.onPressIn?.(ev);
-        }}
-      />
-    );
-  };
+// One consistent active-state treatment for EVERY tab: the focused tab's
+// icon sits in a filled accent "pill"; inactive tabs are a muted outline icon
+// with no fill. Previously Today/Journey used only a color tint while Coach
+// was a permanent accent circle — that read as two different systems, and the
+// active tint was too subtle. Now the pill is the single, obvious "you are
+// here" signal, identical across all three.
+function TabBarIcon({
+  focused,
+  filled,
+  outline,
+}: {
+  focused: boolean;
+  filled: keyof typeof Ionicons.glyphMap;
+  outline: keyof typeof Ionicons.glyphMap;
+}) {
+  const { theme } = useTheme();
+  return (
+    <AnimatedTabIcon focused={focused}>
+      <View
+        style={[
+          tabIconStyles.pill,
+          focused && { backgroundColor: Colors.dark.accent },
+        ]}
+      >
+        <Ionicons
+          name={focused ? filled : outline}
+          size={22}
+          color={focused ? "#0A0A0A" : theme.tabIconDefault}
+        />
+      </View>
+    </AnimatedTabIcon>
+  );
 }
+
+const tabIconStyles = StyleSheet.create({
+  pill: {
+    width: 52,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
 
 // Profile is settings, not a daily destination: it lives behind this header
 // gear on Today/Journey and opens as a modal stack screen
@@ -210,6 +233,13 @@ export default function MainTabNavigator() {
     <Tab.Navigator
       initialRouteName="TodayTab"
       detachInactiveScreens={false}
+      // Haptic tick on every tab press via the stock listener — no custom
+      // tabBarButton wrapper (the stock button is the most reliable tap target)
+      screenListeners={{
+        tabPress: () => {
+          Haptics.selectionAsync();
+        },
+      }}
       screenOptions={{
         // All three tabs mount once at startup and stay attached: switching
         // must never stall the JS thread mid-mount (swallows the next tap) or
@@ -223,10 +253,6 @@ export default function MainTabNavigator() {
         // acknowledge the switch without any cross-fade.
         lazy: false,
         freezeOnBlur: false,
-        // Default tab button: haptic ack on touch-down, no upward hitSlop
-        // (that would steal the bottom edge of screen content). The Coach
-        // tab overrides this with an upward slop for its raised circle.
-        tabBarButton: makeTabBarButton(0),
         tabBarActiveTintColor: Colors.dark.accent,
         tabBarInactiveTintColor: theme.tabIconDefault,
         tabBarStyle: {
@@ -304,14 +330,12 @@ export default function MainTabNavigator() {
           headerTitle: () => (
             <HeaderTitle title="Today" subtitle={todayLabel} />
           ),
-          tabBarIcon: ({ color, size, focused }) => (
-            <AnimatedTabIcon focused={focused}>
-              <Ionicons
-                name={focused ? "sunny" : "sunny-outline"}
-                size={size}
-                color={color}
-              />
-            </AnimatedTabIcon>
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon
+              focused={focused}
+              filled="sunny"
+              outline="sunny-outline"
+            />
           ),
           headerRight: () => <ProfileHeaderButton navigation={navigation} />,
           tabBarBadge:
@@ -336,14 +360,8 @@ export default function MainTabNavigator() {
           headerTitle: () => (
             <HeaderTitle title="Journey" subtitle={persona?.name} />
           ),
-          tabBarIcon: ({ color, size, focused }) => (
-            <AnimatedTabIcon focused={focused}>
-              <Ionicons
-                name={focused ? "map" : "map-outline"}
-                size={size}
-                color={color}
-              />
-            </AnimatedTabIcon>
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon focused={focused} filled="map" outline="map-outline" />
           ),
           headerRight: () => <ProfileHeaderButton navigation={navigation} />,
         })}
@@ -353,27 +371,12 @@ export default function MainTabNavigator() {
         component={ReflectScreen}
         options={{
           title: "Coach",
-          // Only this tab's raised circle overhangs the bar, so only it gets
-          // the upward hit-area extension
-          tabBarButton: makeTabBarButton(12),
-          // The circle stays a bright call-to-action on every tab; a ring in
-          // the text color marks it as the current location when focused
           tabBarIcon: ({ focused }) => (
-            <View
-              style={{
-                backgroundColor: Colors.dark.accent,
-                width: 44,
-                height: 44,
-                borderRadius: BorderRadius.full,
-                alignItems: "center",
-                justifyContent: "center",
-                marginTop: -8,
-                borderWidth: focused ? 2 : 0,
-                borderColor: theme.text,
-              }}
-            >
-              <Feather name="edit-3" size={20} color="#000000" />
-            </View>
+            <TabBarIcon
+              focused={focused}
+              filled="chatbubble-ellipses"
+              outline="chatbubble-ellipses-outline"
+            />
           ),
         }}
       />
