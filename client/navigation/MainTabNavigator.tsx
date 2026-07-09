@@ -1,7 +1,9 @@
 import React, { useMemo } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { Feather } from "@expo/vector-icons";
+import { PlatformPressable } from "@react-navigation/elements";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
+import * as Haptics from "expo-haptics";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
@@ -26,7 +28,8 @@ function ProfileHeaderButton({ navigation }: { navigation: any }) {
   return (
     <Pressable
       onPress={() => navigation.navigate("Profile")}
-      hitSlop={8}
+      hitSlop={12}
+      pressRetentionOffset={16}
       accessibilityRole="button"
       accessibilityLabel="Open profile and settings"
       style={({ pressed }) => [
@@ -94,6 +97,23 @@ export default function MainTabNavigator() {
         // Don't re-render blurred tabs on every context change; they thaw
         // with fresh state when focused again
         freezeOnBlur: true,
+        // All three tabs mount once at startup: switching tabs must never
+        // stall the JS thread mid-mount, or the next tap gets swallowed
+        lazy: false,
+        // A visible transition acknowledges every tab change
+        animation: "shift",
+        // Haptic ack on touch-down plus an upward hit area that covers the
+        // raised Coach circle's overhang above the bar
+        tabBarButton: (props) => (
+          <PlatformPressable
+            {...props}
+            hitSlop={{ top: 12 }}
+            onPressIn={(ev) => {
+              Haptics.selectionAsync();
+              props.onPressIn?.(ev);
+            }}
+          />
+        ),
         tabBarActiveTintColor: Colors.dark.accent,
         tabBarInactiveTintColor: theme.tabIconDefault,
         tabBarStyle: {
@@ -165,8 +185,12 @@ export default function MainTabNavigator() {
         component={TodayScreen}
         options={({ navigation }) => ({
           title: "Today",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="sun" size={size} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? "sunny" : "sunny-outline"}
+              size={size}
+              color={color}
+            />
           ),
           headerRight: () => <ProfileHeaderButton navigation={navigation} />,
           tabBarBadge:
@@ -188,8 +212,12 @@ export default function MainTabNavigator() {
         component={JourneyScreen}
         options={({ navigation }) => ({
           title: "Journey",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="map" size={size} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? "map" : "map-outline"}
+              size={size}
+              color={color}
+            />
           ),
           headerRight: () => <ProfileHeaderButton navigation={navigation} />,
         })}
@@ -199,7 +227,9 @@ export default function MainTabNavigator() {
         component={ReflectScreen}
         options={{
           title: "Coach",
-          tabBarIcon: ({ color, size }) => (
+          // The circle stays a bright call-to-action on every tab; a ring in
+          // the text color marks it as the current location when focused
+          tabBarIcon: ({ focused }) => (
             <View
               style={{
                 backgroundColor: Colors.dark.accent,
@@ -209,6 +239,8 @@ export default function MainTabNavigator() {
                 alignItems: "center",
                 justifyContent: "center",
                 marginTop: -8,
+                borderWidth: focused ? 2 : 0,
+                borderColor: theme.text,
               }}
             >
               <Feather name="edit-3" size={20} color="#000000" />

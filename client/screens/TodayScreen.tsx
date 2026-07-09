@@ -624,6 +624,7 @@ export default function TodayScreen() {
     <>
       <ScrollView
         style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
+        decelerationRate="fast"
         contentContainerStyle={{
           paddingTop: headerHeight + Spacing.xl,
           paddingBottom: tabBarHeight + Spacing.xl,

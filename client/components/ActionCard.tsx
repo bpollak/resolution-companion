@@ -185,6 +185,8 @@ export const ActionCard = React.memo(function ActionCard({
           onPress={handlePress}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
+          hitSlop={8}
+          pressRetentionOffset={20}
           accessibilityRole="button"
           accessibilityState={{ selected: isCompleted }}
           accessibilityLabel={
@@ -267,6 +269,8 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
     <Animated.View style={rowStyle}>
       <Pressable
         onPress={handlePress}
+        hitSlop={8}
+        pressRetentionOffset={20}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: true }}
         accessibilityLabel={action.title}
