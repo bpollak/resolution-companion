@@ -619,7 +619,10 @@ export default function SubscriptionScreen() {
         <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
           <Pressable
             onPress={() => navigation.goBack()}
-            style={styles.closeButton}
+            style={({ pressed }) => [
+              styles.closeButton,
+              { opacity: pressed ? 0.5 : 1 },
+            ]}
             accessibilityRole="button"
             accessibilityLabel="Close"
           >

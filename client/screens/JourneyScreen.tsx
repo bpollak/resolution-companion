@@ -560,7 +560,10 @@ export default function JourneyScreen() {
                 hitSlop={12}
                 accessibilityRole="button"
                 accessibilityLabel="Dismiss next steps"
-                style={styles.guideClose}
+                style={({ pressed }) => [
+                  styles.guideClose,
+                  { opacity: pressed ? 0.5 : 1 },
+                ]}
               >
                 <Feather name="x" size={18} color={theme.textSecondary} />
               </Pressable>
@@ -619,7 +622,10 @@ export default function JourneyScreen() {
                 hitSlop={12}
                 accessibilityRole="button"
                 accessibilityLabel="Dismiss milestone update note"
-                style={styles.guideClose}
+                style={({ pressed }) => [
+                  styles.guideClose,
+                  { opacity: pressed ? 0.5 : 1 },
+                ]}
               >
                 <Feather name="x" size={18} color={theme.textSecondary} />
               </Pressable>
@@ -727,7 +733,10 @@ export default function JourneyScreen() {
               <Pressable
                 key={index}
                 onPress={() => setSelectedDate(dayInfo.date)}
-                style={styles.dayCell}
+                style={({ pressed }) => [
+                  styles.dayCell,
+                  { opacity: pressed ? 0.5 : 1 },
+                ]}
                 accessibilityRole="button"
                 accessibilityState={{ selected: isSelected }}
                 accessibilityLabel={`${dayInfo.isToday ? "Today, " : ""}${dateLabel}, ${statusLabel}`}

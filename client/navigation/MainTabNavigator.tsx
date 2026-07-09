@@ -1,17 +1,45 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { PlatformPressable } from "@react-navigation/elements";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
+import { ThemedText } from "@/components/ThemedText";
 
 import TodayScreen from "@/screens/TodayScreen";
 import JourneyScreen from "@/screens/JourneyScreen";
 import ReflectScreen from "@/screens/ReflectScreen";
+
+// The focused tab's icon springs up a touch — a moment of life on selection
+// that reads as "you landed here" beyond the color/fill change alone
+function AnimatedTabIcon({
+  focused,
+  children,
+}: {
+  focused: boolean;
+  children: React.ReactNode;
+}) {
+  const scale = useSharedValue(focused ? 1.12 : 1);
+  useEffect(() => {
+    scale.value = withSpring(focused ? 1.12 : 1, {
+      damping: 12,
+      stiffness: 220,
+    });
+  }, [focused, scale]);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+  return <Animated.View style={style}>{children}</Animated.View>;
+}
 
 export type MainTabParamList = {
   TodayTab: undefined;
@@ -49,6 +77,50 @@ const headerButtonStyles = StyleSheet.create({
   },
 });
 
+// A two-line header keeps the current tab's context (date / persona) pinned
+// even after the screen's in-body header scrolls away
+function HeaderTitle({
+  title,
+  subtitle,
+}: {
+  title: string;
+  subtitle?: string;
+}) {
+  const { theme } = useTheme();
+  return (
+    <View style={headerTitleStyles.container}>
+      <ThemedText style={[headerTitleStyles.title, { color: theme.text }]}>
+        {title}
+      </ThemedText>
+      {subtitle ? (
+        <ThemedText
+          numberOfLines={1}
+          style={[headerTitleStyles.subtitle, { color: theme.textSecondary }]}
+        >
+          {subtitle}
+        </ThemedText>
+      ) : null}
+    </View>
+  );
+}
+
+const headerTitleStyles = StyleSheet.create({
+  container: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  title: {
+    fontSize: 17,
+    fontWeight: "600",
+  },
+  subtitle: {
+    fontSize: 11,
+    fontWeight: "500",
+    marginTop: 1,
+    maxWidth: 220,
+  },
+});
+
 const DAYS_OF_WEEK = [
   "Sunday",
   "Monday",
@@ -61,7 +133,18 @@ const DAYS_OF_WEEK = [
 
 export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
-  const { actions, dailyLogs } = useApp();
+  const { actions, dailyLogs, persona } = useApp();
+
+  // "Wednesday, July 8" — pinned under the Today title so the day stays
+  // visible after the screen's own date header scrolls away
+  const todayLabel = useMemo(() => {
+    const now = new Date();
+    return now.toLocaleDateString(undefined, {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
+  }, []);
 
   // The badge is an invite, not a nag: it shows only before the first log of
   // the day, then hands off to the Today ring
@@ -185,12 +268,17 @@ export default function MainTabNavigator() {
         component={TodayScreen}
         options={({ navigation }) => ({
           title: "Today",
+          headerTitle: () => (
+            <HeaderTitle title="Today" subtitle={todayLabel} />
+          ),
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? "sunny" : "sunny-outline"}
-              size={size}
-              color={color}
-            />
+            <AnimatedTabIcon focused={focused}>
+              <Ionicons
+                name={focused ? "sunny" : "sunny-outline"}
+                size={size}
+                color={color}
+              />
+            </AnimatedTabIcon>
           ),
           headerRight: () => <ProfileHeaderButton navigation={navigation} />,
           tabBarBadge:
@@ -212,12 +300,17 @@ export default function MainTabNavigator() {
         component={JourneyScreen}
         options={({ navigation }) => ({
           title: "Journey",
+          headerTitle: () => (
+            <HeaderTitle title="Journey" subtitle={persona?.name} />
+          ),
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? "map" : "map-outline"}
-              size={size}
-              color={color}
-            />
+            <AnimatedTabIcon focused={focused}>
+              <Ionicons
+                name={focused ? "map" : "map-outline"}
+                size={size}
+                color={color}
+              />
+            </AnimatedTabIcon>
           ),
           headerRight: () => <ProfileHeaderButton navigation={navigation} />,
         })}
