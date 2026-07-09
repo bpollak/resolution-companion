@@ -209,18 +209,20 @@ export default function MainTabNavigator() {
   return (
     <Tab.Navigator
       initialRouteName="TodayTab"
+      detachInactiveScreens={false}
       screenOptions={{
-        // All three tabs mount once at startup: switching tabs must never
-        // stall the JS thread mid-mount, or the next tap gets swallowed.
-        // freezeOnBlur is intentionally OFF — its thaw-on-focus frame was
-        // dropping the first tap on a just-focused screen, and the context
-        // value is already memoized so blurred tabs don't thrash without it.
+        // All three tabs mount once at startup and stay attached: switching
+        // must never stall the JS thread mid-mount (swallows the next tap) or
+        // leave a scene detached (renders black). freezeOnBlur OFF — its
+        // thaw-on-focus frame dropped the first tap, and the context value is
+        // already memoized so blurred tabs don't thrash. detachInactiveScreens
+        // OFF — with the scene `animation` below, react-native-screens has a
+        // detach race that leaves the incoming tab a BLACK screen
+        // (react-navigation #12755). We also drop the scene animation itself:
+        // it caused that black screen, and the icon spring + haptic already
+        // acknowledge the switch without any cross-fade.
         lazy: false,
         freezeOnBlur: false,
-        // "fade" acknowledges the switch WITHOUT translating controls — a
-        // "shift" slide left the destination's controls moving for ~250ms,
-        // so a quick tap after switching landed on an offset target and missed.
-        animation: "fade",
         // Default tab button: haptic ack on touch-down, no upward hitSlop
         // (that would steal the bottom edge of screen content). The Coach
         // tab overrides this with an upward slop for its raised circle.
