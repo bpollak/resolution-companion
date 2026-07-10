@@ -1,4 +1,10 @@
-import React, { useState, useRef, useMemo } from "react";
+import React, {
+  useState,
+  useRef,
+  useMemo,
+  useEffect,
+  useCallback,
+} from "react";
 import {
   View,
   ScrollView,
@@ -10,6 +16,8 @@ import {
   Platform,
   KeyboardAvoidingView,
   Alert,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -26,6 +34,7 @@ import { ChatBubble } from "@/components/ChatBubble";
 import { AIConsentModal } from "@/components/AIConsentModal";
 import { getReflectionResponse, AIMessage, getMonthlyContext } from "@/lib/ai";
 import { logger } from "@/lib/logger";
+import { createTextStreamBuffer, TextStreamBuffer } from "@/lib/stream-buffer";
 
 type PeriodType = "monthly";
 
@@ -68,7 +77,36 @@ export default function ReflectScreen() {
     null,
   );
 
-  const flatListRef = useRef<FlatList>(null);
+  const chatScrollRef = useRef<ScrollView>(null);
+  const streamBufferRef = useRef<TextStreamBuffer | null>(null);
+  const isNearBottomRef = useRef(true);
+  const isDraggingChatRef = useRef(false);
+  const isMomentumScrollingChatRef = useRef(false);
+  const autoScrollFrameRef = useRef<number | null>(null);
+
+  const createStreamBuffer = useCallback(() => {
+    streamBufferRef.current?.cancel();
+    const buffer = createTextStreamBuffer((chunk) => {
+      setStreamingText((previous) => previous + chunk);
+    });
+    streamBufferRef.current = buffer;
+    return buffer;
+  }, []);
+
+  const finishStreamBuffer = useCallback((buffer: TextStreamBuffer) => {
+    buffer.flush();
+    if (streamBufferRef.current === buffer) streamBufferRef.current = null;
+  }, []);
+
+  useEffect(
+    () => () => {
+      streamBufferRef.current?.cancel();
+      if (autoScrollFrameRef.current !== null) {
+        cancelAnimationFrame(autoScrollFrameRef.current);
+      }
+    },
+    [],
+  );
 
   const sortedReflections = useMemo(
     () =>
@@ -136,6 +174,10 @@ export default function ReflectScreen() {
     setIsLoading(true);
     setIsStreaming(true);
     setStreamingText("");
+    isNearBottomRef.current = true;
+    isDraggingChatRef.current = false;
+    isMomentumScrollingChatRef.current = false;
+    const streamBuffer = createStreamBuffer();
 
     const monthlyContext = getMonthlyContext(momentumScore, persona.createdAt);
 
@@ -149,13 +191,12 @@ export default function ReflectScreen() {
         ],
         momentumScore,
         period,
-        (chunk) => {
-          setStreamingText((prev) => prev + chunk);
-        },
+        streamBuffer.append,
         monthlyContext,
         { name: persona.name, description: persona.description },
       );
 
+      finishStreamBuffer(streamBuffer);
       setIsStreaming(false);
       const aiMessage: ChatMessage = {
         id: Date.now().toString(),
@@ -165,6 +206,7 @@ export default function ReflectScreen() {
       setMessages([aiMessage]);
       setStreamingText("");
     } catch (error) {
+      streamBuffer.cancel();
       logger.error("Failed to start reflection:", error);
       setIsStreaming(false);
       setStreamingText("");
@@ -194,6 +236,10 @@ export default function ReflectScreen() {
     setIsLoading(true);
     setIsStreaming(true);
     setStreamingText("");
+    isNearBottomRef.current = true;
+    isDraggingChatRef.current = false;
+    isMomentumScrollingChatRef.current = false;
+    const streamBuffer = createStreamBuffer();
 
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -215,15 +261,14 @@ export default function ReflectScreen() {
         aiMessages,
         momentumScore,
         selectedPeriod || "monthly",
-        (chunk) => {
-          setStreamingText((prev) => prev + chunk);
-        },
+        streamBuffer.append,
         monthlyContext,
         persona
           ? { name: persona.name, description: persona.description }
           : undefined,
       );
 
+      finishStreamBuffer(streamBuffer);
       setIsStreaming(false);
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -233,6 +278,7 @@ export default function ReflectScreen() {
       setMessages((prev) => [...prev, aiMessage]);
       setStreamingText("");
     } catch (error) {
+      streamBuffer.cancel();
       logger.error("Failed to send message:", error);
       setIsStreaming(false);
       setStreamingText("");
@@ -311,9 +357,77 @@ export default function ReflectScreen() {
     }
   };
 
-  const renderMessage = ({ item }: { item: ChatMessage }) => (
-    <ChatBubble message={item.content} isUser={item.role === "user"} />
+  const renderMessage = useCallback(
+    ({ item }: { item: ChatMessage }) => (
+      <ChatBubble message={item.content} isUser={item.role === "user"} />
+    ),
+    [],
   );
+
+  const updateChatFollowState = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { contentOffset, contentSize, layoutMeasurement } =
+        event.nativeEvent;
+      const distanceFromBottom =
+        contentSize.height - layoutMeasurement.height - contentOffset.y;
+      isNearBottomRef.current = distanceFromBottom <= 80;
+    },
+    [],
+  );
+
+  const handleChatScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      // Content growth and scrollToEnd both emit scroll events. Only a real
+      // user gesture should be allowed to turn off automatic following.
+      if (!isDraggingChatRef.current && !isMomentumScrollingChatRef.current) {
+        return;
+      }
+      updateChatFollowState(event);
+    },
+    [updateChatFollowState],
+  );
+
+  const handleChatScrollBeginDrag = useCallback(() => {
+    isDraggingChatRef.current = true;
+  }, []);
+
+  const handleChatScrollEndDrag = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      updateChatFollowState(event);
+      isDraggingChatRef.current = false;
+    },
+    [updateChatFollowState],
+  );
+
+  const handleChatMomentumScrollBegin = useCallback(() => {
+    isMomentumScrollingChatRef.current = true;
+  }, []);
+
+  const handleChatMomentumScrollEnd = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      updateChatFollowState(event);
+      isMomentumScrollingChatRef.current = false;
+    },
+    [updateChatFollowState],
+  );
+
+  const scrollToEndIfNeeded = useCallback(() => {
+    if (!isNearBottomRef.current) return;
+    if (autoScrollFrameRef.current !== null) {
+      cancelAnimationFrame(autoScrollFrameRef.current);
+    }
+    autoScrollFrameRef.current = requestAnimationFrame(() => {
+      autoScrollFrameRef.current = null;
+      chatScrollRef.current?.scrollToEnd({ animated: false });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isInSession) return;
+    // Fabric can commit a growing text bubble after the content-size event, so
+    // every buffered update also follows after React has committed its height.
+    scrollToEndIfNeeded();
+  }, [isInSession, isStreaming, messages, scrollToEndIfNeeded, streamingText]);
 
   if (!hasOnboarded) {
     return (
@@ -356,6 +470,24 @@ export default function ReflectScreen() {
       }
 
       const hasFullConversation = conversationMessages.length > 0;
+      const pastSessionMessages: ChatMessage[] = hasFullConversation
+        ? conversationMessages
+        : [
+            {
+              id: `${session.id}-assistant`,
+              role: "assistant",
+              content: session.aiFeedback,
+            },
+            ...(session.userInput
+              ? [
+                  {
+                    id: `${session.id}-user`,
+                    role: "user" as const,
+                    content: session.userInput,
+                  },
+                ]
+              : []),
+          ];
 
       return (
         <View
@@ -372,7 +504,8 @@ export default function ReflectScreen() {
           >
             <Pressable
               onPress={() => setViewingPastSession(null)}
-              hitSlop={8}
+              hitSlop={12}
+              pressRetentionOffset={16}
               accessibilityRole="button"
               accessibilityLabel="Back to check-in list"
               style={({ pressed }) => [
@@ -397,7 +530,12 @@ export default function ReflectScreen() {
             </View>
           </View>
 
-          <ScrollView
+          <FlatList
+            data={pastSessionMessages}
+            renderItem={renderMessage}
+            keyExtractor={(message, index) =>
+              message.id || `${session.id}-${index}`
+            }
             delaysContentTouches={false}
             style={{ flex: 1 }}
             contentContainerStyle={[
@@ -405,24 +543,11 @@ export default function ReflectScreen() {
               { paddingBottom: tabBarHeight + Spacing.xl },
             ]}
             scrollIndicatorInsets={{ bottom: insets.bottom }}
-          >
-            {hasFullConversation ? (
-              conversationMessages.map((msg, index) => (
-                <ChatBubble
-                  key={msg.id || `${session.id}-${index}`}
-                  message={msg.content}
-                  isUser={msg.role === "user"}
-                />
-              ))
-            ) : (
-              <>
-                <ChatBubble message={session.aiFeedback} isUser={false} />
-                {session.userInput ? (
-                  <ChatBubble message={session.userInput} isUser={true} />
-                ) : null}
-              </>
-            )}
-          </ScrollView>
+            decelerationRate="fast"
+            initialNumToRender={12}
+            maxToRenderPerBatch={8}
+            windowSize={7}
+          />
         </View>
       );
     }
@@ -432,6 +557,7 @@ export default function ReflectScreen() {
     return (
       <ScrollView
         delaysContentTouches={false}
+        decelerationRate="fast"
         style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
         contentContainerStyle={{
           paddingTop: headerHeight + Spacing.xl,
@@ -732,24 +858,37 @@ export default function ReflectScreen() {
         </Pressable>
       </View>
 
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={(item) => item.id}
+      <ScrollView
+        ref={chatScrollRef}
+        style={styles.chatMessageList}
         contentContainerStyle={[styles.messageList, { paddingBottom: 80 }]}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
+        onContentSizeChange={scrollToEndIfNeeded}
+        onLayout={scrollToEndIfNeeded}
+        onScroll={handleChatScroll}
+        onScrollBeginDrag={handleChatScrollBeginDrag}
+        onScrollEndDrag={handleChatScrollEndDrag}
+        onMomentumScrollBegin={handleChatMomentumScrollBegin}
+        onMomentumScrollEnd={handleChatMomentumScrollEnd}
+        scrollEventThrottle={16}
+        decelerationRate="fast"
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
         keyboardShouldPersistTaps="handled"
-        ListFooterComponent={
-          isStreaming && streamingText ? (
-            <ChatBubble message={streamingText} isUser={false} />
-          ) : isLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={Colors.dark.accent} />
-            </View>
-          ) : null
-        }
-      />
+      >
+        {messages.map((message) => (
+          <ChatBubble
+            key={message.id}
+            message={message.content}
+            isUser={message.role === "user"}
+          />
+        ))}
+        {isStreaming && streamingText ? (
+          <ChatBubble message={streamingText} isUser={false} />
+        ) : isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={Colors.dark.accent} />
+          </View>
+        ) : null}
+      </ScrollView>
 
       <View
         style={[
@@ -1083,6 +1222,9 @@ const styles = StyleSheet.create({
   messageList: {
     paddingVertical: Spacing.lg,
     flexGrow: 1,
+  },
+  chatMessageList: {
+    flex: 1,
   },
   inputContainer: {
     flexDirection: "row",

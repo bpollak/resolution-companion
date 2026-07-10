@@ -21,11 +21,10 @@ import {
   Subscription,
 } from "@/lib/storage";
 import {
-  buildLogIndex,
+  buildProgressSnapshot,
   computeLapse,
-  computeMilestoneProgress,
-  computeMomentumScore,
   computeStreak,
+  ProgressSnapshot,
 } from "@/lib/progress";
 import { ensureReminderScheduled } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
@@ -40,6 +39,7 @@ interface AppContextType {
   reflections: Reflection[];
   momentumScore: number;
   personaAlignment: number;
+  progressSnapshot: ProgressSnapshot;
   isLoading: boolean;
   subscription: Subscription;
   monthlyReflectionCount: number;
@@ -105,18 +105,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Derived from the persona-scoped state, so they can never drift from the
   // data they describe (state mirrors storage via refreshData + mutators)
-  const momentumScore = useMemo(
-    () => computeMomentumScore(actions, dailyLogs, 7),
-    [actions, dailyLogs],
+  const progressSnapshot = useMemo(
+    () => buildProgressSnapshot(actions, dailyLogs, benchmarks),
+    [actions, dailyLogs, benchmarks],
   );
-  // Monthly Consistency: completion % of scheduled actions this calendar
-  // month (month-to-date). Resets on the 1st — a deliberate fresh start —
-  // and is THE long-arc metric everywhere (the 7-day momentum score above
-  // stays internal coach context, not a user-facing headline).
-  const personaAlignment = useMemo(
-    () => computeMomentumScore(actions, dailyLogs, new Date().getDate()),
-    [actions, dailyLogs],
-  );
+  const { momentumScore, personaAlignment } = progressSnapshot;
   const [subscription, setSubscriptionState] = useState<Subscription>({
     isPremium: false,
     plan: "free",
@@ -431,14 +424,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // persisted, so a milestone is never celebrated twice).
   useEffect(() => {
     if (isLoading) return;
-    const logIndex = buildLogIndex(dailyLogs);
     for (const benchmark of benchmarks) {
       if (benchmark.status === "completed") continue;
-      const { completed } = computeMilestoneProgress(
-        benchmark,
-        actions,
-        logIndex,
-      );
+      const completed =
+        progressSnapshot.milestoneProgressByBenchmarkId.get(benchmark.id)
+          ?.completed ?? false;
       if (!completed || milestoneFlipsInFlight.current.has(benchmark.id)) {
         continue;
       }
@@ -467,7 +457,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         logger.error("Failed to mark milestone completed:", error);
       });
     }
-  }, [isLoading, benchmarks, actions, dailyLogs, updateBenchmark]);
+  }, [isLoading, benchmarks, progressSnapshot, updateBenchmark]);
 
   const dismissMilestoneCelebration = useCallback(() => {
     setMilestoneCelebration(null);
@@ -524,6 +514,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       reflections,
       momentumScore,
       personaAlignment,
+      progressSnapshot,
       isLoading,
       subscription,
       monthlyReflectionCount,
@@ -564,6 +555,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       reflections,
       momentumScore,
       personaAlignment,
+      progressSnapshot,
       isLoading,
       subscription,
       monthlyReflectionCount,

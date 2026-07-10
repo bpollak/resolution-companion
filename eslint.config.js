@@ -7,6 +7,15 @@ module.exports = defineConfig([
   expoConfig,
   eslintPluginPrettierRecommended,
   {
-    ignores: ["dist/*", "server_dist/*"],
+    // Generated bundles are large minified files; linting them makes the
+    // standard Expo command appear hung without checking any authored code.
+    ignores: [
+      "dist/**",
+      "server_dist/**",
+      "static-build/**",
+      "build/**",
+      "attached_assets/**",
+      "appstore-screenshots/**",
+    ],
   },
 ]);

@@ -22,6 +22,7 @@ import {
   MILESTONE_TARGET_DAYS,
   sortWeekdays,
   formatScheduleDays,
+  buildProgressSnapshot,
 } from "@/lib/progress";
 import type { Benchmark, ElementalAction, DailyLog } from "@/lib/storage";
 
@@ -963,6 +964,42 @@ describe("formatScheduleDays", () => {
   it("abbreviates other sets in calendar order", () => {
     expect(formatScheduleDays(["Saturday", "Wednesday", "Monday"])).toBe(
       "Mon · Wed · Sat",
+    );
+  });
+});
+
+describe("buildProgressSnapshot", () => {
+  it("matches the standalone progress calculations and reuses one log index", () => {
+    jest.setSystemTime(new Date(2026, 6, 6, 9, 0));
+    const benchmark = makeBenchmark({ id: "benchmark-snapshot" });
+    const action = makeAction(DAILY, "2026-07-01T08:00:00", {
+      benchmarkId: benchmark.id,
+    });
+    const logs = logsFor(action, [
+      "2026-07-01",
+      "2026-07-02",
+      "2026-07-03",
+      "2026-07-04",
+      "2026-07-05",
+      "2026-07-06",
+    ]);
+
+    const snapshot = buildProgressSnapshot([action], logs, [benchmark]);
+
+    expect(snapshot.momentumScore).toBe(
+      computeMomentumScore([action], logs, 7),
+    );
+    expect(snapshot.personaAlignment).toBe(
+      computeMomentumScore([action], logs, 6),
+    );
+    expect(snapshot.streak).toEqual(computeStreak([action], logs));
+    expect(snapshot.lapse).toEqual(computeLapse([action], logs));
+    expect(snapshot.weeklyRecap).toEqual(computeWeeklyRecap([action], logs));
+    expect(snapshot.milestoneProgress[0]).toEqual(
+      computeMilestoneProgress(benchmark, [action], snapshot.logIndex),
+    );
+    expect(snapshot.milestoneProgressByBenchmarkId.get(benchmark.id)).toBe(
+      snapshot.milestoneProgress[0],
     );
   });
 });

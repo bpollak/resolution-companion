@@ -78,7 +78,8 @@ export default function RootStackNavigator() {
           headerLeft: () => (
             <Pressable
               onPress={() => navigation.goBack()}
-              hitSlop={8}
+              hitSlop={12}
+              pressRetentionOffset={16}
               accessibilityRole="button"
               accessibilityLabel="Close profile"
               style={({ pressed }) => [

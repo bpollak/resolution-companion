@@ -120,28 +120,21 @@ domain `resolutioncompanion.com`.
   Website updated with the live download link.
 - **v1.0.1 APPROVED & released** (2026-07-09): black-screen tab fix (removed
   `animation`), consistent active-tab pill across all three tabs,
-  persona-aware Coach (`getReflectionResponse` injects the active persona
-  name+description into the system prompt), first-tap-reliability pass
-  (`delaysContentTouches={false}` on all ScrollViews, hitSlop/
-  pressRetentionOffset, eager mount).
-- **🟡 PAYWALL FIX IN REVIEW:** v1.0.2 (build 49) + BOTH subscriptions
+  persona-aware Coach, and the first-tap-reliability pass.
+- **🟡 PAYWALL FIX IN REVIEW:** v1.0.2 (build 49) + BOTH subscriptions were
   submitted together 2026-07-09 ~3:45pm PT per Apple's Guideline 3.1.1
-  instruction ("upload a new binary and resubmit the IAP products"). All
-  "Waiting for Review", auto-release on; new pill-tab-bar screenshots went
-  with it. On approval the subs finally exist on production StoreKit →
-  paywall works (VERIFY after release). If 3.1.1-rejected again → Apple
-  Developer Support callback. Gotcha: the version page's "In-App Purchases
-  and Subscriptions" section never renders on this app — the sub-page
-  "Submit for Review" button is the working path. Details in the
-  `app-store-resubmission-status` memory.
+  instruction. A live App Store Connect check later that evening still showed
+  the app and both products as "Waiting for Review" with auto-release on. Do
+  not withdraw this version just to submit newer client work. After approval,
+  verify the production paywall; after another 3.1.1 rejection, request an
+  Apple Developer Support callback.
 - **LOCAL v1.0.3 PERFORMANCE PASS (not submitted):** the current worktree
   centralizes progress calculations, indexes log lookups, virtualizes Today
   and Journey, memoizes stable tab/chat components, and buffers Coach streaming
   while preserving user-controlled scroll position. The post-change simulator
   build passed first-tap tab switching and completion-flow checks; typecheck,
-  all 76 tests, and lint (0 errors) pass. A live App Store Connect check later
-  on 2026-07-09 still showed v1.0.2 and both subscriptions "Waiting for Review,"
-  so do not withdraw it just to submit this newer build.
+  all 76 tests, and lint (0 errors) pass. Keep this local until the v1.0.2
+  review resolves.
 - **Product direction:** progress-feeling, stickiness, a coherent daily loop.
   See `docs/ux-optimization-plan.md` and `docs/ux-redesign-proposal.md`.
 - **Screenshots** refreshed everywhere (2026-07-09): App Store 6.9" tier

@@ -39,7 +39,6 @@ export const ActionCard = React.memo(function ActionCard({
   benchmarkTitle,
 }: ActionCardProps) {
   const { theme, isDark } = useTheme();
-  const scale = useSharedValue(1);
   const buttonScale = useSharedValue(1);
   const completionGlow = useSharedValue(0);
   const checkScale = useSharedValue(1);
@@ -58,7 +57,7 @@ export const ActionCard = React.memo(function ActionCard({
       );
     }
     wasCompleted.value = isCompleted;
-  }, [isCompleted]);
+  }, [checkScale, completionGlow, isCompleted, wasCompleted]);
 
   // Scale down the moment the finger lands — feedback while the touch is
   // still held reads as "responsive"; waiting for release reads as lag
@@ -80,10 +79,6 @@ export const ActionCard = React.memo(function ActionCard({
     }
     onToggle(action.id);
   };
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
 
   const buttonAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: buttonScale.value }],
@@ -111,126 +106,122 @@ export const ActionCard = React.memo(function ActionCard({
   }));
 
   return (
-    <Animated.View style={animatedStyle}>
-      <View
-        style={[
-          styles.container,
-          {
-            backgroundColor: isDark
-              ? Colors.dark.backgroundDefault
-              : Colors.light.backgroundDefault,
-          },
-        ]}
-      >
-        {benchmarkTitle ? (
-          <ThemedText style={[styles.benchmark, { color: Colors.dark.accent }]}>
-            {benchmarkTitle}
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: isDark
+            ? Colors.dark.backgroundDefault
+            : Colors.light.backgroundDefault,
+        },
+      ]}
+    >
+      {benchmarkTitle ? (
+        <ThemedText style={[styles.benchmark, { color: Colors.dark.accent }]}>
+          {benchmarkTitle}
+        </ThemedText>
+      ) : null}
+
+      <ThemedText style={styles.title}>{action.title}</ThemedText>
+
+      <View style={styles.kickstartContainer}>
+        <Feather
+          name="zap"
+          size={16}
+          color={Colors.dark.warning}
+          style={styles.zapIcon}
+        />
+        <View style={styles.kickstartContent}>
+          <ThemedText
+            style={[styles.kickstartLabel, { color: Colors.dark.warning }]}
+          >
+            Too busy? Just:
           </ThemedText>
-        ) : null}
+          <ThemedText style={styles.kickstart}>
+            {action.kickstartVersion}
+          </ThemedText>
+        </View>
+      </View>
 
-        <ThemedText style={styles.title}>{action.title}</ThemedText>
-
-        <View style={styles.kickstartContainer}>
+      {action.anchorLink ? (
+        <View
+          style={[
+            styles.anchorContainer,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundSecondary
+                : Colors.light.backgroundSecondary,
+            },
+          ]}
+        >
           <Feather
-            name="zap"
-            size={16}
-            color={Colors.dark.warning}
-            style={styles.zapIcon}
+            name="link"
+            size={14}
+            color={Colors.dark.accent}
+            style={styles.anchorIcon}
           />
-          <View style={styles.kickstartContent}>
+          <View style={styles.anchorContent}>
             <ThemedText
-              style={[styles.kickstartLabel, { color: Colors.dark.warning }]}
+              style={[styles.anchorLabel, { color: Colors.dark.accent }]}
             >
-              Too busy? Just:
+              When:
             </ThemedText>
-            <ThemedText style={styles.kickstart}>
-              {action.kickstartVersion}
+            <ThemedText style={[styles.anchor, { color: theme.textSecondary }]}>
+              {action.anchorLink}
             </ThemedText>
           </View>
         </View>
+      ) : null}
 
-        {action.anchorLink ? (
-          <View
-            style={[
-              styles.anchorContainer,
-              {
-                backgroundColor: isDark
-                  ? Colors.dark.backgroundSecondary
-                  : Colors.light.backgroundSecondary,
-              },
-            ]}
-          >
-            <Feather
-              name="link"
-              size={14}
-              color={Colors.dark.accent}
-              style={styles.anchorIcon}
-            />
-            <View style={styles.anchorContent}>
-              <ThemedText
-                style={[styles.anchorLabel, { color: Colors.dark.accent }]}
-              >
-                When:
-              </ThemedText>
-              <ThemedText
-                style={[styles.anchor, { color: theme.textSecondary }]}
-              >
-                {action.anchorLink}
-              </ThemedText>
-            </View>
-          </View>
-        ) : null}
-
-        <Pressable
-          onPress={handlePress}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          hitSlop={8}
-          pressRetentionOffset={20}
-          accessibilityRole="button"
-          accessibilityState={{ selected: isCompleted }}
-          accessibilityLabel={
-            isCompleted
-              ? `${action.title} completed. Tap to undo`
-              : `Mark ${action.title} complete`
-          }
+      <Pressable
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        hitSlop={8}
+        pressRetentionOffset={20}
+        accessibilityRole="button"
+        accessibilityState={{ selected: isCompleted }}
+        accessibilityLabel={
+          isCompleted
+            ? `${action.title} completed. Tap to undo`
+            : `Mark ${action.title} complete`
+        }
+      >
+        <Animated.View
+          style={[
+            styles.toggleButton,
+            {
+              backgroundColor: isCompleted
+                ? Colors.dark.success
+                : isDark
+                  ? Colors.dark.backgroundTertiary
+                  : Colors.light.backgroundTertiary,
+              borderColor: isCompleted
+                ? "transparent"
+                : "rgba(0, 217, 255, 0.5)",
+            },
+            buttonAnimatedStyle,
+            isCompleted ? glowStyle : undefined,
+          ]}
         >
-          <Animated.View
+          <Animated.View style={checkAnimatedStyle}>
+            <Feather
+              name={isCompleted ? "check" : "circle"}
+              size={24}
+              color={isCompleted ? "#000000" : Colors.dark.accent}
+            />
+          </Animated.View>
+          <ThemedText
             style={[
-              styles.toggleButton,
-              {
-                backgroundColor: isCompleted
-                  ? Colors.dark.success
-                  : isDark
-                    ? Colors.dark.backgroundTertiary
-                    : Colors.light.backgroundTertiary,
-                borderColor: isCompleted
-                  ? "transparent"
-                  : "rgba(0, 217, 255, 0.5)",
-              },
-              buttonAnimatedStyle,
-              isCompleted ? glowStyle : undefined,
+              styles.toggleText,
+              { color: isCompleted ? "#000000" : Colors.dark.accent },
             ]}
           >
-            <Animated.View style={checkAnimatedStyle}>
-              <Feather
-                name={isCompleted ? "check" : "circle"}
-                size={24}
-                color={isCompleted ? "#000000" : Colors.dark.accent}
-              />
-            </Animated.View>
-            <ThemedText
-              style={[
-                styles.toggleText,
-                { color: isCompleted ? "#000000" : Colors.dark.accent },
-              ]}
-            >
-              {isCompleted ? "Completed" : "Mark Complete"}
-            </ThemedText>
-          </Animated.View>
-        </Pressable>
-      </View>
-    </Animated.View>
+            {isCompleted ? "Completed" : "Mark Complete"}
+          </ThemedText>
+        </Animated.View>
+      </Pressable>
+    </View>
   );
 });
 

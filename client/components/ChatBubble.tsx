@@ -11,7 +11,11 @@ interface ChatBubbleProps {
   isTyping?: boolean;
 }
 
-export function ChatBubble({ message, isUser, isTyping }: ChatBubbleProps) {
+export const ChatBubble = React.memo(function ChatBubble({
+  message,
+  isUser,
+  isTyping,
+}: ChatBubbleProps) {
   const { theme, isDark } = useTheme();
 
   return (
@@ -55,7 +59,7 @@ export function ChatBubble({ message, isUser, isTyping }: ChatBubbleProps) {
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

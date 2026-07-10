@@ -229,98 +229,101 @@ export default function MainTabNavigator() {
     };
   }, [actions, dailyLogs]);
 
+  const screenListeners = useMemo(
+    () => ({
+      tabPress: () => {
+        Haptics.selectionAsync();
+      },
+    }),
+    [],
+  );
+
+  // All tabs mount once and stay attached. Do not add scene animation, freeze,
+  // or detachment here: each has previously caused a swallowed tap or black
+  // incoming scene on iOS.
+  const screenOptions = useMemo(
+    () => ({
+      lazy: false,
+      freezeOnBlur: false,
+      tabBarActiveTintColor: Colors.dark.accent,
+      tabBarInactiveTintColor: theme.tabIconDefault,
+      tabBarStyle: {
+        position: "absolute" as const,
+        backgroundColor: Platform.select({
+          ios: "transparent",
+          android: theme.backgroundRoot,
+        }),
+        borderTopWidth: 0,
+        elevation: 0,
+        height: Platform.select({ ios: 88, android: 70 }),
+        paddingTop: Spacing.sm,
+      },
+      tabBarItemStyle: {
+        paddingTop: Spacing.xs,
+        paddingBottom: Platform.select({
+          ios: Spacing.lg,
+          android: Spacing.sm,
+        }),
+      },
+      tabBarLabelStyle: {
+        fontSize: 11,
+        fontWeight: "500" as const,
+        marginTop: Spacing.xs,
+      },
+      tabBarIconStyle: {
+        marginBottom: 2,
+      },
+      tabBarBackground: () =>
+        Platform.OS === "ios" ? (
+          <BlurView
+            intensity={100}
+            tint={isDark ? "dark" : "light"}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+        ) : null,
+      headerShown: true,
+      headerTransparent: Platform.OS === "ios",
+      headerStyle: {
+        backgroundColor: Platform.select({
+          ios: "transparent",
+          android: theme.backgroundRoot,
+          default: theme.backgroundRoot,
+        }),
+      },
+      headerBackground: () =>
+        Platform.OS === "ios" ? (
+          <BlurView
+            intensity={100}
+            tint={isDark ? "dark" : "light"}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+        ) : (
+          <View
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: theme.backgroundRoot },
+            ]}
+          />
+        ),
+      headerTitleStyle: {
+        color: theme.text,
+        fontWeight: "600" as const,
+      },
+    }),
+    [isDark, theme],
+  );
+
   return (
     <Tab.Navigator
       initialRouteName="TodayTab"
       detachInactiveScreens={false}
       // Haptic tick on every tab press via the stock listener — no custom
       // tabBarButton wrapper (the stock button is the most reliable tap target)
-      screenListeners={{
-        tabPress: () => {
-          Haptics.selectionAsync();
-        },
-      }}
-      screenOptions={{
-        // All three tabs mount once at startup and stay attached: switching
-        // must never stall the JS thread mid-mount (swallows the next tap) or
-        // leave a scene detached (renders black). freezeOnBlur OFF — its
-        // thaw-on-focus frame dropped the first tap, and the context value is
-        // already memoized so blurred tabs don't thrash. detachInactiveScreens
-        // OFF — with the scene `animation` below, react-native-screens has a
-        // detach race that leaves the incoming tab a BLACK screen
-        // (react-navigation #12755). We also drop the scene animation itself:
-        // it caused that black screen, and the icon spring + haptic already
-        // acknowledge the switch without any cross-fade.
-        lazy: false,
-        freezeOnBlur: false,
-        tabBarActiveTintColor: Colors.dark.accent,
-        tabBarInactiveTintColor: theme.tabIconDefault,
-        tabBarStyle: {
-          position: "absolute",
-          backgroundColor: Platform.select({
-            ios: "transparent",
-            android: theme.backgroundRoot,
-          }),
-          borderTopWidth: 0,
-          elevation: 0,
-          height: Platform.select({ ios: 88, android: 70 }),
-          paddingTop: Spacing.sm,
-        },
-        tabBarItemStyle: {
-          paddingTop: Spacing.xs,
-          paddingBottom: Platform.select({
-            ios: Spacing.lg,
-            android: Spacing.sm,
-          }),
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "500",
-          marginTop: Spacing.xs,
-        },
-        tabBarIconStyle: {
-          marginBottom: 2,
-        },
-        tabBarBackground: () =>
-          Platform.OS === "ios" ? (
-            <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-              pointerEvents="none"
-            />
-          ) : null,
-        headerShown: true,
-        headerTransparent: Platform.OS === "ios",
-        headerStyle: {
-          backgroundColor: Platform.select({
-            ios: "transparent",
-            android: theme.backgroundRoot,
-            default: theme.backgroundRoot,
-          }),
-        },
-        headerBackground: () =>
-          Platform.OS === "ios" ? (
-            <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-              pointerEvents="none"
-            />
-          ) : (
-            <View
-              pointerEvents="none"
-              style={[
-                StyleSheet.absoluteFill,
-                { backgroundColor: theme.backgroundRoot },
-              ]}
-            />
-          ),
-        headerTitleStyle: {
-          color: theme.text,
-          fontWeight: "600",
-        },
-      }}
+      screenListeners={screenListeners}
+      screenOptions={screenOptions}
     >
       <Tab.Screen
         name="TodayTab"

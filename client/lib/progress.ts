@@ -289,10 +289,10 @@ export function computeMomentumScore(
   actions: ElementalAction[],
   logs: DailyLog[],
   days: number = 7,
+  logIndex: Map<string, DailyLog> = buildLogIndex(logs),
 ): number {
   if (actions.length === 0) return 0;
 
-  const logIndex = buildLogIndex(logs);
   const today = new Date();
   const todayStr = getLocalDateString(today);
   const createdDates = new Map(
@@ -372,8 +372,8 @@ export function computeWeeklyRecap(
   actions: ElementalAction[],
   logs: DailyLog[],
   today: Date = new Date(),
+  logIndex: Map<string, DailyLog> = buildLogIndex(logs),
 ): WeeklyRecapResult {
-  const logIndex = buildLogIndex(logs);
   const actionStartDates = new Map<string, string>(
     actions.map((a) => [a.id, getLocalDateString(new Date(a.createdAt))]),
   );
@@ -457,12 +457,12 @@ const LAPSE_LOOKBACK_DAYS = 30;
 export function computeLapse(
   actions: ElementalAction[],
   logs: DailyLog[],
+  logIndex: Map<string, DailyLog> = buildLogIndex(logs),
 ): LapseResult {
   if (actions.length === 0) {
     return { missedDays: 0, lastMissedDate: null };
   }
 
-  const logIndex = buildLogIndex(logs);
   const actionStartDates = new Map<string, string>(
     actions.map((a) => [a.id, getLocalDateString(new Date(a.createdAt))]),
   );
@@ -536,12 +536,11 @@ const SHIELD_WINDOW_DAYS = 7;
 export function computeStreak(
   actions: ElementalAction[],
   logs: DailyLog[],
+  logIndex: Map<string, DailyLog> = buildLogIndex(logs),
 ): StreakResult {
   if (actions.length === 0) {
     return { current: 0, longest: 0, shieldUsed: false, shieldedDays: [] };
   }
-
-  const logIndex = buildLogIndex(logs);
 
   const actionStartDates = new Map<string, string>();
   let earliest: string | null = null;
@@ -619,4 +618,49 @@ export function computeStreak(
     daysBetween(lastBridgedMiss, today) <= SHIELD_WINDOW_DAYS;
 
   return { current: run, longest, shieldUsed, shieldedDays };
+}
+
+/**
+ * Shared progress derivation for the eagerly-mounted tabs. Building this once
+ * prevents Today, Journey, and AppProvider from each rebuilding the same log
+ * index and walking the same history after every completion tap.
+ */
+export interface ProgressSnapshot {
+  logIndex: Map<string, DailyLog>;
+  momentumScore: number;
+  personaAlignment: number;
+  streak: StreakResult;
+  lapse: LapseResult;
+  weeklyRecap: WeeklyRecapResult;
+  milestoneProgress: MilestoneProgressResult[];
+  milestoneProgressByBenchmarkId: Map<string, MilestoneProgressResult>;
+}
+
+export function buildProgressSnapshot(
+  actions: ElementalAction[],
+  logs: DailyLog[],
+  benchmarks: Benchmark[],
+): ProgressSnapshot {
+  const logIndex = buildLogIndex(logs);
+  const milestoneProgress = benchmarks.map((benchmark) =>
+    computeMilestoneProgress(benchmark, actions, logIndex),
+  );
+
+  return {
+    logIndex,
+    momentumScore: computeMomentumScore(actions, logs, 7, logIndex),
+    personaAlignment: computeMomentumScore(
+      actions,
+      logs,
+      new Date().getDate(),
+      logIndex,
+    ),
+    streak: computeStreak(actions, logs, logIndex),
+    lapse: computeLapse(actions, logs, logIndex),
+    weeklyRecap: computeWeeklyRecap(actions, logs, new Date(), logIndex),
+    milestoneProgress,
+    milestoneProgressByBenchmarkId: new Map(
+      milestoneProgress.map((progress) => [progress.benchmark.id, progress]),
+    ),
+  };
 }

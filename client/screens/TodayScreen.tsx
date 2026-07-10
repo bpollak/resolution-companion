@@ -7,7 +7,7 @@ import React, {
 } from "react";
 import {
   View,
-  ScrollView,
+  FlatList,
   StyleSheet,
   Pressable,
   Alert,
@@ -32,12 +32,7 @@ import Animated, {
 
 import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
-import {
-  computeLapse,
-  computeMomentumScore,
-  computeStreak,
-  computeWeeklyRecap,
-} from "@/lib/progress";
+import { computeMomentumScore } from "@/lib/progress";
 import {
   areNotificationsEnabled,
   requestNotificationPermissions,
@@ -110,7 +105,7 @@ function StylizedAppLogo() {
       -1,
       true,
     );
-  }, []);
+  }, [glow, pulse, rotation]);
 
   const outerRingStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${rotation.value}deg` }, { scale: pulse.value }],
@@ -271,6 +266,7 @@ export default function TodayScreen() {
     actions,
     dailyLogs,
     personaAlignment,
+    progressSnapshot,
     toggleDailyLog,
   } = useApp();
 
@@ -296,52 +292,41 @@ export default function TodayScreen() {
 
   const todayDateStr = getLocalDateString(today);
 
-  const getLogForAction = (actionId: string) => {
-    return (
-      dailyLogs.find((log) => {
-        const logDateStr = log.logDate.includes("T")
-          ? log.logDate.split("T")[0]
-          : log.logDate;
-        return log.actionId === actionId && logDateStr === todayDateStr;
-      }) || null
-    );
-  };
+  const benchmarkById = useMemo(
+    () => new Map(benchmarks.map((benchmark) => [benchmark.id, benchmark])),
+    [benchmarks],
+  );
 
-  const getBenchmarkForAction = (action: (typeof actions)[0]) => {
-    return benchmarks.find((b) => b.id === action.benchmarkId);
-  };
+  const todayLogByActionId = useMemo(() => {
+    const index = new Map<string, (typeof dailyLogs)[number]>();
+    for (const action of todayActions) {
+      const log = progressSnapshot.logIndex.get(`${action.id}|${todayDateStr}`);
+      if (log) index.set(action.id, log);
+    }
+    return index;
+  }, [progressSnapshot.logIndex, todayActions, todayDateStr]);
 
-  const completedTodayCount = useMemo(() => {
-    return todayActions.filter((action) => {
-      const log = dailyLogs.find((l) => {
-        const logDateStr = l.logDate.includes("T")
-          ? l.logDate.split("T")[0]
-          : l.logDate;
-        return l.actionId === action.id && logDateStr === todayDateStr;
-      });
-      return log?.status === true;
-    }).length;
-  }, [todayActions, dailyLogs, todayDateStr]);
+  const { pendingTodayActions, completedTodayActions } = useMemo(() => {
+    const pending: typeof todayActions = [];
+    const completed: typeof todayActions = [];
+    for (const action of todayActions) {
+      if (todayLogByActionId.get(action.id)?.status) completed.push(action);
+      else pending.push(action);
+    }
+    return { pendingTodayActions: pending, completedTodayActions: completed };
+  }, [todayActions, todayLogByActionId]);
+
+  const completedTodayCount = completedTodayActions.length;
 
   const scheduledTodayCount = todayActions.length;
   const dayComplete =
     scheduledTodayCount > 0 && completedTodayCount === scheduledTodayCount;
 
-  const streak = useMemo(
-    () => computeStreak(actions, dailyLogs),
-    [actions, dailyLogs],
-  );
+  const streak = progressSnapshot.streak;
   const streakCurrent = streak.current;
 
-  const lapse = useMemo(
-    () => computeLapse(actions, dailyLogs),
-    [actions, dailyLogs],
-  );
-
-  const weeklyRecap = useMemo(
-    () => computeWeeklyRecap(actions, dailyLogs),
-    [actions, dailyLogs],
-  );
+  const lapse = progressSnapshot.lapse;
+  const weeklyRecap = progressSnapshot.weeklyRecap;
 
   // Monthly Consistency as of last night (today's logs removed): the
   // difference is what today's check-offs have earned. Month-to-date window
@@ -434,6 +419,7 @@ export default function TodayScreen() {
     dailyLogs,
     actions,
     personaName: persona?.name ?? "",
+    personaAlignment,
   });
   useEffect(() => {
     latestRef.current = {
@@ -441,6 +427,7 @@ export default function TodayScreen() {
       dailyLogs,
       actions,
       personaName: persona?.name ?? "",
+      personaAlignment,
     };
   });
   const toastVariantRef = useRef(0);
@@ -457,6 +444,7 @@ export default function TodayScreen() {
           dailyLogs: currentLogs,
           actions: allActions,
           personaName,
+          personaAlignment: currentAlignment,
         } = latestRef.current;
         // The ref may not hold the post-toggle state yet — upsert the log
         const newLogs = currentLogs.some((l) => l.id === log.id)
@@ -488,7 +476,7 @@ export default function TodayScreen() {
         const monthWindow = new Date().getDate();
         const delta =
           computeMomentumScore(allActions, newLogs, monthWindow) -
-          computeMomentumScore(allActions, currentLogs, monthWindow);
+          currentAlignment;
         const variants = [`A vote for ${personaName} ✓`];
         if (delta > 0) variants.push(`Consistency +${delta}%`);
         variants.push(`${remaining} to go — ring's filling up`);
@@ -513,6 +501,42 @@ export default function TodayScreen() {
       .filter((action) => personaBenchmarkIds.includes(action.benchmarkId))
       .filter((action) => action.frequency.includes(tomorrowDayOfWeek));
   }, [actions, personaBenchmarkIds, tomorrowDayOfWeek]);
+
+  const todayRows = useMemo(
+    () => [
+      ...pendingTodayActions.map((action) => ({
+        kind: "pending" as const,
+        action,
+        log: todayLogByActionId.get(action.id) ?? null,
+        benchmarkTitle: benchmarkById.get(action.benchmarkId)?.title,
+      })),
+      ...completedTodayActions.map((action) => ({
+        kind: "completed" as const,
+        action,
+      })),
+    ],
+    [
+      benchmarkById,
+      completedTodayActions,
+      pendingTodayActions,
+      todayLogByActionId,
+    ],
+  );
+
+  const renderTodayRow = useCallback(
+    ({ item }: { item: (typeof todayRows)[number] }) =>
+      item.kind === "pending" ? (
+        <ActionCard
+          action={item.action}
+          log={item.log}
+          onToggle={handleToggle}
+          benchmarkTitle={item.benchmarkTitle}
+        />
+      ) : (
+        <CompletedActionRow action={item.action} onToggle={handleToggle} />
+      ),
+    [handleToggle],
+  );
 
   // First-ever completion gets a one-time extra line on the celebration card
   useEffect(() => {
@@ -622,7 +646,10 @@ export default function TodayScreen() {
 
   return (
     <>
-      <ScrollView
+      <FlatList
+        data={dayComplete || todayActions.length === 0 ? [] : todayRows}
+        renderItem={renderTodayRow}
+        keyExtractor={(item) => item.action.id}
         delaysContentTouches={false}
         style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
         decelerationRate="fast"
@@ -632,235 +659,225 @@ export default function TodayScreen() {
           paddingHorizontal: Spacing.lg,
         }}
         scrollIndicatorInsets={{ bottom: insets.bottom }}
-      >
-        <View style={styles.header}>
-          <ThemedText
-            style={[styles.personaLabel, { color: Colors.dark.accent }]}
-          >
-            Becoming
-          </ThemedText>
-          <ThemedText style={styles.personaName}>{persona.name}</ThemedText>
-        </View>
-
-        {showWeeklyRecap ? (
-          <WeeklyRecapCard
-            recap={weeklyRecap}
-            streak={streak}
-            personaName={persona.name}
-            onDismiss={dismissWeeklyRecap}
-          />
-        ) : showBeatLastWeekNudge ? (
-          <BeatLastWeekCard
-            lastWeekCompleted={weeklyRecap.lastWeek.completed}
-            onDismiss={dismissBeatLastWeek}
-          />
-        ) : null}
-
-        <View style={styles.alignmentContainer}>
-          <CircularProgress
-            progress={
-              scheduledTodayCount === 0
-                ? 100
-                : (completedTodayCount / scheduledTodayCount) * 100
-            }
-            size={160}
-            label="Today"
-            valueText={
-              scheduledTodayCount === 0
-                ? "Rest"
-                : `${completedTodayCount}/${scheduledTodayCount}`
-            }
-          />
-          <View style={styles.chipRow}>
-            <StatChip
-              icon={
-                streak.shieldUsed ? (
-                  <Feather
-                    name="shield"
-                    size={14}
-                    color={theme.textSecondary}
-                  />
-                ) : (
-                  <MaterialCommunityIcons
-                    name="fire"
-                    size={16}
-                    color={
-                      streak.current > 0
-                        ? Colors.dark.warning
-                        : theme.textSecondary
-                    }
-                  />
-                )
-              }
-              text={
-                streak.shieldUsed
-                  ? "Streak protected"
-                  : `${streak.current}-day streak`
-              }
-            />
-            <StatChip
-              icon={<Feather name="zap" size={14} color={Colors.dark.accent} />}
-              text={`${today.toLocaleDateString("en-US", { month: "long" })} · ${personaAlignment}%`}
-              detail={
-                momentumDelta > 0
-                  ? `▲${momentumDelta}`
-                  : momentumDelta < 0
-                    ? `▼${Math.abs(momentumDelta)}`
-                    : undefined
-              }
-              detailColor={
-                momentumDelta > 0 ? Colors.dark.success : Colors.dark.error
-              }
-            />
-          </View>
-        </View>
-
-        <View style={styles.dateContainer}>
-          <ThemedText style={[styles.dateText, { color: theme.textSecondary }]}>
-            {dateString}
-          </ThemedText>
-          <View style={styles.actionCount}>
-            <ThemedText
-              style={[styles.actionCountText, { color: theme.textSecondary }]}
-            >
-              {todayActions.length} action{todayActions.length !== 1 ? "s" : ""}{" "}
-              today
-            </ThemedText>
-          </View>
-        </View>
-
-        {showLapseCard ? (
-          <LapseRecoveryCard
-            onCoachPress={() => {
-              navigation.navigate("ReflectTab" as never);
-            }}
-            onDismiss={dismissLapseCard}
-          />
-        ) : null}
-
-        {dayComplete ? (
-          <DayCompleteCard
-            streak={streak.current}
-            personaName={persona.name}
-            momentum={personaAlignment}
-            momentumDelta={momentumDelta}
-            tomorrowCount={tomorrowActions.length}
-            tomorrowFirstTitle={tomorrowActions[0]?.title}
-            isFirstEver={isFirstDayComplete}
-            celebrate={celebrateDayComplete}
-            onTomorrowPress={() => {
-              navigation.navigate("JourneyTab" as never);
-            }}
-          />
-        ) : todayActions.length === 0 ? (
-          <View
-            style={[
-              styles.noActionsCard,
-              {
-                backgroundColor: isDark
-                  ? Colors.dark.backgroundDefault
-                  : Colors.light.backgroundDefault,
-              },
-            ]}
-          >
-            <Feather
-              name="check-circle"
-              size={32}
-              color={Colors.dark.success}
-            />
-            <ThemedText style={styles.noActionsText}>
-              No actions scheduled for today. Rest and recharge!
-            </ThemedText>
-            {tomorrowActions.length > 0 ? (
-              <Pressable
-                onPress={() => {
-                  navigation.navigate("JourneyTab" as never);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`View ${tomorrowActions.length} ${tomorrowActions.length === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
-                style={({ pressed }) => [
-                  styles.tomorrowLink,
-                  { opacity: pressed ? 0.7 : 1 },
-                ]}
-              >
-                <Feather name="calendar" size={16} color={Colors.dark.accent} />
-                <ThemedText
-                  style={[
-                    styles.tomorrowLinkText,
-                    { color: Colors.dark.accent },
-                  ]}
-                >
-                  {tomorrowActions.length} action
-                  {tomorrowActions.length !== 1 ? "s" : ""} tomorrow
-                </ThemedText>
-                <Feather
-                  name="chevron-right"
-                  size={16}
-                  color={Colors.dark.accent}
-                />
-              </Pressable>
-            ) : null}
-          </View>
-        ) : (
+        initialNumToRender={5}
+        maxToRenderPerBatch={5}
+        windowSize={7}
+        ListHeaderComponent={
           <>
-            {/* Pending actions stay full-size on top; completed ones collapse
-                to compact rows below, clearing the deck as the day fills */}
-            {todayActions
-              .filter((action) => getLogForAction(action.id)?.status !== true)
-              .map((action) => {
-                const benchmark = getBenchmarkForAction(action);
-                return (
-                  <ActionCard
-                    key={action.id}
-                    action={action}
-                    log={getLogForAction(action.id)}
-                    onToggle={handleToggle}
-                    benchmarkTitle={benchmark?.title}
-                  />
-                );
-              })}
-            {todayActions
-              .filter((action) => getLogForAction(action.id)?.status === true)
-              .map((action) => (
-                <CompletedActionRow
-                  key={action.id}
-                  action={action}
-                  onToggle={handleToggle}
-                />
-              ))}
-            {tomorrowActions.length > 0 ? (
-              <Pressable
-                onPress={() => {
-                  navigation.navigate("JourneyTab" as never);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`View ${tomorrowActions.length} ${tomorrowActions.length === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
-                style={({ pressed }) => [
-                  styles.tomorrowLink,
-                  styles.tomorrowLinkCentered,
-                  { opacity: pressed ? 0.7 : 1 },
-                ]}
+            <View style={styles.header}>
+              <ThemedText
+                style={[styles.personaLabel, { color: Colors.dark.accent }]}
               >
-                <Feather name="calendar" size={16} color={Colors.dark.accent} />
+                Becoming
+              </ThemedText>
+              <ThemedText style={styles.personaName}>{persona.name}</ThemedText>
+            </View>
+
+            {showWeeklyRecap ? (
+              <WeeklyRecapCard
+                recap={weeklyRecap}
+                streak={streak}
+                personaName={persona.name}
+                onDismiss={dismissWeeklyRecap}
+              />
+            ) : showBeatLastWeekNudge ? (
+              <BeatLastWeekCard
+                lastWeekCompleted={weeklyRecap.lastWeek.completed}
+                onDismiss={dismissBeatLastWeek}
+              />
+            ) : null}
+
+            <View style={styles.alignmentContainer}>
+              <CircularProgress
+                progress={
+                  scheduledTodayCount === 0
+                    ? 100
+                    : (completedTodayCount / scheduledTodayCount) * 100
+                }
+                size={160}
+                label="Today"
+                valueText={
+                  scheduledTodayCount === 0
+                    ? "Rest"
+                    : `${completedTodayCount}/${scheduledTodayCount}`
+                }
+              />
+              <View style={styles.chipRow}>
+                <StatChip
+                  icon={
+                    streak.shieldUsed ? (
+                      <Feather
+                        name="shield"
+                        size={14}
+                        color={theme.textSecondary}
+                      />
+                    ) : (
+                      <MaterialCommunityIcons
+                        name="fire"
+                        size={16}
+                        color={
+                          streak.current > 0
+                            ? Colors.dark.warning
+                            : theme.textSecondary
+                        }
+                      />
+                    )
+                  }
+                  text={
+                    streak.shieldUsed
+                      ? "Streak protected"
+                      : `${streak.current}-day streak`
+                  }
+                />
+                <StatChip
+                  icon={
+                    <Feather name="zap" size={14} color={Colors.dark.accent} />
+                  }
+                  text={`${today.toLocaleDateString("en-US", { month: "long" })} · ${personaAlignment}%`}
+                  detail={
+                    momentumDelta > 0
+                      ? `▲${momentumDelta}`
+                      : momentumDelta < 0
+                        ? `▼${Math.abs(momentumDelta)}`
+                        : undefined
+                  }
+                  detailColor={
+                    momentumDelta > 0 ? Colors.dark.success : Colors.dark.error
+                  }
+                />
+              </View>
+            </View>
+
+            <View style={styles.dateContainer}>
+              <ThemedText
+                style={[styles.dateText, { color: theme.textSecondary }]}
+              >
+                {dateString}
+              </ThemedText>
+              <View style={styles.actionCount}>
                 <ThemedText
                   style={[
-                    styles.tomorrowLinkText,
-                    { color: Colors.dark.accent },
+                    styles.actionCountText,
+                    { color: theme.textSecondary },
                   ]}
                 >
-                  {tomorrowActions.length} action
-                  {tomorrowActions.length !== 1 ? "s" : ""} tomorrow
+                  {todayActions.length} action
+                  {todayActions.length !== 1 ? "s" : ""} today
                 </ThemedText>
+              </View>
+            </View>
+
+            {showLapseCard ? (
+              <LapseRecoveryCard
+                onCoachPress={() => {
+                  navigation.navigate("ReflectTab" as never);
+                }}
+                onDismiss={dismissLapseCard}
+              />
+            ) : null}
+
+            {dayComplete ? (
+              <DayCompleteCard
+                streak={streak.current}
+                personaName={persona.name}
+                momentum={personaAlignment}
+                momentumDelta={momentumDelta}
+                tomorrowCount={tomorrowActions.length}
+                tomorrowFirstTitle={tomorrowActions[0]?.title}
+                isFirstEver={isFirstDayComplete}
+                celebrate={celebrateDayComplete}
+                onTomorrowPress={() => {
+                  navigation.navigate("JourneyTab" as never);
+                }}
+              />
+            ) : todayActions.length === 0 ? (
+              <View
+                style={[
+                  styles.noActionsCard,
+                  {
+                    backgroundColor: isDark
+                      ? Colors.dark.backgroundDefault
+                      : Colors.light.backgroundDefault,
+                  },
+                ]}
+              >
                 <Feather
-                  name="chevron-right"
-                  size={16}
-                  color={Colors.dark.accent}
+                  name="check-circle"
+                  size={32}
+                  color={Colors.dark.success}
                 />
-              </Pressable>
+                <ThemedText style={styles.noActionsText}>
+                  No actions scheduled for today. Rest and recharge!
+                </ThemedText>
+                {tomorrowActions.length > 0 ? (
+                  <Pressable
+                    onPress={() => {
+                      navigation.navigate("JourneyTab" as never);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View ${tomorrowActions.length} ${tomorrowActions.length === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
+                    style={({ pressed }) => [
+                      styles.tomorrowLink,
+                      { opacity: pressed ? 0.7 : 1 },
+                    ]}
+                  >
+                    <Feather
+                      name="calendar"
+                      size={16}
+                      color={Colors.dark.accent}
+                    />
+                    <ThemedText
+                      style={[
+                        styles.tomorrowLinkText,
+                        { color: Colors.dark.accent },
+                      ]}
+                    >
+                      {tomorrowActions.length} action
+                      {tomorrowActions.length !== 1 ? "s" : ""} tomorrow
+                    </ThemedText>
+                    <Feather
+                      name="chevron-right"
+                      size={16}
+                      color={Colors.dark.accent}
+                    />
+                  </Pressable>
+                ) : null}
+              </View>
             ) : null}
           </>
-        )}
-      </ScrollView>
+        }
+        ListFooterComponent={
+          !dayComplete &&
+          todayActions.length > 0 &&
+          tomorrowActions.length > 0 ? (
+            <Pressable
+              onPress={() => {
+                navigation.navigate("JourneyTab" as never);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`View ${tomorrowActions.length} ${tomorrowActions.length === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
+              style={({ pressed }) => [
+                styles.tomorrowLink,
+                styles.tomorrowLinkCentered,
+                { opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
+              <Feather name="calendar" size={16} color={Colors.dark.accent} />
+              <ThemedText
+                style={[styles.tomorrowLinkText, { color: Colors.dark.accent }]}
+              >
+                {tomorrowActions.length} action
+                {tomorrowActions.length !== 1 ? "s" : ""} tomorrow
+              </ThemedText>
+              <Feather
+                name="chevron-right"
+                size={16}
+                color={Colors.dark.accent}
+              />
+            </Pressable>
+          ) : null
+        }
+      />
       <Toast
         message={toastMessage}
         visible={toastVisible}
