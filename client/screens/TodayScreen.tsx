@@ -739,7 +739,10 @@ export default function TodayScreen() {
   return (
     <>
       <FlatList
-        data={dayComplete || todayActions.length === 0 ? [] : todayRows}
+        // Completed rows stay visible under the DayCompleteCard: the moment
+        // the last action lands is exactly when a "how it went" note gets
+        // written (and a mistaken final tap can be undone without a detour)
+        data={todayActions.length === 0 ? [] : todayRows}
         renderItem={renderTodayRow}
         keyExtractor={(item) => item.action.id}
         delaysContentTouches={false}
