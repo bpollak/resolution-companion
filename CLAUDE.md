@@ -116,40 +116,35 @@ domain `resolutioncompanion.com`.
 
 ## Current status & where to pick up
 
-- **App is LIVE** on the App Store (2026-07-09, v1.0, free, id 6757996708).
-  Website updated with the live download link.
-- **v1.0.1 APPROVED & released** (2026-07-09): black-screen tab fix (removed
-  `animation`), consistent active-tab pill across all three tabs,
-  persona-aware Coach (`getReflectionResponse` injects the active persona
-  name+description into the system prompt), first-tap-reliability pass
-  (`delaysContentTouches={false}` on all ScrollViews, hitSlop/
-  pressRetentionOffset, eager mount).
-- **🟡 PAYWALL FIX IN REVIEW:** v1.0.2 (build 49) + BOTH subscriptions
-  submitted together 2026-07-09 ~3:45pm PT per Apple's Guideline 3.1.1
-  instruction ("upload a new binary and resubmit the IAP products"). All
-  "Waiting for Review", auto-release on; new pill-tab-bar screenshots went
-  with it. On approval the subs finally exist on production StoreKit →
-  paywall works (VERIFY after release). If 3.1.1-rejected again → Apple
-  Developer Support callback. Gotcha: the version page's "In-App Purchases
-  and Subscriptions" section never renders on this app — the sub-page
-  "Submit for Review" button is the working path. Details in the
+- **App is LIVE** on the App Store (id 6757996708, free). v1.0 released
+  2026-07-09; v1.0.1 (nav/tab fixes, persona-aware Coach) and **v1.0.2
+  (paywall fix, build 49) both APPROVED & released** — v1.0.2 went live
+  2026-07-11.
+- **🟡 SUBSCRIPTIONS "IN REVIEW"** (as of 2026-07-11): both subs were
+  submitted alongside v1.0.2 per Apple's 3.1.1 instruction and are actively
+  in review. **The paywall stays dead until they show Approved** (unapproved
+  products don't exist on production StoreKit). A daily 9am scheduled task
+  (`asc-subscription-status-check`) watches them. **Never submit a new
+  binary or re-submit the subs while they are In Review** — that recreates
+  the stuck-limbo trap. Escalation plan + full saga in the
   `app-store-resubmission-status` memory.
-- **LOCAL v1.0.3 PERFORMANCE PASS (not submitted):** the current worktree
-  centralizes progress calculations, indexes log lookups, virtualizes Today
-  and Journey, memoizes stable tab/chat components, and buffers Coach streaming
-  while preserving user-controlled scroll position. The post-change simulator
-  build passed first-tap tab switching and completion-flow checks; typecheck,
-  all 76 tests, and lint (0 errors) pass. A live App Store Connect check later
-  on 2026-07-09 still showed v1.0.2 and both subscriptions "Waiting for Review,"
-  so do not withdraw it just to submit this newer build.
-- **Product direction:** progress-feeling, stickiness, a coherent daily loop.
-  See `docs/ux-optimization-plan.md` and `docs/ux-redesign-proposal.md`.
-- **Screenshots** refreshed everywhere (2026-07-09): App Store 6.9" tier
-  (submitted with 1.0.2) and website (deployed) both show the pill tab bar.
+- **v1.0.4 CANDIDATE CODE-COMPLETE on main** (2026-07-11, commits 9f54168 /
+  85c60b5 / 8345490): v1.0.3 performance pass + enhancement sprint — milestone
+  target-date countdowns, streak-shield visibility, notification "Mark all
+  done" action, onboarding-chat persistence, ratings prompt, free Weekly
+  Review ritual, premium coach memory, completion notes. Largely verified
+  live on simulator; ship only after the subs approve and the live paywall
+  is verified. Pickup detail in the `enhancement-sprint-v1-0-4` memory.
+- **Product direction & roadmap:** progress-feeling, stickiness, a coherent
+  daily loop. Approved forward roadmap (widgets, Wrapped share card, insights
+  panel, intro offer…) with build-status marks: `docs/enhancement-roadmap.md`.
+  Background: `docs/ux-optimization-plan.md`, `docs/ux-redesign-proposal.md`.
+- **Website** (2026-07-11): direct App Store CTAs, official badge, social
+  share card, FAQ (+ FAQPage schema), Pricing nav — live.
 
 The persistent memory files carry the evolving detail; keep both current.
-Read `app-store-resubmission-status`, `navigation-ux-1-0-1`, and `local-builds`
-first when resuming.
+Read `enhancement-sprint-v1-0-4`, `app-store-resubmission-status`, and
+`local-builds` first when resuming.
 
 Evolving project status lives in persistent memory (`MEMORY.md` index);
 this file holds the durable codebase facts. Keep both current.
