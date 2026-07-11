@@ -101,6 +101,7 @@ function SelectedDateDetails({
       action,
       benchmark,
       completed: log?.status === true,
+      note: log?.status === true ? log?.note : undefined,
     };
   });
 
@@ -150,7 +151,7 @@ function SelectedDateDetails({
         </ThemedText>
       ) : (
         <View style={styles.selectedDateActions}>
-          {actionStatuses.map(({ action, benchmark, completed }) => (
+          {actionStatuses.map(({ action, benchmark, completed, note }) => (
             <Pressable
               key={action.id}
               style={({ pressed }) => [
@@ -192,6 +193,17 @@ function SelectedDateDetails({
                     ]}
                   >
                     {benchmark.title}
+                  </ThemedText>
+                ) : null}
+                {note ? (
+                  <ThemedText
+                    style={[
+                      styles.selectedDateNote,
+                      { color: theme.textSecondary },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    &ldquo;{note}&rdquo;
                   </ThemedText>
                 ) : null}
               </View>
@@ -1483,6 +1495,11 @@ const styles = StyleSheet.create({
   },
   selectedDateBenchmark: {
     ...Typography.caption,
+    marginTop: 2,
+  },
+  selectedDateNote: {
+    ...Typography.caption,
+    fontStyle: "italic",
     marginTop: 2,
   },
   streakStatsRow: {

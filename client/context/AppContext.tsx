@@ -79,6 +79,11 @@ interface AppContextType {
   deleteAction: (id: string) => Promise<void>;
   setActions: (actions: ElementalAction[]) => Promise<void>;
   toggleDailyLog: (actionId: string, date: string) => Promise<DailyLog>;
+  setDailyLogNote: (
+    actionId: string,
+    date: string,
+    note: string,
+  ) => Promise<void>;
   addReflection: (
     reflection: Omit<Reflection, "id" | "createdAt">,
   ) => Promise<Reflection>;
@@ -369,6 +374,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [refreshData],
   );
 
+  // Attach/replace the one-line "how it went" note on an existing completed
+  // log. Notes ride on the log itself so they surface anywhere the log does
+  // (Journey day detail) and feed the coach's context.
+  const setDailyLogNote = useCallback(
+    async (actionId: string, date: string, note: string) => {
+      const dateStr = date.includes("T") ? date.split("T")[0] : date;
+      const existing = dailyLogsRef.current.find((l) => {
+        const logDateStr = l.logDate.includes("T")
+          ? l.logDate.split("T")[0]
+          : l.logDate;
+        return l.actionId === actionId && logDateStr === dateStr;
+      });
+      if (!existing || !existing.status) return;
+      const trimmed = note.trim().slice(0, 200);
+      const updated: DailyLog = {
+        ...existing,
+        note: trimmed.length > 0 ? trimmed : undefined,
+      };
+      setDailyLogsState((prev) =>
+        prev.map((l) => (l.id === updated.id ? updated : l)),
+      );
+      storage.upsertDailyLog(updated).catch(() => {
+        refreshData();
+      });
+    },
+    [refreshData],
+  );
+
   const addReflection = useCallback(
     async (reflection: Omit<Reflection, "id" | "createdAt">) => {
       const newReflection = await storage.addReflection(reflection);
@@ -602,6 +635,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteAction,
       setActions,
       toggleDailyLog,
+      setDailyLogNote,
       addReflection,
       refreshData,
       clearAllData,
@@ -643,6 +677,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteAction,
       setActions,
       toggleDailyLog,
+      setDailyLogNote,
       addReflection,
       refreshData,
       clearAllData,

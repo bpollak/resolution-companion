@@ -69,6 +69,8 @@ export default function ReflectScreen() {
     aiConsent,
     setAiConsent,
     progressSnapshot,
+    actions,
+    dailyLogs,
   } = useApp();
 
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType | null>(null);
@@ -170,12 +172,40 @@ export default function ReflectScreen() {
     };
   }, [progressSnapshot]);
 
+  // The user's own completion notes from the last 7 days — the coach quoting
+  // their words back is the "it knows me" moment. Newest first, capped at 8.
+  const recentNotes = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 7);
+    cutoff.setHours(0, 0, 0, 0);
+    const titleById = new Map(actions.map((a) => [a.id, a.title]));
+    const lines = dailyLogs
+      .filter((l) => l.status && l.note)
+      .filter((l) => {
+        const [y, m, d] = l.logDate.split("T")[0].split("-").map(Number);
+        return new Date(y, m - 1, d) >= cutoff;
+      })
+      .sort((a, b) => (a.logDate < b.logDate ? 1 : -1))
+      .slice(0, 8)
+      .map((l) => {
+        const [y, m, d] = l.logDate.split("T")[0].split("-").map(Number);
+        const when = new Date(y, m - 1, d).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        });
+        const title = titleById.get(l.actionId) ?? "an action";
+        return `- ${when} · ${title}: "${l.note}"`;
+      });
+    return lines.length > 0 ? lines.join("\n") : undefined;
+  }, [dailyLogs, actions]);
+
   const buildExtras = useCallback(
     (period: PeriodType): ReflectionExtras => ({
       weeklyContext: period === "weekly" ? weeklyContext : undefined,
       previousSessionNotes,
+      recentNotes,
     }),
-    [weeklyContext, previousSessionNotes],
+    [weeklyContext, previousSessionNotes, recentNotes],
   );
 
   const formatDate = (dateString: string) => {

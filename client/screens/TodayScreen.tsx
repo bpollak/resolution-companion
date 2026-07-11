@@ -274,6 +274,7 @@ export default function TodayScreen() {
     personaAlignment,
     progressSnapshot,
     toggleDailyLog,
+    setDailyLogNote,
   } = useApp();
 
   const today = new Date();
@@ -519,6 +520,8 @@ export default function TodayScreen() {
       ...completedTodayActions.map((action) => ({
         kind: "completed" as const,
         action,
+        log: todayLogByActionId.get(action.id) ?? null,
+        benchmarkTitle: undefined,
       })),
     ],
     [
@@ -527,6 +530,38 @@ export default function TodayScreen() {
       pendingTodayActions,
       todayLogByActionId,
     ],
+  );
+
+  // Optional "how it went" note on a completed action. One native prompt,
+  // fully skippable — the completion tap itself stays friction-free.
+  const todayLogByActionIdRef = useRef(todayLogByActionId);
+  todayLogByActionIdRef.current = todayLogByActionId;
+  const handleNotePress = useCallback(
+    (actionId: string) => {
+      const currentNote = todayLogByActionIdRef.current.get(actionId)?.note;
+      const save = (text: string | undefined) => {
+        if (text === undefined) return;
+        setDailyLogNote(actionId, todayDateStr, text).catch((error) =>
+          logger.error("Failed to save completion note:", error),
+        );
+      };
+      if (Platform.OS === "web") {
+        const text = window.prompt("How did it go?", currentNote ?? "");
+        save(text === null ? undefined : text);
+        return;
+      }
+      Alert.prompt(
+        currentNote ? "Edit your note" : "How did it go?",
+        "One line for future you — your coach reads these too.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Save", onPress: (text?: string) => save(text ?? "") },
+        ],
+        "plain-text",
+        currentNote ?? "",
+      );
+    },
+    [setDailyLogNote, todayDateStr],
   );
 
   const renderTodayRow = useCallback(
@@ -539,9 +574,14 @@ export default function TodayScreen() {
           benchmarkTitle={item.benchmarkTitle}
         />
       ) : (
-        <CompletedActionRow action={item.action} onToggle={handleToggle} />
+        <CompletedActionRow
+          action={item.action}
+          onToggle={handleToggle}
+          note={item.log?.note}
+          onNotePress={handleNotePress}
+        />
       ),
-    [handleToggle],
+    [handleToggle, handleNotePress],
   );
 
   // First-ever completion gets a one-time extra line on the celebration card

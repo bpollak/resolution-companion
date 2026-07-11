@@ -321,6 +321,11 @@ export interface ReflectionExtras {
    * coach memory). Injected as the coach's own notes.
    */
   previousSessionNotes?: string;
+  /**
+   * The user's own one-line completion notes from the last ~7 days, so the
+   * coach can quote their words back ("you wrote 'felt easy'").
+   */
+  recentNotes?: string;
 }
 
 export async function getReflectionResponse(
@@ -371,6 +376,13 @@ ${extras.previousSessionNotes}
 `
     : "";
 
+  const notesContext = extras?.recentNotes
+    ? `
+THEIR OWN WORDS THIS WEEK (one-line notes they attached when completing actions — quoting their own words back is powerful; use at most one, naturally):
+${extras.recentNotes}
+`
+    : "";
+
   const isWeekly = periodType === "weekly" && extras?.weeklyContext;
   const wk = extras?.weeklyContext;
 
@@ -397,7 +409,7 @@ LAST WEEK (their most recent complete Monday-Sunday week):
 
   const systemMessage: AIMessage = {
     role: "system",
-    content: `${roleLine} ${isWeekly ? weeklyProgressContext : progressContext}${identityContext}${memoryContext}
+    content: `${roleLine} ${isWeekly ? weeklyProgressContext : progressContext}${identityContext}${memoryContext}${notesContext}
 
 VOICE RULES:
 - NEVER use the word "persona" — say "your plan" or "who you're becoming."

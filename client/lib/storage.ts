@@ -50,6 +50,8 @@ export interface DailyLog {
   logDate: string;
   status: boolean;
   createdAt: string;
+  /** Optional one-line "how it went" note attached after completing. */
+  note?: string;
 }
 
 export interface Reflection {

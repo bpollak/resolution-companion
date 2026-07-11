@@ -228,6 +228,10 @@ export const ActionCard = React.memo(function ActionCard({
 interface CompletedActionRowProps {
   action: ElementalAction;
   onToggle: (actionId: string) => void;
+  /** Saved one-line "how it went" note for this completion, if any. */
+  note?: string;
+  /** Opens the add/edit note prompt. Omit to hide the affordance. */
+  onNotePress?: (actionId: string) => void;
 }
 
 // Completed actions collapse to this compact row so the deck visually clears
@@ -236,6 +240,8 @@ interface CompletedActionRowProps {
 export const CompletedActionRow = React.memo(function CompletedActionRow({
   action,
   onToggle,
+  note,
+  onNotePress,
 }: CompletedActionRowProps) {
   const { theme, isDark } = useTheme();
   const opacity = useSharedValue(0);
@@ -258,34 +264,73 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
 
   return (
     <Animated.View style={rowStyle}>
-      <Pressable
-        onPress={handlePress}
-        hitSlop={8}
-        pressRetentionOffset={20}
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: true }}
-        accessibilityLabel={action.title}
-        accessibilityHint="Marks this action as not done"
-        style={({ pressed }) => [
+      <View
+        style={[
           styles.compactRow,
           {
             backgroundColor: isDark
               ? Colors.dark.backgroundDefault
               : Colors.light.backgroundDefault,
-            opacity: pressed ? 0.8 : 1,
           },
         ]}
       >
-        <View style={styles.compactCheck}>
-          <Feather name="check" size={14} color="#000000" />
-        </View>
-        <ThemedText
-          style={[styles.compactTitle, { color: theme.textSecondary }]}
-          numberOfLines={1}
+        <Pressable
+          onPress={handlePress}
+          hitSlop={8}
+          pressRetentionOffset={20}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: true }}
+          accessibilityLabel={action.title}
+          accessibilityHint="Marks this action as not done"
+          style={({ pressed }) => [
+            styles.compactMain,
+            { opacity: pressed ? 0.8 : 1 },
+          ]}
         >
-          {action.title}
-        </ThemedText>
-      </Pressable>
+          <View style={styles.compactCheck}>
+            <Feather name="check" size={14} color="#000000" />
+          </View>
+          <View style={styles.compactTextCol}>
+            <ThemedText
+              style={[styles.compactTitle, { color: theme.textSecondary }]}
+              numberOfLines={1}
+            >
+              {action.title}
+            </ThemedText>
+            {note ? (
+              <ThemedText
+                style={[styles.compactNote, { color: theme.textSecondary }]}
+                numberOfLines={1}
+              >
+                &ldquo;{note}&rdquo;
+              </ThemedText>
+            ) : null}
+          </View>
+        </Pressable>
+        {onNotePress ? (
+          <Pressable
+            onPress={() => onNotePress(action.id)}
+            hitSlop={10}
+            pressRetentionOffset={12}
+            accessibilityRole="button"
+            accessibilityLabel={
+              note
+                ? `Edit your note for ${action.title}`
+                : `Add a note about how ${action.title} went`
+            }
+            style={({ pressed }) => [
+              styles.compactNoteButton,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
+          >
+            <Feather
+              name={note ? "message-square" : "edit-3"}
+              size={15}
+              color={note ? Colors.dark.accent : theme.textSecondary}
+            />
+          </Pressable>
+        ) : null}
+      </View>
     </Animated.View>
   );
 });
@@ -313,10 +358,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  compactMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  compactTextCol: {
+    flex: 1,
+  },
   compactTitle: {
     ...Typography.body,
-    flex: 1,
     textDecorationLine: "line-through",
+  },
+  compactNote: {
+    ...Typography.caption,
+    fontStyle: "italic",
+    marginTop: 2,
+  },
+  compactNoteButton: {
+    padding: Spacing.xs,
+    marginLeft: Spacing.sm,
   },
   benchmark: {
     ...Typography.caption,
