@@ -20,6 +20,33 @@ const REMINDER_BUCKET_SUGGESTED_KEY = "evolve_reminder_bucket_suggested";
 
 export type ReminderBucket = "morning" | "midday" | "evening";
 
+// Category + action ids for the reminder's long-press quick action. The
+// action completes the day without opening the app (AppContext handles the
+// response), so a busy evening still counts with one press.
+export const DAILY_REMINDER_CATEGORY = "daily-reminder";
+export const MARK_ALL_DONE_ACTION = "mark-all-done";
+
+/**
+ * Registers the "Mark all done" quick action on the daily reminder.
+ * Idempotent; call once on app start (no-op on web).
+ */
+export async function registerReminderActions(): Promise<void> {
+  if (Platform.OS === "web") {
+    return;
+  }
+  try {
+    await Notifications.setNotificationCategoryAsync(DAILY_REMINDER_CATEGORY, [
+      {
+        identifier: MARK_ALL_DONE_ACTION,
+        buttonTitle: "Mark all done ✓",
+        options: { opensAppToForeground: false },
+      },
+    ]);
+  } catch (error) {
+    logger.error("Failed to register reminder actions:", error);
+  }
+}
+
 export const REMINDER_BUCKETS: Record<
   ReminderBucket,
   { hour: number; minute: number; label: string; name: string }
@@ -212,6 +239,7 @@ export async function scheduleDailyReminder(
         body: reminderBody(options.streakCount, options.missedRun),
         sound: true,
         data: { type: "daily-reminder" },
+        categoryIdentifier: DAILY_REMINDER_CATEGORY,
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
@@ -281,6 +309,7 @@ export async function suppressReminderForToday(
         body: reminderBody(options.streakCount, options.missedRun),
         sound: true,
         data: { type: "daily-reminder" },
+        categoryIdentifier: DAILY_REMINDER_CATEGORY,
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,

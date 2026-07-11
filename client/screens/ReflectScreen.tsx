@@ -22,7 +22,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
@@ -32,11 +32,16 @@ import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ChatBubble } from "@/components/ChatBubble";
 import { AIConsentModal } from "@/components/AIConsentModal";
-import { getReflectionResponse, AIMessage, getMonthlyContext } from "@/lib/ai";
+import {
+  getReflectionResponse,
+  AIMessage,
+  getMonthlyContext,
+  ReflectionExtras,
+} from "@/lib/ai";
 import { logger } from "@/lib/logger";
 import { createTextStreamBuffer, TextStreamBuffer } from "@/lib/stream-buffer";
 
-type PeriodType = "monthly";
+type PeriodType = "monthly" | "weekly";
 
 interface ChatMessage {
   id: string;
@@ -49,6 +54,7 @@ export default function ReflectScreen() {
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const { theme, isDark } = useTheme();
   const {
     hasOnboarded,
@@ -62,6 +68,7 @@ export default function ReflectScreen() {
     reflections,
     aiConsent,
     setAiConsent,
+    progressSnapshot,
   } = useApp();
 
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType | null>(null);
@@ -117,6 +124,60 @@ export default function ReflectScreen() {
     [reflections],
   );
 
+  // Premium coach memory: a compact digest of the two most recent saved
+  // sessions, injected into the system prompt as the coach's own notes.
+  // Free sessions stay single-session — this is what "unlimited coaching"
+  // buys beyond quantity: a coach that remembers.
+  const previousSessionNotes = useMemo(() => {
+    if (!subscription.isPremium) return undefined;
+    const trim = (s: string, n: number) =>
+      s.length > n ? `${s.slice(0, n).trimEnd()}…` : s;
+    const notes = sortedReflections.slice(0, 2).map((r) => {
+      let firstUser = "";
+      let lastCoach = "";
+      try {
+        const convo = r.conversation
+          ? (JSON.parse(r.conversation) as { role: string; content: string }[])
+          : [];
+        firstUser = convo.find((m) => m.role === "user")?.content ?? "";
+        lastCoach =
+          [...convo].reverse().find((m) => m.role === "assistant")?.content ??
+          "";
+      } catch {
+        // Legacy sessions stored split fields only
+      }
+      if (!firstUser) firstUser = r.userInput?.split("\n")[0] ?? "";
+      if (!lastCoach) lastCoach = r.aiFeedback?.split("\n").slice(-1)[0] ?? "";
+      const when = new Date(r.createdAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+      const kind = r.periodType === "weekly" ? "weekly review" : "check-in";
+      return `- ${when} (${kind}, consistency ${r.momentumScore}%): they opened with "${trim(firstUser, 200)}" and you closed with "${trim(lastCoach, 280)}"`;
+    });
+    return notes.length > 0 ? notes.join("\n") : undefined;
+  }, [subscription.isPremium, sortedReflections]);
+
+  // Week numbers for the free Sunday-style weekly review ritual
+  const weeklyContext = useMemo(() => {
+    const { weeklyRecap, streak } = progressSnapshot;
+    return {
+      completed: weeklyRecap.lastWeek.completed,
+      scheduled: weeklyRecap.lastWeek.scheduled,
+      prevCompleted: weeklyRecap.prevWeek.completed,
+      bestDay: weeklyRecap.lastWeek.bestDay,
+      streak: streak.current,
+    };
+  }, [progressSnapshot]);
+
+  const buildExtras = useCallback(
+    (period: PeriodType): ReflectionExtras => ({
+      weeklyContext: period === "weekly" ? weeklyContext : undefined,
+      previousSessionNotes,
+    }),
+    [weeklyContext, previousSessionNotes],
+  );
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", {
@@ -131,7 +192,9 @@ export default function ReflectScreen() {
       return;
     }
 
-    if (!canUseReflection()) {
+    // Weekly reviews are a free ritual — they never count against the 10
+    // monthly check-ins, so the habit-forming loop is never the gated one.
+    if (period === "monthly" && !canUseReflection()) {
       // Arriving from the 10/10 gate: the paywall opens with a context card
       // explaining exactly which cap was hit
       navigation.navigate("Subscription", { source: "coach-limit" });
@@ -186,7 +249,10 @@ export default function ReflectScreen() {
         [
           {
             role: "user",
-            content: `I'm ready for my monthly check-in. My persona is "${persona.name}". Please help me review my progress this month.`,
+            content:
+              period === "weekly"
+                ? `I'm ready for my weekly review. My persona is "${persona.name}". Let's look at last week together.`
+                : `I'm ready for my monthly check-in. My persona is "${persona.name}". Please help me review my progress this month.`,
           },
         ],
         momentumScore,
@@ -194,6 +260,7 @@ export default function ReflectScreen() {
         streamBuffer.append,
         monthlyContext,
         { name: persona.name, description: persona.description },
+        buildExtras(period),
       );
 
       finishStreamBuffer(streamBuffer);
@@ -266,6 +333,7 @@ export default function ReflectScreen() {
         persona
           ? { name: persona.name, description: persona.description }
           : undefined,
+        buildExtras(selectedPeriod || "monthly"),
       );
 
       finishStreamBuffer(streamBuffer);
@@ -307,7 +375,11 @@ export default function ReflectScreen() {
         conversation: conversationData,
       });
 
-      await incrementReflectionCount();
+      // Weekly reviews are free and uncounted; only monthly check-ins spend
+      // one of the 10 free slots.
+      if (selectedPeriod === "monthly") {
+        await incrementReflectionCount();
+      }
 
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -428,6 +500,23 @@ export default function ReflectScreen() {
     // every buffered update also follows after React has committed its height.
     scrollToEndIfNeeded();
   }, [isInSession, isStreaming, messages, scrollToEndIfNeeded, streamingText]);
+
+  // Deep link from Today's weekly-recap card: auto-start the weekly review.
+  // The timestamp param is single-use (tracked in a ref) so re-focusing the
+  // tab later never relaunches a session.
+  const handledWeeklyTriggerRef = useRef<number | null>(null);
+  const startWeeklyTrigger = route.params?.startWeekly as number | undefined;
+  useEffect(() => {
+    if (!startWeeklyTrigger) return;
+    if (handledWeeklyTriggerRef.current === startWeeklyTrigger) return;
+    handledWeeklyTriggerRef.current = startWeeklyTrigger;
+    if (!isInSession) {
+      startReflection("weekly");
+    }
+    // startReflection is a stable plain function within this render scope;
+    // the trigger timestamp is the only real dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startWeeklyTrigger]);
 
   if (!hasOnboarded) {
     return (
@@ -647,7 +736,45 @@ export default function ReflectScreen() {
           ) : null}
         </View>
 
-        <ThemedText style={styles.sectionTitle}>Monthly Check-in</ThemedText>
+        <ThemedText style={styles.sectionTitle}>Weekly Review</ThemedText>
+
+        <Pressable
+          onPress={() => startReflection("weekly")}
+          accessibilityRole="button"
+          accessibilityLabel="Start your free 3-minute weekly review"
+          style={({ pressed }) => [
+            styles.weeklyReviewCard,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+            },
+            pressed && styles.heroCtaPressed,
+          ]}
+        >
+          <View style={styles.weeklyReviewIcon}>
+            <Feather name="rotate-ccw" size={20} color={Colors.dark.accent} />
+          </View>
+          <View style={styles.heroCtaContent}>
+            <ThemedText style={styles.weeklyReviewTitle}>
+              3-minute weekly review
+            </ThemedText>
+            <ThemedText
+              style={[
+                styles.weeklyReviewSubtitle,
+                { color: theme.textSecondary },
+              ]}
+            >
+              One win, one friction, one small bend &mdash; free, never uses a
+              check-in
+            </ThemedText>
+          </View>
+          <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+        </Pressable>
+
+        <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
+          Monthly Check-in
+        </ThemedText>
 
         {canUseReflection() ? (
           <Pressable
@@ -775,6 +902,7 @@ export default function ReflectScreen() {
                 <View style={styles.pastSessionContent}>
                   <ThemedText style={styles.pastSessionDate}>
                     {formatDate(reflection.createdAt)}
+                    {reflection.periodType === "weekly" ? " · Weekly" : ""}
                   </ThemedText>
                   <ThemedText
                     style={[
@@ -837,8 +965,7 @@ export default function ReflectScreen() {
           <Feather name="x" size={24} color={theme.text} />
         </Pressable>
         <ThemedText style={styles.chatHeaderTitle}>
-          {selectedPeriod?.charAt(0).toUpperCase()}
-          {selectedPeriod?.slice(1)} Check-in
+          {selectedPeriod === "weekly" ? "Weekly Review" : "Monthly Check-in"}
         </ThemedText>
         <Pressable
           onPress={finishReflection}
@@ -1110,6 +1237,29 @@ const styles = StyleSheet.create({
   heroCtaPressed: {
     opacity: 0.85,
     transform: [{ scale: 0.98 }],
+  },
+  weeklyReviewCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+  },
+  weeklyReviewIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: "rgba(0, 217, 255, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.md,
+  },
+  weeklyReviewTitle: {
+    ...Typography.body,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  weeklyReviewSubtitle: {
+    ...Typography.caption,
   },
   heroCtaIcon: {
     width: 48,

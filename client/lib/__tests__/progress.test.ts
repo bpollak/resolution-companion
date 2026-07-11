@@ -22,6 +22,7 @@ import {
   MILESTONE_TARGET_DAYS,
   sortWeekdays,
   formatScheduleDays,
+  formatTargetCountdown,
   buildProgressSnapshot,
 } from "@/lib/progress";
 import type { Benchmark, ElementalAction, DailyLog } from "@/lib/storage";
@@ -1000,6 +1001,38 @@ describe("buildProgressSnapshot", () => {
     );
     expect(snapshot.milestoneProgressByBenchmarkId.get(benchmark.id)).toBe(
       snapshot.milestoneProgress[0],
+    );
+  });
+});
+
+describe("formatTargetCountdown", () => {
+  const today = new Date(2026, 6, 15); // Jul 15, 2026 (local)
+
+  it("returns null when no target date is set", () => {
+    expect(formatTargetCountdown(null, today)).toBeNull();
+  });
+
+  it("labels near-term targets in days", () => {
+    expect(formatTargetCountdown("2026-07-15", today)).toBe("target today");
+    expect(formatTargetCountdown("2026-07-16", today)).toBe("1 day left");
+    expect(formatTargetCountdown("2026-07-20", today)).toBe("5 days left");
+    expect(formatTargetCountdown("2026-07-28", today)).toBe("13 days left");
+  });
+
+  it("labels two weeks and beyond in weeks", () => {
+    expect(formatTargetCountdown("2026-07-29", today)).toBe("2 weeks left");
+    expect(formatTargetCountdown("2026-08-05", today)).toBe("3 weeks left");
+    expect(formatTargetCountdown("2026-10-15", today)).toBe("13 weeks left");
+  });
+
+  it("is gentle past the target — no negative counts", () => {
+    expect(formatTargetCountdown("2026-07-14", today)).toBe("past target");
+    expect(formatTargetCountdown("2026-01-01", today)).toBe("past target");
+  });
+
+  it("ignores any time component on stored dates", () => {
+    expect(formatTargetCountdown("2026-07-16T08:00:00.000Z", today)).toBe(
+      "1 day left",
     );
   });
 });

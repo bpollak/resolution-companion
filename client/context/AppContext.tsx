@@ -24,9 +24,15 @@ import {
   buildProgressSnapshot,
   computeLapse,
   computeStreak,
+  getLocalDateString,
   ProgressSnapshot,
 } from "@/lib/progress";
-import { ensureReminderScheduled } from "@/lib/notifications";
+import {
+  ensureReminderScheduled,
+  registerReminderActions,
+  MARK_ALL_DONE_ACTION,
+} from "@/lib/notifications";
+import * as Notifications from "expo-notifications";
 import { logger } from "@/lib/logger";
 
 interface AppContextType {
@@ -488,6 +494,66 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     return () => subscription.remove();
   }, []);
+
+  // "Mark all done ✓" quick action on the daily reminder. The response can
+  // arrive live (listener) or on the next launch (last-response) when iOS ran
+  // the action without waking JS — the handled-key guard makes the two paths
+  // idempotent. Logs are written for the notification's FIRE date, so a tap
+  // on last night's reminder processed this morning still credits yesterday.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    registerReminderActions();
+
+    const handleResponse = async (
+      response: Notifications.NotificationResponse | null,
+    ) => {
+      if (!response) return;
+      if (response.actionIdentifier !== MARK_ALL_DONE_ACTION) return;
+      const data = response.notification.request.content.data as
+        | { type?: string }
+        | undefined;
+      if (data?.type !== "daily-reminder") return;
+
+      const firedAt = new Date(response.notification.date);
+      const dateKey = getLocalDateString(firedAt);
+      const handledKey = `evolve_reminder_action_handled`;
+      const marker = `${response.notification.request.identifier}|${dateKey}`;
+      try {
+        if ((await AsyncStorage.getItem(handledKey)) === marker) return;
+        await AsyncStorage.setItem(handledKey, marker);
+      } catch {
+        // Guard failed open — a duplicate pass is harmless (toggles below
+        // skip already-completed actions).
+      }
+
+      const { actions: currentActions, dailyLogs: currentLogs } =
+        reminderStateRef.current;
+      const weekday = firedAt.toLocaleDateString("en-US", { weekday: "long" });
+      for (const action of currentActions) {
+        if (!action.frequency.includes(weekday)) continue;
+        const created = getLocalDateString(new Date(action.createdAt));
+        if (created > dateKey) continue;
+        const existing = currentLogs.find(
+          (l) =>
+            l.actionId === action.id && l.logDate.split("T")[0] === dateKey,
+        );
+        if (existing?.status) continue;
+        await toggleDailyLog(action.id, dateKey);
+      }
+    };
+
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        handleResponse(response).catch((error) =>
+          logger.error("Failed to handle reminder action:", error),
+        );
+      },
+    );
+    Notifications.getLastNotificationResponseAsync()
+      .then(handleResponse)
+      .catch(() => {});
+    return () => subscription.remove();
+  }, [toggleDailyLog]);
 
   const canUseReflection = useCallback(() => {
     if (subscription.isPremium) return true;

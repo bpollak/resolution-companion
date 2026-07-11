@@ -12,6 +12,8 @@ interface WeeklyRecapCardProps {
   streak: StreakResult;
   personaName: string;
   onDismiss: () => void;
+  /** Opens the free 3-minute weekly review with the coach. */
+  onStartReview?: () => void;
 }
 
 /**
@@ -24,6 +26,7 @@ export function WeeklyRecapCard({
   streak,
   personaName,
   onDismiss,
+  onStartReview,
 }: WeeklyRecapCardProps) {
   const { theme, isDark } = useTheme();
   const { lastWeek, prevWeek } = recap;
@@ -121,6 +124,28 @@ export function WeeklyRecapCard({
       <ThemedText style={[styles.identityLine, { color: theme.textSecondary }]}>
         {identityLine}
       </ThemedText>
+
+      {onStartReview ? (
+        <Pressable
+          onPress={onStartReview}
+          hitSlop={8}
+          pressRetentionOffset={12}
+          accessibilityRole="button"
+          accessibilityLabel="Start your free 3-minute weekly review with the coach"
+          style={({ pressed }) => [
+            styles.reviewCta,
+            { opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <Feather name="message-circle" size={14} color={Colors.dark.accent} />
+          <ThemedText
+            style={[styles.reviewCtaText, { color: Colors.dark.accent }]}
+          >
+            3-min weekly review with your coach
+          </ThemedText>
+          <Feather name="arrow-right" size={14} color={Colors.dark.accent} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -229,6 +254,16 @@ const styles = StyleSheet.create({
   identityLine: {
     ...Typography.small,
     fontStyle: "italic",
+  },
+  reviewCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginTop: Spacing.md,
+  },
+  reviewCtaText: {
+    ...Typography.small,
+    fontWeight: "600",
   },
   nudgeText: {
     ...Typography.small,

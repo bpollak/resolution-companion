@@ -300,6 +300,29 @@ export function getMonthlyContext(
   return context;
 }
 
+export interface WeeklyReviewContext {
+  /** Completed action-days in the most recent complete Mon-Sun week. */
+  completed: number;
+  /** Scheduled action-days that week. */
+  scheduled: number;
+  /** Prior week's completions, for a beat-last-week read. */
+  prevCompleted: number;
+  /** Weekday with the most completions; null when nothing was completed. */
+  bestDay: string | null;
+  /** Current streak, for continuity framing. */
+  streak: number;
+}
+
+export interface ReflectionExtras {
+  /** Set for the free Sunday Weekly Review ritual — swaps in week framing. */
+  weeklyContext?: WeeklyReviewContext;
+  /**
+   * Compact digest of the user's 1-2 most recent saved sessions (premium
+   * coach memory). Injected as the coach's own notes.
+   */
+  previousSessionNotes?: string;
+}
+
 export async function getReflectionResponse(
   messages: AIMessage[],
   momentumScore: number,
@@ -307,6 +330,7 @@ export async function getReflectionResponse(
   onChunk?: (chunk: string) => void,
   monthlyContext?: MonthlyContext,
   persona?: { name: string; description: string },
+  extras?: ReflectionExtras,
 ): Promise<string> {
   const isFirstMessage = messages.length === 1;
   const ctx = monthlyContext || getMonthlyContext(momentumScore);
@@ -338,9 +362,42 @@ Speak to them as this person-in-progress. Frame feedback around what "${persona.
 `
     : "";
 
+  // Premium coach memory: the digest reads as the coach's own session notes,
+  // so continuity ("last time you said...") comes naturally, never recited.
+  const memoryContext = extras?.previousSessionNotes
+    ? `
+WHAT YOU REMEMBER FROM YOUR PREVIOUS SESSIONS WITH THEM (your own notes — draw on these naturally when relevant, e.g. following up on something they said last time; never recite them back verbatim or list them):
+${extras.previousSessionNotes}
+`
+    : "";
+
+  const isWeekly = periodType === "weekly" && extras?.weeklyContext;
+  const wk = extras?.weeklyContext;
+
+  const weeklyProgressContext = wk
+    ? `
+LAST WEEK (their most recent complete Monday-Sunday week):
+- Completed ${wk.completed} of ${wk.scheduled} scheduled action-days${wk.prevCompleted > 0 ? ` (the week before: ${wk.prevCompleted})` : ""}.
+- ${wk.bestDay ? `Their strongest day was ${wk.bestDay}.` : "No completions last week — meet them with warmth, not pressure."}
+- Current streak: ${wk.streak} day${wk.streak === 1 ? "" : "s"}.
+`
+    : "";
+
+  const roleLine = isWeekly
+    ? "You are a supportive coach guiding the user through a short WEEKLY REVIEW — a 3-minute ritual, not a deep session."
+    : "You are a supportive coach helping the user with their monthly progress check-in.";
+
+  const firstMessageInstruction = isWeekly
+    ? `FIRST MESSAGE: Be brief (2-3 sentences max). This is a light weekly ritual with three beats you'll walk through one at a time: one win from last week, one point of friction, and one small bend for the coming week. Open by naming their week in one warm sentence (use the week numbers naturally), then ask for the win. ONE question only.`
+    : `FIRST MESSAGE: Be brief (2-3 sentences max). Anchor on how long they've been at their plan${justStarted ? " — they just started, so welcome them to their first days and celebrate showing up at all" : " and their consistency over that time"}. ${ctx.isAhead ? "Their consistency is strong — celebrate it." : ctx.isBehind ? "They're struggling — be encouraging and ask what's been challenging." : "They're building — note the steady progress."} Ask ONE simple question about their experience. No lengthy explanations.`;
+
+  const continueInstruction = isWeekly
+    ? `Continue the ritual: after their win, ask about friction; after friction, propose ONE small bend for next week (shrink an action, move its day, or lean on the 2-minute version) and confirm it with them. Then wrap warmly — the whole review should feel complete in about three exchanges. Keep responses to 2-3 sentences.`
+    : `Continue the conversation naturally. Keep responses concise (2-4 sentences). Use the monthly context to give relevant advice. If they're struggling, gently suggest smaller actions, easier kickstart versions, or fewer scheduled days. If consistency is strong, acknowledge their momentum and ask about what's working.`;
+
   const systemMessage: AIMessage = {
     role: "system",
-    content: `You are a supportive coach helping the user with their monthly progress check-in. ${progressContext}${identityContext}
+    content: `${roleLine} ${isWeekly ? weeklyProgressContext : progressContext}${identityContext}${memoryContext}
 
 VOICE RULES:
 - NEVER use the word "persona" — say "your plan" or "who you're becoming."
@@ -348,7 +405,7 @@ VOICE RULES:
 - Identity framing: completed actions are votes for who they're becoming. A missed stretch is a plan problem, not a character problem — respond by shrinking the action or moving its schedule, never by scolding.
 - You are not a therapist or medical professional. If health, medication, or mental-health treatment comes up, be kind and suggest a qualified professional while staying supportive about their habits.
 
-${isFirstMessage ? `FIRST MESSAGE: Be brief (2-3 sentences max). Anchor on how long they've been at their plan${justStarted ? " — they just started, so welcome them to their first days and celebrate showing up at all" : " and their consistency over that time"}. ${ctx.isAhead ? "Their consistency is strong — celebrate it." : ctx.isBehind ? "They're struggling — be encouraging and ask what's been challenging." : "They're building — note the steady progress."} Ask ONE simple question about their experience. No lengthy explanations.` : `Continue the conversation naturally. Keep responses concise (2-4 sentences). Use the monthly context to give relevant advice. If they're struggling, gently suggest smaller actions, easier kickstart versions, or fewer scheduled days. If consistency is strong, acknowledge their momentum and ask about what's working.`}
+${isFirstMessage ? firstMessageInstruction : continueInstruction}
 
 Be warm and practical. No bullet points or lists in responses.`,
   };

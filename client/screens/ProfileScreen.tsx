@@ -453,7 +453,7 @@ export default function ProfileScreen() {
   );
 
   const stats = [
-    { label: "Benchmarks", value: currentPersonaBenchmarks.length },
+    { label: "Milestones", value: currentPersonaBenchmarks.length },
     { label: "Actions", value: currentPersonaActions.length },
     { label: "Coaching", value: reflections.length },
   ];

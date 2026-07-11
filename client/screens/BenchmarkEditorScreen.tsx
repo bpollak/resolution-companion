@@ -17,11 +17,38 @@ import { useApp } from "@/context/AppContext";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
-import { formatScheduleDays } from "@/lib/progress";
+import {
+  formatScheduleDays,
+  formatTargetCountdown,
+  getLocalDateString,
+} from "@/lib/progress";
 import { logger } from "@/lib/logger";
 
 const MIN_ACTIONS_PER_PERSONA = 3;
 const MAX_ACTIONS_PER_PERSONA = 5;
+
+/** Relative presets keep the picker dependency-free and the tone gentle. */
+const TARGET_PRESETS: { key: string; label: string; addDays: number }[] = [
+  { key: "3w", label: "3 weeks", addDays: 21 },
+  { key: "1m", label: "1 month", addDays: 30 },
+  { key: "2m", label: "2 months", addDays: 61 },
+  { key: "3m", label: "3 months", addDays: 91 },
+];
+
+function presetToDate(addDays: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + addDays);
+  return getLocalDateString(d);
+}
+
+function formatTargetDateLabel(dateStr: string): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
 type RouteParams = {
   BenchmarkEditor: {
@@ -80,14 +107,17 @@ export default function BenchmarkEditorScreen() {
   }, [isEditing, existingBenchmark, persona, navigation, canAddBenchmark]);
 
   const [title, setTitle] = useState(existingBenchmark?.title || "");
+  const [targetDate, setTargetDate] = useState<string | null>(
+    existingBenchmark?.targetDate?.split("T")[0] || null,
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
     if (!title.trim()) {
       if (Platform.OS === "web") {
-        window.alert("Please enter a benchmark title.");
+        window.alert("Please enter a milestone title.");
       } else {
-        Alert.alert("Missing Title", "Please enter a benchmark title.");
+        Alert.alert("Missing Title", "Please enter a milestone title.");
       }
       return;
     }
@@ -96,12 +126,12 @@ export default function BenchmarkEditorScreen() {
 
     try {
       if (isEditing && existingBenchmark) {
-        await updateBenchmark(existingBenchmark.id, { title });
+        await updateBenchmark(existingBenchmark.id, { title, targetDate });
       } else {
         const newBenchmark = await addBenchmark({
           personaId: persona?.id || "",
           title,
-          targetDate: null,
+          targetDate,
           status: "active",
         });
         navigation.replace("BenchmarkEditor", { benchmarkId: newBenchmark.id });
@@ -116,9 +146,9 @@ export default function BenchmarkEditorScreen() {
     } catch (error) {
       logger.error("Failed to save benchmark:", error);
       if (Platform.OS === "web") {
-        window.alert("Failed to save benchmark. Please try again.");
+        window.alert("Failed to save the milestone. Please try again.");
       } else {
-        Alert.alert("Error", "Failed to save benchmark. Please try again.");
+        Alert.alert("Error", "Failed to save the milestone. Please try again.");
       }
     } finally {
       setIsSaving(false);
@@ -138,11 +168,11 @@ export default function BenchmarkEditorScreen() {
       } catch (error) {
         logger.error("Failed to delete benchmark:", error);
         if (Platform.OS === "web") {
-          window.alert("Failed to delete the benchmark. Please try again.");
+          window.alert("Failed to delete the milestone. Please try again.");
         } else {
           Alert.alert(
             "Error",
-            "Failed to delete the benchmark. Please try again.",
+            "Failed to delete the milestone. Please try again.",
           );
         }
       }
@@ -158,7 +188,7 @@ export default function BenchmarkEditorScreen() {
       }
     } else {
       Alert.alert(
-        "Delete Benchmark",
+        "Delete Milestone",
         `Are you sure you want to delete "${existingBenchmark.title}"? This will also remove all associated actions and logs.`,
         [
           { text: "Cancel", style: "cancel" },
@@ -171,11 +201,11 @@ export default function BenchmarkEditorScreen() {
   const handleAddAction = () => {
     if (!benchmarkId) {
       if (Platform.OS === "web") {
-        window.alert("Please save the benchmark first before adding actions.");
+        window.alert("Please save the milestone first before adding actions.");
       } else {
         Alert.alert(
           "Save First",
-          "Please save the benchmark first before adding actions.",
+          "Please save the milestone first before adding actions.",
         );
       }
       return;
@@ -272,14 +302,14 @@ export default function BenchmarkEditorScreen() {
           <Feather name="x" size={24} color={theme.text} />
         </Pressable>
         <ThemedText style={styles.headerTitle}>
-          {isEditing ? "Edit Benchmark" : "New Benchmark"}
+          {isEditing ? "Edit Milestone" : "New Milestone"}
         </ThemedText>
         <Pressable
           onPress={handleSave}
           disabled={isSaving}
           hitSlop={4}
           accessibilityRole="button"
-          accessibilityLabel="Save benchmark"
+          accessibilityLabel="Save milestone"
           accessibilityState={{ disabled: isSaving }}
           style={({ pressed }) => [
             styles.headerButton,
@@ -300,7 +330,7 @@ export default function BenchmarkEditorScreen() {
           <ThemedText
             style={[styles.sectionLabel, { color: Colors.dark.accent }]}
           >
-            Benchmark Goal
+            Milestone Goal
           </ThemedText>
           <TextInput
             style={[
@@ -321,6 +351,90 @@ export default function BenchmarkEditorScreen() {
           <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
             A major milestone that defines your persona
           </ThemedText>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText
+            style={[styles.sectionLabel, { color: Colors.dark.accent }]}
+          >
+            Target Date (Optional)
+          </ThemedText>
+          <View style={styles.presetRow}>
+            {TARGET_PRESETS.map((preset) => {
+              const presetDate = presetToDate(preset.addDays);
+              const selected = targetDate === presetDate;
+              return (
+                <Pressable
+                  key={preset.key}
+                  onPress={() => {
+                    setTargetDate(selected ? null : presetDate);
+                    if (Platform.OS !== "web") {
+                      Haptics.selectionAsync();
+                    }
+                  }}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Set target date ${preset.label} from now`}
+                  accessibilityState={{ selected }}
+                  style={({ pressed }) => [
+                    styles.presetChip,
+                    {
+                      backgroundColor: selected
+                        ? "rgba(0, 217, 255, 0.12)"
+                        : isDark
+                          ? Colors.dark.backgroundDefault
+                          : Colors.light.backgroundDefault,
+                      borderColor: selected
+                        ? "rgba(0, 217, 255, 0.5)"
+                        : "transparent",
+                      opacity: pressed ? 0.7 : 1,
+                    },
+                  ]}
+                >
+                  <ThemedText
+                    style={[
+                      styles.presetChipText,
+                      {
+                        color: selected ? Colors.dark.accent : theme.text,
+                      },
+                    ]}
+                  >
+                    {preset.label}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </View>
+          {targetDate ? (
+            <View style={styles.targetSummaryRow}>
+              <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
+                Target: {formatTargetDateLabel(targetDate)}
+                {(() => {
+                  const countdown = formatTargetCountdown(targetDate);
+                  return countdown ? ` · ${countdown}` : "";
+                })()}
+              </ThemedText>
+              <Pressable
+                onPress={() => setTargetDate(null)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Clear target date"
+              >
+                <ThemedText
+                  style={[
+                    styles.clearTargetText,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Clear
+                </ThemedText>
+              </Pressable>
+            </View>
+          ) : (
+            <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
+              A gentle aim, not a deadline — progress never resets
+            </ThemedText>
+          )}
         </View>
 
         {isEditing ? (
@@ -487,7 +601,7 @@ export default function BenchmarkEditorScreen() {
             <ThemedText
               style={[styles.infoText, { color: theme.textSecondary }]}
             >
-              Save this benchmark first, then you can add multiple actions to
+              Save this milestone first, then you can add multiple actions to
               track.
             </ThemedText>
           </View>
@@ -510,7 +624,7 @@ export default function BenchmarkEditorScreen() {
             <ThemedText
               style={[styles.deleteButtonText, { color: Colors.dark.error }]}
             >
-              Delete Benchmark
+              Delete Milestone
             </ThemedText>
           </Pressable>
         ) : null}
@@ -566,6 +680,32 @@ const styles = StyleSheet.create({
   hint: {
     ...Typography.caption,
     marginTop: Spacing.xs,
+  },
+  presetRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  presetChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  presetChipText: {
+    ...Typography.small,
+    fontWeight: "600",
+  },
+  targetSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: Spacing.xs,
+  },
+  clearTargetText: {
+    ...Typography.caption,
+    fontWeight: "600",
+    textDecorationLine: "underline",
   },
   addButton: {
     flexDirection: "row",

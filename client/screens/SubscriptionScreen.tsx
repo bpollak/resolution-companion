@@ -829,7 +829,7 @@ export default function SubscriptionScreen() {
             premium="Unlimited"
           />
           <CompareRow
-            title="Benchmarks per persona"
+            title="Milestones per persona"
             description="Add new milestones as your goals evolve"
             free="Starter set"
             premium="Unlimited"

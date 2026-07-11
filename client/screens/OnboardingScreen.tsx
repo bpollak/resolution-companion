@@ -28,6 +28,7 @@ import {
   AIMessage,
 } from "@/lib/ai";
 import { sortWeekdays } from "@/lib/progress";
+import { storage } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 
 const MIN_ACTIONS_PER_PERSONA = 3;
@@ -212,6 +213,39 @@ export default function OnboardingScreen() {
 
   const flatListRef = useRef<FlatList>(null);
   const messageCount = useRef(0);
+  // Set when the user starts a fresh interview this session, so a slow
+  // transcript restore can't clobber a conversation already in progress
+  const startedFreshRef = useRef(false);
+
+  // Resume an interrupted AI interview: restore the saved transcript and
+  // skip the intro so an app switch or crash doesn't restart the interview.
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const stored = await storage.getOnboardingMessages();
+        if (stored.length === 0 || startedFreshRef.current) return;
+        setMessages(
+          stored.map(({ id, role, content }) => ({ id, role, content })),
+        );
+        const userTurns = stored.filter((m) => m.role === "user").length;
+        messageCount.current = userTurns;
+        if (userTurns >= 2) setConversationComplete(true);
+        setShowIntro(false);
+      } catch {
+        // A failed restore just means starting fresh
+      }
+    })();
+  }, []);
+
+  // Persist the transcript as it grows (fire-and-forget; cleared on success)
+  React.useEffect(() => {
+    if (messages.length === 0) return;
+    storage
+      .setOnboardingMessages(
+        messages.map((m) => ({ ...m, createdAt: new Date().toISOString() })),
+      )
+      .catch(() => {});
+  }, [messages]);
 
   const handleBeginOnboarding = async () => {
     if (!aiConsent) {
@@ -222,6 +256,7 @@ export default function OnboardingScreen() {
   };
 
   const beginChat = async () => {
+    startedFreshRef.current = true;
     setShowIntro(false);
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -262,6 +297,7 @@ export default function OnboardingScreen() {
       });
       await savePlan(persona.id, DEFAULT_BENCHMARKS);
       await setHasOnboarded(true);
+      storage.setOnboardingMessages([]).catch(() => {});
 
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -473,6 +509,7 @@ export default function OnboardingScreen() {
 
       await savePlan(persona.id, benchmarksToUse);
       await setHasOnboarded(true);
+      storage.setOnboardingMessages([]).catch(() => {});
 
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

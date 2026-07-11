@@ -11,13 +11,26 @@ interface StatChipProps {
   /** Optional trailing detail (e.g. a delta like "▲3"). */
   detail?: string;
   detailColor?: string;
+  /** Optional small icon rendered just before the detail text. */
+  detailIcon?: React.ReactNode;
+  /** Overrides the default icon+text reading for screen readers. */
+  accessibilityLabel?: string;
 }
 
-export function StatChip({ icon, text, detail, detailColor }: StatChipProps) {
+export function StatChip({
+  icon,
+  text,
+  detail,
+  detailColor,
+  detailIcon,
+  accessibilityLabel,
+}: StatChipProps) {
   const { theme, isDark } = useTheme();
 
   return (
     <View
+      accessible={!!accessibilityLabel}
+      accessibilityLabel={accessibilityLabel}
       style={[
         styles.chip,
         {
@@ -29,6 +42,7 @@ export function StatChip({ icon, text, detail, detailColor }: StatChipProps) {
     >
       {icon}
       <ThemedText style={styles.text}>{text}</ThemedText>
+      {detailIcon}
       {detail ? (
         <ThemedText
           style={[styles.detail, { color: detailColor ?? theme.textSecondary }]}

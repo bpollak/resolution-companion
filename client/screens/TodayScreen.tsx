@@ -20,6 +20,7 @@ import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as StoreReview from "expo-store-review";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -58,6 +59,11 @@ import { logger } from "@/lib/logger";
 
 const CONTEXTUAL_NOTIF_ASK_KEY = "today_contextual_notif_ask_done";
 const FIRST_DAY_COMPLETE_KEY = "today_first_day_complete_seen";
+// {count, lastDate} of distinct fully-complete days, for timing the one-time
+// App Store review ask at the third day-complete celebration
+const REVIEW_COMPLETE_DAYS_KEY = "today_review_complete_days";
+const REVIEW_REQUESTED_KEY = "today_review_requested";
+const REVIEW_ASK_AFTER_DAYS = 3;
 // Monday of the last-recapped week — the recap card shows once per week
 const WEEKLY_RECAP_SEEN_KEY = "today_weekly_recap_seen_week";
 const WEEKLY_NUDGE_SEEN_KEY = "today_weekly_nudge_seen_week";
@@ -613,6 +619,52 @@ export default function TodayScreen() {
     };
   }, [celebrateDayComplete, streakCurrent]);
 
+  // One-time App Store review ask at the third day-complete celebration —
+  // peak-moment timing, and disjoint from the first-day notification ask.
+  // StoreReview.requestReview is a no-op when Apple declines to show it.
+  useEffect(() => {
+    if (!celebrateDayComplete || Platform.OS === "web") return;
+    let cancelled = false;
+    (async () => {
+      const [rawDays, requested] = await Promise.all([
+        AsyncStorage.getItem(REVIEW_COMPLETE_DAYS_KEY),
+        AsyncStorage.getItem(REVIEW_REQUESTED_KEY),
+      ]);
+      let days: { count: number; lastDate: string } = {
+        count: 0,
+        lastDate: "",
+      };
+      try {
+        if (rawDays) days = JSON.parse(rawDays);
+      } catch {
+        // Corrupt marker — restart the count; worst case the ask comes later
+      }
+      if (days.lastDate !== todayDateStr) {
+        days = { count: days.count + 1, lastDate: todayDateStr };
+        await AsyncStorage.setItem(
+          REVIEW_COMPLETE_DAYS_KEY,
+          JSON.stringify(days),
+        );
+      }
+      if (requested || days.count < REVIEW_ASK_AFTER_DAYS || cancelled) return;
+      await AsyncStorage.setItem(REVIEW_REQUESTED_KEY, "true");
+      setTimeout(async () => {
+        try {
+          if (await StoreReview.hasAction()) {
+            await StoreReview.requestReview();
+          }
+        } catch (error) {
+          logger.error("Failed to request store review:", error);
+        }
+      }, 4000);
+    })().catch((error) => {
+      logger.error("Failed to track review timing:", error);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [celebrateDayComplete, todayDateStr]);
+
   if (!hasOnboarded || !persona) {
     return (
       <View
@@ -679,6 +731,12 @@ export default function TodayScreen() {
                 streak={streak}
                 personaName={persona.name}
                 onDismiss={dismissWeeklyRecap}
+                onStartReview={() => {
+                  navigation.navigate(
+                    "ReflectTab" as never,
+                    { startWeekly: Date.now() } as never,
+                  );
+                }}
               />
             ) : showBeatLastWeekNudge ? (
               <BeatLastWeekCard
@@ -727,6 +785,29 @@ export default function TodayScreen() {
                     streak.shieldUsed
                       ? "Streak protected"
                       : `${streak.current}-day streak`
+                  }
+                  detailIcon={
+                    // Make the grace shield legible BEFORE it's needed: a
+                    // quiet "armed" marker once there's a streak worth keeping.
+                    !streak.shieldUsed && streak.current >= 2 ? (
+                      <Feather
+                        name="shield"
+                        size={12}
+                        color={theme.textSecondary}
+                      />
+                    ) : undefined
+                  }
+                  detail={
+                    !streak.shieldUsed && streak.current >= 2
+                      ? "ready"
+                      : undefined
+                  }
+                  accessibilityLabel={
+                    streak.shieldUsed
+                      ? "Streak protected by your shield"
+                      : streak.current >= 2
+                        ? `${streak.current}-day streak, shield ready — one missed day per week is covered`
+                        : `${streak.current}-day streak`
                   }
                 />
                 <StatChip

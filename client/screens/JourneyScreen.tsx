@@ -12,6 +12,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
 import {
   formatScheduleDays,
+  formatTargetCountdown,
   getLocalDateString,
   MilestoneProgressResult,
 } from "@/lib/progress";
@@ -309,7 +310,10 @@ const MilestoneRow = React.memo(function MilestoneRow({
           >
             {completed
               ? "Complete — habit locked in"
-              : `${daysDone} of ${target} days done`}
+              : `${daysDone} of ${target} days done${(() => {
+                  const countdown = formatTargetCountdown(benchmark.targetDate);
+                  return countdown ? ` · ${countdown}` : "";
+                })()}`}
           </ThemedText>
           <Pressable
             onPress={() => onEdit(benchmark.id)}
