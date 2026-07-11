@@ -49,12 +49,15 @@
     />
     <meta
       property="og:image"
-      content="BASE_URL_PLACEHOLDER/assets/website/app-logo.png"
+      content="BASE_URL_PLACEHOLDER/assets/website/social-card.png"
     />
-    <meta property="og:image:width" content="512" />
-    <meta property="og:image:height" content="512" />
-    <meta property="og:image:alt" content="Resolution Companion app icon" />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Resolution Companion — Stop Chasing Goals. Become Someone New."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta
       name="twitter:title"
       content="Resolution Companion | AI Habit &amp; Identity Coach"
@@ -65,9 +68,12 @@
     />
     <meta
       name="twitter:image"
-      content="BASE_URL_PLACEHOLDER/assets/website/app-logo.png"
+      content="BASE_URL_PLACEHOLDER/assets/website/social-card.png"
     />
-    <meta name="twitter:image:alt" content="Resolution Companion app icon" />
+    <meta
+      name="twitter:image:alt"
+      content="Resolution Companion — Stop Chasing Goals. Become Someone New."
+    />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -141,6 +147,60 @@
             "publisher": {
               "@id": "BASE_URL_PLACEHOLDER/#organization"
             }
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "BASE_URL_PLACEHOLDER/#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Is Resolution Companion free?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. The core app is free forever — one active plan, full daily action tracking, the Journey calendar, progress tracking, and 10 coaching check-ins each month. Premium ($2.99/month or $24.99/year) unlocks unlimited plans, unlimited coaching check-ins, and unlimited milestones."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How is this different from a habit tracker?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Traditional habit trackers count streaks — and one missed day can wipe out your motivation. Resolution Companion is identity-based: you define who you're becoming, then log small daily actions that reinforce that identity. Progress is measured by monthly consistency, not unbroken chains, so one missed day never erases your growth."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is my data private?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. Your plans, actions, and progress are stored locally on your device. Our servers keep only an anonymous device identifier and your subscription status so purchases can be restored. AI conversations are processed in real time and are not stored by us."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is the AI coach a substitute for therapy or medical advice?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. The AI coach provides motivational and informational guidance only. It is not a substitute for professional advice from qualified healthcare providers, therapists, or counselors."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What devices does it support?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Resolution Companion AI is available on the App Store for iPhone and iPad. An Android version isn't available today."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How do I cancel my subscription?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Subscriptions are billed and managed by Apple. Open Settings on your iPhone or iPad, tap your name, then Subscriptions, and cancel there. To avoid renewal, cancel at least 24 hours before the renewal date — you keep Premium until the end of the paid period."
+                }
+              }
+            ]
           }
         ]
       }
@@ -1573,6 +1633,7 @@
       .store-buttons {
         display: flex;
         flex-direction: column;
+        align-items: center;
         gap: 12px;
       }
 
@@ -2409,6 +2470,75 @@
           grid-template-columns: 1fr;
         }
       }
+      /* Official App Store badge */
+      .store-badge {
+        display: inline-block;
+        transition:
+          transform 0.2s,
+          opacity 0.2s;
+      }
+      .store-badge img {
+        display: block;
+        width: 180px;
+        height: 60px;
+      }
+      .store-badge:hover {
+        transform: scale(1.04);
+        opacity: 0.9;
+      }
+
+      /* FAQ Section */
+      .faq {
+        padding: 60px 0 80px;
+      }
+      .faq-list {
+        max-width: 760px;
+        margin: 40px auto 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        text-align: left;
+      }
+      .faq-item {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+      }
+      .faq-item summary {
+        cursor: pointer;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 18px 22px;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+      .faq-item summary::-webkit-details-marker {
+        display: none;
+      }
+      .faq-item summary::after {
+        content: "+";
+        font-size: 1.4rem;
+        line-height: 1;
+        color: var(--accent);
+        transition: transform 0.2s;
+        flex-shrink: 0;
+      }
+      .faq-item[open] summary::after {
+        transform: rotate(45deg);
+      }
+      .faq-item p {
+        padding: 0 22px 18px;
+        color: var(--text-secondary);
+        line-height: 1.65;
+        margin: 0;
+      }
+      .faq-item a {
+        color: var(--accent);
+      }
     </style>
   </head>
   <body>
@@ -2440,10 +2570,17 @@
         </a>
         <div class="nav-links">
           <a href="#features">Features</a>
+          <a href="#pricing">Pricing</a>
           <a href="/feedback">Support</a>
           <a href="/privacy">Privacy</a>
           <a href="/terms">Terms</a>
-          <a href="#download" class="nav-cta">Get Started</a>
+          <a
+            href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
+            class="nav-cta"
+            target="_blank"
+            rel="noopener"
+            >Get Started</a
+          >
         </div>
         <button
           class="mobile-menu-btn"
@@ -2485,6 +2622,11 @@
         >Features</a
       >
       <a
+        href="#pricing"
+        onclick="document.getElementById('mobileNav').classList.remove('open');document.body.classList.remove('menu-open')"
+        >Pricing</a
+      >
+      <a
         href="/feedback"
         onclick="document.getElementById('mobileNav').classList.remove('open');document.body.classList.remove('menu-open')"
         >Support</a
@@ -2500,8 +2642,10 @@
         >Terms</a
       >
       <a
-        href="#download"
+        href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
         class="mobile-cta"
+        target="_blank"
+        rel="noopener"
         onclick="document.getElementById('mobileNav').classList.remove('open');document.body.classList.remove('menu-open')"
         >Get Started</a
       >
@@ -2535,19 +2679,21 @@
             Define who you're becoming, not just what you're doing.
           </p>
           <div class="hero-buttons">
-            <a href="#download" class="btn-primary">
-              Start Your Journey
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                width="20"
-                height="20"
-              >
-                <path d="M5 12h14M12 5l7 7-7 7" />
+            <a
+              href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
+              class="btn-primary"
+              target="_blank"
+              rel="noopener"
+              aria-label="Download Resolution Companion AI free on the App Store"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                <path
+                  d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"
+                />
               </svg>
+              Download Free
             </a>
+            <a href="#features" class="btn-secondary">See How It Works</a>
           </div>
           <p class="hero-note">Free forever. No credit card required.</p>
         </div>
@@ -2797,7 +2943,13 @@
               <p id="personaText"></p>
             </div>
             <div class="quiz-cta">
-              <a href="#download" class="btn-primary">Start Your Journey</a>
+              <a
+                href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
+                class="btn-primary"
+                target="_blank"
+                rel="noopener"
+                >Start Your Journey</a
+              >
               <button class="quiz-restart" onclick="restartQuiz()">
                 Take Quiz Again
               </button>
@@ -3512,24 +3664,24 @@
             </p>
             <div class="store-buttons">
               <a
-                class="store-button"
+                class="store-badge"
                 href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
                 target="_blank"
                 rel="noopener"
                 aria-label="Download Resolution Companion AI on the App Store"
               >
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path
-                    d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"
-                  />
-                </svg>
-                Download on the App Store
+                <img
+                  src="/assets/website/appstore-badge.svg"
+                  alt="Download on the App Store"
+                  width="180"
+                  height="60"
+                />
               </a>
             </div>
           </div>
         </div>
 
-        <div class="pricing-info">
+        <div class="pricing-info" id="pricing">
           <h3>Simple, Transparent Pricing</h3>
 
           <!-- Pricing Comparison Table -->
@@ -3605,6 +3757,76 @@
             the renewal date. Manage subscriptions in your Apple App Store
             account settings. Pricing may vary by region and currency.
           </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="faq" id="faq">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-label">FAQ</div>
+          <h2 class="section-title">Frequently Asked Questions</h2>
+        </div>
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>Is Resolution Companion free?</summary>
+            <p>
+              Yes. The core app is free forever &mdash; one active plan, full
+              daily action tracking, the Journey calendar, progress tracking,
+              and 10 coaching check-ins each month. Premium ($2.99/month or
+              $24.99/year) unlocks unlimited plans, unlimited coaching
+              check-ins, and unlimited milestones.
+            </p>
+          </details>
+          <details class="faq-item">
+            <summary>How is this different from a habit tracker?</summary>
+            <p>
+              Traditional habit trackers count streaks &mdash; and one missed
+              day can wipe out your motivation. Resolution Companion is
+              identity-based: you define who you're becoming, then log small
+              daily actions that reinforce that identity. Progress is measured
+              by monthly consistency, not unbroken chains, so one missed day
+              never erases your growth.
+            </p>
+          </details>
+          <details class="faq-item">
+            <summary>Is my data private?</summary>
+            <p>
+              Yes. Your plans, actions, and progress are stored locally on your
+              device. Our servers keep only an anonymous device identifier and
+              your subscription status so purchases can be restored. AI
+              conversations are processed in real time and are not stored by
+              us. See our <a href="/privacy">Privacy Policy</a> for details.
+            </p>
+          </details>
+          <details class="faq-item">
+            <summary>
+              Is the AI coach a substitute for therapy or medical advice?
+            </summary>
+            <p>
+              No. The AI coach provides motivational and informational guidance
+              only. It is not a substitute for professional advice from
+              qualified healthcare providers, therapists, or counselors.
+            </p>
+          </details>
+          <details class="faq-item">
+            <summary>What devices does it support?</summary>
+            <p>
+              Resolution Companion AI is available on the App Store for iPhone
+              and iPad. An Android version isn't available today.
+            </p>
+          </details>
+          <details class="faq-item">
+            <summary>How do I cancel my subscription?</summary>
+            <p>
+              Subscriptions are billed and managed by Apple. Open Settings on
+              your iPhone or iPad, tap your name, then Subscriptions, and
+              cancel there. To avoid renewal, cancel at least 24 hours before
+              the renewal date &mdash; you keep Premium until the end of the
+              paid period.
+            </p>
+          </details>
         </div>
       </div>
     </section>
