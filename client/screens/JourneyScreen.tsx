@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
-import { View, FlatList, StyleSheet, Pressable } from "react-native";
+import { View, FlatList, StyleSheet, Pressable, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -1016,11 +1016,19 @@ export default function JourneyScreen() {
                 return (
                   <Pressable
                     key={index}
-                    onPress={() => setSelectedDate(dayInfo.date)}
+                    onPress={() => {
+                      setSelectedDate(dayInfo.date);
+                      if (Platform.OS !== "web") {
+                        Haptics.selectionAsync();
+                      }
+                    }}
                     hitSlop={4}
                     pressRetentionOffset={12}
                     style={({ pressed }) => [
                       styles.dayCell,
+                      // Selection reads as a cell highlight, separate from the
+                      // status rings on the day marker (today/missed/shielded)
+                      isSelected && styles.dayCellSelected,
                       { opacity: pressed ? 0.5 : 1 },
                     ]}
                     accessibilityRole="button"
@@ -1408,6 +1416,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
+  },
+  dayCellSelected: {
+    backgroundColor: "rgba(0, 217, 255, 0.14)",
+    borderRadius: BorderRadius.md,
   },
   todayMarker: {
     borderWidth: 2,
