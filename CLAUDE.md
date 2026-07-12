@@ -120,21 +120,20 @@ domain `resolutioncompanion.com`.
   2026-07-09; v1.0.1 (nav/tab fixes, persona-aware Coach) and **v1.0.2
   (paywall fix, build 49) both APPROVED & released** — v1.0.2 went live
   2026-07-11.
-- **🟡 SUBSCRIPTIONS "IN REVIEW"** (as of 2026-07-11): both subs were
-  submitted alongside v1.0.2 per Apple's 3.1.1 instruction and are actively
-  in review. **The paywall stays dead until they show Approved** (unapproved
-  products don't exist on production StoreKit). A daily 9am scheduled task
-  (`asc-subscription-status-check`) watches them. **Never submit a new
-  binary or re-submit the subs while they are In Review** — that recreates
-  the stuck-limbo trap. Escalation plan + full saga in the
+- **🎉 SUBSCRIPTIONS APPROVED (2026-07-11 afternoon):** both products
+  (`com.resolutioncompanion.annual` / `.monthly`) show **Approved** in ASC —
+  they now exist on production StoreKit. Remaining: verify the paywall on
+  the live App Store app (real device), optionally add the yearly intro
+  offer in ASC, and submit the group localization ("Prepare for Submission",
+  cosmetic) with the next binary. Full saga in the
   `app-store-resubmission-status` memory.
 - **v1.0.4 CANDIDATE CODE-COMPLETE on main** (2026-07-11, commits 9f54168 /
   85c60b5 / 8345490): v1.0.3 performance pass + enhancement sprint — milestone
   target-date countdowns, streak-shield visibility, notification "Mark all
   done" action, onboarding-chat persistence, ratings prompt, free Weekly
   Review ritual, premium coach memory, completion notes. Largely verified
-  live on simulator; ship only after the subs approve and the live paywall
-  is verified. Pickup detail in the `enhancement-sprint-v1-0-4` memory.
+  live on simulator; **release train unblocked** once the live paywall is
+  verified. Pickup detail in the `enhancement-sprint-v1-0-4` memory.
 - **Product direction & roadmap:** progress-feeling, stickiness, a coherent
   daily loop. Approved forward roadmap (widgets, Wrapped share card, insights
   panel, intro offer…) with build-status marks: `docs/enhancement-roadmap.md`.
