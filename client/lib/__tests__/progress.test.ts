@@ -1036,3 +1036,75 @@ describe("formatTargetCountdown", () => {
     );
   });
 });
+
+describe("backfilled completions before action creation", () => {
+  // Regression: users can backfill past days from the Journey day detail,
+  // and the calendar paints them green — the scorers must agree. A completed
+  // log proves the day was trackable even if it predates action.createdAt;
+  // non-logged pre-creation days stay excluded (day-one 100% behavior).
+
+  it("computeMomentumScore counts a backfilled pre-creation day as 1/1", () => {
+    jest.setSystemTime(new Date(2026, 6, 12, 10, 0)); // Sun Jul 12, morning
+    const action = makeAction(DAILY, "2026-07-12T08:00:00"); // created today
+    const logs = logsFor(action, ["2026-07-08", "2026-07-09", "2026-07-10"]);
+    // Window = day of month (12): backfilled 8-10 count 3/3; Jul 11 is
+    // pre-creation with no log (excluded); today unlogged (excluded)
+    expect(computeMomentumScore([action], logs, 12)).toBe(100);
+  });
+
+  it("computeMomentumScore still shows 100% on a fresh day-one plan", () => {
+    jest.setSystemTime(new Date(2026, 6, 12, 20, 0));
+    const action = makeAction(DAILY, "2026-07-12T08:00:00");
+    const logs = logsFor(action, ["2026-07-12"]);
+    expect(computeMomentumScore([action], logs, 12)).toBe(100);
+  });
+
+  it("computeStreak counts backfilled pre-creation days in the run", () => {
+    jest.setSystemTime(new Date(2026, 6, 12, 10, 0));
+    const action = makeAction(DAILY, "2026-07-12T08:00:00");
+    const logs = logsFor(action, [
+      "2026-07-10",
+      "2026-07-11",
+      "2026-07-12",
+    ]);
+    const streak = computeStreak([action], logs);
+    expect(streak.current).toBe(3);
+    expect(streak.longest).toBe(3);
+  });
+
+  it("computeWeeklyRecap counts backfilled days as scheduled+completed", () => {
+    jest.setSystemTime(new Date(2026, 6, 15, 10, 0)); // Wed Jul 15
+    const action = makeAction(DAILY, "2026-07-14T08:00:00"); // created Tue
+    // Last complete week is Jul 6-12, all before creation; backfill 3 days
+    const logs = logsFor(action, ["2026-07-08", "2026-07-09", "2026-07-10"]);
+    const recap = computeWeeklyRecap([action], logs);
+    expect(recap.lastWeek.completed).toBe(3);
+    expect(recap.lastWeek.scheduled).toBe(3);
+    expect(recap.lastWeek.score).toBe(100);
+  });
+
+  it("computeMilestoneProgress counts backfilled days toward the target", () => {
+    jest.setSystemTime(new Date(2026, 6, 12, 10, 0));
+    const benchmark = makeBenchmark({ createdAt: "2026-07-12T08:00:00" });
+    const action = makeAction(DAILY, "2026-07-12T08:00:00", {
+      benchmarkId: benchmark.id,
+    });
+    const logs = logsFor(action, ["2026-07-08", "2026-07-09", "2026-07-10"]);
+    const result = computeMilestoneProgress(
+      benchmark,
+      [action],
+      buildLogIndex(logs),
+    );
+    expect(result.daysDone).toBe(3);
+  });
+
+  it("computeLapse: a backfilled completion ends the missed-days walk", () => {
+    jest.setSystemTime(new Date(2026, 6, 12, 10, 0));
+    const action = makeAction(DAILY, "2026-07-05T08:00:00");
+    // Missed Jul 10-11, but Jul 9 was completed: lapse = 2, not more
+    const logs = logsFor(action, ["2026-07-09"]);
+    const lapse = computeLapse([action], logs);
+    expect(lapse.missedDays).toBe(2);
+    expect(lapse.lastMissedDate).toBe("2026-07-11");
+  });
+});

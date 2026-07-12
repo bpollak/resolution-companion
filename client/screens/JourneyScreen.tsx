@@ -995,6 +995,9 @@ export default function JourneyScreen() {
                   !isPartial;
                 const isMissed =
                   !isShielded &&
+                  // Today is pending until it's over — never painted missed
+                  // (mirrors the streak rule "today never breaks a run")
+                  !dayInfo.isToday &&
                   dayInfo.totalCount > 0 &&
                   dayInfo.completedCount === 0 &&
                   dayInfo.date < new Date() &&

@@ -59,6 +59,7 @@ export default function ReflectScreen() {
   const {
     hasOnboarded,
     momentumScore,
+    personaAlignment,
     persona,
     addReflection,
     canUseReflection,
@@ -155,7 +156,7 @@ export default function ReflectScreen() {
         day: "numeric",
       });
       const kind = r.periodType === "weekly" ? "weekly review" : "check-in";
-      return `- ${when} (${kind}, consistency ${r.momentumScore}%): they opened with "${trim(firstUser, 200)}" and you closed with "${trim(lastCoach, 280)}"`;
+      return `- ${when} (${kind}, momentum ${r.momentumScore}%): they opened with "${trim(firstUser, 200)}" and you closed with "${trim(lastCoach, 280)}"`;
     });
     return notes.length > 0 ? notes.join("\n") : undefined;
   }, [subscription.isPremium, sortedReflections]);
@@ -272,7 +273,9 @@ export default function ReflectScreen() {
     isMomentumScrollingChatRef.current = false;
     const streamBuffer = createStreamBuffer();
 
-    const monthlyContext = getMonthlyContext(momentumScore, persona.createdAt);
+    // The coach's "consistency" must be the same month-to-date number the
+    // UI shows (July · X%) — not the 7-day momentum from the lobby card
+    const monthlyContext = getMonthlyContext(personaAlignment, persona.createdAt);
 
     try {
       const response = await getReflectionResponse(
@@ -350,7 +353,7 @@ export default function ReflectScreen() {
       aiMessages.push({ role: "user", content: userMessage.content });
 
       const monthlyContext = getMonthlyContext(
-        momentumScore,
+        personaAlignment,
         persona?.createdAt,
       );
 

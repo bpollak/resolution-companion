@@ -257,6 +257,18 @@ export function computeMilestoneProgress(
   const startDate = new Date(benchmark.createdAt);
   startDate.setHours(0, 0, 0, 0);
 
+  // Backfilled completions before the milestone existed still count toward
+  // the target — a completed log proves the day was trackable. Walk from the
+  // earliest completed log if it predates the milestone.
+  const actionIds = new Set(benchmarkActions.map((a) => a.id));
+  for (const [key, log] of logIndex) {
+    if (!log.status) continue;
+    const [actionId, dateStr] = key.split("|");
+    if (!actionIds.has(actionId)) continue;
+    const logDay = parseLocalDate(dateStr);
+    if (logDay < startDate) startDate.setTime(logDay.getTime());
+  }
+
   const perActionDays = new Map<string, number>(
     benchmarkActions.map((a) => [a.id, 0]),
   );
@@ -339,10 +351,14 @@ export function computeMomentumScore(
 
     for (const action of actions) {
       if (action.frequency.includes(dayOfWeek)) {
-        if (dateStr < (createdDates.get(action.id) || "")) {
+        const log = logIndex.get(`${action.id}|${dateStr}`);
+        // Pre-creation days don't count as expected — EXCEPT when a
+        // backfilled completion exists: a completed log proves the day was
+        // trackable, and the calendar already shows it green. Without this
+        // the ring reads 0% under visibly completed days.
+        if (dateStr < (createdDates.get(action.id) || "") && !log?.status) {
           continue;
         }
-        const log = logIndex.get(`${action.id}|${dateStr}`);
         if (dateStr === todayStr && !log?.status) {
           continue;
         }
@@ -425,10 +441,14 @@ export function computeWeeklyRecap(
       let dayCompleted = 0;
       for (const action of actions) {
         if (!action.frequency.includes(dayOfWeek)) continue;
+        const log = logIndex.get(`${action.id}|${dateStr}`);
         const startDate = actionStartDates.get(action.id);
-        if (startDate !== undefined && dateStr < startDate) continue;
+        // Backfilled completions count even before the action existed —
+        // a completed log proves the day was trackable
+        if (startDate !== undefined && dateStr < startDate && !log?.status)
+          continue;
         scheduled++;
-        if (logIndex.get(`${action.id}|${dateStr}`)?.status) {
+        if (log?.status) {
           completed++;
           dayCompleted++;
         }
@@ -509,10 +529,14 @@ export function computeLapse(
     let completed = 0;
     for (const action of actions) {
       if (!action.frequency.includes(dayOfWeek)) continue;
+      const log = logIndex.get(`${action.id}|${dateStr}`);
       const startDate = actionStartDates.get(action.id);
-      if (startDate !== undefined && dateStr < startDate) continue;
+      // Backfilled completions count even before the action existed —
+      // a completed log proves the day was trackable
+      if (startDate !== undefined && dateStr < startDate && !log?.status)
+        continue;
       scheduled++;
-      if (logIndex.get(`${action.id}|${dateStr}`)?.status) completed++;
+      if (log?.status) completed++;
     }
 
     if (scheduled > 0) {
@@ -609,10 +633,14 @@ export function computeStreak(
     let completed = 0;
     for (const action of actions) {
       if (!action.frequency.includes(dayOfWeek)) continue;
+      const log = logIndex.get(`${action.id}|${dateStr}`);
       const startDate = actionStartDates.get(action.id);
-      if (startDate !== undefined && dateStr < startDate) continue;
+      // Backfilled completions count even before the action existed —
+      // a completed log proves the day was trackable
+      if (startDate !== undefined && dateStr < startDate && !log?.status)
+        continue;
       scheduled++;
-      if (logIndex.get(`${action.id}|${dateStr}`)?.status) completed++;
+      if (log?.status) completed++;
     }
 
     if (scheduled === 0) {
