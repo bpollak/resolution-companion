@@ -828,6 +828,11 @@ export default function OnboardingScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.messageList}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
+        // Re-anchor when the VIEWPORT shrinks, not just when content grows:
+        // the keyboard (KAV padding) and the "Create My Plan" panel both
+        // steal height after the last content change, leaving the final AI
+        // bubble cut off behind them (mirrors ReflectScreen's onLayout).
+        onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
         keyboardShouldPersistTaps="handled"
         ListFooterComponent={
           isStreaming && streamingText ? (
