@@ -997,7 +997,10 @@ const styles = StyleSheet.create({
     ...Typography.small,
   },
   messageList: {
-    paddingVertical: Spacing.lg,
+    paddingTop: Spacing.lg,
+    // Match the Coach chat's breathing room: without it the last AI bubble
+    // sits flush against the input and reads as cut off mid-stream.
+    paddingBottom: 80,
     flexGrow: 1,
   },
   loadingContainer: {
