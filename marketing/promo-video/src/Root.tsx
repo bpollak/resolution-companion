@@ -1,0 +1,40 @@
+import React from "react";
+import { Composition } from "remotion";
+import { VARIANTS, variantComponent, variantDuration } from "./variants";
+
+// Feed-format sizes for the flagship script (Instagram/Facebook feed posts).
+// All scripts render at 9:16 (1080×1920) — the master format for TikTok,
+// IG Reels, FB Reels, and YouTube Shorts.
+const FEED_FORMATS = [
+  { suffix: "-45", width: 1080, height: 1350 },
+  { suffix: "-11", width: 1080, height: 1080 },
+];
+
+export const RemotionRoot: React.FC = () => {
+  return (
+    <>
+      {VARIANTS.map((spec) => (
+        <Composition
+          key={spec.id}
+          id={spec.id}
+          component={variantComponent(spec)}
+          durationInFrames={variantDuration(spec.feats.length)}
+          fps={30}
+          width={1080}
+          height={1920}
+        />
+      ))}
+      {FEED_FORMATS.map((fmt) => (
+        <Composition
+          key={`Promo${fmt.suffix}`}
+          id={`Promo${fmt.suffix}`}
+          component={variantComponent(VARIANTS[0])}
+          durationInFrames={variantDuration(VARIANTS[0].feats.length)}
+          fps={30}
+          width={fmt.width}
+          height={fmt.height}
+        />
+      ))}
+    </>
+  );
+};
