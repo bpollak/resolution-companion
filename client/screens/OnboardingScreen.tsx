@@ -213,6 +213,16 @@ export default function OnboardingScreen() {
 
   const flatListRef = useRef<FlatList>(null);
   const messageCount = useRef(0);
+
+  // Deferring to the next frame lets the freshly-swapped message finish
+  // layout first — a synchronous scrollToEnd computes a stale offset and
+  // lands short, tucking the last lines under the input (mirrors
+  // ReflectScreen's scrollToEndIfNeeded).
+  const scrollChatToEnd = React.useCallback(() => {
+    requestAnimationFrame(() => {
+      flatListRef.current?.scrollToEnd({ animated: false });
+    });
+  }, []);
   // Set when the user starts a fresh interview this session, so a slow
   // transcript restore can't clobber a conversation already in progress
   const startedFreshRef = useRef(false);
@@ -246,6 +256,19 @@ export default function OnboardingScreen() {
       )
       .catch(() => {});
   }, [messages]);
+
+  // Follow the conversation after every commit — streaming growth, the
+  // final message swap, and the conversation-complete panel all move the
+  // bottom after the list's own callbacks have already fired
+  React.useEffect(() => {
+    scrollChatToEnd();
+  }, [
+    messages,
+    streamingText,
+    isStreaming,
+    conversationComplete,
+    scrollChatToEnd,
+  ]);
 
   const handleBeginOnboarding = async () => {
     if (!aiConsent) {
@@ -827,12 +850,12 @@ export default function OnboardingScreen() {
         renderItem={renderMessage}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.messageList}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
+        onContentSizeChange={scrollChatToEnd}
         // Re-anchor when the VIEWPORT shrinks, not just when content grows:
         // the keyboard (KAV padding) and the "Create My Plan" panel both
         // steal height after the last content change, leaving the final AI
         // bubble cut off behind them (mirrors ReflectScreen's onLayout).
-        onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+        onLayout={scrollChatToEnd}
         keyboardShouldPersistTaps="handled"
         ListFooterComponent={
           isStreaming && streamingText ? (
