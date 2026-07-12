@@ -275,7 +275,10 @@ export default function ReflectScreen() {
 
     // The coach's "consistency" must be the same month-to-date number the
     // UI shows (July · X%) — not the 7-day momentum from the lobby card
-    const monthlyContext = getMonthlyContext(personaAlignment, persona.createdAt);
+    const monthlyContext = getMonthlyContext(
+      personaAlignment,
+      persona.createdAt,
+    );
 
     try {
       const response = await getReflectionResponse(

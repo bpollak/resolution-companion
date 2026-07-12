@@ -1062,11 +1062,7 @@ describe("backfilled completions before action creation", () => {
   it("computeStreak counts backfilled pre-creation days in the run", () => {
     jest.setSystemTime(new Date(2026, 6, 12, 10, 0));
     const action = makeAction(DAILY, "2026-07-12T08:00:00");
-    const logs = logsFor(action, [
-      "2026-07-10",
-      "2026-07-11",
-      "2026-07-12",
-    ]);
+    const logs = logsFor(action, ["2026-07-10", "2026-07-11", "2026-07-12"]);
     const streak = computeStreak([action], logs);
     expect(streak.current).toBe(3);
     expect(streak.longest).toBe(3);
