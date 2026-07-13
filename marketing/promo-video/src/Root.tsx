@@ -1,7 +1,7 @@
 import React from "react";
 import { Composition } from "remotion";
 import { VARIANTS, variantComponent, variantDuration } from "./variants";
-import { HERO_VO_DURATION, HeroVO } from "./HeroVO";
+import { HERO_VO_DURATION, HeroVO, HeroVOCaptioned } from "./HeroVO";
 import { AD_CUTS, adComponent, adDuration } from "./ads";
 
 // Feed-format sizes for the flagship script (Instagram/Facebook feed posts).
@@ -29,6 +29,14 @@ export const RemotionRoot: React.FC = () => {
       <Composition
         id="PromoHeroVO"
         component={HeroVO}
+        durationInFrames={HERO_VO_DURATION}
+        fps={30}
+        width={1080}
+        height={1920}
+      />
+      <Composition
+        id="PromoHeroVOCaptioned"
+        component={HeroVOCaptioned}
         durationInFrames={HERO_VO_DURATION}
         fps={30}
         width={1080}
