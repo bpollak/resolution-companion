@@ -1,6 +1,7 @@
 import React from "react";
 import { Composition } from "remotion";
 import { VARIANTS, variantComponent, variantDuration } from "./variants";
+import { HERO_VO_DURATION, HeroVO } from "./HeroVO";
 
 // Feed-format sizes for the flagship script (Instagram/Facebook feed posts).
 // All scripts render at 9:16 (1080×1920) — the master format for TikTok,
@@ -24,6 +25,14 @@ export const RemotionRoot: React.FC = () => {
           height={1920}
         />
       ))}
+      <Composition
+        id="PromoHeroVO"
+        component={HeroVO}
+        durationInFrames={HERO_VO_DURATION}
+        fps={30}
+        width={1080}
+        height={1920}
+      />
       {FEED_FORMATS.map((fmt) => (
         <Composition
           key={`Promo${fmt.suffix}`}
