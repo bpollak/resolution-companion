@@ -16,6 +16,8 @@ module.exports = defineConfig([
       "build/**",
       "attached_assets/**",
       "appstore-screenshots/**",
+      // Standalone Remotion project with its own deps and toolchain
+      "marketing/**",
     ],
   },
 ]);
