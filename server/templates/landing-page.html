@@ -996,6 +996,18 @@
         padding: 80px 0 60px;
       }
 
+      .video-demo .section-title .gradient-text {
+        background: linear-gradient(
+          135deg,
+          var(--accent) 0%,
+          var(--accent-secondary) 50%,
+          var(--accent-tertiary) 100%
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
       .video-demo-frame {
         width: min(340px, 82vw);
         margin: 0 auto;
@@ -2792,11 +2804,15 @@
     <section class="video-demo" id="video">
       <div class="container">
         <div class="section-header">
-          <div class="section-label">See It in Action</div>
-          <h2 class="section-title">25 seconds. Any day can be day one.</h2>
+          <div class="section-label">The Mid-Year Reset</div>
+          <h2 class="section-title">
+            Your resolution isn't dead.
+            <span class="gradient-text">It's half-time.</span>
+          </h2>
           <p class="section-subtitle">
-            Name who you're becoming, check off a few tiny actions a day, and
-            start every month clean.
+            That goal you dropped in February? Restart it in 25 seconds —
+            tiny daily actions, a fresh start every month, and any day can
+            be day one.
           </p>
         </div>
         <div class="video-demo-frame">
