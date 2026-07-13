@@ -992,6 +992,53 @@
         margin: 0 auto 40px;
       }
 
+      .video-demo {
+        padding: 80px 0 60px;
+      }
+
+      .video-demo-frame {
+        width: min(340px, 82vw);
+        margin: 0 auto;
+        border-radius: 40px;
+        border: 2px solid rgba(120, 120, 160, 0.45);
+        background: #08080e;
+        padding: 10px;
+        box-shadow:
+          0 40px 80px rgba(0, 0, 0, 0.55),
+          0 0 60px var(--accent-glow);
+      }
+
+      .video-demo-frame video {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: 30px;
+      }
+
+      .video-demo-sound {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: fit-content;
+        margin: 24px auto 0;
+        padding: 10px 22px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--bg-card);
+        color: var(--text-secondary);
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          color 0.2s,
+          border-color 0.2s;
+      }
+
+      .video-demo-sound:hover {
+        color: var(--text-primary);
+        border-color: var(--accent);
+      }
+
       .section-label {
         background: linear-gradient(
           90deg,
@@ -2740,6 +2787,72 @@
         </div>
       </div>
     </section>
+
+    <!-- Video Demo Section -->
+    <section class="video-demo" id="video">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-label">See It in Action</div>
+          <h2 class="section-title">25 seconds. Any day can be day one.</h2>
+          <p class="section-subtitle">
+            Name who you're becoming, check off a few tiny actions a day, and
+            start every month clean.
+          </p>
+        </div>
+        <div class="video-demo-frame">
+          <video
+            id="promoVideo"
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="metadata"
+            poster="/assets/website/promo-poster.jpg"
+            width="720"
+            height="1280"
+          >
+            <source src="/assets/website/promo-loop.mp4" type="video/mp4" />
+          </video>
+        </div>
+        <button class="video-demo-sound" id="promoSoundBtn" type="button">
+          <span aria-hidden="true">🔊</span>&nbsp;Watch with sound
+        </button>
+      </div>
+    </section>
+    <script>
+      (function () {
+        var btn = document.getElementById("promoSoundBtn");
+        var video = document.getElementById("promoVideo");
+        if (!btn || !video) return;
+        btn.addEventListener("click", function () {
+          if (video.dataset.mode === "vo") {
+            video.src = "/assets/website/promo-loop.mp4";
+            video.muted = true;
+            video.loop = true;
+            video.controls = false;
+            video.dataset.mode = "loop";
+            btn.innerHTML =
+              '<span aria-hidden="true">🔊</span>&nbsp;Watch with sound';
+          } else {
+            video.src = "/assets/website/promo-vo.mp4";
+            video.muted = false;
+            video.loop = false;
+            video.controls = true;
+            video.dataset.mode = "vo";
+            btn.innerHTML =
+              '<span aria-hidden="true">🔁</span>&nbsp;Back to silent loop';
+          }
+          video.load();
+          video.addEventListener(
+            "canplay",
+            function () {
+              video.play();
+            },
+            { once: true },
+          );
+        });
+      })();
+    </script>
 
     <!-- Differentiation Section -->
     <section class="differentiation" id="why-different">
