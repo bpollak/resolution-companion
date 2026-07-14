@@ -1,0 +1,77 @@
+{
+  "id": "side-hustle",
+  "persona": {
+    "name": "Consistent Builder",
+    "description": "Someone who works on their side project before the day takes over, ships something small every week, and treats the work as a standing appointment — not a someday."
+  },
+  "milestones": [
+    {
+      "key": "ship",
+      "title": "Ship the first version",
+      "_comment": "20 of 21 — checking this off during the take completes it on camera",
+      "daysDone": 20,
+      "targetDaysAhead": 10,
+      "action": {
+        "title": "Work on the project for 30 minutes",
+        "frequency": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+        "anchorLink": "After I pour my morning coffee",
+        "kickstartVersion": "Open the project and write one line of code"
+      }
+    },
+    {
+      "key": "public",
+      "title": "Build in public",
+      "daysDone": 12,
+      "targetDaysAhead": 24,
+      "action": {
+        "title": "Post one update about what I built",
+        "frequency": ["Monday", "Wednesday", "Friday"],
+        "anchorLink": "After I close my laptop for the day",
+        "kickstartVersion": "Post a single screenshot, no caption needed"
+      }
+    },
+    {
+      "key": "users",
+      "title": "Talk to 10 potential users",
+      "daysDone": 4,
+      "targetDaysAhead": 45,
+      "action": {
+        "title": "Send one message to a potential user",
+        "frequency": ["Tuesday", "Thursday"],
+        "anchorLink": "After I eat lunch",
+        "kickstartVersion": "Draft the message — you don't have to send it yet"
+      }
+    }
+  ],
+
+  "_comment_history": "missDaysAgo = every action missed that day (red on the calendar — proves 'a missed day never erases you'). partialDaysAgo = only the first scheduled action done (amber). Today is deliberately left unlogged so the demo can complete it on camera.",
+  "missDaysAgo": [12],
+  "partialDaysAgo": [8],
+
+  "notes": {
+    "3": "Shipped the settings screen — felt easy today",
+    "6": "Only had 20 minutes but it counted"
+  },
+
+  "reflections": [
+    {
+      "daysAgo": 7,
+      "periodType": "weekly",
+      "momentumScore": 74,
+      "userInput": "I'm ready for my weekly review.",
+      "aiFeedback": "You showed up on four of five mornings and shipped the settings screen — that's the Consistent Builder doing exactly what they do. The 30-minute block before the day starts is clearly working. Let's protect it."
+    },
+    {
+      "daysAgo": 14,
+      "periodType": "weekly",
+      "momentumScore": 61,
+      "userInput": "I'm ready for my weekly review.",
+      "aiFeedback": "A lighter week, and that's information, not failure. The mornings you did start, you kept going — so the friction is starting, not continuing. Next week, try the two-minute version on the hard days."
+    }
+  ],
+
+  "onboardingAnswers": [
+    "I want to finally launch the side project I've been putting off — an app I've been sketching for over a year.",
+    "Mornings before work are realistic. I'd rather do 20 focused minutes than pretend I'll do two hours."
+  ]
+}

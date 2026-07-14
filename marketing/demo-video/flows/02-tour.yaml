@@ -1,0 +1,76 @@
+# Pass B — the feature tour, against the seeded "Consistent Builder" account.
+#
+# COORDINATES, NOT SELECTORS: this app is React Native and exposes almost no
+# text to iOS accessibility, so Maestro's text selectors can't see it. That's
+# fine here — we drive a fixed device (iPhone 17) with fixed seeded data, so
+# the layout is deterministic. Every point below was measured from a real
+# screenshot and verified end-to-end. Percentages must be INTEGERS (Maestro
+# parses them as Int and throws on "66.5").
+#
+# The beats, in order:
+#   1. Check off "Work on the project" -> hero milestone hits 21/21 ->
+#      MILESTONE COMPLETE modal fires live ("that's not a plan anymore, it's
+#      a habit"). This is the payoff of seeding it at 20/21.
+#   2. Check off the last action -> ring goes green -> DAY COMPLETE.
+#   3. Add a note -> the setup for the Coach payoff.
+#   4. Journey  -> calendar (green run, one amber, one red, streak line).
+#   5. Coach    -> weekly review; the coach replies with zero typing.
+#
+# Run against: node seed.mjs side-hustle mature
+appId: com.resolutioncompanion.app
+---
+- launchApp: { clearState: false }
+- waitForAnimationToEnd
+- runScript: { file: hold.js, env: { MS: "3000" } } # hold on "Becoming / Consistent Builder"
+
+# ── scroll to the action cards ──
+- swipe: { start: "50%,85%", end: "50%,25%" }
+- runScript: { file: hold.js, env: { MS: "700" } }
+- swipe: { start: "50%,85%", end: "50%,35%" }
+- runScript: { file: hold.js, env: { MS: "2000" } } # let the viewer read the card
+
+# ── 1. the check-off -> MILESTONE COMPLETE ──
+- tapOn: { point: "50%,44%" } # "Mark Complete" on "Work on the project for 30 minutes"
+- runScript: { file: hold.js, env: { MS: "6000" } } # glow, collapse, toast, then the modal
+- tapOn: { point: "50%,66%" } # "Keep going"
+- runScript: { file: hold.js, env: { MS: "2000" } }
+
+# ── 2. the last action -> DAY COMPLETE ──
+- swipe: { start: "50%,80%", end: "50%,40%" }
+- runScript: { file: hold.js, env: { MS: "1500" } }
+- tapOn: { point: "50%,70%" } # "Mark Complete" on the remaining action
+- runScript: { file: hold.js, env: { MS: "7000" } } # burst dots + "Day complete."
+
+# ── 3. the note (feeds the coach — "your coach reads these too") ──
+- tapOn: { point: "89%,79%" } # pencil on the first completed row
+- runScript: { file: hold.js, env: { MS: "1500" } }
+- inputText: "Finally shipped the onboarding screen"
+- runScript: { file: hold.js, env: { MS: "1200" } }
+- tapOn:
+    text: "Save"
+    optional: true
+- runScript: { file: hold.js, env: { MS: "3000" } }
+
+# ── 4. Journey — the calendar IS the "no guilt" argument ──
+- tapOn: { point: "50%,94%" } # Journey tab
+- waitForAnimationToEnd
+- runScript: { file: hold.js, env: { MS: "3000" } }
+- swipe: { start: "50%,80%", end: "50%,35%" }
+- runScript: { file: hold.js, env: { MS: "4000" } } # the month calendar
+- swipe: { start: "50%,80%", end: "50%,35%" }
+- runScript: { file: hold.js, env: { MS: "4000" } } # milestone rows: 21/21, 12/21, 4/21
+
+# ── 5. Coach — it remembers ──
+- tapOn: { point: "83%,94%" } # Coach tab
+- waitForAnimationToEnd
+- runScript: { file: hold.js, env: { MS: "5000" } } # momentum 100%, unlimited check-ins
+
+# NO SWIPE. The Coach lobby bounces back instead of scrolling, so the weekly
+# review card stays at 79% — swiping first and tapping at 47% (as an earlier
+# version did) misses it entirely and the session never opens.
+#
+# The weekly-review card auto-sends the opening message, so the coach starts
+# talking with zero typing — the cleanest possible "it knows me" beat.
+- tapOn: { point: "50%,79%" } # "3-minute weekly review"
+- waitForAnimationToEnd
+- runScript: { file: hold.js, env: { MS: "20000" } } # the reply streams in, char by char (30ms/char)

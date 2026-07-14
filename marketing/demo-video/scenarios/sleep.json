@@ -1,0 +1,95 @@
+{
+  "id": "sleep",
+  "persona": {
+    "name": "Someone Who Sleeps",
+    "description": "Someone with a real bedtime \u2014 who protects the hour before it, and wakes up like a person."
+  },
+  "milestones": [
+    {
+      "key": "ship",
+      "title": "Asleep by 11, thirty nights",
+      "_comment": "20 of 21 \u2014 checking this off during the take completes it on camera",
+      "daysDone": 20,
+      "targetDaysAhead": 10,
+      "action": {
+        "title": "Lights out by 11pm",
+        "frequency": [
+          "Sunday",
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday"
+        ],
+        "anchorLink": "After I set tomorrow's alarm",
+        "kickstartVersion": "In bed by 11, even if you're not sleepy"
+      }
+    },
+    {
+      "key": "public",
+      "title": "Build a wind-down",
+      "daysDone": 12,
+      "targetDaysAhead": 24,
+      "action": {
+        "title": "No screens after 10:30",
+        "frequency": [
+          "Sunday",
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday"
+        ],
+        "anchorLink": "After I brush my teeth",
+        "kickstartVersion": "Dim the lights \u2014 that's the whole thing"
+      }
+    },
+    {
+      "key": "users",
+      "title": "Wake at the same time",
+      "daysDone": 4,
+      "targetDaysAhead": 45,
+      "action": {
+        "title": "Get up when the alarm goes",
+        "frequency": [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday"
+        ],
+        "anchorLink": "After the first alarm",
+        "kickstartVersion": "Feet on the floor. Nothing else."
+      }
+    }
+  ],
+  "_comment_history": "missDaysAgo = every action missed that day (red on the calendar \u2014 proves 'a missed day never erases you'). partialDaysAgo = only the first scheduled action done (amber). Today is deliberately left unlogged so the demo can complete it on camera.",
+  "missDaysAgo": [
+    12
+  ],
+  "partialDaysAgo": [
+    8
+  ],
+  "notes": {
+    "3": "Easier than I expected today",
+    "6": "Nearly skipped it \u2014 did the short version instead"
+  },
+  "reflections": [
+    {
+      "daysAgo": 7,
+      "periodType": "weekly",
+      "momentumScore": 74,
+      "userInput": "I'm ready for my weekly review.",
+      "aiFeedback": "You showed up on four of five days last week \u2014 that's the Someone Who Sleeps doing exactly what they do. Let's protect what's working."
+    },
+    {
+      "daysAgo": 14,
+      "periodType": "weekly",
+      "momentumScore": 61,
+      "userInput": "I'm ready for my weekly review.",
+      "aiFeedback": "You showed up on four of five days last week \u2014 that's the Someone Who Sleeps doing exactly what they do. Let's protect what's working."
+    }
+  ],
+  "onboardingAnswers": [
+    "I'm exhausted all the time and I know it's because I go to bed at 1am scrolling.",
+    "I need a hard stop. Screens off by 10:30 and lights out at 11."
+  ]
+}

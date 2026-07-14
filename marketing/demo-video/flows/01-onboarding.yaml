@@ -1,0 +1,64 @@
+# Pass A — the AI onboarding interview, shot LIVE against production.
+#
+# This is the differentiator, so nothing here is faked: the coach's replies
+# stream in character-by-character (30ms/char) from the real model, and the
+# plan at the end is genuinely generated from what gets typed.
+#
+# Coordinates, not selectors — see the note in 02-tour.yaml. Percentages must
+# be integers.
+#
+# TWO GOTCHAS, both learned the hard way:
+#  1. COLD BOOT. After a storage wipe the app takes ~10s to render. Tap too
+#     early and the taps land on the tab bar instead of the onboarding CTA.
+#  2. KEYBOARD. Tapping the input raises the keyboard, which lifts the send
+#     button from 92% to 54%. (hideKeyboard is unsupported on iOS.) Both of
+#     our answers wrap to 3 lines, so 54% is exact for both. The keyboard
+#     dismisses itself on send, which is why the *input* is back at 92%.
+#
+# Run against a WIPED app: node seed.mjs side-hustle fresh
+appId: com.resolutioncompanion.app
+---
+- launchApp: { clearState: false }
+- waitForAnimationToEnd
+- runScript: { file: hold.js, env: { MS: "13000" } } # cold boot + "Begin Your Evolution"
+
+- tapOn: { point: "50%,66%" } # "Start Your Journey"
+- runScript: { file: hold.js, env: { MS: "3000" } } # carousel 1: what it is
+- tapOn: { point: "50%,91%" } # "Continue"
+- runScript: { file: hold.js, env: { MS: "2800" } } # carousel 2: start with a chat
+- tapOn: { point: "50%,91%" } # "Continue"
+- runScript: { file: hold.js, env: { MS: "2800" } } # carousel 3: free vs premium
+- tapOn: { point: "50%,91%" } # "Let's Get Started"
+
+# The AI-consent screen is a real screen real users see. Show it — it's a
+# trust asset, not a speed bump.
+- runScript: { file: hold.js, env: { MS: "4000" } }
+- tapOn: { point: "50%,89%" } # "Agree & Continue"
+
+# The coach opens the conversation, streaming.
+- runScript: { file: hold.js, env: { MS: "9000" } }
+
+# ── Answer 1: the goal ──
+- tapOn: { point: "40%,92%" }
+- inputText: "I want to finally launch the side project I've been putting off — an app I've been sketching for over a year."
+- runScript: { file: hold.js, env: { MS: "1800" } } # let the viewer read what was typed
+- tapOn: { point: "90%,54%" } # send (keyboard is up, so the button sits at 54%)
+- runScript: { file: hold.js, env: { MS: "20000" } } # coach acknowledges + proposes daily habits
+
+# ── Answer 2: the constraint ──
+- tapOn: { point: "40%,92%" }
+- inputText: "Mornings before work are realistic. I'd rather do 20 focused minutes than pretend I'll do two hours."
+- runScript: { file: hold.js, env: { MS: "1800" } }
+- tapOn: { point: "90%,54%" } # send
+- runScript: { file: hold.js, env: { MS: "20000" } } # coach wraps up; "Create My Plan" panel slides in
+
+# ── Build the plan ──
+- tapOn: { point: "50%,91%" } # "Create My Plan"
+# ~16s of "Reading your goals..." -> "Shaping who you're becoming..." ->
+# "Designing your milestones..." -> "Scheduling your first week...".
+# Beautiful copy, but dead air — speed-ramped in post.
+- runScript: { file: hold.js, env: { MS: "24000" } }
+
+# Lands on Today with the freshly generated plan.
+- waitForAnimationToEnd
+- runScript: { file: hold.js, env: { MS: "5000" } }

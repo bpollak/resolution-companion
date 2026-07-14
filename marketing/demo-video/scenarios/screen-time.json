@@ -1,0 +1,93 @@
+{
+  "id": "screen-time",
+  "persona": {
+    "name": "Present After Dark",
+    "description": "Someone whose evenings belong to them again \u2014 off the feed, and actually in the room."
+  },
+  "milestones": [
+    {
+      "key": "ship",
+      "title": "Reclaim the last hour",
+      "_comment": "20 of 21 \u2014 checking this off during the take completes it on camera",
+      "daysDone": 20,
+      "targetDaysAhead": 10,
+      "action": {
+        "title": "Phone on the charger by 10pm",
+        "frequency": [
+          "Sunday",
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday"
+        ],
+        "anchorLink": "After I load the dishwasher",
+        "kickstartVersion": "Just put it face-down in another room"
+      }
+    },
+    {
+      "key": "public",
+      "title": "Read 12 books this year",
+      "daysDone": 12,
+      "targetDaysAhead": 24,
+      "action": {
+        "title": "Read 10 pages",
+        "frequency": [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday"
+        ],
+        "anchorLink": "After my phone goes on the charger",
+        "kickstartVersion": "Read one page \u2014 one"
+      }
+    },
+    {
+      "key": "users",
+      "title": "Mornings without the feed",
+      "daysDone": 4,
+      "targetDaysAhead": 45,
+      "action": {
+        "title": "No phone for the first 30 minutes",
+        "frequency": [
+          "Monday",
+          "Wednesday",
+          "Friday"
+        ],
+        "anchorLink": "After my alarm goes off",
+        "kickstartVersion": "Leave it face-down while the coffee brews"
+      }
+    }
+  ],
+  "_comment_history": "missDaysAgo = every action missed that day (red on the calendar \u2014 proves 'a missed day never erases you'). partialDaysAgo = only the first scheduled action done (amber). Today is deliberately left unlogged so the demo can complete it on camera.",
+  "missDaysAgo": [
+    12
+  ],
+  "partialDaysAgo": [
+    8
+  ],
+  "notes": {
+    "3": "Easier than I expected today",
+    "6": "Nearly skipped it \u2014 did the short version instead"
+  },
+  "reflections": [
+    {
+      "daysAgo": 7,
+      "periodType": "weekly",
+      "momentumScore": 74,
+      "userInput": "I'm ready for my weekly review.",
+      "aiFeedback": "You showed up on four of five days last week \u2014 that's the Present After Dark doing exactly what they do. Let's protect what's working."
+    },
+    {
+      "daysAgo": 14,
+      "periodType": "weekly",
+      "momentumScore": 61,
+      "userInput": "I'm ready for my weekly review.",
+      "aiFeedback": "You showed up on four of five days last week \u2014 that's the Present After Dark doing exactly what they do. Let's protect what's working."
+    }
+  ],
+  "onboardingAnswers": [
+    "I want my evenings back. I lose two hours a night to my phone without deciding to.",
+    "Realistically the phone needs to be out of the room, or I'll pick it up."
+  ]
+}

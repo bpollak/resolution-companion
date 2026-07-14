@@ -1,0 +1,93 @@
+{
+  "id": "movement",
+  "persona": {
+    "name": "Consistent Morning Mover",
+    "description": "Someone who moves their body first thing, before the day has a chance to talk them out of it."
+  },
+  "milestones": [
+    {
+      "key": "ship",
+      "title": "Run a 5K without stopping",
+      "_comment": "20 of 21 \u2014 checking this off during the take completes it on camera",
+      "daysDone": 20,
+      "targetDaysAhead": 10,
+      "action": {
+        "title": "Move for 20 minutes",
+        "frequency": [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday"
+        ],
+        "anchorLink": "After I put my shoes by the bed",
+        "kickstartVersion": "Six squats and six push-ups \u2014 that counts"
+      }
+    },
+    {
+      "key": "public",
+      "title": "Build a morning anchor",
+      "daysDone": 12,
+      "targetDaysAhead": 24,
+      "action": {
+        "title": "Stretch for 5 minutes",
+        "frequency": [
+          "Monday",
+          "Wednesday",
+          "Friday"
+        ],
+        "anchorLink": "After I brush my teeth",
+        "kickstartVersion": "One stretch, one breath"
+      }
+    },
+    {
+      "key": "users",
+      "title": "Sleep 7 hours a night",
+      "daysDone": 4,
+      "targetDaysAhead": 45,
+      "action": {
+        "title": "Phone on the charger by 10:30",
+        "frequency": [
+          "Sunday",
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday"
+        ],
+        "anchorLink": "After the last dish is done",
+        "kickstartVersion": "Just plug it in \u2014 you can pick it back up"
+      }
+    }
+  ],
+  "_comment_history": "missDaysAgo = every action missed that day (red on the calendar \u2014 proves 'a missed day never erases you'). partialDaysAgo = only the first scheduled action done (amber). Today is deliberately left unlogged so the demo can complete it on camera.",
+  "missDaysAgo": [
+    12
+  ],
+  "partialDaysAgo": [
+    8
+  ],
+  "notes": {
+    "3": "Easier than I expected today",
+    "6": "Nearly skipped it \u2014 did the short version instead"
+  },
+  "reflections": [
+    {
+      "daysAgo": 7,
+      "periodType": "weekly",
+      "momentumScore": 74,
+      "userInput": "I'm ready for my weekly review.",
+      "aiFeedback": "You showed up on four of five days last week \u2014 that's the Consistent Morning Mover doing exactly what they do. Let's protect what's working."
+    },
+    {
+      "daysAgo": 14,
+      "periodType": "weekly",
+      "momentumScore": 61,
+      "userInput": "I'm ready for my weekly review.",
+      "aiFeedback": "You showed up on four of five days last week \u2014 that's the Consistent Morning Mover doing exactly what they do. Let's protect what's working."
+    }
+  ],
+  "onboardingAnswers": [
+    "I keep restarting the same fitness goal every January and dropping it by February.",
+    "Mornings are the only time nobody else needs me. But I can't do an hour."
+  ]
+}

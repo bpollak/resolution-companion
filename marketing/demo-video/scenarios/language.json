@@ -1,0 +1,90 @@
+{
+  "id": "language",
+  "persona": {
+    "name": "Conversational Spanish Speaker",
+    "description": "Someone who practices a little every day, and is no longer scared of the first sentence."
+  },
+  "milestones": [
+    {
+      "key": "ship",
+      "title": "Hold a 5-minute conversation",
+      "_comment": "20 of 21 \u2014 checking this off during the take completes it on camera",
+      "daysDone": 20,
+      "targetDaysAhead": 10,
+      "action": {
+        "title": "Practice speaking for 10 minutes",
+        "frequency": [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday"
+        ],
+        "anchorLink": "After I pour my morning coffee",
+        "kickstartVersion": "Say three sentences out loud \u2014 that's it"
+      }
+    },
+    {
+      "key": "public",
+      "title": "Learn 500 everyday words",
+      "daysDone": 12,
+      "targetDaysAhead": 24,
+      "action": {
+        "title": "Review 10 new words",
+        "frequency": [
+          "Monday",
+          "Wednesday",
+          "Friday"
+        ],
+        "anchorLink": "After I sit down on the train",
+        "kickstartVersion": "Review five, not ten"
+      }
+    },
+    {
+      "key": "users",
+      "title": "Think in Spanish",
+      "daysDone": 4,
+      "targetDaysAhead": 45,
+      "action": {
+        "title": "Narrate one thing I'm doing, in Spanish",
+        "frequency": [
+          "Tuesday",
+          "Thursday"
+        ],
+        "anchorLink": "After I start cooking dinner",
+        "kickstartVersion": "Name three things in the kitchen"
+      }
+    }
+  ],
+  "_comment_history": "missDaysAgo = every action missed that day (red on the calendar \u2014 proves 'a missed day never erases you'). partialDaysAgo = only the first scheduled action done (amber). Today is deliberately left unlogged so the demo can complete it on camera.",
+  "missDaysAgo": [
+    12
+  ],
+  "partialDaysAgo": [
+    8
+  ],
+  "notes": {
+    "3": "Easier than I expected today",
+    "6": "Nearly skipped it \u2014 did the short version instead"
+  },
+  "reflections": [
+    {
+      "daysAgo": 7,
+      "periodType": "weekly",
+      "momentumScore": 74,
+      "userInput": "I'm ready for my weekly review.",
+      "aiFeedback": "You showed up on four of five days last week \u2014 that's the Conversational Spanish Speaker doing exactly what they do. Let's protect what's working."
+    },
+    {
+      "daysAgo": 14,
+      "periodType": "weekly",
+      "momentumScore": 61,
+      "userInput": "I'm ready for my weekly review.",
+      "aiFeedback": "You showed up on four of five days last week \u2014 that's the Conversational Spanish Speaker doing exactly what they do. Let's protect what's working."
+    }
+  ],
+  "onboardingAnswers": [
+    "I've been 'learning Spanish' for three years and still can't hold a conversation.",
+    "Ten or fifteen minutes a day is realistic. An hour is a fantasy."
+  ]
+}
