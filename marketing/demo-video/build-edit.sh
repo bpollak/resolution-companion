@@ -27,7 +27,7 @@ seg() {
 }
 
 echo "── onboarding ──"
-seg a1-coldopen    "$OB"    30.5  36.0  1.0   # "Begin Your Evolution"
+seg a1-coldopen    "$OB"    33.0  38.5  1.0   # "Begin Your Evolution" (33.0 clears the white launch flash)
 seg a2-carousel    "$OB"    37.5  46.0  2.5   # what it is / start with a chat / free vs premium
 seg a3-consent     "$OB"    55.0  59.0  2.0   # AI consent — a trust asset, show it
 seg a4-coachopen   "$OB"    62.0  69.0  1.0   # the coach asks the first question (streams)
@@ -37,10 +37,10 @@ seg a7-planready   "$OB"   118.0 127.0  1.5   # "Your plan is ready to build" ->
 seg a8-building    "$OB"   131.0 150.0  3.0   # "Reading your goals..." -> "Designing your milestones..."
 
 echo "── the daily loop ──"
-seg b1-today       "$TOUR"  28.0  34.0  1.0   # Becoming / Consistent Builder + last week's recap
-seg b2-scroll      "$TOUR"  33.5  36.0  2.0   # down to today's actions
-seg b3-checkoff    "$TOUR"  36.0  40.5  1.0   # tap -> glow -> collapse (play this at 1x)
-seg b4-milestone   "$TOUR"  40.5  50.0  1.6   # MILESTONE COMPLETE: "not a plan anymore, it's a habit"
+seg b1-today       "$TOUR"  32.0  37.5  1.0   # Becoming / Consistent Builder (31.0 clears the launch splash)
+seg b2-scroll      "$TOUR"  36.0  38.0  2.0   # down to today's actions
+seg b3-checkoff    "$TOUR"  38.0  41.0  1.0   # tap -> glow -> collapse (play this at 1x)
+seg b4-milestone   "$TOUR"  41.0  50.0  1.5   # MILESTONE COMPLETE: "not a plan anymore, it's a habit"
 seg b5-daycomplete "$TOUR"  56.0  66.0  1.2   # 2/2, green ring, burst dots, "Day complete."
 seg b6-note        "$TOUR"  68.0  74.0  2.0   # "How did it go?" -> the coach reads these
 seg b7-journey     "$TOUR"  78.0  88.0  1.5   # the calendar: green run, one amber, one red

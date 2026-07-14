@@ -10,47 +10,17 @@ import {
   useVideoConfig,
 } from "remotion";
 import { BG, CYAN, FONT, GRADIENT, Glows, TEXT_DIM } from "./shared";
+import {
+  CHAPTERS,
+  Chapter,
+  MASTER_SECONDS,
+  SHORT_CHAPTERS,
+  SHORT_SECONDS,
+} from "./chapters";
 
 export const FPS = 30;
-export const DEMO_SECONDS = 100.77;
-export const DEMO_DURATION = Math.floor(DEMO_SECONDS * FPS);
-export const SHORT_SECONDS = 37.33;
+export const DEMO_DURATION = Math.floor(MASTER_SECONDS * FPS);
 export const SHORT_DURATION = Math.floor(SHORT_SECONDS * FPS);
-
-/**
- * Chapter captions, timed to out/segments.json in marketing/demo-video.
- * They label what the viewer is looking at — they are NOT the voiceover.
- * The VO script (VO-SCRIPT.md) is written to be read *over* these.
- */
-interface Chapter {
-  at: number; // seconds
-  kicker: string;
-  line: string;
-  accent?: string; // the word that gets the gradient
-}
-
-const CHAPTERS: Chapter[] = [
-  { at: 0, kicker: "The premise", line: "Don't set a goal.", accent: "Become someone." },
-  { at: 12.1, kicker: "Two minutes", line: "An AI coach asks who you're", accent: "becoming." },
-  { at: 30.6, kicker: "Your plan, built", line: "Milestones and small daily", accent: "actions." },
-  { at: 43.8, kicker: "The daily loop", line: "Every action is a", accent: "vote." },
-  { at: 55.6, kicker: "21 days", line: "Not a plan anymore. A", accent: "habit." },
-  { at: 63.2, kicker: "The payoff", line: "Finish the day, and it", accent: "says so." },
-  { at: 77.8, kicker: "No guilt", line: "A missed day never", accent: "erases you." },
-  { at: 89.8, kicker: "It remembers", line: "A coach that reads your", accent: "notes." },
-];
-
-/** The short is a different edit, so it needs its own beat map. */
-const SHORT_CHAPTERS: Chapter[] = [
-  { at: 0, kicker: "The premise", line: "Don't set a goal.", accent: "Become someone." },
-  { at: 3.5, kicker: "Two minutes", line: "Tell an AI coach who you want to", accent: "be." },
-  { at: 11, kicker: "Your plan, built", line: "It writes the", accent: "milestones." },
-  { at: 17.5, kicker: "The daily loop", line: "Every action is a", accent: "vote." },
-  { at: 21.5, kicker: "21 days", line: "Not a plan. A", accent: "habit." },
-  { at: 25.5, kicker: "The payoff", line: "Finish the day, and it", accent: "says so." },
-  { at: 30.5, kicker: "No guilt", line: "A missed day never", accent: "erases you." },
-  { at: 34.5, kicker: "It remembers", line: "A coach in your", accent: "corner." },
-];
 
 const chapterAt = (sec: number, list: Chapter[] = CHAPTERS) => {
   let cur = list[0];
