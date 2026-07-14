@@ -3,7 +3,7 @@ import { Composition } from "remotion";
 import { VARIANTS, variantComponent, variantDuration } from "./variants";
 import { HERO_VO_DURATION, HeroVO, HeroVOCaptioned } from "./HeroVO";
 import { AD_CUTS, adComponent, adDuration } from "./ads";
-import { DEMO_DURATION, DemoMaster, DemoShort } from "./Demo";
+import { DEMO_DURATION, DemoMaster, DemoShort, SHORT_DURATION } from "./Demo";
 
 // Feed-format sizes for the flagship script (Instagram/Facebook feed posts).
 // All scripts render at 9:16 (1080×1920) — the master format for TikTok,
@@ -67,7 +67,7 @@ export const RemotionRoot: React.FC = () => {
       <Composition
         id="DemoShort"
         component={DemoShort}
-        durationInFrames={DEMO_DURATION}
+        durationInFrames={SHORT_DURATION}
         fps={30}
         width={1080}
         height={1920}

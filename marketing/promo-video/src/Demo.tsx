@@ -14,6 +14,8 @@ import { BG, CYAN, FONT, GRADIENT, Glows, TEXT_DIM } from "./shared";
 export const FPS = 30;
 export const DEMO_SECONDS = 100.77;
 export const DEMO_DURATION = Math.floor(DEMO_SECONDS * FPS);
+export const SHORT_SECONDS = 37.33;
+export const SHORT_DURATION = Math.floor(SHORT_SECONDS * FPS);
 
 /**
  * Chapter captions, timed to out/segments.json in marketing/demo-video.
@@ -38,14 +40,26 @@ const CHAPTERS: Chapter[] = [
   { at: 89.8, kicker: "It remembers", line: "A coach that reads your", accent: "notes." },
 ];
 
-const chapterAt = (sec: number) => {
-  let cur = CHAPTERS[0];
-  for (const c of CHAPTERS) if (sec >= c.at) cur = c;
+/** The short is a different edit, so it needs its own beat map. */
+const SHORT_CHAPTERS: Chapter[] = [
+  { at: 0, kicker: "The premise", line: "Don't set a goal.", accent: "Become someone." },
+  { at: 3.5, kicker: "Two minutes", line: "Tell an AI coach who you want to", accent: "be." },
+  { at: 11, kicker: "Your plan, built", line: "It writes the", accent: "milestones." },
+  { at: 17.5, kicker: "The daily loop", line: "Every action is a", accent: "vote." },
+  { at: 21.5, kicker: "21 days", line: "Not a plan. A", accent: "habit." },
+  { at: 25.5, kicker: "The payoff", line: "Finish the day, and it", accent: "says so." },
+  { at: 30.5, kicker: "No guilt", line: "A missed day never", accent: "erases you." },
+  { at: 34.5, kicker: "It remembers", line: "A coach in your", accent: "corner." },
+];
+
+const chapterAt = (sec: number, list: Chapter[] = CHAPTERS) => {
+  let cur = list[0];
+  for (const c of list) if (sec >= c.at) cur = c;
   return cur;
 };
 
 /** The phone. The raw capture is the device screen only, so we add the bezel. */
-const Phone: React.FC<{ height: number }> = ({ height }) => {
+const Phone: React.FC<{ height: number; src?: string }> = ({ height, src = "demo-screen.mp4" }) => {
   const w = height * (720 / 1566); // the recorded screen's aspect
   const pad = height * 0.012;
   return (
@@ -62,7 +76,7 @@ const Phone: React.FC<{ height: number }> = ({ height }) => {
       }}
     >
       <OffthreadVideo
-        src={staticFile("demo-screen.mp4")}
+        src={staticFile(src)}
         style={{
           width: "100%",
           height: "100%",
@@ -76,17 +90,18 @@ const Phone: React.FC<{ height: number }> = ({ height }) => {
 };
 
 /** Chapter text — crossfades on each change instead of hard-cutting. */
-const Caption: React.FC<{ align?: "left" | "center"; scale?: number }> = ({
+const Caption: React.FC<{ align?: "left" | "center"; scale?: number; list?: Chapter[] }> = ({
   align = "left",
   scale = 1,
+  list = CHAPTERS,
 }) => {
   const frame = useCurrentFrame();
   const sec = frame / FPS;
-  const c = chapterAt(sec);
+  const c = chapterAt(sec, list);
   const since = (sec - c.at) * FPS;
   const enter = spring({ frame: since, fps: FPS, config: { damping: 200, stiffness: 90 } });
   // fade out just before the next chapter lands
-  const next = CHAPTERS.find((x) => x.at > c.at);
+  const next = list.find((x) => x.at > c.at);
   const out = next
     ? interpolate(sec, [next.at - 0.5, next.at], [1, 0], {
         extrapolateLeft: "clamp",
@@ -180,7 +195,7 @@ export const DemoShort: React.FC = () => {
     <AbsoluteFill style={{ backgroundColor: BG }}>
       <Glows />
       <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-end", paddingBottom: 96 }}>
-        <Phone height={height * 0.7} />
+        <Phone height={height * 0.7} src="demo-screen-short.mp4" />
       </AbsoluteFill>
       <div
         style={{
@@ -192,7 +207,7 @@ export const DemoShort: React.FC = () => {
           justifyContent: "center",
         }}
       >
-        <Caption align="center" scale={0.92} />
+        <Caption align="center" scale={0.92} list={SHORT_CHAPTERS} />
       </div>
     </AbsoluteFill>
   );
