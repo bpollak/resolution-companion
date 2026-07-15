@@ -4,6 +4,7 @@ import { VARIANTS, variantComponent, variantDuration } from "./variants";
 import { HERO_VO_DURATION, HeroVO, HeroVOCaptioned } from "./HeroVO";
 import { AD_CUTS, adComponent, adDuration } from "./ads";
 import { DEMO_DURATION, DemoMaster, DemoShort, SHORT_DURATION } from "./Demo";
+import { IPHONE_DURATION, IPhonePromo } from "./IPhonePromo";
 
 // Feed-format sizes for the flagship script (Instagram/Facebook feed posts).
 // All scripts render at 9:16 (1080×1920) — the master format for TikTok,
@@ -68,6 +69,15 @@ export const RemotionRoot: React.FC = () => {
         id="DemoShort"
         component={DemoShort}
         durationInFrames={SHORT_DURATION}
+        fps={30}
+        width={1080}
+        height={1920}
+      />
+      {/* Real-device promo cut from Brett's own iPhone screen recordings. */}
+      <Composition
+        id="IPhonePromo"
+        component={IPhonePromo}
+        durationInFrames={IPHONE_DURATION}
         fps={30}
         width={1080}
         height={1920}
