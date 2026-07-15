@@ -39,9 +39,9 @@ const timeline = (files) => {
 
 const MASTER_ORDER = [
   "a1-coldopen", "a2-carousel", "a3-consent", "a4-coachopen", "a5-answer1",
-  "a6-coachreply", "a7-planready", "a8-building", "b1-today", "b2-scroll",
+  "a7-planready", "a8-building", "b1-today", "b2-scroll",
   "b3-checkoff", "b4-milestone", "b5-daycomplete", "b6-note", "b7-journey",
-  "b8-milestones", "b9-coach",
+  "b8-milestones", "b9-coachhome", "b10-exchange",
 ];
 const SHORT_ORDER = ["s-1", "s-2", "s-3", "s-4", "s-5", "s-6", "s-7", "s-8", "s-9"];
 
@@ -57,12 +57,15 @@ const MASTER = [
   ["a1-coldopen", 0, "The premise", "Don't set a goal.", "Become someone."],
   ["a4-coachopen", 0, "Two minutes", "An AI coach asks who you're", "becoming."],
   ["a8-building", 0, "Your plan, built", "Milestones and small daily", "actions."],
-  ["b1-today", 0, "The daily loop", "Three small things.", "That's the day."],
-  ["b3-checkoff", 0.8, "Every action counts", "Each one is a", "vote."],
-  ["b4-milestone", 1.2, "21 days", "Not a plan anymore. A", "habit."],
-  ["b5-daycomplete", 2.6, "The payoff", "Finish the day, and it", "says so."],
+  ["b1-today", 0, "The daily loop", "Two small things.", "That's the day."],
+  ["b3-checkoff", 1.2, "Every action counts", "Each one is a", "vote."],
+  ["b4-milestone", 1.0, "21 days", "Not a plan anymore. A", "habit."],
+  ["b5-daycomplete", 4.6, "The payoff", "Finish the day, and it", "says so."],
   ["b7-journey", 0, "No guilt", "A missed day never", "erases you."],
-  ["b9-coach", 1.5, "It remembers", "A coach that reads your", "notes."],
+  // Anchor to the coach HOME (not the exchange) so "It remembers" lands as the
+  // Coach screen first appears, instead of the no-guilt caption holding ~6s over it.
+  ["b9-coachhome", 0.3, "It remembers", "A coach that reads your", "notes."],
+  ["b10-exchange", 1.5, "In your corner", "You name a win — it answers,", "personally."],
 ];
 
 const SHORT = [
@@ -71,7 +74,7 @@ const SHORT = [
   ["s-4", 0, "Your plan, built", "It writes the", "milestones."],
   ["s-5", 0.5, "The daily loop", "Every action is a", "vote."],
   ["s-6", 1.0, "21 days", "Not a plan. A", "habit."],
-  ["s-7", 2.0, "The payoff", "Finish the day, and it", "says so."],
+  ["s-7", 0.5, "The payoff", "Finish the day, and it", "says so."],
   ["s-8", 0, "No guilt", "A missed day never", "erases you."],
   ["s-9", 1.5, "It remembers", "A coach in your", "corner."],
 ];

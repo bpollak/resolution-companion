@@ -3,13 +3,14 @@ import {
   AbsoluteFill,
   Img,
   OffthreadVideo,
+  Sequence,
   interpolate,
   spring,
   staticFile,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { BG, CYAN, FONT, GRADIENT, Glows, TEXT_DIM } from "./shared";
+import { BG, CTA, CYAN, FONT, GRADIENT, Glows, TEXT_DIM } from "./shared";
 import {
   CHAPTERS,
   Chapter,
@@ -19,8 +20,42 @@ import {
 } from "./chapters";
 
 export const FPS = 30;
-export const DEMO_DURATION = Math.floor(MASTER_SECONDS * FPS);
-export const SHORT_DURATION = Math.floor(SHORT_SECONDS * FPS);
+
+// Branded outro after the footage. The raw coach take ends while the reply is
+// still streaming, so the cut ends on a complete sentence and this card fades
+// in over it — the close the footage itself can't provide.
+const CARD_SECONDS = 3.5;
+const CARD_SECONDS_SHORT = 2.5;
+const CARD_FADE_FRAMES = 18;
+
+export const DEMO_DURATION = Math.floor((MASTER_SECONDS + CARD_SECONDS) * FPS);
+export const SHORT_DURATION = Math.floor((SHORT_SECONDS + CARD_SECONDS_SHORT) * FPS);
+
+/** Fades in over the tail of the footage, then holds the CTA. */
+const EndCard: React.FC<{ footageSeconds: number; cardSeconds: number }> = ({
+  footageSeconds,
+  cardSeconds,
+}) => {
+  const from = Math.floor(footageSeconds * FPS) - CARD_FADE_FRAMES;
+  return (
+    <Sequence from={from} durationInFrames={Math.ceil(cardSeconds * FPS) + CARD_FADE_FRAMES}>
+      <CardFade />
+    </Sequence>
+  );
+};
+
+const CardFade: React.FC = () => {
+  const frame = useCurrentFrame();
+  const opacity = interpolate(frame, [0, CARD_FADE_FRAMES], [0, 1], {
+    extrapolateRight: "clamp",
+  });
+  return (
+    <AbsoluteFill style={{ opacity, backgroundColor: BG }}>
+      <Glows />
+      <CTA />
+    </AbsoluteFill>
+  );
+};
 
 const chapterAt = (sec: number, list: Chapter[] = CHAPTERS) => {
   let cur = list[0];
@@ -154,6 +189,7 @@ export const DemoMaster: React.FC = () => {
       <div style={{ position: "absolute", left: 90, bottom: 46 }}>
         <Wordmark />
       </div>
+      <EndCard footageSeconds={MASTER_SECONDS} cardSeconds={CARD_SECONDS} />
     </AbsoluteFill>
   );
 };
@@ -179,6 +215,7 @@ export const DemoShort: React.FC = () => {
       >
         <Caption align="center" scale={0.92} list={SHORT_CHAPTERS} />
       </div>
+      <EndCard footageSeconds={SHORT_SECONDS} cardSeconds={CARD_SECONDS_SHORT} />
     </AbsoluteFill>
   );
 };

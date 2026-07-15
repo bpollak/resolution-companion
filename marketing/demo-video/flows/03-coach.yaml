@@ -1,0 +1,32 @@
+# Pass C — a COMPLETE coach exchange, replacing the ending that cut off on an
+# unanswered question. Seeded account; the coach's replies are live.
+#
+# NO launchApp: the recorder script pre-launches the app and waits until it's
+# actually on the Today screen before recording starts. Cold-boot time on this
+# sim is wildly variable (10-25s), so having launchApp inside the take made the
+# holds unreliable and the taps drifted to the wrong screen. This flow attaches
+# to the already-running, already-settled app instead.
+#
+# Run via: ./record.sh coach   (which handles the pre-launch + settle)
+appId: com.resolutioncompanion.app
+---
+- launchApp: { stopApp: false }   # attach to the already-booted app; do NOT cold-boot in the take
+- waitForAnimationToEnd
+- tapOn: { point: "83%,94%" } # Coach tab
+- waitForAnimationToEnd
+- runScript: { file: hold.js, env: { MS: "5000" } } # momentum 100%, unlimited check-ins
+
+- tapOn: { point: "50%,79%" } # "3-minute weekly review"
+- waitForAnimationToEnd
+- runScript: { file: hold.js, env: { MS: "16000" } } # the coach greets + asks its first question
+
+# The user answers — a real, specific win.
+- tapOn: { point: "40%,92%" }
+- inputText: "Shipping the settings screen. It felt like the first thing a real user could actually touch."
+- runScript: { file: hold.js, env: { MS: "1800" } }
+# Send sits at 48% for THIS answer: it wraps to 3 lines, which pushes the input
+# bar down. A 1-2 line answer puts send at ~54%. Recheck if the text changes.
+- tapOn: { point: "90%,48%" }
+- runScript: { file: hold.js, env: { MS: "30000" } } # the full reply streams (~25s; 22s cut it off mid-sentence)
+
+- runScript: { file: hold.js, env: { MS: "3000" } } # rest on the finished exchange
