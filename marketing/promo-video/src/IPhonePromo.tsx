@@ -276,3 +276,63 @@ export const IPhoneWideMaster: React.FC = () => (
 export const IPhoneWideShort: React.FC = () => (
   <WidePromo src={SHORT_SCREEN} screenSeconds={IPHONE_SHORT_SECONDS} chapters={IPHONE_SHORT_CHAPTERS} />
 );
+
+// ── Paid ad cut (~15s): hook fast, no title card, bold captions, CTA ────────
+const AD_SCREEN = "iphone-screen-ad.mp4";
+const AD_SECONDS = 12.2;
+const AD_CUES: Sub[] = [
+  { start: 0.0, end: 3.0, text: "An AI coach that asks who you're becoming." },
+  { start: 3.03, end: 5.1, text: "Then builds you a real plan." },
+  { start: 5.2, end: 7.6, text: "Check off your day." },
+  { start: 7.7, end: 12.2, text: "And coaches you — every week." },
+];
+export const IPHONE_AD_DURATION = frames(AD_SECONDS) + CARD_FRAMES;
+
+const AdCaption: React.FC<{ cues: Sub[] }> = ({ cues }) => {
+  const sec = useCurrentFrame() / FPS;
+  const cue = cues.find((c) => sec >= c.start && sec < c.end);
+  if (!cue) return null;
+  const opacity = interpolate(sec - cue.start, [0, 0.14], [0, 1], { extrapolateRight: "clamp" });
+  return (
+    <div style={{ position: "absolute", left: 50, right: 50, bottom: 40, display: "flex", justifyContent: "center" }}>
+      <div
+        style={{
+          opacity,
+          maxWidth: 960,
+          textAlign: "center",
+          fontFamily: FONT,
+          fontSize: 46,
+          fontWeight: 800,
+          lineHeight: 1.22,
+          color: "white",
+          background: "rgba(8, 8, 14, 0.84)",
+          padding: "16px 28px",
+          borderRadius: 18,
+          boxShadow: "0 8px 30px rgba(0, 0, 0, 0.55)",
+        }}
+      >
+        {cue.text}
+      </div>
+    </div>
+  );
+};
+
+export const IPhoneAd: React.FC = () => {
+  const { height } = useVideoConfig();
+  const ctaStart = frames(AD_SECONDS) - FADE;
+  return (
+    <AbsoluteFill style={{ backgroundColor: BG }}>
+      <Glows />
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
+        <Phone height={height * 0.8} src={AD_SCREEN} />
+      </AbsoluteFill>
+      <div style={{ position: "absolute", left: 60, top: 44 }}>
+        <Wordmark />
+      </div>
+      <AdCaption cues={AD_CUES} />
+      <Sequence from={ctaStart} name="CTA">
+        <CardScene />
+      </Sequence>
+    </AbsoluteFill>
+  );
+};

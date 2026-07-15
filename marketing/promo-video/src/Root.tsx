@@ -5,10 +5,12 @@ import { HERO_VO_DURATION, HeroVO, HeroVOCaptioned } from "./HeroVO";
 import { AD_CUTS, adComponent, adDuration } from "./ads";
 import { DEMO_DURATION, DemoMaster, DemoShort, SHORT_DURATION } from "./Demo";
 import {
+  IPHONE_AD_DURATION,
   IPHONE_DURATION,
   IPHONE_SHORT_DURATION,
   IPHONE_WIDE_DURATION,
   IPHONE_WIDE_SHORT_DURATION,
+  IPhoneAd,
   IPhonePromo,
   IPhonePromoShort,
   IPhoneWideMaster,
@@ -115,6 +117,15 @@ export const RemotionRoot: React.FC = () => {
         fps={30}
         width={1920}
         height={1080}
+      />
+      {/* ~15s paid-ad cut (9:16): hook-first, bold captions, App Store end card. */}
+      <Composition
+        id="IPhoneAd"
+        component={IPhoneAd}
+        durationInFrames={IPHONE_AD_DURATION}
+        fps={30}
+        width={1080}
+        height={1920}
       />
       {AD_CUTS.map((spec) => (
         <Composition
