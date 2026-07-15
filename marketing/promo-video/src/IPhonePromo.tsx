@@ -18,6 +18,7 @@ import {
   IPHONE_SHORT_CHAPTERS,
   IPHONE_SHORT_SECONDS,
 } from "./iphone-chapters";
+import { Sub, SUB_MASTER, SUB_SHORT } from "./iphone-subtitles";
 
 // Real-device promo: Brett's four iPhone screen recordings, stitched and
 // speed-ramped by marketing/demo-video/build-iphone*.sh, framed here.
@@ -111,7 +112,37 @@ const TitleCard: React.FC = () => {
   );
 };
 
-const PhoneScene: React.FC<{ src: string }> = ({ src }) => {
+/** Burned-in subtitle, shown in the gap below the phone (never over app content). */
+const Subtitles: React.FC<{ cues: Sub[] }> = ({ cues }) => {
+  const sec = useCurrentFrame() / FPS;
+  const cue = cues.find((c) => sec >= c.start && sec < c.end);
+  if (!cue) return null;
+  const opacity = interpolate(sec - cue.start, [0, 0.14], [0, 1], { extrapolateRight: "clamp" });
+  return (
+    <div style={{ position: "absolute", left: 50, right: 50, bottom: 34, display: "flex", justifyContent: "center" }}>
+      <div
+        style={{
+          opacity,
+          maxWidth: 950,
+          textAlign: "center",
+          fontFamily: FONT,
+          fontSize: 37,
+          fontWeight: 700,
+          lineHeight: 1.26,
+          color: "white",
+          background: "rgba(8, 8, 14, 0.82)",
+          padding: "13px 26px",
+          borderRadius: 16,
+          boxShadow: "0 8px 30px rgba(0, 0, 0, 0.5)",
+        }}
+      >
+        {cue.text}
+      </div>
+    </div>
+  );
+};
+
+const PhoneScene: React.FC<{ src: string; subs?: Sub[] }> = ({ src, subs }) => {
   const frame = useCurrentFrame();
   const { height } = useVideoConfig();
   const rise = spring({ frame, fps: FPS, config: { damping: 200, stiffness: 80 } });
@@ -123,9 +154,11 @@ const PhoneScene: React.FC<{ src: string }> = ({ src }) => {
           <Phone height={height * 0.8} src={src} />
         </div>
       </AbsoluteFill>
-      <div style={{ position: "absolute", left: 60, bottom: 54 }}>
+      {/* Wordmark up top so the subtitles own the bottom gap. */}
+      <div style={{ position: "absolute", left: 60, top: 44 }}>
         <Wordmark />
       </div>
+      {subs ? <Subtitles cues={subs} /> : null}
     </AbsoluteFill>
   );
 };
@@ -141,7 +174,11 @@ const CardScene: React.FC = () => {
   );
 };
 
-const VerticalPromo: React.FC<{ src: string; screenSeconds: number }> = ({ src, screenSeconds }) => {
+const VerticalPromo: React.FC<{ src: string; screenSeconds: number; subs: Sub[] }> = ({
+  src,
+  screenSeconds,
+  subs,
+}) => {
   const phoneStart = TITLE_FRAMES - FADE;
   const ctaStart = phoneStart + frames(screenSeconds) - FADE;
   return (
@@ -151,7 +188,7 @@ const VerticalPromo: React.FC<{ src: string; screenSeconds: number }> = ({ src, 
         <TitleCard />
       </Sequence>
       <Sequence from={phoneStart} name="Phone">
-        <PhoneScene src={src} />
+        <PhoneScene src={src} subs={subs} />
       </Sequence>
       <Sequence from={ctaStart} name="CTA">
         <CardScene />
@@ -227,9 +264,11 @@ const WidePromo: React.FC<{ src: string; screenSeconds: number; chapters: Chapte
 };
 
 // ── Exported compositions ──────────────────────────────────────────────────
-export const IPhonePromo: React.FC = () => <VerticalPromo src={MASTER_SCREEN} screenSeconds={IPHONE_MASTER_SECONDS} />;
+export const IPhonePromo: React.FC = () => (
+  <VerticalPromo src={MASTER_SCREEN} screenSeconds={IPHONE_MASTER_SECONDS} subs={SUB_MASTER} />
+);
 export const IPhonePromoShort: React.FC = () => (
-  <VerticalPromo src={SHORT_SCREEN} screenSeconds={IPHONE_SHORT_SECONDS} />
+  <VerticalPromo src={SHORT_SCREEN} screenSeconds={IPHONE_SHORT_SECONDS} subs={SUB_SHORT} />
 );
 export const IPhoneWideMaster: React.FC = () => (
   <WidePromo src={MASTER_SCREEN} screenSeconds={IPHONE_MASTER_SECONDS} chapters={IPHONE_CHAPTERS} />
