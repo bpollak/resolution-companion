@@ -1008,13 +1008,13 @@
         background-clip: text;
       }
 
+      /* The demo video is a self-styled composition (phone bezel on the brand
+         gradient), so the frame is just a rounded card — no second bezel. */
       .video-demo-frame {
-        width: min(340px, 82vw);
+        width: min(420px, 88vw);
         margin: 0 auto;
-        border-radius: 40px;
-        border: 2px solid rgba(120, 120, 160, 0.45);
-        background: #08080e;
-        padding: 10px;
+        border-radius: 28px;
+        overflow: hidden;
         box-shadow:
           0 40px 80px rgba(0, 0, 0, 0.55),
           0 0 60px var(--accent-glow);
@@ -1024,74 +1024,7 @@
         display: block;
         width: 100%;
         height: auto;
-        border-radius: 30px;
-      }
-
-      .video-demo-sound {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        width: fit-content;
-        margin: 24px auto 0;
-        padding: 10px 22px;
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        background: var(--bg-card);
-        color: var(--text-secondary);
-        font-size: 15px;
-        font-weight: 600;
-        cursor: pointer;
-        transition:
-          color 0.2s,
-          border-color 0.2s;
-      }
-
-      .video-demo-sound:hover {
-        color: var(--text-primary);
-        border-color: var(--accent);
-      }
-
-      .app-demo {
-        padding: 30px 0 70px;
-      }
-
-      .app-demo .section-title .gradient-text {
-        background: linear-gradient(
-          135deg,
-          var(--accent) 0%,
-          var(--accent-secondary) 50%,
-          var(--accent-tertiary) 100%
-        );
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-      }
-
-      .app-demo-frame {
-        width: min(900px, 94vw);
-        margin: 0 auto;
-        border-radius: 22px;
-        border: 1px solid rgba(120, 120, 160, 0.35);
-        background: #08080e;
-        padding: 8px;
-        box-shadow:
-          0 40px 90px rgba(0, 0, 0, 0.5),
-          0 0 60px var(--accent-glow);
-      }
-
-      .app-demo-frame video {
-        display: block;
-        width: 100%;
-        height: auto;
-        border-radius: 15px;
-      }
-
-      .app-demo-note {
-        margin: 22px auto 0;
-        max-width: 640px;
-        text-align: center;
-        color: var(--text-secondary);
-        font-size: 15px;
+        border-radius: 28px;
       }
 
       .section-label {
@@ -2853,65 +2786,27 @@
             <span class="gradient-text">It's half-time.</span>
           </h2>
           <p class="section-subtitle">
-            That goal you dropped in February? Restart it in 25 seconds —
-            tiny daily actions, a fresh start every month, and any day can
-            be day one.
+            That goal you dropped in February? Here's the real app bringing it
+            back — a two-minute AI setup, small daily actions, and a coach in
+            your corner every week. Any day can be day one.
           </p>
         </div>
         <div class="video-demo-frame">
           <video
-            id="promoVideo"
             autoplay
             muted
             loop
             playsinline
             preload="metadata"
-            poster="/assets/website/promo-poster.jpg"
+            poster="/assets/website/app-demo-vertical-poster.jpg"
             width="720"
             height="1280"
           >
-            <source src="/assets/website/promo-loop.mp4" type="video/mp4" />
+            <source src="/assets/website/app-demo-vertical.mp4" type="video/mp4" />
           </video>
         </div>
-        <button class="video-demo-sound" id="promoSoundBtn" type="button">
-          <span aria-hidden="true">🔊</span>&nbsp;Watch with sound
-        </button>
       </div>
     </section>
-    <script>
-      (function () {
-        var btn = document.getElementById("promoSoundBtn");
-        var video = document.getElementById("promoVideo");
-        if (!btn || !video) return;
-        btn.addEventListener("click", function () {
-          if (video.dataset.mode === "vo") {
-            video.src = "/assets/website/promo-loop.mp4";
-            video.muted = true;
-            video.loop = true;
-            video.controls = false;
-            video.dataset.mode = "loop";
-            btn.innerHTML =
-              '<span aria-hidden="true">🔊</span>&nbsp;Watch with sound';
-          } else {
-            video.src = "/assets/website/promo-vo.mp4";
-            video.muted = false;
-            video.loop = false;
-            video.controls = true;
-            video.dataset.mode = "vo";
-            btn.innerHTML =
-              '<span aria-hidden="true">🔁</span>&nbsp;Back to silent loop';
-          }
-          video.load();
-          video.addEventListener(
-            "canplay",
-            function () {
-              video.play();
-            },
-            { once: true },
-          );
-        });
-      })();
-    </script>
 
     <!-- Differentiation Section -->
     <section class="differentiation" id="why-different">
@@ -3596,41 +3491,6 @@
             </p>
           </div>
         </div>
-      </div>
-    </section>
-
-    <!-- Real App Demo -->
-    <section class="app-demo" id="app-demo">
-      <div class="container">
-        <div class="section-header">
-          <div class="section-label">See it in action</div>
-          <h2 class="section-title">
-            The real app,
-            <span class="gradient-text">start to finish.</span>
-          </h2>
-          <p class="section-subtitle">
-            No mockups — this is the actual app. Meet your AI coach, watch it
-            build a real plan, check off your day, and get coached week to week.
-          </p>
-        </div>
-        <div class="app-demo-frame">
-          <video
-            id="appDemoVideo"
-            autoplay
-            muted
-            loop
-            playsinline
-            preload="metadata"
-            poster="/assets/website/app-demo-poster.jpg"
-            width="1280"
-            height="720"
-          >
-            <source src="/assets/website/app-demo.mp4" type="video/mp4" />
-          </video>
-        </div>
-        <p class="app-demo-note">
-          Captured on a real iPhone. The coach's replies are live AI.
-        </p>
       </div>
     </section>
 
