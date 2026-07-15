@@ -1051,6 +1051,49 @@
         border-color: var(--accent);
       }
 
+      .app-demo {
+        padding: 30px 0 70px;
+      }
+
+      .app-demo .section-title .gradient-text {
+        background: linear-gradient(
+          135deg,
+          var(--accent) 0%,
+          var(--accent-secondary) 50%,
+          var(--accent-tertiary) 100%
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .app-demo-frame {
+        width: min(900px, 94vw);
+        margin: 0 auto;
+        border-radius: 22px;
+        border: 1px solid rgba(120, 120, 160, 0.35);
+        background: #08080e;
+        padding: 8px;
+        box-shadow:
+          0 40px 90px rgba(0, 0, 0, 0.5),
+          0 0 60px var(--accent-glow);
+      }
+
+      .app-demo-frame video {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: 15px;
+      }
+
+      .app-demo-note {
+        margin: 22px auto 0;
+        max-width: 640px;
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 15px;
+      }
+
       .section-label {
         background: linear-gradient(
           90deg,
@@ -3553,6 +3596,41 @@
             </p>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- Real App Demo -->
+    <section class="app-demo" id="app-demo">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-label">See it in action</div>
+          <h2 class="section-title">
+            The real app,
+            <span class="gradient-text">start to finish.</span>
+          </h2>
+          <p class="section-subtitle">
+            No mockups — this is the actual app. Meet your AI coach, watch it
+            build a real plan, check off your day, and get coached week to week.
+          </p>
+        </div>
+        <div class="app-demo-frame">
+          <video
+            id="appDemoVideo"
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="metadata"
+            poster="/assets/website/app-demo-poster.jpg"
+            width="1280"
+            height="720"
+          >
+            <source src="/assets/website/app-demo.mp4" type="video/mp4" />
+          </video>
+        </div>
+        <p class="app-demo-note">
+          Captured on a real iPhone. The coach's replies are live AI.
+        </p>
       </div>
     </section>
 
