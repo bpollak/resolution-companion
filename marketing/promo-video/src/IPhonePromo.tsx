@@ -10,22 +10,28 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { BG, CTA, CYAN, FONT, GRADIENT, Glows, TEXT_DIM } from "./shared";
+import { BG, CTA, FONT, GRADIENT, Glows, TEXT_DIM } from "./shared";
 
 // Real-device promo: Brett's four iPhone screen recordings, stitched and
 // speed-ramped by marketing/demo-video/build-iphone.sh into one screen video,
 // framed here in the brand phone bezel with a title in and a CTA card out.
+// AI responses in the footage are deliberately kept slow enough to read.
 export const FPS = 30;
 
 const SCREEN = "iphone-screen.mp4";
 const SCREEN_ASPECT = 1080 / 2190; // the cropped capture's ratio (status bar removed)
-const SCREEN_SECONDS = 51.83;
+const SCREEN_SECONDS = 67.77;
 
-const TITLE_SECONDS = 2.2; // hold on the title before the phone takes over
-const CARD_SECONDS = 3.5; // the CTA outro
-const FADE = 16;
+const FADE = 16; // crossfade length, frames
+const TITLE_FRAMES = Math.round(2.0 * FPS);
+const SCREEN_FRAMES = Math.round(SCREEN_SECONDS * FPS);
+const CARD_FRAMES = Math.round(3.5 * FPS);
 
-export const IPHONE_DURATION = Math.floor((SCREEN_SECONDS + CARD_SECONDS) * FPS);
+// The footage starts as the title fades out (a short overlap), so none of the
+// onboarding is wasted behind the title. The CTA fades in over the footage tail.
+const PHONE_START = TITLE_FRAMES - FADE;
+const CTA_START = PHONE_START + SCREEN_FRAMES - FADE;
+export const IPHONE_DURATION = CTA_START + CARD_FRAMES;
 
 /** The phone. The capture is the device screen only, so we add the bezel. */
 const Phone: React.FC<{ height: number }> = ({ height }) => {
@@ -58,12 +64,12 @@ const Phone: React.FC<{ height: number }> = ({ height }) => {
   );
 };
 
-/** Opening title, fades out as the phone rises. */
+/** Opening title (own Sequence), fades out as the phone rises. */
 const TitleCard: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const enter = spring({ frame, fps, config: { damping: 200, stiffness: 90 } });
-  const out = interpolate(frame, [TITLE_SECONDS * FPS - FADE, TITLE_SECONDS * FPS], [1, 0], {
+  const out = interpolate(frame, [TITLE_FRAMES - FADE, TITLE_FRAMES], [1, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
@@ -101,41 +107,50 @@ const Wordmark: React.FC = () => (
   </div>
 );
 
-export const IPhonePromo: React.FC = () => {
-  const { height } = useVideoConfig();
+/** The phone section: bezel + footage, rises in and holds. */
+const PhoneScene: React.FC = () => {
   const frame = useCurrentFrame();
-  // Phone rises in after the title, cross-fades to the CTA at the end.
-  const rise = spring({ frame: frame - TITLE_SECONDS * FPS + 10, fps: FPS, config: { damping: 200, stiffness: 80 } });
-  const phoneOpacity = interpolate(frame, [0, TITLE_SECONDS * FPS - FADE, TITLE_SECONDS * FPS], [0, 0, 1], {
-    extrapolateRight: "clamp",
-  });
+  const { height } = useVideoConfig();
+  const rise = spring({ frame, fps: FPS, config: { damping: 200, stiffness: 80 } });
+  const fadeIn = interpolate(frame, [0, FADE], [0, 1], { extrapolateRight: "clamp" });
   return (
-    <AbsoluteFill style={{ backgroundColor: BG }}>
-      <Glows />
-      <TitleCard />
-      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", opacity: phoneOpacity }}>
+    <AbsoluteFill style={{ opacity: fadeIn }}>
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
         <div style={{ transform: `translateY(${(1 - rise) * 120}px)` }}>
           <Phone height={height * 0.8} />
         </div>
       </AbsoluteFill>
-      <div style={{ position: "absolute", left: 60, bottom: 54, opacity: phoneOpacity }}>
+      <div style={{ position: "absolute", left: 60, bottom: 54 }}>
         <Wordmark />
       </div>
-      {/* CTA outro fades in over the tail of the footage. */}
-      <Sequence from={Math.floor(SCREEN_SECONDS * FPS) - FADE}>
-        <CardFade />
-      </Sequence>
     </AbsoluteFill>
   );
 };
 
-const CardFade: React.FC = () => {
+const CardScene: React.FC = () => {
   const frame = useCurrentFrame();
   const opacity = interpolate(frame, [0, FADE], [0, 1], { extrapolateRight: "clamp" });
   return (
     <AbsoluteFill style={{ opacity, backgroundColor: BG }}>
       <Glows />
       <CTA />
+    </AbsoluteFill>
+  );
+};
+
+export const IPhonePromo: React.FC = () => {
+  return (
+    <AbsoluteFill style={{ backgroundColor: BG }}>
+      <Glows />
+      <Sequence durationInFrames={TITLE_FRAMES} name="Title">
+        <TitleCard />
+      </Sequence>
+      <Sequence from={PHONE_START} name="Phone">
+        <PhoneScene />
+      </Sequence>
+      <Sequence from={CTA_START} name="CTA">
+        <CardScene />
+      </Sequence>
     </AbsoluteFill>
   );
 };
