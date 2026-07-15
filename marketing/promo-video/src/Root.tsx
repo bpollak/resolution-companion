@@ -16,6 +16,7 @@ import {
   IPhoneWideMaster,
   IPhoneWideShort,
 } from "./IPhonePromo";
+import { SocialCard } from "./SocialCard";
 
 // Feed-format sizes for the flagship script (Instagram/Facebook feed posts).
 // All scripts render at 9:16 (1080×1920) — the master format for TikTok,
@@ -117,6 +118,15 @@ export const RemotionRoot: React.FC = () => {
         fps={30}
         width={1920}
         height={1080}
+      />
+      {/* Open Graph / social share card (1200x630 still). */}
+      <Composition
+        id="SocialCard"
+        component={SocialCard}
+        durationInFrames={1}
+        fps={30}
+        width={1200}
+        height={630}
       />
       {/* ~15s paid-ad cut (9:16): hook-first, bold captions, App Store end card. */}
       <Composition
