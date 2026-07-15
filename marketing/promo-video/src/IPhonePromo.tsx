@@ -288,27 +288,40 @@ const AD_CUES: Sub[] = [
 ];
 export const IPHONE_AD_DURATION = frames(AD_SECONDS) + CARD_FRAMES;
 
+// Captions sit in the cross-placement safe band (~62% down), overlaid on the
+// phone's lower third — clear of the Reels/Stories bottom UI (CTA, caption,
+// profile) that would cover text near the frame edge.
 const AdCaption: React.FC<{ cues: Sub[] }> = ({ cues }) => {
+  const { height } = useVideoConfig();
   const sec = useCurrentFrame() / FPS;
   const cue = cues.find((c) => sec >= c.start && sec < c.end);
   if (!cue) return null;
   const opacity = interpolate(sec - cue.start, [0, 0.14], [0, 1], { extrapolateRight: "clamp" });
   return (
-    <div style={{ position: "absolute", left: 50, right: 50, bottom: 40, display: "flex", justifyContent: "center" }}>
+    <div
+      style={{
+        position: "absolute",
+        left: 60,
+        right: 60,
+        top: height * 0.6,
+        display: "flex",
+        justifyContent: "center",
+      }}
+    >
       <div
         style={{
           opacity,
-          maxWidth: 960,
+          maxWidth: 940,
           textAlign: "center",
           fontFamily: FONT,
-          fontSize: 46,
+          fontSize: 48,
           fontWeight: 800,
-          lineHeight: 1.22,
+          lineHeight: 1.2,
           color: "white",
-          background: "rgba(8, 8, 14, 0.84)",
-          padding: "16px 28px",
+          background: "rgba(8, 8, 14, 0.9)",
+          padding: "18px 30px",
           borderRadius: 18,
-          boxShadow: "0 8px 30px rgba(0, 0, 0, 0.55)",
+          boxShadow: "0 8px 34px rgba(0, 0, 0, 0.6)",
         }}
       >
         {cue.text}
@@ -323,12 +336,10 @@ export const IPhoneAd: React.FC = () => {
   return (
     <AbsoluteFill style={{ backgroundColor: BG }}>
       <Glows />
-      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
-        <Phone height={height * 0.8} src={AD_SCREEN} />
+      {/* Phone nudged up so the caption band below its middle stays in the safe zone. */}
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-start", paddingTop: height * 0.06 }}>
+        <Phone height={height * 0.72} src={AD_SCREEN} />
       </AbsoluteFill>
-      <div style={{ position: "absolute", left: 60, top: 44 }}>
-        <Wordmark />
-      </div>
       <AdCaption cues={AD_CUES} />
       <Sequence from={ctaStart} name="CTA">
         <CardScene />
