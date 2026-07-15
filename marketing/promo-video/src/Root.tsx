@@ -4,7 +4,16 @@ import { VARIANTS, variantComponent, variantDuration } from "./variants";
 import { HERO_VO_DURATION, HeroVO, HeroVOCaptioned } from "./HeroVO";
 import { AD_CUTS, adComponent, adDuration } from "./ads";
 import { DEMO_DURATION, DemoMaster, DemoShort, SHORT_DURATION } from "./Demo";
-import { IPHONE_DURATION, IPhonePromo } from "./IPhonePromo";
+import {
+  IPHONE_DURATION,
+  IPHONE_SHORT_DURATION,
+  IPHONE_WIDE_DURATION,
+  IPHONE_WIDE_SHORT_DURATION,
+  IPhonePromo,
+  IPhonePromoShort,
+  IPhoneWideMaster,
+  IPhoneWideShort,
+} from "./IPhonePromo";
 
 // Feed-format sizes for the flagship script (Instagram/Facebook feed posts).
 // All scripts render at 9:16 (1080×1920) — the master format for TikTok,
@@ -73,7 +82,8 @@ export const RemotionRoot: React.FC = () => {
         width={1080}
         height={1920}
       />
-      {/* Real-device promo cut from Brett's own iPhone screen recordings. */}
+      {/* Real-device promo cut from Brett's own iPhone screen recordings.
+          Vertical (master + social) and landscape side-caption (master + social). */}
       <Composition
         id="IPhonePromo"
         component={IPhonePromo}
@@ -81,6 +91,30 @@ export const RemotionRoot: React.FC = () => {
         fps={30}
         width={1080}
         height={1920}
+      />
+      <Composition
+        id="IPhonePromoShort"
+        component={IPhonePromoShort}
+        durationInFrames={IPHONE_SHORT_DURATION}
+        fps={30}
+        width={1080}
+        height={1920}
+      />
+      <Composition
+        id="IPhoneWideMaster"
+        component={IPhoneWideMaster}
+        durationInFrames={IPHONE_WIDE_DURATION}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="IPhoneWideShort"
+        component={IPhoneWideShort}
+        durationInFrames={IPHONE_WIDE_SHORT_DURATION}
+        fps={30}
+        width={1920}
+        height={1080}
       />
       {AD_CUTS.map((spec) => (
         <Composition
