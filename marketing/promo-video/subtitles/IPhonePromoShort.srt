@@ -1,0 +1,39 @@
+1
+00:00:01,467 --> 00:00:03,900
+This app doesn't ask what you want to do.
+
+2
+00:00:04,000 --> 00:00:05,633
+It asks who you want to become.
+
+3
+00:00:05,733 --> 00:00:10,733
+Tell an AI coach your goal, and it builds a real plan.
+
+4
+00:00:11,267 --> 00:00:14,833
+Milestones and small daily actions.
+
+5
+00:00:14,933 --> 00:00:16,733
+Check off your day —
+
+6
+00:00:16,833 --> 00:00:19,033
+and it says so.
+
+7
+00:00:19,133 --> 00:00:20,467
+Each week, your coach checks in.
+
+8
+00:00:20,567 --> 00:00:23,100
+Tell it what's hard,
+
+9
+00:00:23,200 --> 00:00:28,200
+and it adapts the plan to how you're doing.
+
+10
+00:00:28,400 --> 00:00:31,400
+Resolution Companion — free on the App Store.
