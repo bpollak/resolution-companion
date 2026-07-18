@@ -31,7 +31,10 @@ import { sortWeekdays } from "@/lib/progress";
 import { storage } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import { track } from "@/lib/telemetry";
-import { STARTER_BENCHMARKS as DEFAULT_BENCHMARKS } from "@/lib/starter-plan";
+import {
+  STARTER_BENCHMARKS as DEFAULT_BENCHMARKS,
+  ensureDayScheduled,
+} from "@/lib/starter-plan";
 
 const MIN_ACTIONS_PER_PERSONA = 3;
 const MAX_ACTIONS_PER_PERSONA = 5;
@@ -397,8 +400,16 @@ export default function OnboardingScreen() {
       createdAt: new Date().toISOString(),
     }));
 
+    // Activation guarantee: never land on an empty Today right after
+    // onboarding. If the plan doesn't schedule anything for the install
+    // weekday, add just that day to the first action (other days untouched).
+    const todayName = new Date().toLocaleDateString("en-US", {
+      weekday: "long",
+    });
+    const finalActions = ensureDayScheduled(allActions, todayName);
+
     await setBenchmarks(allBenchmarks);
-    await setActions(allActions);
+    await setActions(finalActions);
   };
 
   const startConversation = async () => {
