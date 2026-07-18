@@ -31,41 +31,13 @@ import { sortWeekdays } from "@/lib/progress";
 import { storage } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import { track } from "@/lib/telemetry";
+import { STARTER_BENCHMARKS as DEFAULT_BENCHMARKS } from "@/lib/starter-plan";
 
 const MIN_ACTIONS_PER_PERSONA = 3;
 const MAX_ACTIONS_PER_PERSONA = 5;
 
-// Also serves as the no-AI starter plan when the user declines to share data
-// with OpenAI, so onboarding never dead-ends without consent.
-const DEFAULT_BENCHMARKS = [
-  {
-    title: "Build Daily Momentum",
-    elementalAction: {
-      title: "Complete one action toward your goal",
-      frequency: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-      kickstartVersion: "Spend 2 minutes planning your next step",
-      anchorLink: "After I check my phone in the morning",
-    },
-  },
-  {
-    title: "Develop Mindfulness Practice",
-    elementalAction: {
-      title: "Practice mindful breathing",
-      frequency: ["Monday", "Wednesday", "Friday"],
-      kickstartVersion: "Take 3 deep breaths",
-      anchorLink: "After I sit down at my desk",
-    },
-  },
-  {
-    title: "Maintain Physical Wellness",
-    elementalAction: {
-      title: "Move your body intentionally",
-      frequency: ["Tuesday", "Thursday", "Saturday"],
-      kickstartVersion: "Do 10 jumping jacks",
-      anchorLink: "After I wake up",
-    },
-  },
-];
+// The no-AI starter plan (also pads a sparse AI plan) lives in lib/starter-plan
+// so its "at least one action on every weekday" invariant can be unit-tested.
 
 interface ChatMessage {
   id: string;
