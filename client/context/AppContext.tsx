@@ -30,10 +30,16 @@ import {
 import {
   ensureReminderScheduled,
   registerReminderActions,
+  recordReminderHookTap,
   MARK_ALL_DONE_ACTION,
 } from "@/lib/notifications";
 import * as Notifications from "expo-notifications";
 import { logger } from "@/lib/logger";
+import { track, flushTelemetry } from "@/lib/telemetry";
+import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
+import { syncWidgetData, consumePendingVotes } from "@/lib/widget";
+import { unlockRewardsForMilestoneCount, Reward } from "@/lib/rewards";
+import { isHealthAvailable, initHealth, isHealthGoalMet } from "@/lib/health";
 
 interface AppContextType {
   hasOnboarded: boolean;
@@ -52,6 +58,8 @@ interface AppContextType {
   aiConsent: boolean;
   /** Milestone that just flipped to completed and hasn't been celebrated yet. */
   milestoneCelebration: Benchmark | null;
+  /** Reward newly unlocked by that milestone, revealed in the celebration. */
+  celebrationReward: Reward | null;
   dismissMilestoneCelebration: () => void;
 
   setHasOnboarded: (value: boolean) => Promise<void>;
@@ -114,23 +122,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [reflections, setReflectionsState] = useState<Reflection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Derived from the persona-scoped state, so they can never drift from the
-  // data they describe (state mirrors storage via refreshData + mutators)
-  const progressSnapshot = useMemo(
-    () => buildProgressSnapshot(actions, dailyLogs, benchmarks),
-    [actions, dailyLogs, benchmarks],
-  );
-  const { momentumScore, personaAlignment } = progressSnapshot;
   const [subscription, setSubscriptionState] = useState<Subscription>({
     isPremium: false,
     plan: "free",
     expiresAt: null,
     purchasedAt: null,
   });
+  // Derived from the persona-scoped state, so they can never drift from the
+  // data they describe (state mirrors storage via refreshData + mutators).
+  // Premium holds 2 streak shields — extra grace, earned the same way.
+  const progressSnapshot = useMemo(
+    () =>
+      buildProgressSnapshot(actions, dailyLogs, benchmarks, {
+        maxShields: subscription.isPremium ? 2 : 1,
+      }),
+    [actions, dailyLogs, benchmarks, subscription.isPremium],
+  );
+  const { momentumScore, personaAlignment } = progressSnapshot;
   const [monthlyReflectionCount, setMonthlyReflectionCount] = useState(0);
   const [aiConsent, setAiConsentState] = useState(false);
   const [milestoneCelebration, setMilestoneCelebration] =
     useState<Benchmark | null>(null);
+  const [celebrationReward, setCelebrationReward] = useState<Reward | null>(
+    null,
+  );
   // Ids already being flipped this session, so the effect below can't fire
   // twice for the same milestone while an update is in flight
   const milestoneFlipsInFlight = useRef<Set<string>>(new Set());
@@ -201,6 +216,74 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refreshData();
   }, [refreshData]);
+
+  // Cold-start telemetry + entitlement re-sync. Both are fire-and-forget:
+  // offline keeps local truth, and neither can delay first render.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    track("app_open");
+    flushTelemetry().catch(() => {});
+
+    // The paywall path already persists server-validated expiry, but nothing
+    // re-checked it afterwards — an expired subscription stayed premium
+    // locally until the user happened to open the paywall. Reconcile once per
+    // launch. Conservative on downgrade: the server may legitimately lack a
+    // row (validation raced, webhook missed), so local premium is only revoked
+    // when the server disagrees AND the locally-known period has lapsed.
+    (async () => {
+      try {
+        const local = await storage.getSubscription();
+        const deviceId = await storage.getDeviceId();
+        const res = await fetch(
+          new URL(
+            `/api/subscription/status/${deviceId}`,
+            getApiUrl(),
+          ).toString(),
+          { headers: getAuthHeaders() },
+        );
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          isPremium: boolean;
+          plan: string;
+          currentPeriodEnd: string | null;
+        };
+        if (data.isPremium) {
+          const next: Subscription = {
+            isPremium: true,
+            plan:
+              data.plan === "yearly" || data.plan === "monthly"
+                ? data.plan
+                : local.plan,
+            expiresAt: data.currentPeriodEnd ?? local.expiresAt,
+            purchasedAt: local.purchasedAt,
+          };
+          if (
+            next.isPremium !== local.isPremium ||
+            next.plan !== local.plan ||
+            next.expiresAt !== local.expiresAt
+          ) {
+            await storage.setSubscription(next);
+            setSubscriptionState(next);
+          }
+        } else if (
+          local.isPremium &&
+          local.expiresAt &&
+          new Date(local.expiresAt).getTime() < Date.now()
+        ) {
+          const next: Subscription = {
+            isPremium: false,
+            plan: "free",
+            expiresAt: local.expiresAt,
+            purchasedAt: local.purchasedAt,
+          };
+          await storage.setSubscription(next);
+          setSubscriptionState(next);
+        }
+      } catch {
+        // Offline or server unreachable — keep local state.
+      }
+    })();
+  }, []);
 
   // All mutators are memoized (and the provider value below is useMemo'd):
   // an unmemoized value object re-renders every consumer screen on every
@@ -360,6 +443,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
             status: true,
             createdAt: new Date().toISOString(),
           };
+      if (log.status) {
+        if (!dailyLogsRef.current.some((l) => l.status)) {
+          track("first_action_logged");
+        }
+        track("action_logged");
+      }
       setDailyLogsState((prev) =>
         prev.some((l) => l.id === log.id)
           ? prev.map((l) => (l.id === log.id ? log : l))
@@ -472,10 +561,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         continue;
       }
       milestoneFlipsInFlight.current.add(benchmark.id);
+      track("milestone_complete");
       (async () => {
         const updated = await updateBenchmark(benchmark.id, {
           status: "completed",
         });
+        // Rewards key off the lifetime completed count across ALL personas
+        // (read from storage post-write, so this flip is included)
+        const allBenchmarks = await storage.getBenchmarks();
+        const completedCount = allBenchmarks.filter(
+          (b) => b.status === "completed",
+        ).length;
+        const newRewards = await unlockRewardsForMilestoneCount(completedCount);
         const raw = await AsyncStorage.getItem(MILESTONE_CELEBRATION_SEEN_KEY);
         let seen: string[] = [];
         try {
@@ -488,6 +585,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           MILESTONE_CELEBRATION_SEEN_KEY,
           JSON.stringify([...seen, benchmark.id]),
         );
+        if (newRewards.length > 0) {
+          track("reward_unlocked");
+          setCelebrationReward(newRewards[0]);
+        }
         setMilestoneCelebration(
           updated ?? { ...benchmark, status: "completed" },
         );
@@ -500,20 +601,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const dismissMilestoneCelebration = useCallback(() => {
     setMilestoneCelebration(null);
+    setCelebrationReward(null);
   }, []);
 
   // Reminder-chain self-heal: a suppressed night (one-shot queued for
   // "tomorrow") followed by days of absence leaves no repeating reminder.
   // Every app foreground restores the chain — idempotent and cheap, a no-op
   // unless reminders are enabled and the schedule is actually stale.
-  const reminderStateRef = useRef({ hasOnboarded, actions, dailyLogs });
+  const reminderStateRef = useRef({
+    hasOnboarded,
+    actions,
+    dailyLogs,
+    persona,
+    personaAlignment,
+  });
   useEffect(() => {
-    reminderStateRef.current = { hasOnboarded, actions, dailyLogs };
+    reminderStateRef.current = {
+      hasOnboarded,
+      actions,
+      dailyLogs,
+      persona,
+      personaAlignment,
+    };
   });
   useEffect(() => {
     if (Platform.OS === "web") return;
     const subscription = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
+      flushTelemetry().catch(() => {});
       const {
         hasOnboarded: onboarded,
         actions: currentActions,
@@ -523,6 +638,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ensureReminderScheduled({
         streakCount: computeStreak(currentActions, currentLogs).current,
         missedRun: computeLapse(currentActions, currentLogs).missedDays,
+        personaName: reminderStateRef.current.persona?.name,
+        monthlyConsistency: reminderStateRef.current.personaAlignment,
       });
     });
     return () => subscription.remove();
@@ -541,11 +658,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
       response: Notifications.NotificationResponse | null,
     ) => {
       if (!response) return;
-      if (response.actionIdentifier !== MARK_ALL_DONE_ACTION) return;
       const data = response.notification.request.content.data as
-        | { type?: string }
+        | { type?: string; hook?: string }
         | undefined;
       if (data?.type !== "daily-reminder") return;
+      // A plain tap opened the app from the reminder: credit the voice that
+      // earned it so the hook portfolio learns what this user responds to.
+      // getLastNotificationResponseAsync replays the same response on every
+      // launch, so the credit is deduped with a persisted marker (same
+      // pattern as the mark-all-done guard below).
+      if (
+        response.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER
+      ) {
+        const tapMarker = `${response.notification.request.identifier}|${response.notification.date}`;
+        try {
+          const tapHandledKey = "evolve_reminder_tap_handled";
+          if ((await AsyncStorage.getItem(tapHandledKey)) === tapMarker) {
+            return;
+          }
+          await AsyncStorage.setItem(tapHandledKey, tapMarker);
+        } catch {
+          // Guard failed open — an over-count nudges the portfolio, nothing more.
+        }
+        track("notification_tap");
+        recordReminderHookTap(data.hook).catch(() => {});
+        return;
+      }
+      if (response.actionIdentifier !== MARK_ALL_DONE_ACTION) return;
 
       const firedAt = new Date(response.notification.date);
       const dateKey = getLocalDateString(firedAt);
@@ -559,6 +698,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // skip already-completed actions).
       }
 
+      track("notification_mark_all_done");
       const { actions: currentActions, dailyLogs: currentLogs } =
         reminderStateRef.current;
       const weekday = firedAt.toLocaleDateString("en-US", { weekday: "long" });
@@ -587,6 +727,100 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .catch(() => {});
     return () => subscription.remove();
   }, [toggleDailyLog]);
+
+  // Keep the home/lock-screen widget's snapshot in step with the store, and
+  // fold in votes cast from the widget while the app was closed. Widget taps
+  // only ever complete (never un-complete): a queued vote for an action the
+  // user has since completed in-app is dropped, not toggled.
+  useEffect(() => {
+    if (Platform.OS !== "ios" || isLoading) return;
+    for (const vote of consumePendingVotes()) {
+      const existing = dailyLogsRef.current.find(
+        (l) =>
+          l.actionId === vote.actionId && l.logDate.split("T")[0] === vote.date,
+      );
+      if (existing?.status) continue;
+      if (!actions.some((a) => a.id === vote.actionId)) continue;
+      track("widget_action_logged");
+      toggleDailyLog(vote.actionId, vote.date).catch((error) =>
+        logger.error("Failed to apply widget vote:", error),
+      );
+    }
+    syncWidgetData(actions, dailyLogs, persona);
+  }, [isLoading, actions, dailyLogs, persona, toggleDailyLog]);
+
+  // Widget votes cast while the app stayed backgrounded (state changes don't
+  // fire above): reconcile on every foreground.
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      const { actions: currentActions } = reminderStateRef.current;
+      for (const vote of consumePendingVotes()) {
+        const existing = dailyLogsRef.current.find(
+          (l) =>
+            l.actionId === vote.actionId &&
+            l.logDate.split("T")[0] === vote.date,
+        );
+        if (existing?.status) continue;
+        if (!currentActions.some((a) => a.id === vote.actionId)) continue;
+        track("widget_action_logged");
+        toggleDailyLog(vote.actionId, vote.date).catch((error) =>
+          logger.error("Failed to apply widget vote:", error),
+        );
+      }
+    });
+    return () => subscription.remove();
+  }, [toggleDailyLog]);
+
+  // Apple Health auto-votes: actions opted into Health auto-completion get
+  // their vote cast when a matching sample exists for today. Runs once per
+  // foreground; a cast vote flows through the normal optimistic toggle, so
+  // rings, streaks, and the widget all update the same way a tap would.
+  const healthCheckDoneRef = useRef(false);
+  useEffect(() => {
+    if (Platform.OS !== "ios" || isLoading || !isHealthAvailable()) return;
+
+    const runHealthAutoVotes = async () => {
+      const { actions: currentActions } = reminderStateRef.current;
+      const today = new Date();
+      const todayStr = getLocalDateString(today);
+      const weekday = today.toLocaleDateString("en-US", { weekday: "long" });
+      const candidates = currentActions.filter((action) => {
+        if (!action.healthAutoComplete) return false;
+        if (!action.frequency.includes(weekday)) return false;
+        if (getLocalDateString(new Date(action.createdAt)) > todayStr)
+          return false;
+        const existing = dailyLogsRef.current.find(
+          (l) =>
+            l.actionId === action.id && l.logDate.split("T")[0] === todayStr,
+        );
+        return !existing?.status;
+      });
+      if (candidates.length === 0) return;
+      if (!(await initHealth())) return;
+      for (const action of candidates) {
+        if (await isHealthGoalMet(action.healthAutoComplete!, today)) {
+          track("health_auto_vote");
+          await toggleDailyLog(action.id, todayStr);
+        }
+      }
+    };
+
+    if (!healthCheckDoneRef.current) {
+      healthCheckDoneRef.current = true;
+      runHealthAutoVotes().catch((error) =>
+        logger.error("Health auto-vote failed:", error),
+      );
+    }
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      runHealthAutoVotes().catch((error) =>
+        logger.error("Health auto-vote failed:", error),
+      );
+    });
+    return () => subscription.remove();
+  }, [isLoading, toggleDailyLog]);
 
   const canUseReflection = useCallback(() => {
     if (subscription.isPremium) return true;
@@ -619,6 +853,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       monthlyReflectionCount,
       aiConsent,
       milestoneCelebration,
+      celebrationReward,
       dismissMilestoneCelebration,
       setHasOnboarded,
       setAiConsent,
@@ -661,6 +896,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       monthlyReflectionCount,
       aiConsent,
       milestoneCelebration,
+      celebrationReward,
       dismissMilestoneCelebration,
       setHasOnboarded,
       setAiConsent,

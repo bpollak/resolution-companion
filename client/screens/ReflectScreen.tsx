@@ -40,6 +40,13 @@ import {
 } from "@/lib/ai";
 import { logger } from "@/lib/logger";
 import { createTextStreamBuffer, TextStreamBuffer } from "@/lib/stream-buffer";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { track } from "@/lib/telemetry";
+import { getTodaysMicroNote } from "@/lib/micro-notes";
+
+// One-time free taste of coach memory: memory sells itself by demonstration,
+// not description. Set once the taste session has actually started.
+const MEMORY_TASTE_USED_KEY = "coach_memory_taste_used";
 
 type PeriodType = "monthly" | "weekly";
 
@@ -127,12 +134,31 @@ export default function ReflectScreen() {
     [reflections],
   );
 
+  // Identity-science micro-note drip: daily for premium, weekly for free
+  const [noteExpanded, setNoteExpanded] = useState(false);
+  const microNote = useMemo(
+    () => getTodaysMicroNote(subscription.isPremium),
+    [subscription.isPremium],
+  );
+
+  // Free users get to experience memory exactly once before the gate —
+  // null until the persisted flag loads (memory stays off that first render)
+  const [memoryTasteUsed, setMemoryTasteUsed] = useState<boolean | null>(null);
+  useEffect(() => {
+    AsyncStorage.getItem(MEMORY_TASTE_USED_KEY)
+      .then((value) => setMemoryTasteUsed(value === "true"))
+      .catch(() => setMemoryTasteUsed(true));
+  }, []);
+
   // Premium coach memory: a compact digest of the two most recent saved
   // sessions, injected into the system prompt as the coach's own notes.
   // Free sessions stay single-session — this is what "unlimited coaching"
-  // buys beyond quantity: a coach that remembers.
+  // buys beyond quantity: a coach that remembers. Exception: one free
+  // taste, so the upgrade pitch is an experience instead of a bullet point.
+  const memoryTasteAvailable =
+    !subscription.isPremium && memoryTasteUsed === false;
   const previousSessionNotes = useMemo(() => {
-    if (!subscription.isPremium) return undefined;
+    if (!subscription.isPremium && !memoryTasteAvailable) return undefined;
     const trim = (s: string, n: number) =>
       s.length > n ? `${s.slice(0, n).trimEnd()}…` : s;
     const notes = sortedReflections.slice(0, 2).map((r) => {
@@ -159,7 +185,7 @@ export default function ReflectScreen() {
       return `- ${when} (${kind}, momentum ${r.momentumScore}%): they opened with "${trim(firstUser, 200)}" and you closed with "${trim(lastCoach, 280)}"`;
     });
     return notes.length > 0 ? notes.join("\n") : undefined;
-  }, [subscription.isPremium, sortedReflections]);
+  }, [subscription.isPremium, memoryTasteAvailable, sortedReflections]);
 
   // Week numbers for the free Sunday-style weekly review ritual
   const weeklyContext = useMemo(() => {
@@ -205,8 +231,9 @@ export default function ReflectScreen() {
       weeklyContext: period === "weekly" ? weeklyContext : undefined,
       previousSessionNotes,
       recentNotes,
+      memoryTaste: memoryTasteAvailable && previousSessionNotes !== undefined,
     }),
-    [weeklyContext, previousSessionNotes, recentNotes],
+    [weeklyContext, previousSessionNotes, recentNotes, memoryTasteAvailable],
   );
 
   const formatDate = (dateString: string) => {
@@ -261,6 +288,15 @@ export default function ReflectScreen() {
   const beginReflectionSession = async (period: PeriodType) => {
     if (!persona) {
       return;
+    }
+
+    track(
+      period === "weekly" ? "weekly_review_started" : "coach_session_started",
+    );
+    // The memory taste is spent the moment a session starts with it in play
+    if (memoryTasteAvailable && previousSessionNotes !== undefined) {
+      setMemoryTasteUsed(true);
+      AsyncStorage.setItem(MEMORY_TASTE_USED_KEY, "true").catch(() => {});
     }
 
     setSelectedPeriod(period);
@@ -809,6 +845,56 @@ export default function ReflectScreen() {
         </Pressable>
 
         <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
+          {subscription.isPremium ? "Today's read" : "This week's read"}
+        </ThemedText>
+
+        <Pressable
+          onPress={() => {
+            if (!noteExpanded) track("micro_note_read");
+            setNoteExpanded((v) => !v);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`60-second read: ${microNote.title}. ${noteExpanded ? "Collapse" : "Expand"}.`}
+          style={({ pressed }) => [
+            styles.microNoteCard,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          <View style={styles.microNoteHeader}>
+            <Feather name="book-open" size={16} color={Colors.dark.accent} />
+            <ThemedText style={styles.microNoteTitle}>
+              {microNote.title}
+            </ThemedText>
+            <Feather
+              name={noteExpanded ? "chevron-up" : "chevron-down"}
+              size={18}
+              color={theme.textSecondary}
+            />
+          </View>
+          {noteExpanded ? (
+            <>
+              <ThemedText
+                style={[styles.microNoteBody, { color: theme.textSecondary }]}
+              >
+                {microNote.body}
+              </ThemedText>
+              {!subscription.isPremium ? (
+                <ThemedText
+                  style={[styles.microNoteHint, { color: theme.textSecondary }]}
+                >
+                  A new read every week — daily with Premium.
+                </ThemedText>
+              ) : null}
+            </>
+          ) : null}
+        </Pressable>
+
+        <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
           Monthly Check-in
         </ThemedText>
 
@@ -1178,6 +1264,32 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     marginBottom: Spacing["2xl"],
     alignItems: "center",
+  },
+  microNoteCard: {
+    borderRadius: BorderRadius.md,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: "rgba(0, 217, 255, 0.2)",
+  },
+  microNoteHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  microNoteTitle: {
+    ...Typography.body,
+    fontWeight: "600",
+    flex: 1,
+  },
+  microNoteBody: {
+    ...Typography.small,
+    lineHeight: 20,
+    marginTop: Spacing.md,
+  },
+  microNoteHint: {
+    ...Typography.caption,
+    fontStyle: "italic",
+    marginTop: Spacing.md,
   },
   sessionsInfo: {
     alignItems: "center",

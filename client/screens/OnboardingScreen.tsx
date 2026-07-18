@@ -30,6 +30,7 @@ import {
 import { sortWeekdays } from "@/lib/progress";
 import { storage } from "@/lib/storage";
 import { logger } from "@/lib/logger";
+import { track } from "@/lib/telemetry";
 
 const MIN_ACTIONS_PER_PERSONA = 3;
 const MAX_ACTIONS_PER_PERSONA = 5;
@@ -193,6 +194,10 @@ export default function OnboardingScreen() {
     "Scheduling your first week...",
   ];
 
+  React.useEffect(() => {
+    track("onboarding_started");
+  }, []);
+
   // Cycle staged copy while the plan is being built so the wait reads as
   // craftsmanship rather than a stuck spinner
   React.useEffect(() => {
@@ -320,6 +325,8 @@ export default function OnboardingScreen() {
       });
       await savePlan(persona.id, DEFAULT_BENCHMARKS);
       await setHasOnboarded(true);
+      track("onboarding_declined_ai");
+      track("onboarding_completed");
       storage.setOnboardingMessages([]).catch(() => {});
 
       if (Platform.OS !== "web") {
@@ -532,6 +539,7 @@ export default function OnboardingScreen() {
 
       await savePlan(persona.id, benchmarksToUse);
       await setHasOnboarded(true);
+      track("onboarding_completed");
       storage.setOnboardingMessages([]).catch(() => {});
 
       if (Platform.OS !== "web") {

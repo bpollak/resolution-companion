@@ -112,7 +112,22 @@ export async function sendChatMessageStreaming(
   messages: AIMessage[],
   onChunk: (chunk: string) => void,
 ): Promise<string> {
-  const url = new URL("/api/chat", getApiUrl());
+  return streamSSERequest("/api/chat", { messages }, onChunk, STREAM_DELAY_MS);
+}
+
+/**
+ * POST an SSE endpoint and stream its `{content}` events. `charDelayMs > 0`
+ * replays each chunk character-by-character for a typewriter feel (the
+ * onboarding interview); 0 emits chunks as they truly arrive (the coach —
+ * perceived responsiveness is coach-quality UX).
+ */
+async function streamSSERequest(
+  path: string,
+  body: Record<string, unknown>,
+  onChunk: (chunk: string) => void,
+  charDelayMs: number,
+): Promise<string> {
+  const url = new URL(path, getApiUrl());
   const headers = await getAiHeaders();
 
   return new Promise((resolve, reject) => {
@@ -143,9 +158,13 @@ export async function sendChatMessageStreaming(
 
       while (queue.pending.length > 0) {
         const text = queue.pending.shift()!;
-        for (const char of text) {
-          onChunk(char);
-          await new Promise((r) => setTimeout(r, STREAM_DELAY_MS));
+        if (charDelayMs > 0) {
+          for (const char of text) {
+            onChunk(char);
+            await new Promise((r) => setTimeout(r, charDelayMs));
+          }
+        } else {
+          onChunk(text);
         }
       }
 
@@ -158,7 +177,7 @@ export async function sendChatMessageStreaming(
     const es = new EventSource<"message">(url.toString(), {
       method: "POST",
       headers,
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify(body),
     });
 
     resetIdleTimer();
@@ -326,6 +345,12 @@ export interface ReflectionExtras {
    * coach can quote their words back ("you wrote 'felt easy'").
    */
   recentNotes?: string;
+  /**
+   * True when a free user is getting their one-time taste of coach memory —
+   * memory sells itself by demonstration, so the coach may mention (once,
+   * lightly) that remembering every session is part of Premium.
+   */
+  memoryTaste?: boolean;
 }
 
 export async function getReflectionResponse(
@@ -373,7 +398,11 @@ Speak to them as this person-in-progress. Frame feedback around what "${persona.
     ? `
 WHAT YOU REMEMBER FROM YOUR PREVIOUS SESSIONS WITH THEM (your own notes — draw on these naturally when relevant, e.g. following up on something they said last time; never recite them back verbatim or list them):
 ${extras.previousSessionNotes}
-`
+${
+  extras.memoryTaste
+    ? `(This is a one-time preview of your memory for a free user. If it lands naturally — e.g. they respond to you remembering — you may mention ONCE, lightly, that remembering every session is part of Premium. Never lead with it and never repeat it.)`
+    : ""
+}`
     : "";
 
   const notesContext = extras?.recentNotes
@@ -411,6 +440,12 @@ LAST WEEK (their most recent complete Monday-Sunday week):
     role: "system",
     content: `${roleLine} ${isWeekly ? weeklyProgressContext : progressContext}${identityContext}${memoryContext}${notesContext}
 
+COACHING METHOD (motivational interviewing, adapted — the user should leave feeling heard, not lectured):
+- Reflect before you direct: open with one short reflection of what they just said, in your own words, before anything else.
+- Ask permission before advising: "Want a suggestion?" or "Open to an idea?" — then offer ONE idea, not a menu.
+- Evoke their reasons: draw out why this matters to them or what has worked before, rather than telling them why it should matter.
+- Affirm with evidence: tie encouragement to something they actually did ("you came back after two days away"), never generic cheerleading.
+
 VOICE RULES:
 - NEVER use the word "persona" — say "your plan" or "who you're becoming."
 - Call their long-term metric "consistency" (it's their % of scheduled actions completed this month). Their goals are "milestones" that fill up as they complete daily actions — milestones never lose progress.
@@ -422,12 +457,37 @@ ${isFirstMessage ? firstMessageInstruction : continueInstruction}
 Be warm and practical. No bullet points or lists in responses.`,
   };
 
+  const allMessages = [systemMessage, ...messages];
+
+  // Real SSE — the reply appears as fast as the model produces it (the old
+  // path fetched the full reply, then replayed it at 30ms/char). The JSON
+  // path remains as a fallback for a server that predates streaming here —
+  // but only when nothing was streamed yet, so a mid-reply drop can never
+  // duplicate text in the transcript.
+  if (onChunk) {
+    let streamedAny = false;
+    try {
+      return await streamSSERequest(
+        "/api/reflection",
+        { messages: allMessages, stream: true },
+        (chunk) => {
+          streamedAny = true;
+          onChunk(chunk);
+        },
+        0,
+      );
+    } catch (error) {
+      if (streamedAny) throw error;
+      logger.warn("Reflection SSE failed, falling back to JSON:", error);
+    }
+  }
+
   const url = new URL("/api/reflection", getApiUrl());
 
   const response = await fetch(url.toString(), {
     method: "POST",
     headers: await getAiHeaders(),
-    body: JSON.stringify({ messages: [systemMessage, ...messages] }),
+    body: JSON.stringify({ messages: allMessages }),
   });
 
   if (!response.ok) {
@@ -438,10 +498,7 @@ Be warm and practical. No bullet points or lists in responses.`,
   const fullContent = data.content || "";
 
   if (onChunk) {
-    for (const char of fullContent) {
-      onChunk(char);
-      await new Promise((r) => setTimeout(r, STREAM_DELAY_MS));
-    }
+    onChunk(fullContent);
   }
 
   return fullContent;

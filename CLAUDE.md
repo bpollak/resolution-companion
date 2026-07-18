@@ -138,6 +138,17 @@ domain `resolutioncompanion.com`.
   daily loop. Approved forward roadmap (widgets, Wrapped share card, insights
   panel, intro offer…) with build-status marks: `docs/enhancement-roadmap.md`.
   Background: `docs/ux-optimization-plan.md`, `docs/ux-redesign-proposal.md`.
+- **2026-07-17 GROUND-UP SPRINT (uncommitted on main):** full strategy review
+  in `docs/ground-up-review-2026-07.md`, then its entire roadmap implemented —
+  telemetry + entitlement re-sync, "Cast Your Vote" widget/App Intents
+  (`targets/widget/`, @bacons/apple-targets, App Group
+  `group.com.resolutioncompanion.app`), hook-portfolio reminders, Month in
+  Votes recap + share, Insights panel, 2-shield economy, MI coach + real
+  reflection SSE, coach observations, micro-notes, reward layer with Dawn
+  theme (useTheme now goes through ThemeContext — no longer hardcoded dark),
+  Health auto-votes + Siri. New deps: @bacons/apple-targets,
+  react-native-view-shot, react-native-health, @types/pg. Detail in the
+  `resolution-companion-ground-up-sprint` memory.
 - **Website** (2026-07-11): direct App Store CTAs, official badge, social
   share card, FAQ (+ FAQPage schema), Pricing nav — live.
 

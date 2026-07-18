@@ -477,6 +477,59 @@ describe("computeStreak", () => {
     expect(result.shieldedDays).toEqual(["2026-06-30"]);
   });
 
+  it("bridges a second miss inside the window at premium capacity (maxShields = 2)", () => {
+    jest.setSystemTime(new Date(2026, 6, 6, 9, 0));
+    const action = makeAction(DAILY, "2026-06-27T08:00:00");
+    const logs = logsFor(action, [
+      "2026-06-27",
+      "2026-06-28",
+      "2026-06-29",
+      // 2026-06-30 missed — first shield
+      "2026-07-01",
+      "2026-07-02",
+      // 2026-07-03 missed — second shield holds under premium capacity
+      "2026-07-04",
+      "2026-07-05",
+    ]);
+    const result = computeStreak([action], logs, undefined, 2);
+    expect(result.current).toBe(7);
+    expect(result.longest).toBe(7);
+    expect(result.shieldUsed).toBe(true);
+    expect(result.shieldedDays).toEqual(["2026-06-30", "2026-07-03"]);
+    expect(result.shieldsAvailable).toBe(0);
+    expect(result.maxShields).toBe(2);
+  });
+
+  it("still resets on a third miss inside the window at premium capacity", () => {
+    jest.setSystemTime(new Date(2026, 6, 6, 9, 0));
+    const action = makeAction(DAILY, "2026-06-27T08:00:00");
+    const logs = logsFor(action, [
+      "2026-06-27",
+      "2026-06-28",
+      "2026-06-29",
+      // 2026-06-30 missed — first shield
+      "2026-07-01",
+      "2026-07-02",
+      // 2026-07-03 missed — second shield
+      // 2026-07-04 missed — over capacity: fresh start
+      "2026-07-05",
+    ]);
+    const result = computeStreak([action], logs, undefined, 2);
+    expect(result.current).toBe(1);
+    expect(result.longest).toBe(5);
+    expect(result.shieldUsed).toBe(false);
+    expect(result.shieldsAvailable).toBe(2);
+  });
+
+  it("reports full shield capacity for a clean streak", () => {
+    jest.setSystemTime(new Date(2026, 6, 6, 9, 0));
+    const action = makeAction(DAILY, "2026-07-03T08:00:00");
+    const logs = logsFor(action, ["2026-07-03", "2026-07-04", "2026-07-05"]);
+    const result = computeStreak([action], logs, undefined, 2);
+    expect(result.shieldsAvailable).toBe(2);
+    expect(result.shieldUsed).toBe(false);
+  });
+
   it("bridges a second miss when it falls more than 7 days after the first", () => {
     jest.setSystemTime(new Date(2026, 6, 6, 9, 0));
     const action = makeAction(DAILY, "2026-06-20T08:00:00");
@@ -552,6 +605,8 @@ describe("computeStreak", () => {
       longest: 0,
       shieldUsed: false,
       shieldedDays: [],
+      maxShields: 1,
+      shieldsAvailable: 1,
     });
   });
 });

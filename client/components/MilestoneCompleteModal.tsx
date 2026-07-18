@@ -21,6 +21,9 @@ import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 interface MilestoneCompleteModalProps {
   milestoneTitle: string;
   personaName: string;
+  /** Cosmetic reward newly unlocked by this milestone, when there is one. */
+  rewardTitle?: string;
+  rewardDescription?: string;
   onAddNext: () => void;
   onDismiss: () => void;
 }
@@ -33,6 +36,8 @@ interface MilestoneCompleteModalProps {
 export function MilestoneCompleteModal({
   milestoneTitle,
   personaName,
+  rewardTitle,
+  rewardDescription,
   onAddNext,
   onDismiss,
 }: MilestoneCompleteModalProps) {
@@ -105,6 +110,27 @@ export function MilestoneCompleteModal({
             you&rsquo;re becoming {personaName}.
           </ThemedText>
 
+          {rewardTitle ? (
+            <View style={styles.rewardRow}>
+              <Feather name="unlock" size={16} color={Colors.dark.warning} />
+              <View style={styles.rewardText}>
+                <ThemedText style={styles.rewardTitle}>
+                  Unlocked: {rewardTitle}
+                </ThemedText>
+                {rewardDescription ? (
+                  <ThemedText
+                    style={[
+                      styles.rewardDescription,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    {rewardDescription}
+                  </ThemedText>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
+
           <Pressable
             onPress={onAddNext}
             accessibilityRole="button"
@@ -150,8 +176,12 @@ export function MilestoneCompleteModal({
  * routes into the existing BenchmarkEditor via the container ref.
  */
 export function MilestoneCelebrationHost() {
-  const { milestoneCelebration, dismissMilestoneCelebration, persona } =
-    useApp();
+  const {
+    milestoneCelebration,
+    celebrationReward,
+    dismissMilestoneCelebration,
+    persona,
+  } = useApp();
 
   if (!milestoneCelebration) return null;
 
@@ -159,6 +189,8 @@ export function MilestoneCelebrationHost() {
     <MilestoneCompleteModal
       milestoneTitle={milestoneCelebration.title}
       personaName={persona?.name ?? "your persona"}
+      rewardTitle={celebrationReward?.title}
+      rewardDescription={celebrationReward?.description}
       onAddNext={() => {
         dismissMilestoneCelebration();
         if (navigationRef.isReady()) {
@@ -177,6 +209,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: Spacing.xl,
+  },
+  rewardRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+    backgroundColor: "rgba(255, 184, 0, 0.08)",
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    alignSelf: "stretch",
+  },
+  rewardText: {
+    flex: 1,
+    gap: 2,
+  },
+  rewardTitle: {
+    ...Typography.small,
+    fontWeight: "700",
+  },
+  rewardDescription: {
+    ...Typography.caption,
+    lineHeight: 16,
   },
   card: {
     width: "100%",

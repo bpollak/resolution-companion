@@ -54,8 +54,13 @@ import {
   BeatLastWeekCard,
 } from "@/components/WeeklyRecapCard";
 import { LapseRecoveryCard } from "@/components/LapseRecoveryCard";
+import { MonthRecapCard } from "@/components/MonthRecapCard";
+import { CoachObservationCard } from "@/components/CoachObservationCard";
 import { Toast } from "@/components/Toast";
 import { logger } from "@/lib/logger";
+import { buildMonthRecap, getPreviousMonthKey } from "@/lib/recap";
+import { computeCoachObservation } from "@/lib/insights";
+import { track } from "@/lib/telemetry";
 
 const CONTEXTUAL_NOTIF_ASK_KEY = "today_contextual_notif_ask_done";
 const FIRST_DAY_COMPLETE_KEY = "today_first_day_complete_seen";
@@ -70,6 +75,16 @@ const WEEKLY_NUDGE_SEEN_KEY = "today_weekly_nudge_seen_week";
 // Date of the most recent fully-missed day the lapse card was dismissed
 // for — the card only returns when a new missed day occurs
 const LAPSE_DISMISSED_KEY = "today_lapse_card_dismissed_for";
+// "YYYY-MM" of the last month whose Month-in-Votes entry card was seen —
+// the card shows during the first week of each new month, once
+const MONTH_RECAP_SEEN_KEY = "today_month_recap_seen_month";
+const MONTH_RECAP_WINDOW_DAYS = 7;
+// Last observed shield state, for surfacing spend/recharge moments exactly
+// once per transition (earned forgiveness should be seen, not silent)
+const SHIELD_STATE_KEY = "today_shield_state";
+// Id of the last coach observation shown — one proactive observation per
+// pattern per week, dismissed forever once seen
+const COACH_OBSERVATION_SEEN_KEY = "today_coach_observation_seen";
 
 function getLocalDateString(date: Date): string {
   const year = date.getFullYear();
@@ -366,15 +381,22 @@ export default function TodayScreen() {
     null,
   );
 
+  const [monthRecapSeen, setMonthRecapSeen] = useState<string | null>(null);
+  const [observationSeen, setObservationSeen] = useState<string | null>(null);
+
   useEffect(() => {
     Promise.all([
       AsyncStorage.getItem(WEEKLY_RECAP_SEEN_KEY),
       AsyncStorage.getItem(WEEKLY_NUDGE_SEEN_KEY),
       AsyncStorage.getItem(LAPSE_DISMISSED_KEY),
-    ]).then(([recapSeen, nudgeSeen, lapseSeen]) => {
+      AsyncStorage.getItem(MONTH_RECAP_SEEN_KEY),
+      AsyncStorage.getItem(COACH_OBSERVATION_SEEN_KEY),
+    ]).then(([recapSeen, nudgeSeen, lapseSeen, monthSeen, obsSeen]) => {
       setRecapSeenWeek(recapSeen);
       setNudgeSeenWeek(nudgeSeen);
       setLapseDismissedFor(lapseSeen);
+      setMonthRecapSeen(monthSeen);
+      setObservationSeen(obsSeen);
       setRecapPrefsLoaded(true);
     });
   }, []);
@@ -395,10 +417,50 @@ export default function TodayScreen() {
     AsyncStorage.setItem(LAPSE_DISMISSED_KEY, lapse.lastMissedDate);
   };
 
+  // "Month in Votes" closing ceremony for the month that just ended: shown
+  // during the first week of a new month, once, and only when last month had
+  // any votes to tell a story about. Takes precedence over the weekly card
+  // (the 1st is often a Monday — the weekly card returns after this one).
+  const prevMonthKey = getPreviousMonthKey(today);
+  const monthRecap = useMemo(
+    () => buildMonthRecap(actions, dailyLogs, persona, prevMonthKey),
+    [actions, dailyLogs, persona, prevMonthKey],
+  );
+  const showMonthRecapCard =
+    recapPrefsLoaded &&
+    today.getDate() <= MONTH_RECAP_WINDOW_DAYS &&
+    monthRecap.votesCast > 0 &&
+    monthRecapSeen !== prevMonthKey;
+
+  const dismissMonthRecap = () => {
+    setMonthRecapSeen(prevMonthKey);
+    AsyncStorage.setItem(MONTH_RECAP_SEEN_KEY, prevMonthKey);
+  };
+
   const showWeeklyRecap =
     recapPrefsLoaded &&
+    !showMonthRecapCard &&
     weeklyRecap.lastWeek.scheduled > 0 &&
     recapSeenWeek !== weeklyRecap.weekKey;
+
+  // The coach's one proactive weekly observation — locally computed, shown
+  // once per pattern per week, and never stacked on top of a recap card
+  const coachObservation = useMemo(
+    () => computeCoachObservation(actions, dailyLogs, persona?.name ?? "you"),
+    [actions, dailyLogs, persona?.name],
+  );
+  const showCoachObservation =
+    recapPrefsLoaded &&
+    !showMonthRecapCard &&
+    !showWeeklyRecap &&
+    coachObservation !== null &&
+    observationSeen !== coachObservation.id;
+
+  const dismissCoachObservation = () => {
+    if (!coachObservation) return;
+    setObservationSeen(coachObservation.id);
+    AsyncStorage.setItem(COACH_OBSERVATION_SEEN_KEY, coachObservation.id);
+  };
 
   // Sunday goal-gradient nudge: this week is exactly one log away from
   // beating last week, and there is still something loggable today
@@ -584,9 +646,48 @@ export default function TodayScreen() {
     [handleToggle, handleNotePress],
   );
 
+  // Shield spend/recharge moments: the shield mechanic already worked
+  // silently — make the earned-forgiveness loop visible. A spend gets a
+  // dignified toast ("that's what it was for"); the recharge after the
+  // rolling window passes is the earn moment.
+  const shieldUsed = streak.shieldUsed;
+  const streakCurrentForShield = streak.current;
+  useEffect(() => {
+    if (!hasOnboarded) return;
+    (async () => {
+      let previous: { shieldUsed: boolean } | null = null;
+      try {
+        const raw = await AsyncStorage.getItem(SHIELD_STATE_KEY);
+        previous = raw ? JSON.parse(raw) : null;
+      } catch {
+        previous = null;
+      }
+      if (previous !== null && previous.shieldUsed !== shieldUsed) {
+        if (shieldUsed) {
+          track("shield_used");
+          setToastMessage(
+            "Your shield covered a missed day — streak intact. That's what it was for. 🛡",
+          );
+          setToastVisible(true);
+        } else if (streakCurrentForShield > 0) {
+          track("shield_earned");
+          setToastMessage(
+            "Shield recharged — your consistency earned it back. 🛡",
+          );
+          setToastVisible(true);
+        }
+      }
+      await AsyncStorage.setItem(
+        SHIELD_STATE_KEY,
+        JSON.stringify({ shieldUsed }),
+      );
+    })().catch((error) => logger.error("Failed to track shield state:", error));
+  }, [hasOnboarded, shieldUsed, streakCurrentForShield]);
+
   // First-ever completion gets a one-time extra line on the celebration card
   useEffect(() => {
     if (!celebrateDayComplete) return;
+    track("day_complete");
     AsyncStorage.getItem(FIRST_DAY_COMPLETE_KEY).then((seen) => {
       if (!seen) {
         setIsFirstDayComplete(true);
@@ -600,7 +701,12 @@ export default function TodayScreen() {
   const lapseMissedDays = lapse.missedDays;
   useEffect(() => {
     if (Platform.OS === "web" || !hasOnboarded) return;
-    const copy = { streakCount: streakCurrent, missedRun: lapseMissedDays };
+    const copy = {
+      streakCount: streakCurrent,
+      missedRun: lapseMissedDays,
+      personaName: persona?.name,
+      monthlyConsistency: personaAlignment,
+    };
     (async () => {
       await applySuggestedReminderBucket(
         suggestReminderBucket(actions.map((a) => a.anchorLink)),
@@ -614,7 +720,15 @@ export default function TodayScreen() {
     })().catch((error) => {
       logger.error("Failed to maintain reminder schedule:", error);
     });
-  }, [dayComplete, hasOnboarded, streakCurrent, lapseMissedDays, actions]);
+  }, [
+    dayComplete,
+    hasOnboarded,
+    streakCurrent,
+    lapseMissedDays,
+    actions,
+    persona?.name,
+    personaAlignment,
+  ]);
 
   // Contextual permission ask, once, right after the first day-complete —
   // the moment the user has something worth protecting
@@ -768,7 +882,18 @@ export default function TodayScreen() {
               <ThemedText style={styles.personaName}>{persona.name}</ThemedText>
             </View>
 
-            {showWeeklyRecap ? (
+            {showMonthRecapCard ? (
+              <MonthRecapCard
+                recap={monthRecap}
+                onOpen={() => {
+                  dismissMonthRecap();
+                  navigation.navigate("MonthRecap", {
+                    monthKey: prevMonthKey,
+                  });
+                }}
+                onDismiss={dismissMonthRecap}
+              />
+            ) : showWeeklyRecap ? (
               <WeeklyRecapCard
                 recap={weeklyRecap}
                 streak={streak}
@@ -780,6 +905,16 @@ export default function TodayScreen() {
                     { startWeekly: Date.now() } as never,
                   );
                 }}
+              />
+            ) : showCoachObservation && coachObservation ? (
+              <CoachObservationCard
+                observation={coachObservation}
+                onOpenCoach={() => {
+                  track("coach_observation_opened");
+                  dismissCoachObservation();
+                  navigation.navigate("ReflectTab" as never);
+                }}
+                onDismiss={dismissCoachObservation}
               />
             ) : showBeatLastWeekNudge ? (
               <BeatLastWeekCard

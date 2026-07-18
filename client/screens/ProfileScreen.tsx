@@ -21,6 +21,8 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { useTheme } from "@/hooks/useTheme";
+import { useThemeMode } from "@/context/ThemeContext";
+import { isRewardUnlocked } from "@/lib/rewards";
 import { useApp } from "@/context/AppContext";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
@@ -181,6 +183,16 @@ export default function ProfileScreen() {
   const [reminderTime, setReminderTime] = useState<ResolvedReminderTime | null>(
     null,
   );
+
+  // Dawn theme: a milestone reward — the Appearance row only exists once
+  // it has been earned
+  const { mode: themeMode, setMode: setThemeMode } = useThemeMode();
+  const [dawnUnlocked, setDawnUnlocked] = useState(false);
+  useEffect(() => {
+    isRewardUnlocked("dawn-theme")
+      .then(setDawnUnlocked)
+      .catch(() => {});
+  }, []);
 
   // Streak feeds the reminder copy when the schedule is (re)created here
   const streakCount = useMemo(
@@ -839,6 +851,48 @@ export default function ProfileScreen() {
           thumbColor="#FFFFFF"
         />
       </View>
+
+      {dawnUnlocked ? (
+        <View
+          style={[
+            styles.settingsRow,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.settingsIcon,
+              { backgroundColor: "rgba(255, 184, 0, 0.1)" },
+            ]}
+          >
+            <Feather name="sunrise" size={20} color={Colors.dark.warning} />
+          </View>
+          <View style={styles.settingsContent}>
+            <ThemedText style={styles.settingsTitle}>Dawn Theme</ThemedText>
+            <ThemedText
+              style={[styles.settingsSubtitle, { color: theme.textSecondary }]}
+            >
+              Unlocked by your first milestone
+            </ThemedText>
+          </View>
+          <Switch
+            value={themeMode === "dawn"}
+            onValueChange={(value) => {
+              Haptics.selectionAsync();
+              setThemeMode(value ? "dawn" : "midnight");
+            }}
+            trackColor={{
+              false: theme.backgroundSecondary,
+              true: Colors.dark.warning,
+            }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+      ) : null}
 
       <SettingsRow
         icon="info"

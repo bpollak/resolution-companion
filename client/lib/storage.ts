@@ -42,6 +42,12 @@ export interface ElementalAction {
   anchorLink: string;
   kickstartVersion: string;
   createdAt: string;
+  /**
+   * Apple Health auto-completion: when set, a matching Health sample for the
+   * day casts this action's vote automatically ("Health cast this vote for
+   * you"). HealthKit reads are on-device — consistent with local-first.
+   */
+  healthAutoComplete?: "workout" | "steps" | "mindful";
 }
 
 export interface DailyLog {

@@ -49,6 +49,16 @@ CREATE TABLE IF NOT EXISTS "device_ai_usage" (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "device_ai_usage_key"
   ON "device_ai_usage" USING btree ("device_id","month","endpoint");
+CREATE TABLE IF NOT EXISTS "device_events" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "device_id" text NOT NULL,
+  "day" text NOT NULL,
+  "event" text NOT NULL,
+  "count" integer DEFAULT 0 NOT NULL,
+  "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "device_events_key"
+  ON "device_events" USING btree ("device_id","day","event");
 `;
 
 export async function ensureSchema(): Promise<void> {

@@ -18,6 +18,11 @@ import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { logger } from "@/lib/logger";
+import {
+  isHealthAvailable,
+  initHealth,
+  HEALTH_KIND_LABELS,
+} from "@/lib/health";
 
 const DAYS = [
   "Monday",
@@ -117,6 +122,9 @@ export default function ActionEditorScreen() {
       : ["Monday", "Wednesday", "Friday"];
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [healthAutoComplete, setHealthAutoComplete] = useState<
+    "workout" | "steps" | "mindful" | null
+  >(existingAction?.healthAutoComplete ?? null);
 
   const toggleDay = (day: string) => {
     if (frequency.includes(day)) {
@@ -157,6 +165,7 @@ export default function ActionEditorScreen() {
           kickstartVersion:
             kickstartVersion || `Do ${actionTitle.toLowerCase()} for 2 minutes`,
           anchorLink: anchorLink || "After I wake up",
+          healthAutoComplete: healthAutoComplete ?? undefined,
         });
       } else {
         await addAction({
@@ -166,6 +175,7 @@ export default function ActionEditorScreen() {
           kickstartVersion:
             kickstartVersion || `Do ${actionTitle.toLowerCase()} for 2 minutes`,
           anchorLink: anchorLink || "After I wake up",
+          healthAutoComplete: healthAutoComplete ?? undefined,
         });
       }
 
@@ -404,6 +414,78 @@ export default function ActionEditorScreen() {
             after something automatic makes it far easier to remember
           </ThemedText>
         </View>
+
+        {isHealthAvailable() ? (
+          <View style={styles.section}>
+            <ThemedText
+              style={[styles.sectionLabel, { color: Colors.dark.accent }]}
+            >
+              Auto-complete from Health
+            </ThemedText>
+            <View style={styles.daysContainer}>
+              {(
+                [
+                  { value: null, label: "Off" },
+                  { value: "workout", label: "Workout" },
+                  { value: "steps", label: "Steps" },
+                  { value: "mindful", label: "Mindful" },
+                ] as const
+              ).map((option) => {
+                const selected = healthAutoComplete === option.value;
+                return (
+                  <Pressable
+                    key={option.label}
+                    onPress={async () => {
+                      if (option.value !== null) {
+                        const ok = await initHealth();
+                        if (!ok) {
+                          Alert.alert(
+                            "Health Unavailable",
+                            "Resolution Companion couldn't get access to Health data. You can grant access in Settings → Privacy → Health.",
+                          );
+                          return;
+                        }
+                      }
+                      setHealthAutoComplete(option.value);
+                    }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={
+                      option.value === null
+                        ? "Health auto-complete off"
+                        : HEALTH_KIND_LABELS[option.value]
+                    }
+                    style={({ pressed }) => [
+                      styles.dayButton,
+                      {
+                        backgroundColor: selected
+                          ? Colors.dark.accent
+                          : isDark
+                            ? Colors.dark.backgroundDefault
+                            : Colors.light.backgroundDefault,
+                        opacity: pressed ? 0.7 : 1,
+                      },
+                    ]}
+                  >
+                    <ThemedText
+                      style={[
+                        styles.dayText,
+                        { color: selected ? "#000000" : theme.text },
+                      ]}
+                    >
+                      {option.label}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
+              {healthAutoComplete
+                ? `${HEALTH_KIND_LABELS[healthAutoComplete]} casts this vote automatically — the day is saved without opening the app.`
+                : "Let a workout, step total, or mindful session in Apple Health cast this vote for you. Health data never leaves your phone."}
+            </ThemedText>
+          </View>
+        ) : null}
 
         {isEditing ? (
           <View>

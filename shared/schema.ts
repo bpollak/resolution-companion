@@ -69,6 +69,31 @@ export const deviceAiUsage = pgTable(
   }),
 );
 
+// Privacy-respecting product telemetry: daily event COUNTS only, keyed by the
+// same anonymous device UUID as subscriptions. No payloads, no timestamps
+// finer than a calendar day, no PII — enough to see activation/retention/
+// conversion funnels in aggregate and nothing else.
+export const deviceEvents = pgTable(
+  "device_events",
+  {
+    id: serial("id").primaryKey(),
+    deviceId: text("device_id").notNull(),
+    day: text("day").notNull(), // YYYY-MM-DD, device-local calendar day
+    event: text("event").notNull(),
+    count: integer("count").default(0).notNull(),
+    updatedAt: timestamp("updated_at")
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  },
+  (table) => ({
+    deviceDayEvent: uniqueIndex("device_events_key").on(
+      table.deviceId,
+      table.day,
+      table.event,
+    ),
+  }),
+);
+
 export const insertWebsiteFeedbackSchema = createInsertSchema(
   websiteFeedback,
 ).omit({ id: true, createdAt: true });

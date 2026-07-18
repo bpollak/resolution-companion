@@ -15,27 +15,35 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { MilestoneCelebrationHost } from "@/components/MilestoneCompleteModal";
 import { AppProvider } from "@/context/AppContext";
+import { ThemeProvider, useThemeMode } from "@/context/ThemeContext";
+
+function ThemedStatusBar() {
+  const { isDark } = useThemeMode();
+  return <StatusBar style={isDark ? "light" : "dark"} />;
+}
 
 export default function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <AppProvider>
-          <SafeAreaProvider>
-            <GestureHandlerRootView style={styles.root}>
-              <KeyboardProvider>
-                <NavigationContainer ref={navigationRef}>
-                  <OfflineBanner />
-                  <RootStackNavigator />
-                  {/* Milestone celebrations overlay whichever screen the
-                      completion flip happened on */}
-                  <MilestoneCelebrationHost />
-                </NavigationContainer>
-                <StatusBar style="light" />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          </SafeAreaProvider>
-        </AppProvider>
+        <ThemeProvider>
+          <AppProvider>
+            <SafeAreaProvider>
+              <GestureHandlerRootView style={styles.root}>
+                <KeyboardProvider>
+                  <NavigationContainer ref={navigationRef}>
+                    <OfflineBanner />
+                    <RootStackNavigator />
+                    {/* Milestone celebrations overlay whichever screen the
+                        completion flip happened on */}
+                    <MilestoneCelebrationHost />
+                  </NavigationContainer>
+                  <ThemedStatusBar />
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </SafeAreaProvider>
+          </AppProvider>
+        </ThemeProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

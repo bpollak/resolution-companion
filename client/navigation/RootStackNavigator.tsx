@@ -8,6 +8,7 @@ import BenchmarkEditorScreen from "@/screens/BenchmarkEditorScreen";
 import ActionEditorScreen from "@/screens/ActionEditorScreen";
 import SubscriptionScreen from "@/screens/SubscriptionScreen";
 import ProfileScreen from "@/screens/ProfileScreen";
+import MonthRecapScreen from "@/screens/MonthRecapScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
@@ -19,6 +20,7 @@ export type RootStackParamList = {
   ActionEditor: { benchmarkId: string; actionId?: string };
   Subscription: { source?: "coach-limit" } | undefined;
   Profile: undefined;
+  MonthRecap: { monthKey: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -61,6 +63,14 @@ export default function RootStackNavigator() {
       <Stack.Screen
         name="Subscription"
         component={SubscriptionScreen}
+        options={{
+          headerShown: false,
+          presentation: "modal",
+        }}
+      />
+      <Stack.Screen
+        name="MonthRecap"
+        component={MonthRecapScreen}
         options={{
           headerShown: false,
           presentation: "modal",

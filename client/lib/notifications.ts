@@ -20,6 +20,87 @@ const REMINDER_BUCKET_SUGGESTED_KEY = "evolve_reminder_bucket_suggested";
 
 export type ReminderBucket = "morning" | "midday" | "evening";
 
+// ---------------------------------------------------------------------------
+// Portfolio of hooks: the single daily reminder is written in one of three
+// voices, and the app learns which voice this user actually responds to.
+// "momentum" = identity-progress framing, "coach" = check-in invite,
+// "calm" = the gentle generic nudge. A lapsed user always gets the no-guilt
+// re-engagement copy regardless of hook — never guilt, never volume; the
+// ≤1/day covenant is a brand promise, so the portfolio only changes the words.
+// ---------------------------------------------------------------------------
+
+export type ReminderHook = "momentum" | "coach" | "calm";
+
+const HOOK_STATS_KEY = "evolve_reminder_hook_stats";
+const HOOK_ROTATION: ReminderHook[] = ["momentum", "coach", "calm"];
+// Taps needed before a voice is trusted enough to exploit most days
+const HOOK_LEADER_MIN_TAPS = 3;
+
+export type ReminderHookStats = Record<ReminderHook, { taps: number }>;
+
+const EMPTY_HOOK_STATS: ReminderHookStats = {
+  momentum: { taps: 0 },
+  coach: { taps: 0 },
+  calm: { taps: 0 },
+};
+
+export async function getReminderHookStats(): Promise<ReminderHookStats> {
+  try {
+    const raw = await AsyncStorage.getItem(HOOK_STATS_KEY);
+    if (!raw) return { ...EMPTY_HOOK_STATS };
+    const parsed = JSON.parse(raw) as Partial<ReminderHookStats>;
+    return {
+      momentum: { taps: parsed.momentum?.taps ?? 0 },
+      coach: { taps: parsed.coach?.taps ?? 0 },
+      calm: { taps: parsed.calm?.taps ?? 0 },
+    };
+  } catch {
+    return { ...EMPTY_HOOK_STATS };
+  }
+}
+
+/**
+ * Credit a reminder tap to the voice that earned it. Called when the user
+ * opens the app from the daily reminder (AppContext response handler).
+ */
+export async function recordReminderHookTap(hook: unknown): Promise<void> {
+  if (hook !== "momentum" && hook !== "coach" && hook !== "calm") return;
+  try {
+    const stats = await getReminderHookStats();
+    stats[hook] = { taps: stats[hook].taps + 1 };
+    await AsyncStorage.setItem(HOOK_STATS_KEY, JSON.stringify(stats));
+  } catch (error) {
+    logger.error("Failed to record reminder tap:", error);
+  }
+}
+
+/**
+ * Pick tomorrow's voice. Deterministic (keyed by date) so re-scheduling the
+ * same day is stable: rotate evenly until one voice has earned enough taps to
+ * lead, then use the leader ~2 days in 3 and keep exploring on the third.
+ * Exported for tests.
+ */
+export function selectReminderHook(
+  stats: ReminderHookStats,
+  dateStr: string,
+): ReminderHook {
+  let hash = 0;
+  for (let i = 0; i < dateStr.length; i++) hash += dateStr.charCodeAt(i);
+  const rotated = HOOK_ROTATION[hash % HOOK_ROTATION.length];
+
+  let leader: ReminderHook | null = null;
+  for (const hook of HOOK_ROTATION) {
+    if (
+      stats[hook].taps >= HOOK_LEADER_MIN_TAPS &&
+      (leader === null || stats[hook].taps > stats[leader].taps)
+    ) {
+      leader = hook;
+    }
+  }
+  if (leader && hash % 3 !== 0) return leader;
+  return rotated;
+}
+
 // Category + action ids for the reminder's long-press quick action. The
 // action completes the day without opening the app (AppContext handles the
 // response), so a busy evening still counts with one press.
@@ -166,13 +247,31 @@ export interface ReminderOptions {
   streakCount?: number;
   /** Consecutive fully-missed scheduled days, for gentle lapsed-state copy. */
   missedRun?: number;
+  /** Active persona name, for identity-framed momentum copy. */
+  personaName?: string;
+  /** This month's consistency percent (0–100), for momentum copy. */
+  monthlyConsistency?: number;
 }
 
-// Copy priority: a lapsed user gets the plan-can-bend re-engagement voice,
-// a streaking user gets loss aversion, everyone else the generic nudge
-function reminderBody(streakCount?: number, missedRun?: number): string {
+// Copy priority: a lapsed user always gets the plan-can-bend re-engagement
+// voice; otherwise the selected hook decides which framing carries today's
+// single reminder. Exported for tests.
+export function reminderBody(hook: ReminderHook, options: ReminderOptions) {
+  const { streakCount, missedRun, personaName, monthlyConsistency } = options;
   if (missedRun !== undefined && missedRun >= 2) {
     return "Rough couple of days? Your plan can bend — the 2-minute version still counts.";
+  }
+  if (hook === "momentum") {
+    if (personaName && monthlyConsistency !== undefined) {
+      return `${personaName}: ${Math.round(monthlyConsistency)}% consistent this month. Today's vote is waiting.`;
+    }
+    if (personaName) {
+      return `A 2-minute vote for ${personaName} still counts today.`;
+    }
+    // fall through to the streak framing below
+  }
+  if (hook === "coach") {
+    return "Two minutes with your coach keeps the plan honest — drop in whenever.";
   }
   if (streakCount !== undefined && streakCount >= 2) {
     return `5 minutes to keep a ${streakCount}-day streak alive.`;
@@ -232,13 +331,17 @@ export async function scheduleDailyReminder(
     const resolved = await getResolvedReminderTime();
     const hour = options.hour ?? resolved.hour;
     const minute = options.minute ?? resolved.minute;
+    const hook = selectReminderHook(
+      await getReminderHookStats(),
+      getLocalDateString(new Date()),
+    );
 
     const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: "Resolution Companion",
-        body: reminderBody(options.streakCount, options.missedRun),
+        body: reminderBody(hook, options),
         sound: true,
-        data: { type: "daily-reminder" },
+        data: { type: "daily-reminder", hook },
         categoryIdentifier: DAILY_REMINDER_CATEGORY,
       },
       trigger: {
@@ -302,13 +405,18 @@ export async function suppressReminderForToday(
       0,
       0,
     );
+    // The one-shot fires tomorrow, so pick tomorrow's voice
+    const hook = selectReminderHook(
+      await getReminderHookStats(),
+      getLocalDateString(tomorrow),
+    );
 
     const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: "Resolution Companion",
-        body: reminderBody(options.streakCount, options.missedRun),
+        body: reminderBody(hook, options),
         sound: true,
-        data: { type: "daily-reminder" },
+        data: { type: "daily-reminder", hook },
         categoryIdentifier: DAILY_REMINDER_CATEGORY,
       },
       trigger: {

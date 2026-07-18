@@ -12,6 +12,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.resolutioncompanion.app",
+      "appleTeamId": "ZA8AJG27JX",
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.resolutioncompanion.app"
+        ]
+      },
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -76,6 +82,13 @@
           "icon": "./assets/images/icon.png",
           "color": "#00D9FF"
         }
+      ],
+      "@bacons/apple-targets",
+      [
+        "react-native-health",
+        {
+          "healthSharePermission": "Resolution Companion reads workouts, steps, and mindful minutes — on this device only — to automatically complete matching daily actions so you never take a zero."
+        }
       ]
     ],
     "experiments": {
@@ -83,7 +96,24 @@
     },
     "extra": {
       "eas": {
-        "projectId": "d859501c-8b40-4c99-a0ff-7572a09cc434"
+        "projectId": "d859501c-8b40-4c99-a0ff-7572a09cc434",
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "ResolutionWidget",
+                  "bundleIdentifier": "com.resolutioncompanion.app.widget",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.resolutioncompanion.app"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
       }
     },
     "owner": "bpollak99"

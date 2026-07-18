@@ -23,6 +23,7 @@ import { CircularProgress } from "@/components/CircularProgress";
 import { ProgressBar } from "@/components/ProgressBar";
 import { StatChip } from "@/components/StatChip";
 import { Toast } from "@/components/Toast";
+import { InsightsPanel } from "@/components/InsightsPanel";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -469,6 +470,7 @@ export default function JourneyScreen() {
     persona,
     benchmarks,
     actions,
+    dailyLogs,
     personaAlignment,
     progressSnapshot,
     toggleDailyLog,
@@ -1221,57 +1223,69 @@ export default function JourneyScreen() {
           </>
         }
         ListFooterComponent={
-          !subscription.isPremium ? (
-            <Pressable
-              onPress={() => navigation.navigate("Subscription")}
-              accessibilityRole="button"
-              accessibilityLabel="Go further with Premium. Unlimited milestones, plans and coaching. See plans."
-              style={({ pressed }) => [
-                styles.premiumCard,
-                {
-                  backgroundColor: isDark
-                    ? Colors.dark.backgroundDefault
-                    : Colors.light.backgroundDefault,
-                  opacity: pressed ? 0.9 : 1,
-                  transform: [{ scale: pressed ? 0.98 : 1 }],
-                },
-              ]}
-            >
-              <View style={styles.premiumIconRing}>
-                <View style={styles.premiumIconCore}>
-                  <Feather name="zap" size={20} color={Colors.dark.accent} />
+          <>
+            <InsightsPanel
+              actions={personaActions}
+              dailyLogs={dailyLogs}
+              personaName={persona?.name ?? "Future You"}
+              isPremium={subscription.isPremium}
+              onUpgrade={() => navigation.navigate("Subscription")}
+            />
+            {!subscription.isPremium ? (
+              <Pressable
+                onPress={() => navigation.navigate("Subscription")}
+                accessibilityRole="button"
+                accessibilityLabel="Go further with Premium. Unlimited milestones, plans and coaching. See plans."
+                style={({ pressed }) => [
+                  styles.premiumCard,
+                  {
+                    backgroundColor: isDark
+                      ? Colors.dark.backgroundDefault
+                      : Colors.light.backgroundDefault,
+                    opacity: pressed ? 0.9 : 1,
+                    transform: [{ scale: pressed ? 0.98 : 1 }],
+                  },
+                ]}
+              >
+                <View style={styles.premiumIconRing}>
+                  <View style={styles.premiumIconCore}>
+                    <Feather name="zap" size={20} color={Colors.dark.accent} />
+                  </View>
+                  <View style={[styles.premiumDot, styles.premiumDotTop]} />
+                  <View style={[styles.premiumDot, styles.premiumDotRight]} />
+                  <View style={[styles.premiumDot, styles.premiumDotBottom]} />
                 </View>
-                <View style={[styles.premiumDot, styles.premiumDotTop]} />
-                <View style={[styles.premiumDot, styles.premiumDotRight]} />
-                <View style={[styles.premiumDot, styles.premiumDotBottom]} />
-              </View>
-              <View style={styles.premiumContent}>
-                <ThemedText style={styles.premiumTitle}>
-                  Go further with Premium
-                </ThemedText>
-                <ThemedText
-                  style={[
-                    styles.premiumSubtitle,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  Unlimited milestones, plans &amp; coaching
-                </ThemedText>
-              </View>
-              <View style={styles.premiumCta}>
-                <ThemedText
-                  style={[styles.premiumCtaText, { color: Colors.dark.accent }]}
-                >
-                  See plans
-                </ThemedText>
-                <Feather
-                  name="chevron-right"
-                  size={16}
-                  color={Colors.dark.accent}
-                />
-              </View>
-            </Pressable>
-          ) : null
+                <View style={styles.premiumContent}>
+                  <ThemedText style={styles.premiumTitle}>
+                    Go further with Premium
+                  </ThemedText>
+                  <ThemedText
+                    style={[
+                      styles.premiumSubtitle,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Unlimited milestones, plans &amp; coaching
+                  </ThemedText>
+                </View>
+                <View style={styles.premiumCta}>
+                  <ThemedText
+                    style={[
+                      styles.premiumCtaText,
+                      { color: Colors.dark.accent },
+                    ]}
+                  >
+                    See plans
+                  </ThemedText>
+                  <Feather
+                    name="chevron-right"
+                    size={16}
+                    color={Colors.dark.accent}
+                  />
+                </View>
+              </Pressable>
+            ) : null}
+          </>
         }
       />
       <Toast

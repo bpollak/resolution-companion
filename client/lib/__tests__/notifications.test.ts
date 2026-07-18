@@ -12,7 +12,10 @@ import {
   suggestReminderBucket,
   getResolvedReminderTime,
   getUserReminderBucket,
+  selectReminderHook,
+  reminderBody,
   REMINDER_BUCKETS,
+  type ReminderHookStats,
 } from "@/lib/notifications";
 
 jest.mock("expo-notifications", () => ({
@@ -113,5 +116,103 @@ describe("reminder bucket resolution", () => {
     expect(await getUserReminderBucket()).toBeNull();
     const resolved = await getResolvedReminderTime();
     expect(resolved.source).toBe("default");
+  });
+});
+
+describe("selectReminderHook", () => {
+  const noSignal: ReminderHookStats = {
+    momentum: { taps: 0 },
+    coach: { taps: 0 },
+    calm: { taps: 0 },
+  };
+
+  it("rotates deterministically when no voice has earned enough taps", () => {
+    const a = selectReminderHook(noSignal, "2026-07-17");
+    expect(a).toBe(selectReminderHook(noSignal, "2026-07-17"));
+    // Across a run of days, every voice appears at least once
+    const days = [
+      "2026-07-17",
+      "2026-07-18",
+      "2026-07-19",
+      "2026-07-20",
+      "2026-07-21",
+      "2026-07-22",
+    ];
+    const picks = new Set(days.map((d) => selectReminderHook(noSignal, d)));
+    expect(picks.size).toBeGreaterThanOrEqual(2);
+  });
+
+  it("exploits the leading voice once it has enough taps", () => {
+    const stats: ReminderHookStats = {
+      momentum: { taps: 5 },
+      coach: { taps: 1 },
+      calm: { taps: 0 },
+    };
+    const days = Array.from(
+      { length: 12 },
+      (_, i) =>
+        // vary the hash by walking the day-of-month
+        `2026-08-${String(i + 1).padStart(2, "0")}`,
+    );
+    const picks = days.map((d) => selectReminderHook(stats, d));
+    const leaderShare =
+      picks.filter((p) => p === "momentum").length / picks.length;
+    expect(leaderShare).toBeGreaterThan(0.5);
+  });
+
+  it("keeps rotating below the tap threshold", () => {
+    const stats: ReminderHookStats = {
+      momentum: { taps: 2 },
+      coach: { taps: 0 },
+      calm: { taps: 0 },
+    };
+    const days = [
+      "2026-09-01",
+      "2026-09-02",
+      "2026-09-03",
+      "2026-09-04",
+      "2026-09-05",
+      "2026-09-06",
+    ];
+    const picks = new Set(days.map((d) => selectReminderHook(stats, d)));
+    expect(picks.size).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("reminderBody", () => {
+  it("always uses the no-guilt re-engagement voice for a lapsed user", () => {
+    for (const hook of ["momentum", "coach", "calm"] as const) {
+      expect(reminderBody(hook, { missedRun: 2, streakCount: 5 })).toContain(
+        "plan can bend",
+      );
+    }
+  });
+
+  it("frames momentum copy around the persona identity", () => {
+    expect(
+      reminderBody("momentum", {
+        personaName: "Consistent Runner",
+        monthlyConsistency: 72.4,
+      }),
+    ).toBe(
+      "Consistent Runner: 72% consistent this month. Today's vote is waiting.",
+    );
+    expect(reminderBody("momentum", { personaName: "Writer" })).toContain(
+      "vote for Writer",
+    );
+  });
+
+  it("falls back to streak copy for momentum without a persona", () => {
+    expect(reminderBody("momentum", { streakCount: 4 })).toContain(
+      "4-day streak",
+    );
+  });
+
+  it("invites a check-in for the coach voice", () => {
+    expect(reminderBody("coach", { streakCount: 4 })).toContain("coach");
+  });
+
+  it("keeps the calm voice gentle and generic", () => {
+    expect(reminderBody("calm", {})).toContain("momentum");
   });
 });

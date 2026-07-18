@@ -24,6 +24,7 @@ import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { storage } from "@/lib/storage";
 import { iapService, PRODUCT_IDS, IAPProduct, IAPPurchase } from "@/lib/iap";
 import { logger } from "@/lib/logger";
+import { track } from "@/lib/telemetry";
 
 type PlanType = "monthly" | "yearly";
 
@@ -254,6 +255,7 @@ export default function SubscriptionScreen() {
   const appState = useRef(AppState.currentState);
 
   useEffect(() => {
+    track("paywall_viewed");
     initializePurchases();
     checkSubscriptionStatus();
   }, []);
@@ -299,6 +301,7 @@ export default function SubscriptionScreen() {
                 await storage.setSubscription(newSubscription);
                 await refreshData();
                 setIsLoading(false);
+                track("paywall_purchase_success");
                 Alert.alert(
                   "Success",
                   "Welcome to Premium! Your subscription is now active.",
@@ -515,6 +518,7 @@ export default function SubscriptionScreen() {
         };
         await storage.setSubscription(newSubscription);
         await refreshData();
+        track("paywall_restore_success");
         Alert.alert("Success", "Your subscription has been restored!");
         setCheckingStatus(false);
       } else {
@@ -561,6 +565,7 @@ export default function SubscriptionScreen() {
         };
         await storage.setSubscription(newSubscription);
         await refreshData();
+        track("paywall_restore_success");
         Alert.alert("Success", "Your subscription has been restored!");
       } else {
         Alert.alert(
@@ -833,6 +838,18 @@ export default function SubscriptionScreen() {
             description="Add new milestones as your goals evolve"
             free="Starter set"
             premium="Unlimited"
+          />
+          <CompareRow
+            title="Streak shields"
+            description="Missed days bridged — extra grace, earned by consistency"
+            free="1"
+            premium="2"
+          />
+          <CompareRow
+            title="Insights"
+            description="When you show up, and the one thing to protect"
+            free="—"
+            premium="Included"
           />
           <CompareRow
             title="Daily action tracking"

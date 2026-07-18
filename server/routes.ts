@@ -7,6 +7,7 @@ import {
   websiteFeedback,
   deviceSubscriptions,
   deviceAiUsage,
+  deviceEvents,
 } from "@shared/schema";
 import { sql, eq } from "drizzle-orm";
 import { rateLimiter } from "./rate-limit";
@@ -750,11 +751,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     aiQuota("reflection"),
     async (req: Request, res: Response) => {
       try {
-        const { messages } = req.body;
+        const { messages, stream } = req.body;
 
         const validationError = validateMessages(messages);
         if (validationError) {
           res.status(400).json({ error: validationError });
+          return;
+        }
+
+        // Real SSE when the client asks for it; the JSON path stays for
+        // older app builds (the client previously simulated streaming by
+        // replaying the full JSON reply character by character).
+        if (stream === true) {
+          res.setHeader("Content-Type", "text/event-stream");
+          res.setHeader("Cache-Control", "no-cache");
+          res.setHeader("Connection", "keep-alive");
+          res.flushHeaders();
+
+          const completion = await getOpenAI().chat.completions.create({
+            model: OPENAI_MODEL,
+            messages,
+            reasoning_effort: "minimal",
+            max_completion_tokens: 2048,
+            stream: true,
+          });
+
+          for await (const chunk of completion) {
+            const content = chunk.choices[0]?.delta?.content || "";
+            if (content) {
+              res.write(`data: ${JSON.stringify({ content })}\n\n`);
+            }
+          }
+
+          res.write("data: [DONE]\n\n");
+          res.end();
           return;
         }
 
@@ -769,7 +799,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json({ content });
       } catch (error) {
         console.error("Reflection error:", error);
-        res.status(500).json({ error: "Failed to get AI response" });
+        if (res.headersSent) {
+          res.write(
+            `data: ${JSON.stringify({ error: "Failed to get AI response" })}\n\n`,
+          );
+          res.end();
+        } else {
+          res.status(500).json({ error: "Failed to get AI response" });
+        }
       }
     },
   );
@@ -838,6 +875,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Error fetching feedback:", error);
         res.status(500).json({ error: "Failed to fetch feedback" });
+      }
+    },
+  );
+
+  // Aggregate product telemetry. The client batches {event, day, count}
+  // increments and flushes opportunistically; the server only ever stores
+  // per-day counters (see deviceEvents in shared/schema.ts). Fire-and-forget
+  // from the client's perspective: always 204 unless the request is malformed,
+  // so a telemetry outage can never surface as a user-visible error.
+  const TELEMETRY_EVENT_RE = /^[a-z][a-z0-9_]{1,63}$/;
+  const TELEMETRY_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+  app.post(
+    "/api/telemetry",
+    requireApiKey,
+    apiRateLimit,
+    async (req: Request, res: Response) => {
+      const { deviceId, events } = req.body ?? {};
+      if (
+        typeof deviceId !== "string" ||
+        deviceId.length === 0 ||
+        deviceId.length > 64 ||
+        !Array.isArray(events) ||
+        events.length === 0 ||
+        events.length > 50
+      ) {
+        res.status(400).json({ error: "Invalid telemetry payload" });
+        return;
+      }
+      for (const entry of events) {
+        if (
+          !entry ||
+          typeof entry.event !== "string" ||
+          !TELEMETRY_EVENT_RE.test(entry.event) ||
+          typeof entry.day !== "string" ||
+          !TELEMETRY_DAY_RE.test(entry.day) ||
+          typeof entry.count !== "number" ||
+          !Number.isInteger(entry.count) ||
+          entry.count < 1 ||
+          entry.count > 1000
+        ) {
+          res.status(400).json({ error: "Invalid telemetry event" });
+          return;
+        }
+      }
+
+      if (db) {
+        try {
+          for (const entry of events) {
+            await db
+              .insert(deviceEvents)
+              .values({
+                deviceId,
+                day: entry.day,
+                event: entry.event,
+                count: entry.count,
+              })
+              .onConflictDoUpdate({
+                target: [
+                  deviceEvents.deviceId,
+                  deviceEvents.day,
+                  deviceEvents.event,
+                ],
+                set: {
+                  count: sql`${deviceEvents.count} + ${entry.count}`,
+                  updatedAt: sql`CURRENT_TIMESTAMP`,
+                },
+              });
+          }
+        } catch (error) {
+          // Telemetry is best-effort; never bubble a counter failure to the app.
+          console.error("Telemetry write error:", error);
+        }
+      }
+      res.status(204).end();
+    },
+  );
+
+  // Admin-only aggregate view: per-event daily totals + unique device counts.
+  // Deliberately never returns device ids — operators see funnels, not users.
+  app.get(
+    "/api/telemetry/summary",
+    requireAdminKey,
+    async (req: Request, res: Response) => {
+      try {
+        if (!db) {
+          res.json([]);
+          return;
+        }
+        const since =
+          typeof req.query.since === "string" &&
+          TELEMETRY_DAY_RE.test(req.query.since)
+            ? req.query.since
+            : "0000-00-00";
+        const rows = await db
+          .select({
+            day: deviceEvents.day,
+            event: deviceEvents.event,
+            devices: sql<number>`count(distinct ${deviceEvents.deviceId})`,
+            total: sql<number>`sum(${deviceEvents.count})`,
+          })
+          .from(deviceEvents)
+          .where(sql`${deviceEvents.day} >= ${since}`)
+          .groupBy(deviceEvents.day, deviceEvents.event)
+          .orderBy(deviceEvents.day, deviceEvents.event);
+        res.json(rows);
+      } catch (error) {
+        console.error("Telemetry summary error:", error);
+        res.status(500).json({ error: "Failed to fetch telemetry summary" });
       }
     },
   );
@@ -971,6 +1116,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await db
           .delete(deviceAiUsage)
           .where(eq(deviceAiUsage.deviceId, deviceId));
+
+        // Purge aggregate product telemetry too, so the "all data deleted"
+        // promise stays true now that we keep per-day event counts.
+        await db
+          .delete(deviceEvents)
+          .where(eq(deviceEvents.deviceId, deviceId));
 
         res.json({
           success: true,
