@@ -94,6 +94,29 @@ export const deviceEvents = pgTable(
   }),
 );
 
+// Fixed-window request counters shared by every server instance. The window
+// id is an epoch bucket; old rows are harmless and can be pruned operationally.
+export const rateLimitWindows = pgTable(
+  "rate_limit_windows",
+  {
+    id: serial("id").primaryKey(),
+    scope: text("scope").notNull(),
+    clientKey: text("client_key").notNull(),
+    windowId: text("window_id").notNull(),
+    count: integer("count").default(0).notNull(),
+    updatedAt: timestamp("updated_at")
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  },
+  (table) => ({
+    scopeClientWindow: uniqueIndex("rate_limit_windows_key").on(
+      table.scope,
+      table.clientKey,
+      table.windowId,
+    ),
+  }),
+);
+
 export const insertWebsiteFeedbackSchema = createInsertSchema(
   websiteFeedback,
 ).omit({ id: true, createdAt: true });

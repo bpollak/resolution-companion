@@ -9,6 +9,9 @@ import ActionEditorScreen from "@/screens/ActionEditorScreen";
 import SubscriptionScreen from "@/screens/SubscriptionScreen";
 import ProfileScreen from "@/screens/ProfileScreen";
 import MonthRecapScreen from "@/screens/MonthRecapScreen";
+import YearRecapScreen from "@/screens/YearRecapScreen";
+import WitnessScreen from "@/screens/WitnessScreen";
+import DataBackupScreen from "@/screens/DataBackupScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
@@ -16,11 +19,14 @@ import { Spacing } from "@/constants/theme";
 export type RootStackParamList = {
   Main: undefined;
   Onboarding: undefined;
-  BenchmarkEditor: { benchmarkId?: string };
+  BenchmarkEditor: { benchmarkId?: string; suggestedTitle?: string };
   ActionEditor: { benchmarkId: string; actionId?: string };
-  Subscription: { source?: "coach-limit" } | undefined;
+  Subscription: { source?: "coach-limit" | "milestone-proposal" } | undefined;
   Profile: undefined;
   MonthRecap: { monthKey: string };
+  YearRecap: { year: number };
+  Witness: undefined;
+  DataBackup: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -75,6 +81,21 @@ export default function RootStackNavigator() {
           headerShown: false,
           presentation: "modal",
         }}
+      />
+      <Stack.Screen
+        name="YearRecap"
+        component={YearRecapScreen}
+        options={{ headerShown: false, presentation: "modal" }}
+      />
+      <Stack.Screen
+        name="Witness"
+        component={WitnessScreen}
+        options={{ headerShown: false, presentation: "modal" }}
+      />
+      <Stack.Screen
+        name="DataBackup"
+        component={DataBackupScreen}
+        options={{ headerShown: false, presentation: "modal" }}
       />
       <Stack.Screen
         name="Profile"

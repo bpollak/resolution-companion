@@ -21,7 +21,9 @@ export function reconcileSubscription(
     return {
       isPremium: true,
       plan:
-        server.plan === "yearly" || server.plan === "monthly"
+        server.plan === "yearly" ||
+        server.plan === "monthly" ||
+        server.plan === "lifetime"
           ? server.plan
           : local.plan,
       expiresAt: server.currentPeriodEnd ?? local.expiresAt,

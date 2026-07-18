@@ -3,7 +3,12 @@
  * Tests run under TZ=America/Los_Angeles like the rest of the suite.
  */
 
-import { buildMonthRecap, getMonthKey, getPreviousMonthKey } from "@/lib/recap";
+import {
+  buildMonthRecap,
+  buildYearRecap,
+  getMonthKey,
+  getPreviousMonthKey,
+} from "@/lib/recap";
 import type { ElementalAction, DailyLog, Persona } from "@/lib/storage";
 
 const persona: Persona = {
@@ -195,5 +200,34 @@ describe("buildMonthRecap", () => {
     );
     expect(recap.kickstartVotes).toBe(1);
     expect(recap.healthVotes).toBe(1);
+  });
+});
+
+describe("buildYearRecap", () => {
+  it("aggregates monthly stories into The Year You Became", () => {
+    const logs = [
+      { ...log("a", "2026-05-01"), completionKind: "kickstart" as const },
+      { ...log("a", "2026-06-01"), completionSource: "health" as const },
+      log("a", "2026-06-04"),
+    ];
+    const recap = buildYearRecap([action("a")], logs, persona, 2026, TODAY);
+    expect(recap.votesCast).toBe(3);
+    expect(recap.activeMonths).toBe(2);
+    expect(recap.kickstartVotes).toBe(1);
+    expect(recap.healthVotes).toBe(1);
+    expect(recap.bestMonth?.monthLabel).toBe("June 2026");
+    expect(recap.closingLine).toContain("Consistent Runner");
+  });
+
+  it("produces a warm empty-year story", () => {
+    const recap = buildYearRecap(
+      [action("a", ALL_DAYS, "2026-07-01T00:00:00")],
+      [],
+      persona,
+      2026,
+      TODAY,
+    );
+    expect(recap.votesCast).toBe(0);
+    expect(recap.closingLine).toContain("still open");
   });
 });

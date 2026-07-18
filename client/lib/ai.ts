@@ -2,6 +2,7 @@ import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { logger } from "@/lib/logger";
 import { storage } from "@/lib/storage";
 import EventSource from "react-native-sse";
+import { normalizeCoachMilestoneProposal } from "@/lib/milestone-proposal";
 
 // The server keys its monthly AI usage quotas on this header; without it,
 // requests fall back to a shared per-IP bucket.
@@ -30,6 +31,23 @@ export interface PersonaData {
       anchorLink: string;
     };
   }[];
+}
+
+export async function getNextMilestoneProposal(
+  completedMilestone: string,
+  personaName: string,
+): Promise<string> {
+  const url = new URL("/api/milestone-proposal", getApiUrl());
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    headers: await getAiHeaders(),
+    body: JSON.stringify({ completedMilestone, personaName }),
+  });
+  if (!response.ok) throw new Error("Failed to suggest a milestone");
+  const payload = (await response.json()) as { title?: unknown };
+  const proposal = normalizeCoachMilestoneProposal(payload.title);
+  if (!proposal) throw new Error("The coach returned an invalid milestone");
+  return proposal.title;
 }
 
 const getSystemPrompt = (

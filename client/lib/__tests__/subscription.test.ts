@@ -47,4 +47,18 @@ describe("reconcileSubscription", () => {
       purchasedAt: local.purchasedAt,
     });
   });
+
+  it("accepts a lifetime entitlement without an expiry", () => {
+    expect(
+      reconcileSubscription(local, {
+        isPremium: true,
+        plan: "lifetime",
+        currentPeriodEnd: null,
+      }),
+    ).toMatchObject({
+      isPremium: true,
+      plan: "lifetime",
+      expiresAt: local.expiresAt,
+    });
+  });
 });

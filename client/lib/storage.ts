@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
 import { logger } from "@/lib/logger";
+import { computeMomentumScore } from "@/lib/progress";
 
 const STORAGE_KEYS = {
   HAS_ONBOARDED: "hasOnboarded",
@@ -84,7 +85,7 @@ export interface ChatMessage {
 
 export interface Subscription {
   isPremium: boolean;
-  plan: "free" | "monthly" | "yearly";
+  plan: "free" | "monthly" | "yearly" | "lifetime";
   expiresAt: string | null;
   purchasedAt: string | null;
 }
@@ -244,65 +245,7 @@ export const storage = {
     );
     const logs = await this.getDailyLogs();
 
-    if (personaActions.length === 0) return 0;
-
-    const today = new Date();
-    const todayStr = [
-      today.getFullYear(),
-      String(today.getMonth() + 1).padStart(2, "0"),
-      String(today.getDate()).padStart(2, "0"),
-    ].join("-");
-    let totalExpected = 0;
-    let totalCompleted = 0;
-
-    for (let i = 0; i < days; i++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      // Local calendar date — toISOString() shifts the date across the UTC
-      // boundary (e.g. evenings in US timezones) and misses that day's logs
-      const dateStr = [
-        date.getFullYear(),
-        String(date.getMonth() + 1).padStart(2, "0"),
-        String(date.getDate()).padStart(2, "0"),
-      ].join("-");
-      const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
-
-      for (const action of personaActions) {
-        if (action.frequency.includes(dayOfWeek)) {
-          // Days before the action existed don't count against the score
-          // (mirrors progress.computeMomentumScore)
-          if (action.createdAt) {
-            const created = new Date(action.createdAt);
-            const createdStr = [
-              created.getFullYear(),
-              String(created.getMonth() + 1).padStart(2, "0"),
-              String(created.getDate()).padStart(2, "0"),
-            ].join("-");
-            if (dateStr < createdStr) {
-              continue;
-            }
-          }
-          const log = logs.find(
-            (l) =>
-              l.actionId === action.id && l.logDate.split("T")[0] === dateStr,
-          );
-          // Today's still-unlogged actions are pending, not missed —
-          // counting them as expected from midnight demotes the score
-          // every morning (mirrors progress.computeMomentumScore)
-          if (dateStr === todayStr && !log?.status) {
-            continue;
-          }
-          totalExpected++;
-          if (log?.status) {
-            totalCompleted++;
-          }
-        }
-      }
-    }
-
-    return totalExpected > 0
-      ? Math.round((totalCompleted / totalExpected) * 100)
-      : 0;
+    return computeMomentumScore(personaActions, logs, days);
   },
 
   async getPersonaAlignmentScoreForPersona(personaId: string): Promise<number> {
@@ -640,53 +583,7 @@ export const storage = {
   async calculateMomentumScore(days: number = 7): Promise<number> {
     const logs = await this.getDailyLogs();
     const actions = await this.getElementalActions();
-
-    if (actions.length === 0) return 0;
-
-    const today = new Date();
-    const todayStr = [
-      today.getFullYear(),
-      String(today.getMonth() + 1).padStart(2, "0"),
-      String(today.getDate()).padStart(2, "0"),
-    ].join("-");
-    let totalExpected = 0;
-    let totalCompleted = 0;
-
-    for (let i = 0; i < days; i++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      // Local calendar date — toISOString() shifts the date across the UTC
-      // boundary (e.g. evenings in US timezones) and misses that day's logs
-      const dateStr = [
-        date.getFullYear(),
-        String(date.getMonth() + 1).padStart(2, "0"),
-        String(date.getDate()).padStart(2, "0"),
-      ].join("-");
-      const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
-
-      for (const action of actions) {
-        if (action.frequency.includes(dayOfWeek)) {
-          const log = logs.find(
-            (l) =>
-              l.actionId === action.id && l.logDate.split("T")[0] === dateStr,
-          );
-          // Today's still-unlogged actions are pending, not missed —
-          // counting them as expected from midnight demotes the score
-          // every morning (mirrors progress.computeMomentumScore)
-          if (dateStr === todayStr && !log?.status) {
-            continue;
-          }
-          totalExpected++;
-          if (log?.status) {
-            totalCompleted++;
-          }
-        }
-      }
-    }
-
-    return totalExpected > 0
-      ? Math.round((totalCompleted / totalExpected) * 100)
-      : 0;
+    return computeMomentumScore(actions, logs, days);
   },
 
   async getPersonaAlignmentScore(): Promise<number> {

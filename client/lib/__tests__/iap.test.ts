@@ -1,4 +1,8 @@
-import { formatIntroOfferDuration, type IAPProduct } from "@/lib/iap";
+import {
+  formatIntroOfferDuration,
+  iapService,
+  type IAPProduct,
+} from "@/lib/iap";
 
 jest.mock("react-native", () => ({
   Platform: {
@@ -12,6 +16,13 @@ jest.mock("@/lib/storage", () => ({
     getSubscription: jest.fn(),
     setSubscription: jest.fn(),
   },
+}));
+
+jest.mock("@/lib/pricing", () => ({
+  getYearlyPricingConfig: jest.fn(() => ({
+    alternateProductId: null,
+    newCohortStartsAt: null,
+  })),
 }));
 
 function product(offer?: IAPProduct["introductoryOffer"]): IAPProduct {
@@ -64,5 +75,13 @@ describe("introductory offer presentation", () => {
         }),
       ),
     ).toBeNull();
+  });
+});
+
+describe("lifetime entitlement", () => {
+  it("maps the non-consumable SKU to lifetime", () => {
+    expect(
+      iapService.getPlanFromProductId("com.resolutioncompanion.lifetime"),
+    ).toBe("lifetime");
   });
 });

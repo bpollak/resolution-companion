@@ -66,7 +66,7 @@ export function CircularProgress({
     } else {
       animatedProgress.value = progress;
     }
-  }, [progress, animated]);
+  }, [progress, animated, animatedProgress, glowOpacity]);
 
   const progressColor =
     progress >= 80

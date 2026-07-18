@@ -25,5 +25,29 @@ public class AppGroupStorageModule: Module {
         WidgetCenter.shared.reloadAllTimelines()
       }
     }
+
+    // Private backup uses the user's own iCloud key-value store: no app
+    // account, no developer-readable CloudKit database, and no subscription
+    // or device identifier in the payload.
+    Function("isICloudAvailable") { () -> Bool in
+      FileManager.default.ubiquityIdentityToken != nil
+    }
+
+    Function("getICloudItem") { (key: String) -> String? in
+      NSUbiquitousKeyValueStore.default.synchronize()
+      return NSUbiquitousKeyValueStore.default.string(forKey: key)
+    }
+
+    Function("setICloudItem") { (key: String, value: String) in
+      NSUbiquitousKeyValueStore.default.set(value, forKey: key)
+    }
+
+    Function("removeICloudItem") { (key: String) in
+      NSUbiquitousKeyValueStore.default.removeObject(forKey: key)
+    }
+
+    Function("synchronizeICloud") { () -> Bool in
+      NSUbiquitousKeyValueStore.default.synchronize()
+    }
   }
 }

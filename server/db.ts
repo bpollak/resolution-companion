@@ -59,6 +59,16 @@ CREATE TABLE IF NOT EXISTS "device_events" (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "device_events_key"
   ON "device_events" USING btree ("device_id","day","event");
+CREATE TABLE IF NOT EXISTS "rate_limit_windows" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "scope" text NOT NULL,
+  "client_key" text NOT NULL,
+  "window_id" text NOT NULL,
+  "count" integer DEFAULT 0 NOT NULL,
+  "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "rate_limit_windows_key"
+  ON "rate_limit_windows" USING btree ("scope","client_key","window_id");
 `;
 
 export async function ensureSchema(): Promise<void> {

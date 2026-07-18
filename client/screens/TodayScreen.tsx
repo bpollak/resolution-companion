@@ -13,6 +13,7 @@ import {
   ScrollView,
   Alert,
   Platform,
+  Share,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -57,11 +58,28 @@ import {
 import { LapseRecoveryCard } from "@/components/LapseRecoveryCard";
 import { MonthRecapCard } from "@/components/MonthRecapCard";
 import { CoachObservationCard } from "@/components/CoachObservationCard";
+import { WitnessCelebrationCard } from "@/components/WitnessCelebrationCard";
+import { YearRecapCard } from "@/components/YearRecapCard";
+import { SecondPersonaInviteCard } from "@/components/SecondPersonaInviteCard";
 import { Toast } from "@/components/Toast";
 import { logger } from "@/lib/logger";
-import { buildMonthRecap, getPreviousMonthKey } from "@/lib/recap";
+import {
+  buildMonthRecap,
+  buildYearRecap,
+  getPreviousMonthKey,
+} from "@/lib/recap";
 import { computeCoachObservation } from "@/lib/insights";
 import { track } from "@/lib/telemetry";
+import {
+  buildWitnessCelebration,
+  getWitnessSettings,
+  type WitnessSettings,
+} from "@/lib/witness";
+import {
+  getMonthKey,
+  SECOND_PERSONA_INVITE_SEEN_KEY,
+  shouldOfferSecondPersona,
+} from "@/lib/persona-invitation";
 
 const CONTEXTUAL_NOTIF_ASK_KEY = "today_contextual_notif_ask_done";
 const FIRST_DAY_COMPLETE_KEY = "today_first_day_complete_seen";
@@ -86,6 +104,8 @@ const SHIELD_STATE_KEY = "today_shield_state";
 // Id of the last coach observation shown — one proactive observation per
 // pattern per week, dismissed forever once seen
 const COACH_OBSERVATION_SEEN_KEY = "today_coach_observation_seen";
+const WITNESS_CELEBRATION_SEEN_KEY = "today_witness_celebration_seen_week";
+const YEAR_RECAP_SEEN_KEY = "today_year_recap_seen_year";
 
 function getLocalDateString(date: Date): string {
   const year = date.getFullYear();
@@ -295,6 +315,7 @@ export default function TodayScreen() {
   const {
     hasOnboarded,
     persona,
+    personas,
     benchmarks,
     actions,
     dailyLogs,
@@ -303,6 +324,7 @@ export default function TodayScreen() {
     subscription,
     toggleDailyLog,
     setDailyLogNote,
+    canAddPersona,
   } = useApp();
 
   const today = new Date();
@@ -396,6 +418,13 @@ export default function TodayScreen() {
 
   const [monthRecapSeen, setMonthRecapSeen] = useState<string | null>(null);
   const [observationSeen, setObservationSeen] = useState<string | null>(null);
+  const [witnessSettings, setWitnessSettings] =
+    useState<WitnessSettings | null>(null);
+  const [witnessSeenWeek, setWitnessSeenWeek] = useState<string | null>(null);
+  const [yearRecapSeen, setYearRecapSeen] = useState<string | null>(null);
+  const [secondPersonaInviteSeen, setSecondPersonaInviteSeen] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     Promise.all([
@@ -404,14 +433,34 @@ export default function TodayScreen() {
       AsyncStorage.getItem(LAPSE_DISMISSED_KEY),
       AsyncStorage.getItem(MONTH_RECAP_SEEN_KEY),
       AsyncStorage.getItem(COACH_OBSERVATION_SEEN_KEY),
-    ]).then(([recapSeen, nudgeSeen, lapseSeen, monthSeen, obsSeen]) => {
-      setRecapSeenWeek(recapSeen);
-      setNudgeSeenWeek(nudgeSeen);
-      setLapseDismissedFor(lapseSeen);
-      setMonthRecapSeen(monthSeen);
-      setObservationSeen(obsSeen);
-      setRecapPrefsLoaded(true);
-    });
+      getWitnessSettings(),
+      AsyncStorage.getItem(WITNESS_CELEBRATION_SEEN_KEY),
+      AsyncStorage.getItem(YEAR_RECAP_SEEN_KEY),
+      AsyncStorage.getItem(SECOND_PERSONA_INVITE_SEEN_KEY),
+    ]).then(
+      ([
+        recapSeen,
+        nudgeSeen,
+        lapseSeen,
+        monthSeen,
+        obsSeen,
+        witness,
+        witnessSeen,
+        yearSeen,
+        secondPersonaSeen,
+      ]) => {
+        setRecapSeenWeek(recapSeen);
+        setNudgeSeenWeek(nudgeSeen);
+        setLapseDismissedFor(lapseSeen);
+        setMonthRecapSeen(monthSeen);
+        setObservationSeen(obsSeen);
+        setWitnessSettings(witness);
+        setWitnessSeenWeek(witnessSeen);
+        setYearRecapSeen(yearSeen);
+        setSecondPersonaInviteSeen(secondPersonaSeen);
+        setRecapPrefsLoaded(true);
+      },
+    );
   }, []);
 
   const dismissWeeklyRecap = () => {
@@ -464,6 +513,24 @@ export default function TodayScreen() {
     weeklyRecap.lastWeek.scheduled > 0 &&
     recapSeenWeek !== weeklyRecap.weekKey;
 
+  const annualYear =
+    today.getMonth() === 0 ? today.getFullYear() - 1 : today.getFullYear();
+  const yearRecap = useMemo(
+    () =>
+      buildYearRecap(actions, dailyLogs, persona, annualYear, new Date(), 2),
+    [actions, dailyLogs, persona, annualYear],
+  );
+  const showYearRecap =
+    recapPrefsLoaded &&
+    subscription.isPremium &&
+    (today.getMonth() === 11 || today.getMonth() === 0) &&
+    yearRecap.votesCast > 0 &&
+    yearRecapSeen !== String(annualYear);
+  const dismissYearRecap = () => {
+    setYearRecapSeen(String(annualYear));
+    AsyncStorage.setItem(YEAR_RECAP_SEEN_KEY, String(annualYear));
+  };
+
   // The coach's one proactive weekly observation — locally computed, shown
   // once per pattern per week, and never stacked on top of a recap card
   const coachObservation = useMemo(
@@ -476,6 +543,62 @@ export default function TodayScreen() {
     !showWeeklyRecap &&
     coachObservation !== null &&
     observationSeen !== coachObservation.id;
+
+  const showWitnessCelebration =
+    recapPrefsLoaded &&
+    !showMonthRecapCard &&
+    !showWeeklyRecap &&
+    witnessSettings?.enabled === true &&
+    weeklyRecap.lastWeek.completed > 0 &&
+    witnessSeenWeek !== weeklyRecap.weekKey;
+
+  const showSecondPersonaInvite =
+    recapPrefsLoaded &&
+    !showMonthRecapCard &&
+    !showWeeklyRecap &&
+    !showWitnessCelebration &&
+    !showCoachObservation &&
+    shouldOfferSecondPersona(
+      personas,
+      persona,
+      actions,
+      dailyLogs,
+      secondPersonaInviteSeen,
+      today,
+    );
+
+  const dismissSecondPersonaInvite = () => {
+    const month = getMonthKey(today);
+    setSecondPersonaInviteSeen(month);
+    AsyncStorage.setItem(SECOND_PERSONA_INVITE_SEEN_KEY, month);
+  };
+
+  const exploreSecondPersona = () => {
+    dismissSecondPersonaInvite();
+    if (canAddPersona()) navigation.navigate("Onboarding");
+    else navigation.navigate("Subscription");
+  };
+
+  const dismissWitnessCelebration = () => {
+    setWitnessSeenWeek(weeklyRecap.weekKey);
+    AsyncStorage.setItem(WITNESS_CELEBRATION_SEEN_KEY, weeklyRecap.weekKey);
+  };
+
+  const shareWitnessCelebration = () => {
+    if (!witnessSettings) return;
+    const message = buildWitnessCelebration(
+      witnessSettings.name,
+      persona,
+      weeklyRecap.lastWeek.completed,
+      weeklyRecap.lastWeek.score,
+    );
+    Share.share({ message })
+      .then(() => {
+        track("witness_progress_shared");
+        dismissWitnessCelebration();
+      })
+      .catch((error) => logger.warn("Witness share failed:", error));
+  };
 
   const dismissCoachObservation = () => {
     if (!coachObservation) return;
@@ -931,6 +1054,15 @@ export default function TodayScreen() {
                 }}
                 onDismiss={dismissMonthRecap}
               />
+            ) : showYearRecap ? (
+              <YearRecapCard
+                recap={yearRecap}
+                onOpen={() => {
+                  dismissYearRecap();
+                  navigation.navigate("YearRecap", { year: annualYear });
+                }}
+                onDismiss={dismissYearRecap}
+              />
             ) : showWeeklyRecap ? (
               <WeeklyRecapCard
                 recap={weeklyRecap}
@@ -944,6 +1076,12 @@ export default function TodayScreen() {
                   );
                 }}
               />
+            ) : showWitnessCelebration && witnessSettings ? (
+              <WitnessCelebrationCard
+                witnessName={witnessSettings.name}
+                onShare={shareWitnessCelebration}
+                onDismiss={dismissWitnessCelebration}
+              />
             ) : showCoachObservation && coachObservation ? (
               <CoachObservationCard
                 observation={coachObservation}
@@ -953,6 +1091,12 @@ export default function TodayScreen() {
                   navigation.navigate("ReflectTab" as never);
                 }}
                 onDismiss={dismissCoachObservation}
+              />
+            ) : showSecondPersonaInvite ? (
+              <SecondPersonaInviteCard
+                personaName={persona.name}
+                onExplore={exploreSecondPersona}
+                onDismiss={dismissSecondPersonaInvite}
               />
             ) : showBeatLastWeekNudge ? (
               <BeatLastWeekCard

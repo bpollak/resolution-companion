@@ -51,6 +51,25 @@ export interface MonthRecap {
   closingLine: string;
 }
 
+/** Premium year-in-review narrative, generated entirely on device. */
+export interface YearRecap {
+  year: number;
+  yearLabel: string;
+  personaName: string;
+  votesCast: number;
+  scheduled: number;
+  consistency: number;
+  activeDays: number;
+  activeMonths: number;
+  kickstartVotes: number;
+  healthVotes: number;
+  comebacks: number;
+  shieldsEarned: number;
+  shieldedDays: number;
+  bestMonth: { monthKey: string; monthLabel: string; votesCast: number } | null;
+  closingLine: string;
+}
+
 /** "YYYY-MM" for the month containing `date`. */
 export function getMonthKey(date: Date): string {
   return getLocalDateString(date).slice(0, 7);
@@ -240,6 +259,94 @@ export function buildMonthRecap(
     comeback,
     shieldedDays,
     shieldsEarned,
+    closingLine,
+  };
+}
+
+/**
+ * Build "The Year You Became" from the same monthly stories users already
+ * understand. Current-year summaries stop at today, so this also works as an
+ * accessible year-so-far view before December.
+ */
+export function buildYearRecap(
+  actions: ElementalAction[],
+  logs: DailyLog[],
+  persona: Persona | null,
+  year: number,
+  today: Date = new Date(),
+  maxShields = 2,
+): YearRecap {
+  const lastMonth = year === today.getFullYear() ? today.getMonth() + 1 : 12;
+  const months: MonthRecap[] = [];
+  for (let month = 1; month <= lastMonth; month++) {
+    months.push(
+      buildMonthRecap(
+        actions,
+        logs,
+        persona,
+        `${year}-${String(month).padStart(2, "0")}`,
+        today,
+        maxShields,
+      ),
+    );
+  }
+
+  const votesCast = months.reduce((sum, month) => sum + month.votesCast, 0);
+  const scheduled = months.reduce((sum, month) => sum + month.scheduled, 0);
+  const activeDays = months.reduce((sum, month) => sum + month.activeDays, 0);
+  const kickstartVotes = months.reduce(
+    (sum, month) => sum + month.kickstartVotes,
+    0,
+  );
+  const healthVotes = months.reduce((sum, month) => sum + month.healthVotes, 0);
+  const comebacks = months.filter((month) => month.comeback !== null).length;
+  const shieldsEarned = months.reduce(
+    (sum, month) => sum + month.shieldsEarned,
+    0,
+  );
+  const shieldedDays = months.reduce(
+    (sum, month) => sum + month.shieldedDays,
+    0,
+  );
+  const activeMonths = months.filter((month) => month.votesCast > 0).length;
+  const best = months.reduce<MonthRecap | null>(
+    (winner, month) =>
+      !winner || month.votesCast > winner.votesCast ? month : winner,
+    null,
+  );
+  const bestMonth =
+    best && best.votesCast > 0
+      ? {
+          monthKey: best.monthKey,
+          monthLabel: best.monthLabel,
+          votesCast: best.votesCast,
+        }
+      : null;
+  const consistency =
+    scheduled > 0 ? Math.round((votesCast / scheduled) * 100) : 0;
+  const personaName = persona?.name ?? "Future You";
+  const closingLine =
+    votesCast === 0
+      ? `The story is still open. Your next vote can begin ${personaName}.`
+      : comebacks > 0
+        ? `${votesCast} votes and ${comebacks} comeback${comebacks === 1 ? "" : "s"}. You kept choosing ${personaName}.`
+        : `${votesCast} votes for ${personaName}. This is the year you practiced becoming.`;
+
+  return {
+    year,
+    yearLabel: String(year),
+    personaName,
+    votesCast,
+    scheduled,
+    consistency,
+    activeDays,
+    activeMonths,
+    kickstartVotes,
+    healthVotes,
+    comebacks,
+    shieldsEarned,
+    shieldedDays,
+    bestMonth,
     closingLine,
   };
 }

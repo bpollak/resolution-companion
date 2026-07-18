@@ -1,11 +1,11 @@
 # Resolution Companion AI — Ground-Up Review & Improvement Roadmap
 
 **Date:** July 17, 2026
-**Scope:** Full review of the shipped app (v1.0.2 live, v1.0.4 code-complete) — client UX, backend/AI, positioning, and GTM — benchmarked against leading apps in the habit-tracking, self-care companion, and AI-coaching categories (2025–2026 state).
+**Scope:** Full review of the shipped app and the 1.0.10 implementation branch — client UX, backend/AI, positioning, and GTM — benchmarked against leading apps in the habit-tracking, self-care companion, and AI-coaching categories (2025–2026 state).
 **Focus weighting (per request):** Retention & engagement deep; monetization, AI, and foundation covered more briefly.
 **Relationship to existing docs:** This extends `docs/enhancement-roadmap.md` (approved 2026-07-11) — it does not replace it. Roadmap item numbers from that doc are referenced as `ER#N`.
 
-> **Implementation status (verified 2026-07-18):** every application and server item in §6's Phase 0 through Phase 3 is implemented and the exact 1.0.9 native simulator artifact passed the full regression, including a Title II/WCAG 2.1 AA technical accessibility pass. The privacy-policy telemetry disclosure and tracked marketing CTA swap are complete. Live App Store Connect inspection found the approved yearly intro offer is currently one week in 175 territories, not the planned month; replacing it requires explicit approval to delete the live offer first. Client copy remains truthful because it is gated on Apple's live offer and eligibility metadata. "Later bets" (witness accountability, annual wrapped, iCloud backup, price tests) remain intentionally open. See `docs/ground-up-implementation-audit-2026-07-18.md` and `docs/title-ii-accessibility-audit-2026-07-18.md`.
+> **Implementation status (verified 2026-07-18):** every application and server item in §6, including all four Later bets, is implemented in the repository. A strict reconciliation with the approved enhancement roadmap also completed the post-milestone proposal, second-persona invitation, contextual Coach paywall, and now-applicable website rating proof. The exact 1.0.10 native artifact passed clean-install, maximum-text accessibility, later-bet, annual-recap, live-Coach, and native widget regressions. The remaining actions are commercial App Store Connect configuration: replacing the live one-week yearly offer with the planned month requires explicit approval to delete it, and lifetime/alternate-yearly products require final prices. The client is fail-safe and displays only Apple's real products and terms. See `docs/ground-up-implementation-audit-2026-07-18.md` and `docs/title-ii-accessibility-audit-2026-07-18.md`.
 
 ---
 

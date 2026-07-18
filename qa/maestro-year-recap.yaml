@@ -1,0 +1,39 @@
+appId: com.resolutioncompanion.app
+name: premium-year-recap
+---
+# Run after qa/seed_premium.py modifies an onboarded simulator manifest.
+- launchApp
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          text: "Dismiss milestone celebration.*"
+          optional: true
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Momentum Builder.*"
+    timeout: 20000
+- tapOn: "Open profile and settings.*"
+- extendedWaitUntil:
+    visible: "My Personas.*"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "The Year You Became.*"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "The Year You Became.*"
+- extendedWaitUntil:
+    visible: "The Year You Became.*"
+    timeout: 10000
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Close year recap.*"
+    timeout: 10000
+- assertVisible: "Share this year recap card as an image.*"
+- takeScreenshot: a11y-08-year-recap-card-one
+- swipe:
+    direction: LEFT
+- assertVisible: "Share this year recap card as an image.*"
+- takeScreenshot: a11y-09-year-recap-card-two
+- tapOn: "Close year recap.*"

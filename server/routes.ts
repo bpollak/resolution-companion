@@ -20,6 +20,23 @@ let openaiClient: OpenAI | null = null;
 // gpt-5-mini outperforms gpt-4o on instruction-following and structured
 // output at roughly a tenth of the input cost; override via env if needed
 const OPENAI_MODEL = process.env.AI_MODEL || "gpt-5-mini";
+const LIFETIME_PRODUCT_ID = "com.resolutioncompanion.lifetime";
+const YEARLY_TEST_PRODUCT_ID =
+  process.env.YEARLY_PRICE_TEST_PRODUCT_ID ||
+  "com.resolutioncompanion.annual.2026b";
+
+function isLifetimeProduct(productId: string): boolean {
+  return productId === LIFETIME_PRODUCT_ID || productId.includes("lifetime");
+}
+
+function planForProduct(productId: string): "monthly" | "yearly" | "lifetime" {
+  if (isLifetimeProduct(productId)) return "lifetime";
+  return productId.toLowerCase().includes("yearly") ||
+    productId.toLowerCase().includes("year") ||
+    productId.toLowerCase().includes("annual")
+    ? "yearly"
+    : "monthly";
+}
 
 function getOpenAI(): OpenAI {
   if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
@@ -241,8 +258,9 @@ async function validateAppleReceiptV2(
         const txInfo = decodeJWSPayload(sandboxData.signedTransactionInfo);
         if (
           txInfo.productId === productId &&
-          txInfo.expiresDate &&
-          txInfo.expiresDate > Date.now()
+          !txInfo.revocationDate &&
+          ((txInfo.expiresDate && txInfo.expiresDate > Date.now()) ||
+            (isLifetimeProduct(productId) && !txInfo.expiresDate))
         ) {
           return {
             valid: true,
@@ -261,8 +279,9 @@ async function validateAppleReceiptV2(
 
     if (
       txInfo.productId === productId &&
-      txInfo.expiresDate &&
-      txInfo.expiresDate > Date.now()
+      !txInfo.revocationDate &&
+      ((txInfo.expiresDate && txInfo.expiresDate > Date.now()) ||
+        (isLifetimeProduct(productId) && !txInfo.expiresDate))
     ) {
       console.log("Apple receipt validated via App Store Server API v2");
       return {
@@ -315,7 +334,10 @@ async function validateAppleReceiptWithUrl(
     for (const transaction of allTransactions) {
       if (transaction.product_id === productId) {
         const expiresDate = parseInt(transaction.expires_date_ms || "0");
-        if (expiresDate > Date.now()) {
+        if (
+          expiresDate > Date.now() ||
+          (isLifetimeProduct(productId) && !transaction.cancellation_date_ms)
+        ) {
           return { valid: true, status: 0, expiresDateMs: expiresDate };
         }
       }
@@ -553,9 +575,17 @@ const AI_QUOTAS = {
 function aiQuota(endpoint: keyof typeof AI_QUOTAS) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // Without a database there is nowhere to count — same degraded mode as
-      // the rest of the app. The per-IP rate limiter still applies.
-      if (!db) return next();
+      // Production cost controls fail closed. Development can run without a
+      // database, where the scoped per-IP limiter remains the guardrail.
+      if (!db) {
+        if (process.env.NODE_ENV === "production") {
+          res
+            .status(503)
+            .json({ error: "Coaching is temporarily unavailable." });
+          return;
+        }
+        return next();
+      }
 
       const deviceId = req.header("X-Device-Id");
       const usageKey = deviceId || `ip:${req.ip}`;
@@ -611,10 +641,8 @@ function aiQuota(endpoint: keyof typeof AI_QUOTAS) {
 
       next();
     } catch (error) {
-      // Fail open: the quota is abuse protection, not a feature gate, and a
-      // counter outage must not take down onboarding or coaching.
       console.error("AI quota check error:", error);
-      next();
+      res.status(503).json({ error: "Coaching is temporarily unavailable." });
     }
   };
 }
@@ -626,11 +654,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Rate limit AI endpoints: 30 requests per minute per IP
-  const aiRateLimit = rateLimiter(30, 60 * 1000);
+  const aiRateLimit = rateLimiter("ai", 30, 60 * 1000);
   // General rate limit for subscription/account endpoints: 60 requests per minute per IP
-  const apiRateLimit = rateLimiter(60, 60 * 1000);
+  const apiRateLimit = rateLimiter("api", 60, 60 * 1000);
   // Webhooks and public forms: 120 requests per minute per IP
-  const publicRateLimit = rateLimiter(120, 60 * 1000);
+  const publicRateLimit = rateLimiter("public", 120, 60 * 1000);
 
   app.post(
     "/api/chat",
@@ -834,6 +862,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.post(
+    "/api/milestone-proposal",
+    requireApiKey,
+    aiRateLimit,
+    aiQuota("reflection"),
+    async (req: Request, res: Response) => {
+      try {
+        const { completedMilestone, personaName } = req.body;
+        if (
+          typeof completedMilestone !== "string" ||
+          completedMilestone.trim().length < 2 ||
+          completedMilestone.length > 200 ||
+          typeof personaName !== "string" ||
+          personaName.trim().length < 2 ||
+          personaName.length > 100
+        ) {
+          res.status(400).json({ error: "Invalid milestone context" });
+          return;
+        }
+
+        const response = await getOpenAI().chat.completions.create({
+          model: OPENAI_MODEL,
+          messages: [
+            {
+              role: "system",
+              content:
+                "Suggest exactly one concrete next behavior milestone for an identity-based habit app. Build gently on the completed milestone, use 3-10 words, avoid numbers unless the completed milestone uses one, and never give medical or mental-health treatment advice. Return JSON with only a title field.",
+            },
+            {
+              role: "user",
+              content: `Identity: ${personaName.trim()}\nCompleted milestone: ${completedMilestone.trim()}`,
+            },
+          ],
+          response_format: { type: "json_object" },
+          reasoning_effort: "minimal",
+          max_completion_tokens: 256,
+        });
+        const parsed = JSON.parse(
+          response.choices[0]?.message?.content || "{}",
+        ) as { title?: unknown };
+        if (typeof parsed.title !== "string") {
+          res.status(502).json({ error: "Invalid coach suggestion" });
+          return;
+        }
+        const title = parsed.title
+          .replace(/[\r\n]+/g, " ")
+          .trim()
+          .slice(0, 100);
+        if (title.length < 3) {
+          res.status(502).json({ error: "Invalid coach suggestion" });
+          return;
+        }
+        res.json({ title });
+      } catch (error) {
+        console.error("Milestone proposal error:", error);
+        res.status(500).json({ error: "Failed to suggest a milestone" });
+      }
+    },
+  );
+
+  app.post(
     "/api/feedback",
     publicRateLimit,
     async (req: Request, res: Response) => {
@@ -936,6 +1024,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "reward_unlocked",
     "coach_observation_opened",
     "micro_note_read",
+    "year_recap_shared",
+    "witness_progress_shared",
+    "icloud_backup_created",
+    "icloud_backup_restored",
   ]);
   const TELEMETRY_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
   const TELEMETRY_DEVICE_RE = /^[A-Za-z0-9._-]{8,64}$/;
@@ -1234,6 +1326,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
+        const allowedProducts = new Set(
+          [
+            "com.resolutioncompanion.monthly",
+            "com.resolutioncompanion.annual",
+            LIFETIME_PRODUCT_ID,
+            YEARLY_TEST_PRODUCT_ID,
+            "premium_monthly",
+            "premium_yearly",
+            "premium_lifetime",
+          ].filter(Boolean),
+        );
+        if (!allowedProducts.has(productId)) {
+          res.status(400).json({ error: "Unknown product", valid: false });
+          return;
+        }
+
         // StoreKit 2 validation is keyed by transaction ID; without it the
         // legacy verifyReceipt fallback would be handed a JWS token it cannot
         // parse, and the subscription row would be stored as "iap_undefined".
@@ -1264,23 +1372,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Fall back to plan-based estimate only if the store didn't provide an expiry
-        if (isValid && !expirationDate) {
-          const isYearly =
-            productId.toLowerCase().includes("yearly") ||
-            productId.toLowerCase().includes("year") ||
-            productId.toLowerCase().includes("annual");
-          expirationDate = isYearly
-            ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-            : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        if (isValid && !expirationDate && !isLifetimeProduct(productId)) {
+          expirationDate =
+            planForProduct(productId) === "yearly"
+              ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+              : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
         }
 
         if (isValid && db) {
-          const plan =
-            productId.toLowerCase().includes("yearly") ||
-            productId.toLowerCase().includes("year") ||
-            productId.toLowerCase().includes("annual")
-              ? "yearly"
-              : "monthly";
+          const plan = planForProduct(productId);
 
           // For Android, store the purchase token so Play webhooks can be matched
           // to this exact subscription. For iOS, key by the ORIGINAL transaction
@@ -1326,12 +1426,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         res.json({
           valid: isValid,
-          plan:
-            productId.toLowerCase().includes("yearly") ||
-            productId.toLowerCase().includes("year") ||
-            productId.toLowerCase().includes("annual")
-              ? "yearly"
-              : "monthly",
+          plan: planForProduct(productId),
           expirationDate: expirationDate?.toISOString() || null,
         });
       } catch (error) {

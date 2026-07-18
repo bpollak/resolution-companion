@@ -45,6 +45,11 @@ import {
   reconcileSubscription,
   type ServerSubscriptionStatus,
 } from "@/lib/subscription";
+import {
+  createPrivateBackup,
+  getPrivateBackupEnabled,
+  setPrivateBackupEnabled,
+} from "@/lib/icloud-backup";
 
 interface AppContextType {
   hasOnboarded: boolean;
@@ -106,7 +111,7 @@ interface AppContextType {
   ) => Promise<Reflection>;
   refreshData: () => Promise<void>;
   clearAllData: () => Promise<void>;
-  upgradeToPremium: (plan: "monthly" | "yearly") => Promise<void>;
+  upgradeToPremium: (plan: "monthly" | "yearly" | "lifetime") => Promise<void>;
   incrementReflectionCount: () => Promise<number>;
   canUseReflection: () => boolean;
   canAddPersona: () => boolean;
@@ -225,6 +230,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refreshData();
   }, [refreshData]);
+
+  // Private iCloud backup is opt-in. Once enabled, coalesce local changes
+  // into one quiet snapshot; manual Backup Now remains available in Profile.
+  useEffect(() => {
+    if (Platform.OS !== "ios" || isLoading || !hasOnboarded) return;
+    const timeout = setTimeout(() => {
+      getPrivateBackupEnabled()
+        .then((enabled) => (enabled ? createPrivateBackup() : null))
+        .catch((error) => logger.warn("Private iCloud backup skipped:", error));
+    }, 2500);
+    return () => clearTimeout(timeout);
+  }, [
+    isLoading,
+    hasOnboarded,
+    personas,
+    benchmarks,
+    actions,
+    dailyLogs,
+    reflections,
+    aiConsent,
+  ]);
 
   // Cold-start telemetry + entitlement re-sync. Both are fire-and-forget:
   // offline keeps local truth, and neither can delay first render.
@@ -496,6 +522,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const clearAllData = useCallback(async () => {
+    await setPrivateBackupEnabled(false);
     await storage.clearAll();
     setHasOnboardedState(false);
     setPersonaState(null);
@@ -514,23 +541,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAiConsentState(false);
   }, []);
 
-  const upgradeToPremium = useCallback(async (plan: "monthly" | "yearly") => {
-    const now = new Date();
-    const expiresAt = new Date(now);
-    if (plan === "monthly") {
-      expiresAt.setMonth(expiresAt.getMonth() + 1);
-    } else {
-      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-    }
-    const newSubscription: Subscription = {
-      isPremium: true,
-      plan,
-      expiresAt: expiresAt.toISOString(),
-      purchasedAt: now.toISOString(),
-    };
-    await storage.setSubscription(newSubscription);
-    setSubscriptionState(newSubscription);
-  }, []);
+  const upgradeToPremium = useCallback(
+    async (plan: "monthly" | "yearly" | "lifetime") => {
+      const now = new Date();
+      const expiresAt = new Date(now);
+      if (plan === "lifetime") {
+        // Non-consumable entitlement has no renewal or expiry.
+      } else if (plan === "monthly") {
+        expiresAt.setMonth(expiresAt.getMonth() + 1);
+      } else {
+        expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+      }
+      const newSubscription: Subscription = {
+        isPremium: true,
+        plan,
+        expiresAt: plan === "lifetime" ? null : expiresAt.toISOString(),
+        purchasedAt: now.toISOString(),
+      };
+      await storage.setSubscription(newSubscription);
+      setSubscriptionState(newSubscription);
+    },
+    [],
+  );
 
   const incrementReflectionCountFn = useCallback(async () => {
     const count = await storage.incrementReflectionCount();

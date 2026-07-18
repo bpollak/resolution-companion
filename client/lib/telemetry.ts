@@ -41,7 +41,11 @@ export type TelemetryEvent =
   | "shield_used"
   | "reward_unlocked"
   | "coach_observation_opened"
-  | "micro_note_read";
+  | "micro_note_read"
+  | "year_recap_shared"
+  | "witness_progress_shared"
+  | "icloud_backup_created"
+  | "icloud_backup_restored";
 
 const QUEUE_KEY = "telemetryQueue";
 const LAST_FLUSH_KEY = "telemetryLastFlush";

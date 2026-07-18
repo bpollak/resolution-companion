@@ -1,0 +1,131 @@
+appId: com.resolutioncompanion.app
+name: later-bets-settings-surfaces
+---
+# From a clean install, create the no-network starter persona and verify the
+# opt-in witness and private backup settings under the simulator's active
+# accessibility preferences.
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Start Your Journey.*"
+    timeout: 20000
+- tapOn: "Start Your Journey.*"
+- extendedWaitUntil:
+    visible: "Welcome to Resolution Companion.*"
+    timeout: 20000
+- tapOn: "Continue.*"
+- tapOn: "Continue.*"
+- assertVisible: "Free vs Premium.*"
+- tapOn: "Let's Get Started.*"
+- extendedWaitUntil:
+    visible: "Agree and continue.*"
+    timeout: 20000
+- tapOn: "Not now.*"
+- extendedWaitUntil:
+    visible: "Use Starter Plan.*"
+    timeout: 10000
+- tapOn: "Use Starter Plan.*"
+- extendedWaitUntil:
+    visible: "Momentum Builder.*"
+    timeout: 20000
+- tapOn: "Open profile and settings.*"
+- extendedWaitUntil:
+    visible: "My Personas.*"
+    timeout: 10000
+
+# All three later-bet entries remain reachable at maximum Dynamic Type.
+- scrollUntilVisible:
+    element:
+      text: "The Year You Became.*"
+    direction: DOWN
+    timeout: 30000
+- takeScreenshot: a11y-04-profile-later-bets
+
+# Witness is explicit opt-in: name first, then the prompt switch becomes
+# available. Sharing remains a user-initiated system share action.
+- scrollUntilVisible:
+    element:
+      text: "Someone in Your Corner.*"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "Someone in Your Corner.*"
+- extendedWaitUntil:
+    visible: "Witness name.*"
+    timeout: 10000
+- tapOn:
+    text: "Witness name.*"
+    index: 1
+- inputText: "Maya"
+- pressKey: Enter
+- scrollUntilVisible:
+    element:
+      text: "Celebration prompts.*"
+    direction: DOWN
+    timeout: 30000
+- tapOn:
+    text: "Celebration prompts.*"
+    point: "90%,50%"
+- scrollUntilVisible:
+    element:
+      text: "Message preview.*Maya.*"
+    direction: DOWN
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Share this week's celebration.*"
+    direction: DOWN
+    timeout: 30000
+- takeScreenshot: a11y-05-witness-opt-in
+- scrollUntilVisible:
+    element:
+      text: "Close witness settings.*"
+    direction: UP
+    timeout: 30000
+- tapOn: "Close witness settings.*"
+
+# A simulator without an iCloud account must fail safely: the screen renders,
+# explains the boundary, and exposes disabled backup/restore controls.
+- scrollUntilVisible:
+    element:
+      text: "Private iCloud Backup.*"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "Private iCloud Backup.*"
+- extendedWaitUntil:
+    visible: "Your data, in your iCloud.*"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Sign in to iCloud to enable.*"
+    direction: DOWN
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Back up now.*"
+    direction: DOWN
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Restore from iCloud backup.*"
+    direction: DOWN
+    timeout: 30000
+- takeScreenshot: a11y-06-private-backup-unavailable
+- scrollUntilVisible:
+    element:
+      text: "Close private backup.*"
+    direction: UP
+    timeout: 30000
+- tapOn: "Close private backup.*"
+
+# Free users are routed to the premium explanation instead of leaking the
+# annual recap content.
+- scrollUntilVisible:
+    element:
+      text: "The Year You Became.*"
+    direction: UP
+    timeout: 30000
+- tapOn: "The Year You Became.*"
+- extendedWaitUntil:
+    visible: "Upgrade to Premium.*"
+    timeout: 15000
+- takeScreenshot: a11y-07-year-recap-premium-gate

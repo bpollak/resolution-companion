@@ -9,10 +9,9 @@ the persistent-memory pickup notes (`enhancement-sprint-v1-0-4`).
 streak guilt; ≤2 notifications/day; jargon budget ~2 concepts; milestones
 only fill, never drain; identity framing ("votes for who you're becoming").
 
-Legend: ✅ built (v1.0.4 candidate, commits 9f54168 / 85c60b5 / 8345490) ·
-🆕 built in the 2026-07-17 ground-up sprint (uncommitted; see
-`docs/ground-up-review-2026-07.md` for the strategy behind it) ·
-▢ not started
+Legend: ✅ built before the ground-up sprint · 🆕 built in the ground-up
+implementation branch · ⚠️ code-complete with an external release-console
+action still open · ▢ not started
 
 ## Tier 1 — Highest leverage
 
@@ -36,7 +35,8 @@ Legend: ✅ built (v1.0.4 candidate, commits 9f54168 / 85c60b5 / 8345490) ·
 - 🆕 **4. Monthly "Identity Wrapped" share card** — "Month in Votes":
   swipeable no-guilt story (votes, portrait, comeback, shields, closing) on
   the 1st, share-as-image via react-native-view-shot; entry card on Today.
-  `client/lib/recap.ts`, `MonthRecapScreen`. December year-in-review still ▢.
+  `client/lib/recap.ts`, `MonthRecapScreen`. The premium December/January
+  **The Year You Became** annual edition is also complete.
 - ✅ **5. Milestone deadline countdown** — optional target date (preset
   chips 3w/1m/2m/3m) + gentle countdown chip; no red urgency states.
 
@@ -60,12 +60,15 @@ Legend: ✅ built (v1.0.4 candidate, commits 9f54168 / 85c60b5 / 8345490) ·
 
 ## Tier 3 — Natural premium pull (endow first, gate second)
 
-- ▢ **11. Post-milestone "next milestone" proposal** — coach generates the
-  actual next milestone, fully visible; "Add" is the paywall moment.
-- ▢ **12. Second-persona invitation** — one quiet card after ~30 days of
-  sustained consistency; never more than once a month.
-- ▢ **13. 7-day free trial on yearly** — StoreKit intro offer; ASC config
-  only, can be set up as soon as the subscriptions are Approved.
+- 🆕 **11. Post-milestone "next milestone" proposal** — an immediate private
+  fallback is fully visible; an opted-in coach can refine it; "Add" is the
+  paywall moment for free users.
+- 🆕 **12. Second-persona invitation** — one quiet card after 30+ days at 70%+
+  rolling consistency; never more than once a month.
+- ⚠️ **13. One-month free trial on yearly** — StoreKit eligibility and exact
+  live-offer rendering are complete. App Store Connect currently has a
+  one-week offer in 175 territories; replacing it requires explicit approval
+  to delete the live offer first.
 - ✅ **14. Streak shield visibility** — "shield ready" marker on the Today
   streak chip before it's needed. 🆕 completed: premium 2-shield capacity
   (`computeStreak` maxShields), earn/spend toasts on Today, paywall rows.
@@ -79,26 +82,25 @@ Legend: ✅ built (v1.0.4 candidate, commits 9f54168 / 85c60b5 / 8345490) ·
   live sim testing)
 - 🆕 Real SSE for `/api/reflection` (`stream: true`, JSON fallback kept for
   old builds; simulated 30ms/char typewriter removed for the coach)
-- ▢ Contextual paywall card at the 10/10 coach gate (from
+- 🆕 Contextual paywall card at the 10/10 coach gate (from
   ux-optimization-plan next wave)
-- ▢ Website social-proof strip + aggregateRating schema once App Store
-  ratings accumulate
+- 🆕 Website social-proof strip + `aggregateRating` schema. Apple's live
+  lookup reported 3 ratings at 5.0 on 2026-07-18, activating this item.
 
-## Suggested sequence from here
+## Release-console sequence from here
 
-1. Ship the ✅ set as **v1.0.4** once the v1.0.2 subscriptions are Approved
-   and the paywall is verified live (never submit a binary while they are
-   still in review).
-2. Same day as approval: configure **#13 intro offer** in ASC.
-3. Next build cycle: **#3 widget + #9 App Intents** together.
-4. Then growth: **#4 Wrapped card**, **#11 next-milestone proposal**,
-   **#7 insights panel**.
+1. Preserve the current App Store review/release state; do not submit this
+   branch merely to change console products.
+2. With explicit approval, delete the one-week yearly offer and recreate it as
+   a one-month free offer across all 175 territories.
+3. Choose final App Store prices before creating the lifetime and alternate
+   yearly products. The client hides both until StoreKit returns them.
+4. Refresh the website's rating count when Apple's public count changes.
 
 ## 2026-07-17 ground-up sprint — additions beyond the numbered items
 
-Built the same day as the numbered 🆕 marks above (strategy in
-`docs/ground-up-review-2026-07.md`, all uncommitted pending device
-verification):
+Built as part of the numbered 🆕 marks above (strategy in
+`docs/ground-up-review-2026-07.md`):
 
 - 🆕 **Privacy-respecting telemetry** — daily event counts only, keyed to
   the anonymous deviceId (`client/lib/telemetry.ts`, `POST /api/telemetry`,
@@ -129,6 +131,12 @@ verification):
   Profile → Appearance row; reveal in the milestone celebration modal).
 - 🆕 **Premium 2-shield capacity + earn/spend visibility** (completes #14).
 
-Still external / not code: **#13 trial** (ASC intro-offer config — now the
-top remaining lever; data says a ~1-month trial fits the clean-slate rhythm),
-marketing CTA swap to the App Store URL, privacy-policy line for telemetry.
+Additional completed Later bets: celebration-only witness sharing, private
+iCloud backup/restore, The Year You Became annual recap, lifetime entitlement
+support, and stable new-install price-cohort support. Production rate limits
+now use shared Postgres counters and production quota/auth failures fail
+closed.
+
+Still external: **#13 trial replacement**, plus creation and pricing of the
+lifetime and alternate-yearly products. The App Store CTA, telemetry/privacy
+disclosures, and conditional website rating strip are complete.

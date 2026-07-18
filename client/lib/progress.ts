@@ -319,8 +319,7 @@ export function computeMilestoneProgress(
  * Counting them from midnight showed every user a lower score each morning
  * than the night before, purely because the day had started.
  *
- * Mirrors storage.calculateMomentumScoreForPersona: day-of-week comes from
- * the local-time date object. Days before an action existed are excluded —
+ * Day-of-week comes from the local-time date object. Days before an action existed are excluded —
  * without that cutoff a mid-month signup starts the month in single digits
  * no matter how perfectly they follow the plan.
  */
@@ -329,10 +328,11 @@ export function computeMomentumScore(
   logs: DailyLog[],
   days: number = 7,
   logIndex: Map<string, DailyLog> = buildLogIndex(logs),
+  now: Date = new Date(),
 ): number {
   if (actions.length === 0) return 0;
 
-  const today = new Date();
+  const today = new Date(now);
   const todayStr = getLocalDateString(today);
   const createdDates = new Map(
     actions.map((a) => [

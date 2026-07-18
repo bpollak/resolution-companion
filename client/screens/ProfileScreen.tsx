@@ -53,6 +53,7 @@ import {
 } from "@/lib/notifications";
 import { computeStreak } from "@/lib/progress";
 import { logger } from "@/lib/logger";
+import { deletePrivateBackup } from "@/lib/icloud-backup";
 
 const springConfig = {
   damping: 15,
@@ -428,7 +429,7 @@ export default function ProfileScreen() {
   const handleDeleteAccount = () => {
     showAlert(
       "Delete All My Data",
-      "This will permanently delete ALL your data, both on this device and on our servers (including subscription records). This cannot be undone.",
+      "This will permanently delete ALL your data on this device, in your private iCloud backup, and on our servers (including subscription records). This cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -447,6 +448,7 @@ export default function ProfileScreen() {
               if (!response.ok) {
                 throw new Error(`Server deletion failed (${response.status})`);
               }
+              await deletePrivateBackup();
               await clearAllData();
               // Server record is gone — drop the device identity too so a
               // fresh one is minted on next launch. (Kept on failure below so
@@ -464,6 +466,7 @@ export default function ProfileScreen() {
               }
             } catch (error) {
               logger.error("Failed to delete server data:", error);
+              await deletePrivateBackup();
               await clearAllData();
               if (Platform.OS === "web") {
                 window.alert(
@@ -727,12 +730,43 @@ export default function ProfileScreen() {
         title={subscription.isPremium ? "Premium Active" : "Upgrade to Premium"}
         subtitle={
           subscription.isPremium
-            ? `${subscription.plan === "yearly" ? "Yearly" : "Monthly"} plan`
+            ? `${subscription.plan === "yearly" ? "Yearly" : subscription.plan === "lifetime" ? "Lifetime" : "Monthly"} plan`
             : monthlyReflectionCount >= 10
               ? "Free check-in limit reached"
               : `${10 - monthlyReflectionCount} free check-ins left this month`
         }
         onPress={() => navigation.navigate("Subscription")}
+      />
+
+      <SettingsRow
+        icon="award"
+        title="The Year You Became"
+        subtitle={
+          subscription.isPremium
+            ? `${new Date().getFullYear()} year-to-date story`
+            : "Premium annual story"
+        }
+        onPress={() =>
+          subscription.isPremium
+            ? navigation.navigate("YearRecap", {
+                year: new Date().getFullYear(),
+              })
+            : navigation.navigate("Subscription")
+        }
+      />
+
+      <SettingsRow
+        icon="users"
+        title="Someone in Your Corner"
+        subtitle="One trusted witness · you choose every share"
+        onPress={() => navigation.navigate("Witness")}
+      />
+
+      <SettingsRow
+        icon="cloud"
+        title="Private iCloud Backup"
+        subtitle="Protect local data in your own iCloud"
+        onPress={() => navigation.navigate("DataBackup")}
       />
 
       <View

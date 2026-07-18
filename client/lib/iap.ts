@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import { storage } from "./storage";
 import { getApiUrl, getAuthHeaders } from "./query-client";
 import { logger } from "./logger";
+import { getYearlyPricingConfig } from "./pricing";
 
 type IAPModule = typeof import("react-native-iap");
 
@@ -41,6 +42,10 @@ export const PRODUCT_IDS = {
     android: "premium_yearly",
     default: "premium_yearly",
   }),
+  // Lifetime is an App Store non-consumable. Do not surface an Android SKU
+  // until Google Play one-time-product validation is implemented server-side.
+  LIFETIME:
+    Platform.OS === "ios" ? "com.resolutioncompanion.lifetime" : undefined,
 };
 
 export interface IAPProduct {
@@ -176,13 +181,21 @@ class IAPService {
         return [];
       }
 
-      const skus = [PRODUCT_IDS.MONTHLY, PRODUCT_IDS.YEARLY].filter(
-        Boolean,
-      ) as string[];
+      const yearlyTestProductId =
+        getYearlyPricingConfig().alternateProductId ??
+        (typeof process.env.EXPO_PUBLIC_YEARLY_TEST_PRODUCT_ID === "string"
+          ? process.env.EXPO_PUBLIC_YEARLY_TEST_PRODUCT_ID
+          : undefined);
+      const skus = [
+        PRODUCT_IDS.MONTHLY,
+        PRODUCT_IDS.YEARLY,
+        PRODUCT_IDS.LIFETIME,
+        yearlyTestProductId,
+      ].filter(Boolean) as string[];
 
       logger.log("Fetching IAP products:", skus);
 
-      const fetchPromise = IAP.fetchProducts({ skus, type: "subs" });
+      const fetchPromise = IAP.fetchProducts({ skus, type: "all" });
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("IAP fetchProducts timeout")), 8000),
       );
@@ -214,10 +227,12 @@ class IAPService {
           priceAmountMicros: Math.round((product.price ?? 0) * 1_000_000),
           priceCurrencyCode: product.currency,
           subscriptionPeriod:
-            product.id.toLowerCase().includes("year") ||
-            product.id.toLowerCase().includes("annual")
-              ? "year"
-              : "month",
+            product.id === PRODUCT_IDS.LIFETIME
+              ? undefined
+              : product.id.toLowerCase().includes("year") ||
+                  product.id.toLowerCase().includes("annual")
+                ? "year"
+                : "month",
           subscriptionGroupId: subscriptionInfo?.subscriptionGroupId,
           introductoryOffer: intro
             ? {
@@ -351,13 +366,23 @@ class IAPService {
       }
 
       // Result is delivered via purchaseUpdatedListener / purchaseErrorListener
-      await IAP.requestPurchase({
-        type: "subs",
-        request: {
-          apple: { sku: productId, introductoryOfferEligibility },
-          google: { skus: [productId] },
-        },
-      });
+      if (productId === PRODUCT_IDS.LIFETIME) {
+        await IAP.requestPurchase({
+          type: "in-app",
+          request: {
+            apple: { sku: productId },
+            google: { skus: [productId] },
+          },
+        });
+      } else {
+        await IAP.requestPurchase({
+          type: "subs",
+          request: {
+            apple: { sku: productId, introductoryOfferEligibility },
+            google: { skus: [productId] },
+          },
+        });
+      }
     } catch (error: any) {
       logger.error("Purchase failed:", error);
 
@@ -485,7 +510,13 @@ class IAPService {
     }
   }
 
-  getPlanFromProductId(productId: string): "monthly" | "yearly" {
+  getPlanFromProductId(productId: string): "monthly" | "yearly" | "lifetime" {
+    if (
+      productId === PRODUCT_IDS.LIFETIME ||
+      productId.toLowerCase().includes("lifetime")
+    ) {
+      return "lifetime";
+    }
     if (
       productId === PRODUCT_IDS.YEARLY ||
       productId.toLowerCase().includes("yearly") ||

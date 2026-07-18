@@ -34,7 +34,7 @@ with open(MANIFEST) as f:
 personas = json.loads(manifest["personas"])
 benchmarks = json.loads(manifest["benchmarks"])
 actions = json.loads(manifest["elementalActions"])
-logs = json.loads(manifest["dailyLogs"])
+logs = json.loads(manifest.get("dailyLogs", "[]"))
 
 BACKDATE = "2026-06-01T08:00:00.000Z"
 for entity in personas + benchmarks + actions:

@@ -53,6 +53,7 @@ function formatTargetDateLabel(dateStr: string): string {
 type RouteParams = {
   BenchmarkEditor: {
     benchmarkId?: string;
+    suggestedTitle?: string;
   };
 };
 
@@ -106,7 +107,9 @@ export default function BenchmarkEditorScreen() {
     }
   }, [isEditing, existingBenchmark, persona, navigation, canAddBenchmark]);
 
-  const [title, setTitle] = useState(existingBenchmark?.title || "");
+  const [title, setTitle] = useState(
+    existingBenchmark?.title || route.params?.suggestedTitle || "",
+  );
   const [targetDate, setTargetDate] = useState<string | null>(
     existingBenchmark?.targetDate?.split("T")[0] || null,
   );

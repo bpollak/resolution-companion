@@ -2,7 +2,7 @@
   "expo": {
     "name": "Resolution Companion AI",
     "slug": "evolve-app",
-    "version": "1.0.9",
+    "version": "1.0.10",
     "description": "AI-powered personal development app to define your goals, build daily habits, and track your progress with coaching.",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
@@ -16,7 +16,8 @@
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.com.resolutioncompanion.app"
-        ]
+        ],
+        "com.apple.developer.ubiquity-kvstore-identifier": "$(TeamIdentifierPrefix)com.resolutioncompanion.app"
       },
       "buildNumber": "1",
       "infoPlist": {
@@ -95,6 +96,8 @@
       "reactCompiler": true
     },
     "extra": {
+      "yearlyPriceTestProductId": "com.resolutioncompanion.annual.2026b",
+      "yearlyPriceTestStartsAt": "2026-08-01T00:00:00.000Z",
       "eas": {
         "projectId": "d859501c-8b40-4c99-a0ff-7572a09cc434",
         "build": {

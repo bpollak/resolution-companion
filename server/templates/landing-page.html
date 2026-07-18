@@ -136,6 +136,13 @@
               "availability": "https://schema.org/InStock",
               "url": "https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
             },
+            "aggregateRating": {
+              "@type": "AggregateRating",
+              "ratingValue": "5.0",
+              "bestRating": "5",
+              "worstRating": "1",
+              "ratingCount": "3"
+            },
             "featureList": [
               "AI-guided Target Persona definition",
               "Daily Elemental Action tracking",
@@ -578,6 +585,27 @@
         margin-top: 16px;
         font-size: 14px;
         color: var(--text-muted);
+      }
+
+      .app-store-proof {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 18px;
+        color: var(--text-secondary);
+        font-size: 14px;
+        font-weight: 600;
+        text-decoration: none;
+      }
+
+      .app-store-proof:hover,
+      .app-store-proof:focus-visible {
+        color: var(--text-primary);
+      }
+
+      .app-store-proof-stars {
+        color: #fbbf24;
+        letter-spacing: 1px;
       }
 
       /* Hero Phones Display */
@@ -2731,6 +2759,18 @@
             <a href="#features" class="btn-secondary">See How It Works</a>
           </div>
           <p class="hero-note">Free forever. No credit card required.</p>
+          <a
+            class="app-store-proof"
+            href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
+            target="_blank"
+            rel="noopener"
+            aria-label="Rated 5.0 out of 5 from 3 ratings on the App Store"
+          >
+            <span class="app-store-proof-stars" aria-hidden="true"
+              >★★★★★</span
+            >
+            <span>5.0 on the App Store · 3 ratings</span>
+          </a>
         </div>
 
         <div class="hero-phones">
