@@ -38,18 +38,27 @@ appId: com.resolutioncompanion.app
     timeout: 10000
 - tapOn: "Use Starter Plan.*"
 
-# --- Today: two actions scheduled on a Friday ---
+# --- Today: complete whichever starter actions are scheduled today ---
+# The no-AI starter plan schedules different actions per weekday
+# (Mon-Fri / Mon-Wed-Fri / Tue-Thu-Sat), so the daily loop must be
+# date-robust: complete each possible action optionally rather than
+# assuming a specific day. (Sunday schedules none — see engagement note.)
 - extendedWaitUntil:
     visible: "Momentum Builder.*"
     timeout: 20000
-- assertVisible: "Complete one action toward your goal.*"
-- assertVisible: "Practice mindful breathing.*"
 - takeScreenshot: 03-today-fresh
-- tapOn: "Mark Complete one action toward your goal complete.*"
-- takeScreenshot: 04-today-one-done
-- tapOn: "Mark Practice mindful breathing complete.*"
-- takeScreenshot: 04b-day-complete
-# First day-complete triggers the contextual notification ask (~4s delay)
+- tapOn:
+    text: "Mark Complete one action toward your goal complete.*"
+    optional: true
+- tapOn:
+    text: "Mark Practice mindful breathing complete.*"
+    optional: true
+- tapOn:
+    text: "Mark Move your body intentionally complete.*"
+    optional: true
+- takeScreenshot: 04-today-actions-done
+# Completing the last scheduled action triggers the day-complete +
+# contextual notification ask (~4s delay).
 - extendedWaitUntil:
     visible: "Keep the streak alive?.*"
     timeout: 10000

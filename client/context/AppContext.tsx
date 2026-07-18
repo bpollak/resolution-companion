@@ -566,13 +566,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const updated = await updateBenchmark(benchmark.id, {
           status: "completed",
         });
-        // Rewards key off the lifetime completed count across ALL personas
-        // (read from storage post-write, so this flip is included)
-        const allBenchmarks = await storage.getBenchmarks();
-        const completedCount = allBenchmarks.filter(
-          (b) => b.status === "completed",
-        ).length;
-        const newRewards = await unlockRewardsForMilestoneCount(completedCount);
+        // Dedup FIRST: if this milestone was already celebrated, bail before
+        // unlocking/persisting a reward — otherwise an edge-triggered re-flip
+        // silently consumes the reward and the celebration is never shown.
         const raw = await AsyncStorage.getItem(MILESTONE_CELEBRATION_SEEN_KEY);
         let seen: string[] = [];
         try {
@@ -581,6 +577,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           seen = [];
         }
         if (seen.includes(benchmark.id)) return;
+        // Rewards key off the lifetime completed count across ALL personas
+        // (read from storage post-write, so this flip is included)
+        const allBenchmarks = await storage.getBenchmarks();
+        const completedCount = allBenchmarks.filter(
+          (b) => b.status === "completed",
+        ).length;
+        const newRewards = await unlockRewardsForMilestoneCount(completedCount);
         await AsyncStorage.setItem(
           MILESTONE_CELEBRATION_SEEN_KEY,
           JSON.stringify([...seen, benchmark.id]),

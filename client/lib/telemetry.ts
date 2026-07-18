@@ -122,6 +122,11 @@ export async function flushTelemetry(force = false): Promise<void> {
     if (res.ok) {
       for (const key of batchKeys) delete queue[key];
       persistQueue();
+      // Backlog larger than one batch (e.g. after several offline days): drain
+      // the rest now instead of one 50-key batch per 15-minute throttle window.
+      if (keys.length > MAX_BATCH) {
+        await flushTelemetry(true);
+      }
     }
   } catch (error) {
     // Offline or server down: counts stay queued for the next flush.

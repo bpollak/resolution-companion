@@ -76,6 +76,7 @@ export function buildMonthRecap(
   persona: Persona | null,
   monthKey: string,
   today: Date = new Date(),
+  maxShields = 1, // premium unlocks 2-shield capacity; must match the other surfaces
 ): MonthRecap {
   const logIndex = buildLogIndex(logs);
   const [year, month] = monthKey.split("-").map(Number);
@@ -166,6 +167,7 @@ export function buildMonthRecap(
     actions,
     logs,
     logIndex,
+    maxShields,
   ).shieldedDays.filter((d) => d.startsWith(monthKey)).length;
 
   const consistency =

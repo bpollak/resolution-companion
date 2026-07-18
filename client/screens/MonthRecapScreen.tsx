@@ -176,14 +176,28 @@ export default function MonthRecapScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, "MonthRecap">>();
   const { theme } = useTheme();
-  const { actions, dailyLogs, persona } = useApp();
+  const { actions, dailyLogs, persona, subscription } = useApp();
   const { width } = useWindowDimensions();
   const [pageIndex, setPageIndex] = useState(0);
   const shotRefs = useRef<Map<number, ViewShotRef | null>>(new Map());
 
   const recap = useMemo(
-    () => buildMonthRecap(actions, dailyLogs, persona, route.params.monthKey),
-    [actions, dailyLogs, persona, route.params.monthKey],
+    () =>
+      buildMonthRecap(
+        actions,
+        dailyLogs,
+        persona,
+        route.params.monthKey,
+        new Date(),
+        subscription.isPremium ? 2 : 1,
+      ),
+    [
+      actions,
+      dailyLogs,
+      persona,
+      route.params.monthKey,
+      subscription.isPremium,
+    ],
   );
   const cards = useMemo(() => buildCards(recap), [recap]);
 

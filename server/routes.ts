@@ -663,6 +663,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           stream: true,
         });
 
+        // Mobile clients drop connections often (backgrounding, network loss).
+        // Abort the upstream completion so we stop burning tokens on a dead socket.
+        req.on("close", () => {
+          try {
+            stream.controller?.abort();
+          } catch {}
+        });
+
         for await (const chunk of stream) {
           const content = chunk.choices[0]?.delta?.content || "";
           if (content) {
@@ -673,6 +681,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.write("data: [DONE]\n\n");
         res.end();
       } catch (error) {
+        // A client disconnect aborts the stream (AbortError) — expected, not a
+        // failure; the socket is already gone so there's nothing to send.
+        if (req.destroyed || res.writableEnded) return;
         console.error("Chat error:", error);
         res.write(
           `data: ${JSON.stringify({ error: "Failed to get AI response" })}\n\n`,
@@ -776,6 +787,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             stream: true,
           });
 
+          // Abort the upstream completion if the mobile client drops mid-stream,
+          // so we don't keep generating (and paying for) tokens on a dead socket.
+          req.on("close", () => {
+            try {
+              completion.controller?.abort();
+            } catch {}
+          });
+
           for await (const chunk of completion) {
             const content = chunk.choices[0]?.delta?.content || "";
             if (content) {
@@ -798,6 +817,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const content = response.choices[0]?.message?.content || "";
         res.json({ content });
       } catch (error) {
+        // Client disconnect aborts the stream (AbortError) — expected; the socket
+        // is gone, so don't try to write an error frame to it.
+        if (req.destroyed || res.writableEnded) return;
         console.error("Reflection error:", error);
         if (res.headersSent) {
           res.write(
@@ -884,8 +906,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // per-day counters (see deviceEvents in shared/schema.ts). Fire-and-forget
   // from the client's perspective: always 204 unless the request is malformed,
   // so a telemetry outage can never surface as a user-visible error.
-  const TELEMETRY_EVENT_RE = /^[a-z][a-z0-9_]{1,63}$/;
+  // Fixed allowlist — mirrors the TelemetryEvent union in client/lib/telemetry.ts.
+  // Free-form event names would let a caller with the (extractable) app key mint
+  // unbounded distinct rows; keying rows by (deviceId, day, event) means the only
+  // way to bound table growth is to bound the event and day dimensions here.
+  const TELEMETRY_EVENTS = new Set<string>([
+    "app_open",
+    "onboarding_started",
+    "onboarding_completed",
+    "onboarding_declined_ai",
+    "first_action_logged",
+    "action_logged",
+    "day_complete",
+    "milestone_complete",
+    "coach_session_started",
+    "weekly_review_started",
+    "paywall_viewed",
+    "paywall_purchase_success",
+    "paywall_restore_success",
+    "notification_tap",
+    "notification_mark_all_done",
+    "widget_action_logged",
+    "health_auto_vote",
+    "recap_viewed",
+    "recap_shared",
+    "insights_viewed",
+    "shield_earned",
+    "shield_used",
+    "reward_unlocked",
+    "coach_observation_opened",
+    "micro_note_read",
+  ]);
   const TELEMETRY_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const TELEMETRY_DEVICE_RE = /^[A-Za-z0-9._-]{8,64}$/;
+  // Reject semantically-bogus days (e.g. 9999-99-99) and anything outside a sane
+  // recent window, so `day` can't be used as an unbounded distinct-row dimension.
+  const isValidTelemetryDay = (day: string): boolean => {
+    if (!TELEMETRY_DAY_RE.test(day)) return false;
+    const [y, m, d] = day.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    if (
+      dt.getUTCFullYear() !== y ||
+      dt.getUTCMonth() !== m - 1 ||
+      dt.getUTCDate() !== d
+    )
+      return false;
+    const ms = dt.getTime();
+    // clean-slate app; no real telemetry predates 2024, allow ~2d future for TZ skew
+    return ms >= Date.UTC(2024, 0, 1) && ms <= Date.now() + 2 * 86_400_000;
+  };
   app.post(
     "/api/telemetry",
     requireApiKey,
@@ -894,8 +963,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { deviceId, events } = req.body ?? {};
       if (
         typeof deviceId !== "string" ||
-        deviceId.length === 0 ||
-        deviceId.length > 64 ||
+        !TELEMETRY_DEVICE_RE.test(deviceId) ||
         !Array.isArray(events) ||
         events.length === 0 ||
         events.length > 50
@@ -907,9 +975,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (
           !entry ||
           typeof entry.event !== "string" ||
-          !TELEMETRY_EVENT_RE.test(entry.event) ||
+          !TELEMETRY_EVENTS.has(entry.event) ||
           typeof entry.day !== "string" ||
-          !TELEMETRY_DAY_RE.test(entry.day) ||
+          !isValidTelemetryDay(entry.day) ||
           typeof entry.count !== "number" ||
           !Number.isInteger(entry.count) ||
           entry.count < 1 ||
@@ -922,27 +990,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (db) {
         try {
-          for (const entry of events) {
-            await db
-              .insert(deviceEvents)
-              .values({
-                deviceId,
-                day: entry.day,
-                event: entry.event,
-                count: entry.count,
-              })
-              .onConflictDoUpdate({
-                target: [
-                  deviceEvents.deviceId,
-                  deviceEvents.day,
-                  deviceEvents.event,
-                ],
-                set: {
-                  count: sql`${deviceEvents.count} + ${entry.count}`,
-                  updatedAt: sql`CURRENT_TIMESTAMP`,
-                },
-              });
+          // Merge duplicate (day,event) tuples first: a single INSERT can't hit
+          // the same ON CONFLICT row twice, and it collapses the old per-entry
+          // loop (up to 50 sequential round-trips) into one statement.
+          const merged = new Map<
+            string,
+            { day: string; event: string; count: number }
+          >();
+          for (const e of events) {
+            const key = `${e.day}|${e.event}`;
+            const prev = merged.get(key);
+            if (prev) prev.count = Math.min(prev.count + e.count, 1_000_000);
+            else
+              merged.set(key, { day: e.day, event: e.event, count: e.count });
           }
+          const rows = Array.from(merged.values()).map((e) => ({
+            deviceId,
+            day: e.day,
+            event: e.event,
+            count: e.count,
+          }));
+          await db
+            .insert(deviceEvents)
+            .values(rows)
+            .onConflictDoUpdate({
+              target: [
+                deviceEvents.deviceId,
+                deviceEvents.day,
+                deviceEvents.event,
+              ],
+              set: {
+                count: sql`${deviceEvents.count} + excluded.count`,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+              },
+            });
         } catch (error) {
           // Telemetry is best-effort; never bubble a counter failure to the app.
           console.error("Telemetry write error:", error);

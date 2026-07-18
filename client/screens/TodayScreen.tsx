@@ -288,6 +288,7 @@ export default function TodayScreen() {
     dailyLogs,
     personaAlignment,
     progressSnapshot,
+    subscription,
     toggleDailyLog,
     setDailyLogNote,
   } = useApp();
@@ -423,8 +424,16 @@ export default function TodayScreen() {
   // (the 1st is often a Monday — the weekly card returns after this one).
   const prevMonthKey = getPreviousMonthKey(today);
   const monthRecap = useMemo(
-    () => buildMonthRecap(actions, dailyLogs, persona, prevMonthKey),
-    [actions, dailyLogs, persona, prevMonthKey],
+    () =>
+      buildMonthRecap(
+        actions,
+        dailyLogs,
+        persona,
+        prevMonthKey,
+        new Date(),
+        subscription.isPremium ? 2 : 1,
+      ),
+    [actions, dailyLogs, persona, prevMonthKey, subscription.isPremium],
   );
   const showMonthRecapCard =
     recapPrefsLoaded &&

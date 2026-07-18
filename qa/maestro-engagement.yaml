@@ -6,6 +6,17 @@ appId: com.resolutioncompanion.app
 
 - launchApp
 
+# Seeded history completes a milestone on launch, firing the completion
+# celebration (with the Dawn-theme unlock reveal). Dismiss it to reach Today.
+# Optional + repeated so the flow is robust whether one or several fire, or
+# none (already seen on a prior launch).
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          text: "Dismiss milestone celebration.*"
+          optional: true
+      - waitForAnimationToEnd
 - extendedWaitUntil:
     visible: "Momentum Builder.*"
     timeout: 20000
