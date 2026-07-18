@@ -15,6 +15,17 @@ let brandAccent = Color(red: 0.0, green: 0.851, blue: 1.0)
 let brandBackground = Color(red: 0.059, green: 0.059, blue: 0.102)
 let brandTextSecondary = Color.white.opacity(0.65)
 
+struct WidgetActionData: Codable {
+    var id: String
+    var title: String
+    var kickstart: String
+}
+
+struct WidgetDayPlan: Codable {
+    var date: String
+    var actions: [WidgetActionData]
+}
+
 struct WidgetData: Codable {
     var personaName: String
     var date: String
@@ -26,12 +37,24 @@ struct WidgetData: Codable {
     var nextActionId: String?
     var nextActionTitle: String?
     var nextActionKickstart: String?
+    var remainingActions: [WidgetActionData]?
+    var dayPlans: [WidgetDayPlan]?
 }
 
 func localDateString(_ date: Date = Date()) -> String {
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyy-MM-dd"
     return formatter.string(from: date)
+}
+
+func freshCopy(personaName: String, remaining: Int, date: Date = Date()) -> String {
+    let variants = [
+        "\(remaining) small \(remaining == 1 ? "vote" : "votes") for \(personaName) today",
+        "\(personaName) is one small action away",
+        "2 minutes still counts today",
+    ]
+    let day = Calendar.current.ordinality(of: .day, in: .era, for: date) ?? 0
+    return variants[day % variants.count]
 }
 
 func loadWidgetData() -> WidgetData? {
@@ -44,17 +67,25 @@ func loadWidgetData() -> WidgetData? {
     // guilt-free slate rather than yesterday's counts. The identity framing
     // ("any day can be day one") is the brand — never an accusation.
     if let d = decoded, d.date != localDateString() {
+        let today = localDateString()
+        let plan = d.dayPlans?.first(where: { $0.date == today })
+        let actions = plan?.actions ?? []
+        let next = actions.first
         decoded = WidgetData(
             personaName: d.personaName,
-            date: localDateString(),
-            scheduled: max(d.scheduled, 0),
+            date: today,
+            scheduled: actions.count,
             completed: 0,
             streak: d.streak,
-            isRestDay: d.isRestDay,
-            copyLine: "Any day can be day one. Today counts.",
-            nextActionId: d.nextActionId,
-            nextActionTitle: d.nextActionTitle,
-            nextActionKickstart: d.nextActionKickstart
+            isRestDay: actions.isEmpty,
+            copyLine: actions.isEmpty
+                ? "Rest is part of becoming."
+                : freshCopy(personaName: d.personaName, remaining: actions.count),
+            nextActionId: next?.id,
+            nextActionTitle: next?.title,
+            nextActionKickstart: next?.kickstart,
+            remainingActions: actions,
+            dayPlans: d.dayPlans
         )
     }
     return decoded
@@ -66,6 +97,52 @@ func saveWidgetData(_ data: WidgetData) {
         let str = String(data: encoded, encoding: .utf8)
     else { return }
     UserDefaults(suiteName: kAppGroup)?.set(str, forKey: kWidgetDataKey)
+}
+
+@discardableResult
+func enqueueVote(
+    actionId: String,
+    isKickstart: Bool,
+    source: String
+) -> WidgetData? {
+    guard !actionId.isEmpty else { return loadWidgetData() }
+    let defaults = UserDefaults(suiteName: kAppGroup)
+
+    var votes: [[String: Any]] = []
+    if let raw = defaults?.string(forKey: kPendingVotesKey),
+       let data = raw.data(using: .utf8),
+       let parsed = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+        votes = parsed
+    }
+    votes.append([
+        "actionId": actionId,
+        "date": localDateString(),
+        "kind": isKickstart ? "kickstart" : "full",
+        "source": source,
+    ])
+    if let out = try? JSONSerialization.data(withJSONObject: votes),
+       let str = String(data: out, encoding: .utf8) {
+        defaults?.set(str, forKey: kPendingVotesKey)
+    }
+
+    guard var data = loadWidgetData() else { return nil }
+    data.completed = min(data.completed + 1, max(data.scheduled, 1))
+    data.copyLine = "A vote for \(data.personaName) ✓"
+    if var remaining = data.remainingActions {
+        remaining.removeAll(where: { $0.id == actionId })
+        data.remainingActions = remaining
+        let next = remaining.first
+        data.nextActionId = next?.id
+        data.nextActionTitle = next?.title
+        data.nextActionKickstart = next?.kickstart
+    } else {
+        data.nextActionId = nil
+        data.nextActionTitle = nil
+        data.nextActionKickstart = nil
+    }
+    saveWidgetData(data)
+    WidgetCenter.shared.reloadAllTimelines()
+    return data
 }
 
 // MARK: - App Intent (interactive logging without opening the app)
@@ -91,37 +168,11 @@ struct CastVoteIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         guard !actionId.isEmpty else { return .result() }
-        let defaults = UserDefaults(suiteName: kAppGroup)
-
-        // Queue the vote for the app to reconcile into its real store
-        var votes: [[String: Any]] = []
-        if let raw = defaults?.string(forKey: kPendingVotesKey),
-           let data = raw.data(using: .utf8),
-           let parsed = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-            votes = parsed
-        }
-        votes.append([
-            "actionId": actionId,
-            "date": localDateString(),
-            "kind": isKickstart ? "kickstart" : "full",
-        ])
-        if let out = try? JSONSerialization.data(withJSONObject: votes),
-           let str = String(data: out, encoding: .utf8) {
-            defaults?.set(str, forKey: kPendingVotesKey)
-        }
-
-        // Optimistic widget state so the tap lands instantly; the app rewrites
-        // the true state on next launch/foreground.
-        if var data = loadWidgetData() {
-            data.completed = min(data.completed + 1, max(data.scheduled, 1))
-            data.copyLine = "A vote for \(data.personaName) ✓"
-            data.nextActionId = nil
-            data.nextActionTitle = nil
-            data.nextActionKickstart = nil
-            saveWidgetData(data)
-        }
-
-        WidgetCenter.shared.reloadAllTimelines()
+        enqueueVote(
+            actionId: actionId,
+            isKickstart: isKickstart,
+            source: "widget"
+        )
         return .result()
     }
 }
@@ -147,7 +198,15 @@ struct VoteProvider: TimelineProvider {
                 copyLine: "1 of 3 votes cast today",
                 nextActionId: "placeholder",
                 nextActionTitle: "Write one paragraph",
-                nextActionKickstart: "Open the doc"
+                nextActionKickstart: "Open the doc",
+                remainingActions: [
+                    WidgetActionData(
+                        id: "placeholder",
+                        title: "Write one paragraph",
+                        kickstart: "Open the doc"
+                    )
+                ],
+                dayPlans: nil
             )
         )
     }

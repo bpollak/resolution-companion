@@ -85,7 +85,7 @@ export const ActionCard = React.memo(function ActionCard({
   }));
 
   const glowStyle = useAnimatedStyle(() => ({
-    shadowColor: Colors.dark.success,
+    shadowColor: theme.success,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: interpolate(
       completionGlow.value,
@@ -117,7 +117,7 @@ export const ActionCard = React.memo(function ActionCard({
       ]}
     >
       {benchmarkTitle ? (
-        <ThemedText style={[styles.benchmark, { color: Colors.dark.accent }]}>
+        <ThemedText style={[styles.benchmark, { color: theme.accent }]}>
           {benchmarkTitle}
         </ThemedText>
       ) : null}
@@ -128,13 +128,11 @@ export const ActionCard = React.memo(function ActionCard({
         <Feather
           name="zap"
           size={16}
-          color={Colors.dark.warning}
+          color={theme.warning}
           style={styles.zapIcon}
         />
         <View style={styles.kickstartContent}>
-          <ThemedText
-            style={[styles.kickstartLabel, { color: Colors.dark.warning }]}
-          >
+          <ThemedText style={[styles.kickstartLabel, { color: theme.warning }]}>
             Too busy? Just:
           </ThemedText>
           <ThemedText style={styles.kickstart}>
@@ -157,13 +155,11 @@ export const ActionCard = React.memo(function ActionCard({
           <Feather
             name="link"
             size={14}
-            color={Colors.dark.accent}
+            color={theme.accent}
             style={styles.anchorIcon}
           />
           <View style={styles.anchorContent}>
-            <ThemedText
-              style={[styles.anchorLabel, { color: Colors.dark.accent }]}
-            >
+            <ThemedText style={[styles.anchorLabel, { color: theme.accent }]}>
               When:
             </ThemedText>
             <ThemedText style={[styles.anchor, { color: theme.textSecondary }]}>
@@ -192,13 +188,11 @@ export const ActionCard = React.memo(function ActionCard({
             styles.toggleButton,
             {
               backgroundColor: isCompleted
-                ? Colors.dark.success
+                ? theme.success
                 : isDark
                   ? Colors.dark.backgroundTertiary
                   : Colors.light.backgroundTertiary,
-              borderColor: isCompleted
-                ? "transparent"
-                : "rgba(0, 217, 255, 0.5)",
+              borderColor: isCompleted ? "transparent" : theme.accent,
             },
             buttonAnimatedStyle,
             isCompleted ? glowStyle : undefined,
@@ -208,13 +202,13 @@ export const ActionCard = React.memo(function ActionCard({
             <Feather
               name={isCompleted ? "check" : "circle"}
               size={24}
-              color={isCompleted ? "#000000" : Colors.dark.accent}
+              color={isCompleted ? theme.buttonText : theme.accent}
             />
           </Animated.View>
           <ThemedText
             style={[
               styles.toggleText,
-              { color: isCompleted ? "#000000" : Colors.dark.accent },
+              { color: isCompleted ? theme.buttonText : theme.accent },
             ]}
           >
             {isCompleted ? "Completed" : "Mark Complete"}
@@ -227,6 +221,7 @@ export const ActionCard = React.memo(function ActionCard({
 
 interface CompletedActionRowProps {
   action: ElementalAction;
+  log: DailyLog;
   onToggle: (actionId: string) => void;
   /** Saved one-line "how it went" note for this completion, if any. */
   note?: string;
@@ -239,6 +234,7 @@ interface CompletedActionRowProps {
 // reference so a toggle only re-renders the row whose log changed.
 export const CompletedActionRow = React.memo(function CompletedActionRow({
   action,
+  log,
   onToggle,
   note,
   onNotePress,
@@ -262,6 +258,13 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
     onToggle(action.id);
   };
 
+  const completionBadge =
+    log.completionSource === "health"
+      ? { icon: "heart" as const, label: "Health auto-vote" }
+      : log.completionKind === "kickstart"
+        ? { icon: "zap" as const, label: "2-minute vote" }
+        : null;
+
   return (
     <Animated.View style={rowStyle}>
       <View
@@ -280,15 +283,17 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
           pressRetentionOffset={20}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: true }}
-          accessibilityLabel={action.title}
+          accessibilityLabel={`${action.title}${completionBadge ? `, ${completionBadge.label}` : ""}`}
           accessibilityHint="Marks this action as not done"
           style={({ pressed }) => [
             styles.compactMain,
             { opacity: pressed ? 0.8 : 1 },
           ]}
         >
-          <View style={styles.compactCheck}>
-            <Feather name="check" size={14} color="#000000" />
+          <View
+            style={[styles.compactCheck, { backgroundColor: theme.success }]}
+          >
+            <Feather name="check" size={14} color={theme.buttonText} />
           </View>
           <View style={styles.compactTextCol}>
             <ThemedText
@@ -297,6 +302,20 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
             >
               {action.title}
             </ThemedText>
+            {completionBadge ? (
+              <View style={styles.completionBadge} accessible={false}>
+                <Feather
+                  name={completionBadge.icon}
+                  size={11}
+                  color={theme.accent}
+                />
+                <ThemedText
+                  style={[styles.completionBadgeText, { color: theme.accent }]}
+                >
+                  {completionBadge.label}
+                </ThemedText>
+              </View>
+            ) : null}
             {note ? (
               <ThemedText
                 style={[styles.compactNote, { color: theme.textSecondary }]}
@@ -326,7 +345,7 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
             <Feather
               name={note ? "message-square" : "edit-3"}
               size={15}
-              color={note ? Colors.dark.accent : theme.textSecondary}
+              color={note ? theme.accent : theme.textSecondary}
             />
           </Pressable>
         ) : null}
@@ -375,6 +394,16 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     fontStyle: "italic",
     marginTop: 2,
+  },
+  completionBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  completionBadgeText: {
+    ...Typography.caption,
+    fontWeight: "600",
   },
   compactNoteButton: {
     padding: Spacing.xs,

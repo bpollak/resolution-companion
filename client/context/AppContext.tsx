@@ -30,6 +30,7 @@ import {
 import {
   ensureReminderScheduled,
   registerReminderActions,
+  recordOrganicAppOpen,
   recordReminderHookTap,
   MARK_ALL_DONE_ACTION,
 } from "@/lib/notifications";
@@ -40,6 +41,10 @@ import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { syncWidgetData, consumePendingVotes } from "@/lib/widget";
 import { unlockRewardsForMilestoneCount, Reward } from "@/lib/rewards";
 import { isHealthAvailable, initHealth, isHealthGoalMet } from "@/lib/health";
+import {
+  reconcileSubscription,
+  type ServerSubscriptionStatus,
+} from "@/lib/subscription";
 
 interface AppContextType {
   hasOnboarded: boolean;
@@ -86,7 +91,11 @@ interface AppContextType {
   ) => Promise<ElementalAction | null>;
   deleteAction: (id: string) => Promise<void>;
   setActions: (actions: ElementalAction[]) => Promise<void>;
-  toggleDailyLog: (actionId: string, date: string) => Promise<DailyLog>;
+  toggleDailyLog: (
+    actionId: string,
+    date: string,
+    completion?: Pick<DailyLog, "completionSource" | "completionKind">,
+  ) => Promise<DailyLog>;
   setDailyLogNote: (
     actionId: string,
     date: string,
@@ -242,40 +251,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           { headers: getAuthHeaders() },
         );
         if (!res.ok) return;
-        const data = (await res.json()) as {
-          isPremium: boolean;
-          plan: string;
-          currentPeriodEnd: string | null;
-        };
-        if (data.isPremium) {
-          const next: Subscription = {
-            isPremium: true,
-            plan:
-              data.plan === "yearly" || data.plan === "monthly"
-                ? data.plan
-                : local.plan,
-            expiresAt: data.currentPeriodEnd ?? local.expiresAt,
-            purchasedAt: local.purchasedAt,
-          };
-          if (
-            next.isPremium !== local.isPremium ||
-            next.plan !== local.plan ||
-            next.expiresAt !== local.expiresAt
-          ) {
-            await storage.setSubscription(next);
-            setSubscriptionState(next);
-          }
-        } else if (
-          local.isPremium &&
-          local.expiresAt &&
-          new Date(local.expiresAt).getTime() < Date.now()
+        const data = (await res.json()) as ServerSubscriptionStatus;
+        const next = reconcileSubscription(local, data);
+        if (
+          next.isPremium !== local.isPremium ||
+          next.plan !== local.plan ||
+          next.expiresAt !== local.expiresAt
         ) {
-          const next: Subscription = {
-            isPremium: false,
-            plan: "free",
-            expiresAt: local.expiresAt,
-            purchasedAt: local.purchasedAt,
-          };
           await storage.setSubscription(next);
           setSubscriptionState(next);
         }
@@ -426,7 +408,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const dailyLogsRef = useRef(dailyLogs);
   dailyLogsRef.current = dailyLogs;
   const toggleDailyLog = useCallback(
-    async (actionId: string, date: string) => {
+    async (
+      actionId: string,
+      date: string,
+      completion: Pick<DailyLog, "completionSource" | "completionKind"> = {
+        completionSource: "manual",
+        completionKind: "full",
+      },
+    ) => {
       const dateStr = date.includes("T") ? date.split("T")[0] : date;
       const existing = dailyLogsRef.current.find((l) => {
         const logDateStr = l.logDate.includes("T")
@@ -434,14 +423,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : l.logDate;
         return l.actionId === actionId && logDateStr === dateStr;
       });
+      const nextStatus = !existing?.status;
       const log: DailyLog = existing
-        ? { ...existing, status: !existing.status }
+        ? {
+            ...existing,
+            status: nextStatus,
+            ...(nextStatus ? completion : {}),
+          }
         : {
             id: generateStorageId(),
             actionId,
             logDate: dateStr,
             status: true,
             createdAt: new Date().toISOString(),
+            ...completion,
           };
       if (log.status) {
         if (!dailyLogsRef.current.some((l) => l.status)) {
@@ -716,7 +711,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
             l.actionId === action.id && l.logDate.split("T")[0] === dateKey,
         );
         if (existing?.status) continue;
-        await toggleDailyLog(action.id, dateKey);
+        await toggleDailyLog(action.id, dateKey, {
+          completionSource: "notification",
+          completionKind: "full",
+        });
       }
     };
 
@@ -728,7 +726,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       },
     );
     Notifications.getLastNotificationResponseAsync()
-      .then(handleResponse)
+      .then(async (response) => {
+        if (response) {
+          await handleResponse(response);
+          await Notifications.clearLastNotificationResponseAsync();
+        } else {
+          await recordOrganicAppOpen();
+        }
+      })
       .catch(() => {});
     return () => subscription.remove();
   }, [toggleDailyLog]);
@@ -747,9 +752,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (existing?.status) continue;
       if (!actions.some((a) => a.id === vote.actionId)) continue;
       track("widget_action_logged");
-      toggleDailyLog(vote.actionId, vote.date).catch((error) =>
-        logger.error("Failed to apply widget vote:", error),
-      );
+      toggleDailyLog(vote.actionId, vote.date, {
+        completionSource: vote.source ?? "widget",
+        completionKind: vote.kind,
+      }).catch((error) => logger.error("Failed to apply widget vote:", error));
     }
     syncWidgetData(actions, dailyLogs, persona);
   }, [isLoading, actions, dailyLogs, persona, toggleDailyLog]);
@@ -775,7 +781,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (existing?.status) continue;
         if (!currentActions.some((a) => a.id === vote.actionId)) continue;
         track("widget_action_logged");
-        toggleDailyLog(vote.actionId, vote.date).catch((error) =>
+        toggleDailyLog(vote.actionId, vote.date, {
+          completionSource: vote.source ?? "widget",
+          completionKind: vote.kind,
+        }).catch((error) =>
           logger.error("Failed to apply widget vote:", error),
         );
       }
@@ -812,7 +821,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       for (const action of candidates) {
         if (await isHealthGoalMet(action.healthAutoComplete!, today)) {
           track("health_auto_vote");
-          await toggleDailyLog(action.id, todayStr);
+          await toggleDailyLog(action.id, todayStr, {
+            completionSource: "health",
+            completionKind: "full",
+          });
         }
       }
     };

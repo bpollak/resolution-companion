@@ -43,6 +43,7 @@ import { createTextStreamBuffer, TextStreamBuffer } from "@/lib/stream-buffer";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { track } from "@/lib/telemetry";
 import { getTodaysMicroNote } from "@/lib/micro-notes";
+import { getCoachTone, type CoachTone } from "@/lib/rewards";
 
 // One-time free taste of coach memory: memory sells itself by demonstration,
 // not description. Set once the taste session has actually started.
@@ -144,9 +145,13 @@ export default function ReflectScreen() {
   // Free users get to experience memory exactly once before the gate —
   // null until the persisted flag loads (memory stays off that first render)
   const [memoryTasteUsed, setMemoryTasteUsed] = useState<boolean | null>(null);
+  const [coachTone, setCoachToneState] = useState<CoachTone>("supportive");
   useEffect(() => {
-    AsyncStorage.getItem(MEMORY_TASTE_USED_KEY)
-      .then((value) => setMemoryTasteUsed(value === "true"))
+    Promise.all([AsyncStorage.getItem(MEMORY_TASTE_USED_KEY), getCoachTone()])
+      .then(([value, storedTone]) => {
+        setMemoryTasteUsed(value === "true");
+        setCoachToneState(storedTone);
+      })
       .catch(() => setMemoryTasteUsed(true));
   }, []);
 
@@ -190,12 +195,23 @@ export default function ReflectScreen() {
   // Week numbers for the free Sunday-style weekly review ritual
   const weeklyContext = useMemo(() => {
     const { weeklyRecap, streak } = progressSnapshot;
+    const [year, month, day] = weeklyRecap.weekKey.split("-").map(Number);
+    const weekEnd = new Date(year, month - 1, day + 6);
+    const weekEndKey = [
+      weekEnd.getFullYear(),
+      String(weekEnd.getMonth() + 1).padStart(2, "0"),
+      String(weekEnd.getDate()).padStart(2, "0"),
+    ].join("-");
+    const inReviewedWeek = (date: string) =>
+      date >= weeklyRecap.weekKey && date <= weekEndKey;
     return {
       completed: weeklyRecap.lastWeek.completed,
       scheduled: weeklyRecap.lastWeek.scheduled,
       prevCompleted: weeklyRecap.prevWeek.completed,
       bestDay: weeklyRecap.lastWeek.bestDay,
       streak: streak.current,
+      shieldsEarned: streak.shieldEarnedDays.filter(inReviewedWeek).length,
+      shieldsUsed: streak.shieldedDays.filter(inReviewedWeek).length,
     };
   }, [progressSnapshot]);
 
@@ -232,8 +248,15 @@ export default function ReflectScreen() {
       previousSessionNotes,
       recentNotes,
       memoryTaste: memoryTasteAvailable && previousSessionNotes !== undefined,
+      coachTone,
     }),
-    [weeklyContext, previousSessionNotes, recentNotes, memoryTasteAvailable],
+    [
+      weeklyContext,
+      previousSessionNotes,
+      recentNotes,
+      memoryTasteAvailable,
+      coachTone,
+    ],
   );
 
   const formatDate = (dateString: string) => {
@@ -683,7 +706,7 @@ export default function ReflectScreen() {
               <ThemedText
                 style={[
                   styles.pastSessionMomentumValue,
-                  { color: Colors.dark.accent },
+                  { color: theme.accent },
                 ]}
               >
                 {session.momentumScore}%
@@ -736,9 +759,7 @@ export default function ReflectScreen() {
         </View>
 
         <View style={styles.scoreCard}>
-          <ThemedText
-            style={[styles.scoreLabel, { color: Colors.dark.accent }]}
-          >
+          <ThemedText style={[styles.scoreLabel, { color: theme.accent }]}>
             Current Momentum
           </ThemedText>
           <ThemedText style={styles.scoreValue}>{momentumScore}%</ThemedText>
@@ -771,8 +792,8 @@ export default function ReflectScreen() {
                 {
                   color:
                     monthlyReflectionCount >= 10 && !subscription.isPremium
-                      ? Colors.dark.error
-                      : Colors.dark.accent,
+                      ? theme.error
+                      : theme.accent,
                 },
               ]}
             >
@@ -795,12 +816,13 @@ export default function ReflectScreen() {
               accessibilityLabel="Upgrade to Premium for unlimited check-ins"
               style={({ pressed }) => [
                 styles.upgradeLink,
+                { borderColor: theme.accent },
                 { opacity: pressed ? 0.7 : 1 },
               ]}
             >
-              <Feather name="zap" size={16} color={Colors.dark.accent} />
+              <Feather name="zap" size={16} color={theme.accent} />
               <ThemedText
-                style={[styles.upgradeLinkText, { color: Colors.dark.accent }]}
+                style={[styles.upgradeLinkText, { color: theme.accent }]}
               >
                 Upgrade to Premium
               </ThemedText>
@@ -825,7 +847,7 @@ export default function ReflectScreen() {
           ]}
         >
           <View style={styles.weeklyReviewIcon}>
-            <Feather name="rotate-ccw" size={20} color={Colors.dark.accent} />
+            <Feather name="rotate-ccw" size={20} color={theme.accent} />
           </View>
           <View style={styles.heroCtaContent}>
             <ThemedText style={styles.weeklyReviewTitle}>
@@ -866,7 +888,7 @@ export default function ReflectScreen() {
           ]}
         >
           <View style={styles.microNoteHeader}>
-            <Feather name="book-open" size={16} color={Colors.dark.accent} />
+            <Feather name="book-open" size={16} color={theme.accent} />
             <ThemedText style={styles.microNoteTitle}>
               {microNote.title}
             </ThemedText>
@@ -915,7 +937,7 @@ export default function ReflectScreen() {
           >
             <View style={styles.coachInviteRow}>
               <View style={styles.coachInviteAvatar}>
-                <Feather name="compass" size={22} color={Colors.dark.accent} />
+                <Feather name="compass" size={22} color={theme.accent} />
               </View>
               <View
                 style={[
@@ -934,11 +956,21 @@ export default function ReflectScreen() {
                 </ThemedText>
               </View>
             </View>
-            <View style={styles.coachInviteButton}>
-              <ThemedText style={styles.coachInviteButtonText}>
+            <View
+              style={[
+                styles.coachInviteButton,
+                { backgroundColor: theme.accent },
+              ]}
+            >
+              <ThemedText
+                style={[
+                  styles.coachInviteButtonText,
+                  { color: theme.buttonText },
+                ]}
+              >
                 Start check-in
               </ThemedText>
-              <Feather name="arrow-right" size={18} color="#000000" />
+              <Feather name="arrow-right" size={18} color={theme.buttonText} />
             </View>
           </Pressable>
         ) : (
@@ -1018,7 +1050,7 @@ export default function ReflectScreen() {
                   <Feather
                     name="message-circle"
                     size={20}
-                    color={Colors.dark.accent}
+                    color={theme.accent}
                   />
                 </View>
                 <View style={styles.pastSessionContent}>
@@ -1040,7 +1072,7 @@ export default function ReflectScreen() {
                   <ThemedText
                     style={[
                       styles.pastSessionMomentumValue,
-                      { color: Colors.dark.accent },
+                      { color: theme.accent },
                     ]}
                   >
                     {reflection.momentumScore}%
@@ -1099,9 +1131,7 @@ export default function ReflectScreen() {
             { opacity: pressed ? 0.6 : 1 },
           ]}
         >
-          <ThemedText
-            style={[styles.doneButtonText, { color: Colors.dark.accent }]}
-          >
+          <ThemedText style={[styles.doneButtonText, { color: theme.accent }]}>
             Save
           </ThemedText>
         </Pressable>
@@ -1134,7 +1164,7 @@ export default function ReflectScreen() {
           <ChatBubble message={streamingText} isUser={false} />
         ) : isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={Colors.dark.accent} />
+            <ActivityIndicator size="small" color={theme.accent} />
           </View>
         ) : null}
       </ScrollView>
@@ -1151,6 +1181,7 @@ export default function ReflectScreen() {
         ]}
       >
         <TextInput
+          accessibilityLabel="Message to your AI coach"
           style={[
             styles.input,
             {
@@ -1179,7 +1210,7 @@ export default function ReflectScreen() {
             {
               backgroundColor:
                 inputText.trim() && !isLoading
-                  ? Colors.dark.accent
+                  ? theme.accent
                   : isDark
                     ? Colors.dark.backgroundTertiary
                     : Colors.light.backgroundTertiary,

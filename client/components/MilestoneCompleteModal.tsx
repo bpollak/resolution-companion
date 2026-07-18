@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { View, StyleSheet, Pressable, Modal, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -17,6 +17,7 @@ import { useApp } from "@/context/AppContext";
 import { MILESTONE_TARGET_DAYS } from "@/lib/progress";
 import { navigationRef } from "@/navigation/navigationRef";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
+import { getCelebrationStyle, type CelebrationStyle } from "@/lib/rewards";
 
 interface MilestoneCompleteModalProps {
   milestoneTitle: string;
@@ -44,6 +45,14 @@ export function MilestoneCompleteModal({
   const { theme, isDark } = useTheme();
   const opacity = useSharedValue(0);
   const scale = useSharedValue(0.92);
+  const [celebrationStyle, setCelebrationStyle] =
+    useState<CelebrationStyle>("classic");
+
+  useEffect(() => {
+    getCelebrationStyle()
+      .then(setCelebrationStyle)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     opacity.value = withDelay(100, withTiming(1, { duration: 300 }));
@@ -87,20 +96,45 @@ export function MilestoneCompleteModal({
           ]}
         >
           <View style={styles.iconContainer}>
-            {BURST_DOTS.map((dot) => (
+            {BURST_DOTS.map((dot, index) => (
               <BurstDot
                 key={dot.angle}
                 angle={dot.angle}
-                color={dot.color}
+                color={
+                  celebrationStyle === "aurora"
+                    ? ["#9B6BFF", "#FFB800", "#FF6B9D", "#00D9FF"][index % 4]
+                    : dot.color
+                }
                 active
               />
             ))}
-            <View style={styles.iconCircle}>
-              <Feather name="award" size={30} color="#000000" />
+            <View
+              style={[
+                styles.iconCircle,
+                { backgroundColor: theme.accent },
+                celebrationStyle === "aurora" && {
+                  backgroundColor: "#9B6BFF",
+                },
+              ]}
+            >
+              <Feather
+                name="award"
+                size={30}
+                color={
+                  celebrationStyle === "aurora" ? "#000000" : theme.buttonText
+                }
+              />
             </View>
           </View>
 
-          <ThemedText style={[styles.eyebrow, { color: Colors.dark.accent }]}>
+          <ThemedText
+            style={[
+              styles.eyebrow,
+              {
+                color: celebrationStyle === "aurora" ? "#FFB800" : theme.accent,
+              },
+            ]}
+          >
             Milestone complete
           </ThemedText>
           <ThemedText style={styles.title}>{milestoneTitle}</ThemedText>
@@ -112,7 +146,7 @@ export function MilestoneCompleteModal({
 
           {rewardTitle ? (
             <View style={styles.rewardRow}>
-              <Feather name="unlock" size={16} color={Colors.dark.warning} />
+              <Feather name="unlock" size={16} color={theme.warning} />
               <View style={styles.rewardText}>
                 <ThemedText style={styles.rewardTitle}>
                   Unlocked: {rewardTitle}
@@ -137,13 +171,16 @@ export function MilestoneCompleteModal({
             accessibilityLabel="Add your next milestone"
             style={({ pressed }) => [
               styles.primaryButton,
+              { backgroundColor: theme.accent },
               { opacity: pressed ? 0.8 : 1 },
             ]}
           >
-            <ThemedText style={styles.primaryButtonText}>
+            <ThemedText
+              style={[styles.primaryButtonText, { color: theme.buttonText }]}
+            >
               Add your next milestone
             </ThemedText>
-            <Feather name="arrow-right" size={16} color="#000000" />
+            <Feather name="arrow-right" size={16} color={theme.buttonText} />
           </Pressable>
           <Pressable
             onPress={onDismiss}

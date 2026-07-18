@@ -51,6 +51,13 @@ export interface IAPProduct {
   priceAmountMicros: number;
   priceCurrencyCode: string;
   subscriptionPeriod?: string;
+  subscriptionGroupId?: string;
+  introductoryOffer?: {
+    paymentMode: "free-trial" | "pay-as-you-go" | "pay-up-front" | "unknown";
+    periodUnit: "day" | "week" | "month" | "year" | "unknown";
+    periodCount: number;
+    displayPrice: string;
+  };
 }
 
 export interface IAPPurchase {
@@ -60,6 +67,17 @@ export interface IAPPurchase {
   purchaseTime: number;
   /** Server-validated expiry (ISO string), when the backend returned one. */
   expirationDate?: string | null;
+}
+
+/** Human-readable StoreKit offer duration, derived only from live metadata. */
+export function formatIntroOfferDuration(
+  product: IAPProduct | undefined,
+): string | null {
+  const offer = product?.introductoryOffer;
+  if (!offer || offer.paymentMode !== "free-trial") return null;
+  const unit =
+    offer.periodCount === 1 ? offer.periodUnit : `${offer.periodUnit}s`;
+  return `${offer.periodCount} ${unit}`;
 }
 
 class IAPService {
@@ -178,24 +196,64 @@ class IAPService {
 
       logger.log("IAP products fetched successfully:", results.length);
 
-      this.products = results.map((product) => ({
-        productId: product.id,
-        title: product.title,
-        description: product.description,
-        price: product.displayPrice,
-        priceAmountMicros: Math.round((product.price ?? 0) * 1_000_000),
-        priceCurrencyCode: product.currency,
-        subscriptionPeriod:
-          product.id.toLowerCase().includes("year") ||
-          product.id.toLowerCase().includes("annual")
-            ? "year"
-            : "month",
-      }));
+      this.products = results.map((product) => {
+        const offers = product.subscriptionOffers ?? [];
+        const intro = offers.find(
+          (offer) =>
+            offer.type === "introductory" || offer.paymentMode === "free-trial",
+        );
+        const subscriptionInfo =
+          "subscriptionInfoIOS" in product
+            ? product.subscriptionInfoIOS
+            : undefined;
+        return {
+          productId: product.id,
+          title: product.title,
+          description: product.description,
+          price: product.displayPrice,
+          priceAmountMicros: Math.round((product.price ?? 0) * 1_000_000),
+          priceCurrencyCode: product.currency,
+          subscriptionPeriod:
+            product.id.toLowerCase().includes("year") ||
+            product.id.toLowerCase().includes("annual")
+              ? "year"
+              : "month",
+          subscriptionGroupId: subscriptionInfo?.subscriptionGroupId,
+          introductoryOffer: intro
+            ? {
+                paymentMode: intro.paymentMode ?? "unknown",
+                periodUnit: intro.period?.unit ?? "unknown",
+                periodCount:
+                  (intro.period?.value ?? 1) * (intro.periodCount ?? 1),
+                displayPrice: intro.displayPrice,
+              }
+            : undefined,
+        };
+      });
 
       return this.products;
     } catch (error: any) {
       logger.error("Failed to get products:", error);
       return [];
+    }
+  }
+
+  /** StoreKit eligibility is per subscription group, not merely offer existence. */
+  async isIntroOfferEligible(product: IAPProduct): Promise<boolean> {
+    if (
+      Platform.OS !== "ios" ||
+      !product.subscriptionGroupId ||
+      product.introductoryOffer?.paymentMode !== "free-trial"
+    ) {
+      return false;
+    }
+    const available = await this.isAvailable();
+    if (!available || !IAP || !(await this.connect())) return false;
+    try {
+      return await IAP.isEligibleForIntroOfferIOS(product.subscriptionGroupId);
+    } catch (error) {
+      logger.log("Intro offer eligibility check failed:", error);
+      return false;
     }
   }
 
@@ -273,7 +331,10 @@ class IAPService {
     );
   }
 
-  async purchaseProduct(productId: string): Promise<void> {
+  async purchaseProduct(
+    productId: string,
+    introductoryOfferEligibility = false,
+  ): Promise<void> {
     const available = await this.isAvailable();
     if (!available || !IAP) {
       throw new Error(
@@ -293,7 +354,7 @@ class IAPService {
       await IAP.requestPurchase({
         type: "subs",
         request: {
-          apple: { sku: productId },
+          apple: { sku: productId, introductoryOfferEligibility },
           google: { skus: [productId] },
         },
       });

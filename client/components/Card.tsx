@@ -18,6 +18,8 @@ interface CardProps {
   children?: React.ReactNode;
   onPress?: () => void;
   style?: ViewStyle;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 }
 
 const springConfig: WithSpringConfig = {
@@ -53,6 +55,8 @@ export function Card({
   children,
   onPress,
   style,
+  accessibilityLabel,
+  accessibilityHint,
 }: CardProps) {
   const { theme } = useTheme();
   const scale = useSharedValue(1);
@@ -76,6 +80,15 @@ export function Card({
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
+      accessible={!!onPress}
+      accessibilityRole={onPress ? "button" : undefined}
+      accessibilityLabel={
+        onPress
+          ? (accessibilityLabel ??
+            [title, description].filter(Boolean).join(". "))
+          : undefined
+      }
+      accessibilityHint={onPress ? accessibilityHint : undefined}
       style={[
         styles.card,
         {

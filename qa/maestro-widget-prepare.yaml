@@ -1,0 +1,25 @@
+appId: com.resolutioncompanion.app
+---
+# Prepare one incomplete starter action before injecting an App Group vote.
+# Run after qa/seed_history.py so the completed row is guaranteed to exist.
+- launchApp
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          text: "Dismiss milestone celebration.*"
+          optional: true
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Momentum Builder.*"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Complete one action toward your goal.*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn: "Complete one action toward your goal.*"
+- extendedWaitUntil:
+    visible: "Mark Complete one action toward your goal complete.*"
+    timeout: 10000

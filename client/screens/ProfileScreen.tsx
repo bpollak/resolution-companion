@@ -22,7 +22,15 @@ import Animated, {
 
 import { useTheme } from "@/hooks/useTheme";
 import { useThemeMode } from "@/context/ThemeContext";
-import { isRewardUnlocked } from "@/lib/rewards";
+import {
+  getCelebrationStyle,
+  getCoachTone,
+  isRewardUnlocked,
+  setCelebrationStyle,
+  setCoachTone,
+  type CelebrationStyle,
+  type CoachTone,
+} from "@/lib/rewards";
 import { useApp } from "@/context/AppContext";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
@@ -126,14 +134,14 @@ function SettingsRow({
           <Feather
             name={icon}
             size={20}
-            color={destructive ? Colors.dark.error : Colors.dark.accent}
+            color={destructive ? theme.error : theme.accent}
           />
         </View>
         <View style={styles.settingsContent}>
           <ThemedText
             style={[
               styles.settingsTitle,
-              destructive && { color: Colors.dark.error },
+              destructive && { color: theme.error },
             ]}
           >
             {title}
@@ -188,9 +196,26 @@ export default function ProfileScreen() {
   // it has been earned
   const { mode: themeMode, setMode: setThemeMode } = useThemeMode();
   const [dawnUnlocked, setDawnUnlocked] = useState(false);
+  const [directCoachUnlocked, setDirectCoachUnlocked] = useState(false);
+  const [auroraUnlocked, setAuroraUnlocked] = useState(false);
+  const [coachTone, setCoachToneState] = useState<CoachTone>("supportive");
+  const [celebrationStyle, setCelebrationStyleState] =
+    useState<CelebrationStyle>("classic");
   useEffect(() => {
-    isRewardUnlocked("dawn-theme")
-      .then(setDawnUnlocked)
+    Promise.all([
+      isRewardUnlocked("dawn-theme"),
+      isRewardUnlocked("direct-coach-tone"),
+      isRewardUnlocked("aurora-celebration"),
+      getCoachTone(),
+      getCelebrationStyle(),
+    ])
+      .then(([dawn, direct, aurora, storedTone, storedCelebration]) => {
+        setDawnUnlocked(dawn);
+        setDirectCoachUnlocked(direct);
+        setAuroraUnlocked(aurora);
+        setCoachToneState(direct ? storedTone : "supportive");
+        setCelebrationStyleState(aurora ? storedCelebration : "classic");
+      })
       .catch(() => {});
   }, []);
 
@@ -494,10 +519,8 @@ export default function ProfileScreen() {
           ]}
         >
           <View style={styles.avatarContainer}>
-            <View
-              style={[styles.avatar, { backgroundColor: Colors.dark.accent }]}
-            >
-              <Feather name="user" size={32} color="#000000" />
+            <View style={[styles.avatar, { backgroundColor: theme.accent }]}>
+              <Feather name="user" size={32} color={theme.buttonText} />
             </View>
           </View>
           <ThemedText style={styles.personaName}>{persona.name}</ThemedText>
@@ -515,9 +538,7 @@ export default function ProfileScreen() {
           <View style={styles.statsRow}>
             {stats.map((stat) => (
               <View key={stat.label} style={styles.statItem}>
-                <ThemedText
-                  style={[styles.statValue, { color: Colors.dark.accent }]}
-                >
+                <ThemedText style={[styles.statValue, { color: theme.accent }]}>
                   {stat.value}
                 </ThemedText>
                 <ThemedText
@@ -557,12 +578,17 @@ export default function ProfileScreen() {
           </ThemedText>
           <Pressable
             onPress={() => navigation.navigate("Onboarding")}
+            accessibilityRole="button"
+            accessibilityLabel="Start journey"
             style={({ pressed }) => [
               styles.onboardButton,
+              { backgroundColor: theme.accent },
               { opacity: pressed ? 0.8 : 1 },
             ]}
           >
-            <ThemedText style={styles.onboardButtonText}>
+            <ThemedText
+              style={[styles.onboardButtonText, { color: theme.buttonText }]}
+            >
               Start Journey
             </ThemedText>
           </Pressable>
@@ -588,12 +614,12 @@ export default function ProfileScreen() {
               ]}
             >
               {!canAddPersona() ? (
-                <Feather name="lock" size={14} color={Colors.dark.accent} />
+                <Feather name="lock" size={14} color={theme.accent} />
               ) : (
-                <Feather name="plus" size={18} color={Colors.dark.accent} />
+                <Feather name="plus" size={18} color={theme.accent} />
               )}
               <ThemedText
-                style={[styles.addPersonaText, { color: Colors.dark.accent }]}
+                style={[styles.addPersonaText, { color: theme.accent }]}
               >
                 {canAddPersona() ? "Add" : "PRO"}
               </ThemedText>
@@ -606,6 +632,12 @@ export default function ProfileScreen() {
                 key={p.id}
                 onPress={() => handleSwitchPersona(p.id)}
                 onLongPress={() => handleDeletePersona(p.id, p.name)}
+                accessibilityRole="button"
+                accessibilityLabel={`${p.name}${
+                  p.id === persona?.id ? ", active persona" : ""
+                }`}
+                accessibilityHint="Switches to this persona. Long press to delete."
+                accessibilityState={{ selected: p.id === persona?.id }}
                 style={({ pressed }) => [
                   styles.personaItem,
                   {
@@ -613,7 +645,7 @@ export default function ProfileScreen() {
                       ? Colors.dark.backgroundDefault
                       : Colors.light.backgroundDefault,
                     borderColor:
-                      p.id === persona?.id ? Colors.dark.accent : "transparent",
+                      p.id === persona?.id ? theme.accent : "transparent",
                     borderWidth: 2,
                     opacity: pressed ? 0.8 : 1,
                   },
@@ -625,7 +657,7 @@ export default function ProfileScreen() {
                     {
                       backgroundColor:
                         p.id === persona?.id
-                          ? Colors.dark.accent
+                          ? theme.accent
                           : theme.backgroundSecondary,
                     },
                   ]}
@@ -644,10 +676,7 @@ export default function ProfileScreen() {
                   </ThemedText>
                   {p.id === persona?.id ? (
                     <ThemedText
-                      style={[
-                        styles.personaItemBadge,
-                        { color: Colors.dark.accent },
-                      ]}
+                      style={[styles.personaItemBadge, { color: theme.accent }]}
                     >
                       Active
                     </ThemedText>
@@ -661,11 +690,7 @@ export default function ProfileScreen() {
                     accessibilityLabel={`Delete persona ${p.name}`}
                     style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
                   >
-                    <Feather
-                      name="trash-2"
-                      size={18}
-                      color={Colors.dark.error}
-                    />
+                    <Feather name="trash-2" size={18} color={theme.error} />
                   </Pressable>
                 ) : null}
               </Pressable>
@@ -726,7 +751,7 @@ export default function ProfileScreen() {
             { backgroundColor: "rgba(0, 217, 255, 0.1)" },
           ]}
         >
-          <Feather name="bell" size={20} color={Colors.dark.accent} />
+          <Feather name="bell" size={20} color={theme.accent} />
         </View>
         <View style={styles.settingsContent}>
           <ThemedText style={styles.settingsTitle}>Daily Reminders</ThemedText>
@@ -749,9 +774,15 @@ export default function ProfileScreen() {
         <Switch
           value={notificationsEnabled}
           onValueChange={handleToggleNotifications}
+          accessibilityRole="switch"
+          accessibilityLabel="Daily reminders"
+          accessibilityState={{
+            checked: notificationsEnabled,
+            disabled: Platform.OS === "web",
+          }}
           trackColor={{
             false: theme.backgroundSecondary,
-            true: Colors.dark.accent,
+            true: theme.accent,
           }}
           thumbColor={notificationsEnabled ? "#FFFFFF" : "#FFFFFF"}
           disabled={Platform.OS === "web"}
@@ -782,7 +813,7 @@ export default function ProfileScreen() {
                   styles.bucketOption,
                   selected && {
                     backgroundColor: "rgba(0, 217, 255, 0.15)",
-                    borderColor: Colors.dark.accent,
+                    borderColor: theme.accent,
                   },
                   { opacity: pressed ? 0.7 : 1 },
                 ]}
@@ -790,7 +821,7 @@ export default function ProfileScreen() {
                 <ThemedText
                   style={[
                     styles.bucketName,
-                    selected && { color: Colors.dark.accent },
+                    selected && { color: theme.accent },
                   ]}
                 >
                   {REMINDER_BUCKETS[bucket].name}
@@ -799,9 +830,7 @@ export default function ProfileScreen() {
                   style={[
                     styles.bucketTime,
                     {
-                      color: selected
-                        ? Colors.dark.accent
-                        : theme.textSecondary,
+                      color: selected ? theme.accent : theme.textSecondary,
                     },
                   ]}
                 >
@@ -829,7 +858,7 @@ export default function ProfileScreen() {
             { backgroundColor: "rgba(0, 217, 255, 0.1)" },
           ]}
         >
-          <Feather name="message-circle" size={20} color={Colors.dark.accent} />
+          <Feather name="message-circle" size={20} color={theme.accent} />
         </View>
         <View style={styles.settingsContent}>
           <ThemedText style={styles.settingsTitle}>AI Data Sharing</ThemedText>
@@ -844,9 +873,12 @@ export default function ProfileScreen() {
         <Switch
           value={aiConsent}
           onValueChange={handleToggleAiConsent}
+          accessibilityRole="switch"
+          accessibilityLabel="AI data sharing"
+          accessibilityState={{ checked: aiConsent }}
           trackColor={{
             false: theme.backgroundSecondary,
-            true: Colors.dark.accent,
+            true: theme.accent,
           }}
           thumbColor="#FFFFFF"
         />
@@ -869,7 +901,7 @@ export default function ProfileScreen() {
               { backgroundColor: "rgba(255, 184, 0, 0.1)" },
             ]}
           >
-            <Feather name="sunrise" size={20} color={Colors.dark.warning} />
+            <Feather name="sunrise" size={20} color={theme.warning} />
           </View>
           <View style={styles.settingsContent}>
             <ThemedText style={styles.settingsTitle}>Dawn Theme</ThemedText>
@@ -881,13 +913,113 @@ export default function ProfileScreen() {
           </View>
           <Switch
             value={themeMode === "dawn"}
+            accessibilityRole="switch"
+            accessibilityLabel="Toggle Dawn Theme"
+            accessibilityHint="Switches between the Dawn light theme and Midnight dark theme"
+            accessibilityState={{ checked: themeMode === "dawn" }}
             onValueChange={(value) => {
               Haptics.selectionAsync();
               setThemeMode(value ? "dawn" : "midnight");
             }}
             trackColor={{
               false: theme.backgroundSecondary,
-              true: Colors.dark.warning,
+              true: theme.warning,
+            }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+      ) : null}
+
+      {directCoachUnlocked ? (
+        <View
+          style={[
+            styles.settingsRow,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.settingsIcon,
+              { backgroundColor: "rgba(0, 217, 255, 0.1)" },
+            ]}
+          >
+            <Feather name="message-circle" size={20} color={theme.accent} />
+          </View>
+          <View style={styles.settingsContent}>
+            <ThemedText style={styles.settingsTitle}>Direct Coach</ThemedText>
+            <ThemedText
+              style={[styles.settingsSubtitle, { color: theme.textSecondary }]}
+            >
+              Concise and candid, still kind
+            </ThemedText>
+          </View>
+          <Switch
+            value={coachTone === "direct"}
+            accessibilityRole="switch"
+            accessibilityLabel="Toggle Direct Coach"
+            accessibilityState={{ checked: coachTone === "direct" }}
+            onValueChange={(value) => {
+              const next: CoachTone = value ? "direct" : "supportive";
+              Haptics.selectionAsync();
+              setCoachToneState(next);
+              setCoachTone(next).catch(() => {});
+            }}
+            trackColor={{
+              false: theme.backgroundSecondary,
+              true: theme.accent,
+            }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+      ) : null}
+
+      {auroraUnlocked ? (
+        <View
+          style={[
+            styles.settingsRow,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.settingsIcon,
+              { backgroundColor: "rgba(155, 107, 255, 0.12)" },
+            ]}
+          >
+            <Feather name="star" size={20} color="#9B6BFF" />
+          </View>
+          <View style={styles.settingsContent}>
+            <ThemedText style={styles.settingsTitle}>
+              Aurora Celebrations
+            </ThemedText>
+            <ThemedText
+              style={[styles.settingsSubtitle, { color: theme.textSecondary }]}
+            >
+              Violet-and-gold milestone moments
+            </ThemedText>
+          </View>
+          <Switch
+            value={celebrationStyle === "aurora"}
+            accessibilityRole="switch"
+            accessibilityLabel="Toggle Aurora Celebrations"
+            accessibilityState={{ checked: celebrationStyle === "aurora" }}
+            onValueChange={(value) => {
+              const next: CelebrationStyle = value ? "aurora" : "classic";
+              Haptics.selectionAsync();
+              setCelebrationStyleState(next);
+              setCelebrationStyle(next).catch(() => {});
+            }}
+            trackColor={{
+              false: theme.backgroundSecondary,
+              true: "#9B6BFF",
             }}
             thumbColor="#FFFFFF"
           />

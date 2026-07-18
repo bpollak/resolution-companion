@@ -32,16 +32,21 @@ export type ReminderBucket = "morning" | "midday" | "evening";
 export type ReminderHook = "momentum" | "coach" | "calm";
 
 const HOOK_STATS_KEY = "evolve_reminder_hook_stats";
+const ORGANIC_OPENS_KEY = "evolve_reminder_organic_opens";
+const HOOK_OPPORTUNITIES_KEY = "evolve_reminder_hook_opportunities";
 const HOOK_ROTATION: ReminderHook[] = ["momentum", "coach", "calm"];
 // Taps needed before a voice is trusted enough to exploit most days
 const HOOK_LEADER_MIN_TAPS = 3;
 
-export type ReminderHookStats = Record<ReminderHook, { taps: number }>;
+export type ReminderHookStats = Record<
+  ReminderHook,
+  { taps: number; opportunities: number }
+>;
 
 const EMPTY_HOOK_STATS: ReminderHookStats = {
-  momentum: { taps: 0 },
-  coach: { taps: 0 },
-  calm: { taps: 0 },
+  momentum: { taps: 0, opportunities: 0 },
+  coach: { taps: 0, opportunities: 0 },
+  calm: { taps: 0, opportunities: 0 },
 };
 
 export async function getReminderHookStats(): Promise<ReminderHookStats> {
@@ -50,9 +55,18 @@ export async function getReminderHookStats(): Promise<ReminderHookStats> {
     if (!raw) return { ...EMPTY_HOOK_STATS };
     const parsed = JSON.parse(raw) as Partial<ReminderHookStats>;
     return {
-      momentum: { taps: parsed.momentum?.taps ?? 0 },
-      coach: { taps: parsed.coach?.taps ?? 0 },
-      calm: { taps: parsed.calm?.taps ?? 0 },
+      momentum: {
+        taps: parsed.momentum?.taps ?? 0,
+        opportunities: parsed.momentum?.opportunities ?? 0,
+      },
+      coach: {
+        taps: parsed.coach?.taps ?? 0,
+        opportunities: parsed.coach?.opportunities ?? 0,
+      },
+      calm: {
+        taps: parsed.calm?.taps ?? 0,
+        opportunities: parsed.calm?.opportunities ?? 0,
+      },
     };
   } catch {
     return { ...EMPTY_HOOK_STATS };
@@ -67,10 +81,53 @@ export async function recordReminderHookTap(hook: unknown): Promise<void> {
   if (hook !== "momentum" && hook !== "coach" && hook !== "calm") return;
   try {
     const stats = await getReminderHookStats();
-    stats[hook] = { taps: stats[hook].taps + 1 };
+    stats[hook] = { ...stats[hook], taps: stats[hook].taps + 1 };
     await AsyncStorage.setItem(HOOK_STATS_KEY, JSON.stringify(stats));
   } catch (error) {
     logger.error("Failed to record reminder tap:", error);
+  }
+}
+
+/** Track an app open that did not come from a reminder response. */
+export async function recordOrganicAppOpen(): Promise<void> {
+  try {
+    const current = Number(await AsyncStorage.getItem(ORGANIC_OPENS_KEY)) || 0;
+    await AsyncStorage.setItem(ORGANIC_OPENS_KEY, String(current + 1));
+  } catch (error) {
+    logger.error("Failed to record organic app open:", error);
+  }
+}
+
+/**
+ * Record that a hook was actually scheduled. Date markers dedupe the many
+ * idempotent reschedules that can happen during one foreground session, so
+ * taps/opportunities is a real response rate rather than a render count.
+ */
+export async function recordReminderHookOpportunity(
+  hook: ReminderHook,
+  dateStr: string,
+): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(HOOK_OPPORTUNITIES_KEY);
+    const seen = raw ? (JSON.parse(raw) as Record<string, ReminderHook>) : {};
+    if (seen[dateStr] === hook) return;
+    const stats = await getReminderHookStats();
+    stats[hook] = {
+      ...stats[hook],
+      opportunities: stats[hook].opportunities + 1,
+    };
+    seen[dateStr] = hook;
+    const recent = Object.fromEntries(
+      Object.entries(seen)
+        .sort(([a], [b]) => (a < b ? 1 : -1))
+        .slice(0, 45),
+    );
+    await Promise.all([
+      AsyncStorage.setItem(HOOK_STATS_KEY, JSON.stringify(stats)),
+      AsyncStorage.setItem(HOOK_OPPORTUNITIES_KEY, JSON.stringify(recent)),
+    ]);
+  } catch (error) {
+    logger.error("Failed to record reminder opportunity:", error);
   }
 }
 
@@ -90,9 +147,17 @@ export function selectReminderHook(
 
   let leader: ReminderHook | null = null;
   for (const hook of HOOK_ROTATION) {
+    const responseRate =
+      stats[hook].opportunities > 0
+        ? stats[hook].taps / stats[hook].opportunities
+        : 0;
+    const leaderRate =
+      leader && stats[leader].opportunities > 0
+        ? stats[leader].taps / stats[leader].opportunities
+        : 0;
     if (
       stats[hook].taps >= HOOK_LEADER_MIN_TAPS &&
-      (leader === null || stats[hook].taps > stats[leader].taps)
+      (leader === null || responseRate > leaderRate)
     ) {
       leader = hook;
     }
@@ -335,6 +400,7 @@ export async function scheduleDailyReminder(
       await getReminderHookStats(),
       getLocalDateString(new Date()),
     );
+    await recordReminderHookOpportunity(hook, getLocalDateString(new Date()));
 
     const id = await Notifications.scheduleNotificationAsync({
       content: {
@@ -410,6 +476,7 @@ export async function suppressReminderForToday(
       await getReminderHookStats(),
       getLocalDateString(tomorrow),
     );
+    await recordReminderHookOpportunity(hook, getLocalDateString(tomorrow));
 
     const id = await Notifications.scheduleNotificationAsync({
       content: {

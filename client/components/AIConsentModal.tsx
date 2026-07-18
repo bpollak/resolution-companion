@@ -66,6 +66,7 @@ export function AIConsentModal({
       animationType="slide"
       transparent={true}
       onRequestClose={onDecline}
+      accessibilityViewIsModal
     >
       <View style={styles.overlay}>
         <ThemedView style={styles.container}>
@@ -140,6 +141,7 @@ export function AIConsentModal({
               ]}
               accessibilityRole="button"
               accessibilityLabel="Agree and continue"
+              accessibilityHint="Allows the app to send your coaching messages to OpenAI"
             >
               <ThemedText
                 style={[styles.agreeButtonText, { color: theme.buttonText }]}
@@ -155,6 +157,7 @@ export function AIConsentModal({
               ]}
               accessibilityRole="button"
               accessibilityLabel="Not now"
+              accessibilityHint="Closes this dialog without enabling AI coaching"
             >
               <ThemedText
                 style={[

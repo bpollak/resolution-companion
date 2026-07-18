@@ -13,7 +13,7 @@ export interface Reward {
   title: string;
   description: string;
   /** What unlocking it changes. "theme" rewards appear under Appearance. */
-  kind: "theme";
+  kind: "theme" | "coach-tone" | "celebration";
   /** Total completed milestones (across personas) required to unlock. */
   milestonesRequired: number;
 }
@@ -27,9 +27,30 @@ export const REWARDS: Reward[] = [
     kind: "theme",
     milestonesRequired: 1,
   },
+  {
+    id: "direct-coach-tone",
+    title: "Direct coach tone",
+    description:
+      "A concise coaching voice that gets to the point while staying kind. Switch anytime in Profile → Appearance.",
+    kind: "coach-tone",
+    milestonesRequired: 2,
+  },
+  {
+    id: "aurora-celebration",
+    title: "Aurora celebrations",
+    description:
+      "A violet-and-gold milestone burst, permanently unlocked. Switch anytime in Profile → Appearance.",
+    kind: "celebration",
+    milestonesRequired: 3,
+  },
 ];
 
 const UNLOCKED_REWARDS_KEY = "unlocked_reward_ids";
+const COACH_TONE_KEY = "reward_coach_tone";
+const CELEBRATION_STYLE_KEY = "reward_celebration_style";
+
+export type CoachTone = "supportive" | "direct";
+export type CelebrationStyle = "classic" | "aurora";
 
 export async function getUnlockedRewardIds(): Promise<string[]> {
   try {
@@ -45,6 +66,28 @@ export async function getUnlockedRewardIds(): Promise<string[]> {
 
 export async function isRewardUnlocked(id: string): Promise<boolean> {
   return (await getUnlockedRewardIds()).includes(id);
+}
+
+export async function getCoachTone(): Promise<CoachTone> {
+  return (await AsyncStorage.getItem(COACH_TONE_KEY)) === "direct"
+    ? "direct"
+    : "supportive";
+}
+
+export async function setCoachTone(tone: CoachTone): Promise<void> {
+  await AsyncStorage.setItem(COACH_TONE_KEY, tone);
+}
+
+export async function getCelebrationStyle(): Promise<CelebrationStyle> {
+  return (await AsyncStorage.getItem(CELEBRATION_STYLE_KEY)) === "aurora"
+    ? "aurora"
+    : "classic";
+}
+
+export async function setCelebrationStyle(
+  style: CelebrationStyle,
+): Promise<void> {
+  await AsyncStorage.setItem(CELEBRATION_STYLE_KEY, style);
 }
 
 /**

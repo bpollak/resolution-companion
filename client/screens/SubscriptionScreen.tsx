@@ -22,7 +22,13 @@ import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { storage } from "@/lib/storage";
-import { iapService, PRODUCT_IDS, IAPProduct, IAPPurchase } from "@/lib/iap";
+import {
+  iapService,
+  PRODUCT_IDS,
+  IAPProduct,
+  IAPPurchase,
+  formatIntroOfferDuration,
+} from "@/lib/iap";
 import { logger } from "@/lib/logger";
 import { track } from "@/lib/telemetry";
 
@@ -112,16 +118,18 @@ function PlanCard({
             : isDark
               ? Colors.dark.backgroundDefault
               : Colors.light.backgroundDefault,
-          borderColor: selected ? Colors.dark.accent : "transparent",
+          borderColor: selected ? theme.accent : "transparent",
           opacity: pressed ? 0.9 : 1,
         },
       ]}
     >
       {badge ? (
-        <View
-          style={[styles.planBadge, { backgroundColor: Colors.dark.accent }]}
-        >
-          <ThemedText style={styles.planBadgeText}>{badge}</ThemedText>
+        <View style={[styles.planBadge, { backgroundColor: theme.accent }]}>
+          <ThemedText
+            style={[styles.planBadgeText, { color: theme.buttonText }]}
+          >
+            {badge}
+          </ThemedText>
         </View>
       ) : null}
       <View style={styles.planHeader}>
@@ -129,16 +137,13 @@ function PlanCard({
           style={[
             styles.radioOuter,
             {
-              borderColor: selected ? Colors.dark.accent : theme.textSecondary,
+              borderColor: selected ? theme.accent : theme.textSecondary,
             },
           ]}
         >
           {selected ? (
             <View
-              style={[
-                styles.radioInner,
-                { backgroundColor: Colors.dark.accent },
-              ]}
+              style={[styles.radioInner, { backgroundColor: theme.accent }]}
             />
           ) : null}
         </View>
@@ -219,13 +224,13 @@ function CompareRow({
       </View>
       <View style={styles.compareValueCol}>
         {premium === null ? (
-          <Feather name="check" size={16} color={Colors.dark.accent} />
+          <Feather name="check" size={16} color={theme.accent} />
         ) : (
           <ThemedText
             style={[
               styles.compareValue,
               styles.compareValuePremium,
-              { color: Colors.dark.accent },
+              { color: theme.accent },
             ]}
           >
             {premium}
@@ -252,6 +257,9 @@ export default function SubscriptionScreen() {
   const [useNativeIAP, setUseNativeIAP] = useState(false);
   const [iapError, setIapError] = useState<string | null>(null);
   const [initializationComplete, setInitializationComplete] = useState(false);
+  const [introEligibleProductIds, setIntroEligibleProductIds] = useState<
+    Set<string>
+  >(new Set());
   const appState = useRef(AppState.currentState);
 
   useEffect(() => {
@@ -285,6 +293,19 @@ export default function SubscriptionScreen() {
           logger.log("IAP products loaded:", products.length);
           setIapProducts(products);
           setUseNativeIAP(true);
+          const eligibility = await Promise.all(
+            products.map(async (product) => ({
+              id: product.productId,
+              eligible: await iapService.isIntroOfferEligible(product),
+            })),
+          );
+          setIntroEligibleProductIds(
+            new Set(
+              eligibility
+                .filter((item) => item.eligible)
+                .map((item) => item.id),
+            ),
+          );
 
           iapService.setPurchaseListener(
             async (purchase: IAPPurchase) => {
@@ -468,7 +489,10 @@ export default function SubscriptionScreen() {
       }
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await iapService.purchaseProduct(productId);
+      await iapService.purchaseProduct(
+        productId,
+        introEligibleProductIds.has(productId),
+      );
     } catch (error: any) {
       logger.error("Purchase failed:", error);
       setIsLoading(false);
@@ -601,13 +625,23 @@ export default function SubscriptionScreen() {
   const yearlyPerMonth = yearlyProduct
     ? formatMonthlyEquivalent(yearlyProduct)
     : null;
-  const yearlyBadge =
-    savingsPercent !== null
+  const yearlyIntroDuration = formatIntroOfferDuration(yearlyProduct);
+  const yearlyTrialEligible =
+    !!yearlyProduct && introEligibleProductIds.has(yearlyProduct.productId);
+  const yearlyBadge = yearlyTrialEligible
+    ? `${yearlyIntroDuration?.toUpperCase()} FREE`
+    : savingsPercent !== null
       ? `BEST VALUE · SAVE ${savingsPercent}%`
       : "BEST VALUE";
-  const yearlySubline = yearlyPerMonth
-    ? `about ${yearlyPerMonth}/mo`
-    : "12 months, one payment";
+  const yearlySubline = yearlyTrialEligible
+    ? `${yearlyIntroDuration} free, then ${yearlyProduct!.price}/year`
+    : yearlyPerMonth
+      ? `about ${yearlyPerMonth}/mo`
+      : "12 months, one payment";
+  const selectedTrialDuration =
+    selectedProduct && introEligibleProductIds.has(selectedProduct.productId)
+      ? formatIntroOfferDuration(selectedProduct)
+      : null;
 
   if (subscription.isPremium) {
     const expiresAtDate = subscription.expiresAt
@@ -641,10 +675,10 @@ export default function SubscriptionScreen() {
           <View
             style={[
               styles.premiumActiveIcon,
-              { backgroundColor: Colors.dark.accent },
+              { backgroundColor: theme.accent },
             ]}
           >
-            <Feather name="check" size={48} color="#000000" />
+            <Feather name="check" size={48} color={theme.buttonText} />
           </View>
           <ThemedText style={styles.premiumActiveTitle}>
             You&apos;re Premium!
@@ -683,9 +717,9 @@ export default function SubscriptionScreen() {
               { opacity: pressed ? 0.8 : 1 },
             ]}
           >
-            <Feather name="settings" size={16} color={Colors.dark.accent} />
+            <Feather name="settings" size={16} color={theme.accent} />
             <ThemedText
-              style={[styles.manageButtonText, { color: Colors.dark.accent }]}
+              style={[styles.manageButtonText, { color: theme.accent }]}
             >
               Manage Subscription
             </ThemedText>
@@ -742,7 +776,7 @@ export default function SubscriptionScreen() {
               ]}
             >
               <ThemedText
-                style={[styles.retryButtonText, { color: Colors.dark.accent }]}
+                style={[styles.retryButtonText, { color: theme.accent }]}
               >
                 Retry
               </ThemedText>
@@ -761,11 +795,7 @@ export default function SubscriptionScreen() {
               },
             ]}
           >
-            <Feather
-              name="message-circle"
-              size={20}
-              color={Colors.dark.accent}
-            />
+            <Feather name="message-circle" size={20} color={theme.accent} />
             <ThemedText style={styles.contextCardText}>
               You&rsquo;ve used all 10 free check-ins this month &mdash; Premium
               removes the cap.
@@ -774,10 +804,8 @@ export default function SubscriptionScreen() {
         ) : null}
 
         <View style={styles.heroSection}>
-          <View
-            style={[styles.heroIcon, { backgroundColor: Colors.dark.accent }]}
-          >
-            <Feather name="zap" size={32} color="#000000" />
+          <View style={[styles.heroIcon, { backgroundColor: theme.accent }]}>
+            <Feather name="zap" size={32} color={theme.buttonText} />
           </View>
           <ThemedText style={styles.heroTitle}>
             Become who you&rsquo;re becoming &mdash; without limits
@@ -814,7 +842,7 @@ export default function SubscriptionScreen() {
             </View>
             <View style={styles.compareValueCol}>
               <ThemedText
-                style={[styles.compareColLabel, { color: Colors.dark.accent }]}
+                style={[styles.compareColLabel, { color: theme.accent }]}
               >
                 PREMIUM
               </ThemedText>
@@ -871,7 +899,7 @@ export default function SubscriptionScreen() {
               },
             ]}
           >
-            <Feather name="smartphone" size={24} color={Colors.dark.accent} />
+            <Feather name="smartphone" size={24} color={theme.accent} />
             <ThemedText
               style={[styles.storeStateText, { color: theme.textSecondary }]}
             >
@@ -890,7 +918,7 @@ export default function SubscriptionScreen() {
               },
             ]}
           >
-            <ActivityIndicator size="small" color={Colors.dark.accent} />
+            <ActivityIndicator size="small" color={theme.accent} />
             <ThemedText
               style={[styles.storeStateText, { color: theme.textSecondary }]}
             >
@@ -908,7 +936,7 @@ export default function SubscriptionScreen() {
               },
             ]}
           >
-            <Feather name="alert-circle" size={24} color={Colors.dark.error} />
+            <Feather name="alert-circle" size={24} color={theme.error} />
             <ThemedText
               style={[styles.storeStateText, { color: theme.textSecondary }]}
             >
@@ -925,7 +953,7 @@ export default function SubscriptionScreen() {
               ]}
             >
               <ThemedText
-                style={[styles.retryButtonText, { color: Colors.dark.accent }]}
+                style={[styles.retryButtonText, { color: theme.accent }]}
               >
                 Retry
               </ThemedText>
@@ -980,8 +1008,12 @@ export default function SubscriptionScreen() {
               { color: theme.textSecondary },
             ]}
           >
-            {`Payment of ${selectedProduct.price} per ${selectedPlan === "yearly" ? "year" : "month"} will be charged to your ${Platform.OS === "ios" ? "Apple Account" : "Google Play account"} at confirmation of purchase. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. `}
-            You can manage and cancel your subscription in your device&apos;s{" "}
+            {selectedTrialDuration
+              ? `No charge for ${selectedTrialDuration}. After the free trial, ${selectedProduct.price} per ${selectedPlan === "yearly" ? "year" : "month"} will be charged to your ${Platform.OS === "ios" ? "Apple Account" : "Google Play account"} unless canceled before the trial ends. `
+              : `Payment of ${selectedProduct.price} per ${selectedPlan === "yearly" ? "year" : "month"} will be charged to your ${Platform.OS === "ios" ? "Apple Account" : "Google Play account"} at confirmation of purchase. `}
+            Subscription automatically renews unless canceled at least 24 hours
+            before the end of the current period. You can manage and cancel your
+            subscription in your device&apos;s{" "}
             {Platform.OS === "ios"
               ? "Settings > Subscriptions"
               : "Google Play > Subscriptions"}
@@ -996,20 +1028,27 @@ export default function SubscriptionScreen() {
             accessibilityRole="button"
             accessibilityLabel={
               storeReady && selectedProduct
-                ? `Subscribe for ${selectedProduct.price} per ${selectedPlan === "yearly" ? "year" : "month"}`
+                ? selectedTrialDuration
+                  ? `Start ${selectedTrialDuration} free trial, then ${selectedProduct.price} per ${selectedPlan === "yearly" ? "year" : "month"}`
+                  : `Subscribe for ${selectedProduct.price} per ${selectedPlan === "yearly" ? "year" : "month"}`
                 : "Subscribe"
             }
             accessibilityState={{ disabled: isLoading || !storeReady }}
             style={({ pressed }) => [
               styles.subscribeButton,
+              { backgroundColor: theme.accent },
               { opacity: !storeReady ? 0.4 : pressed || isLoading ? 0.8 : 1 },
             ]}
           >
-            <ThemedText style={styles.subscribeButtonText}>
+            <ThemedText
+              style={[styles.subscribeButtonText, { color: theme.buttonText }]}
+            >
               {isLoading
                 ? "Processing..."
                 : storeReady && selectedProduct
-                  ? `Subscribe for ${selectedProduct.price}/${selectedPlan === "yearly" ? "year" : "month"}`
+                  ? selectedTrialDuration
+                    ? `Start ${selectedTrialDuration} free`
+                    : `Subscribe for ${selectedProduct.price}/${selectedPlan === "yearly" ? "year" : "month"}`
                   : "Subscribe"}
             </ThemedText>
           </Pressable>

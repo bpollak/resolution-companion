@@ -19,6 +19,9 @@ interface AnimatedPressableProps {
   hapticStyle?: "light" | "medium" | "heavy" | "success" | "selection" | "none";
   glowColor?: string;
   showGlow?: boolean;
+  accessibilityLabel: string;
+  accessibilityHint?: string;
+  accessibilityRole?: "button" | "checkbox" | "radio" | "switch";
 }
 
 const springConfig = {
@@ -36,6 +39,9 @@ export function AnimatedPressable({
   hapticStyle = "light",
   glowColor,
   showGlow = false,
+  accessibilityLabel,
+  accessibilityHint,
+  accessibilityRole = "button",
 }: AnimatedPressableProps) {
   const scale = useSharedValue(1);
   const pressed = useSharedValue(0);
@@ -101,7 +107,15 @@ export function AnimatedPressable({
 
   return (
     <GestureDetector gesture={gesture}>
-      <Animated.View style={[style, animatedStyle, glowStyle]}>
+      <Animated.View
+        style={[style, animatedStyle, glowStyle]}
+        accessible
+        accessibilityRole={accessibilityRole}
+        accessibilityLabel={accessibilityLabel}
+        accessibilityHint={accessibilityHint}
+        accessibilityState={{ disabled }}
+        onAccessibilityTap={handlePress}
+      >
         {children}
       </Animated.View>
     </GestureDetector>

@@ -3,14 +3,20 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
-import { Platform, Pressable, StyleSheet, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
 import { useTheme } from "@/hooks/useTheme";
-import { Colors, Spacing } from "@/constants/theme";
+import { Spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { ThemedText } from "@/components/ThemedText";
 
@@ -69,13 +75,13 @@ function TabBarIcon({
       <View
         style={[
           tabIconStyles.pill,
-          focused && { backgroundColor: Colors.dark.accent },
+          focused && { backgroundColor: theme.accent },
         ]}
       >
         <Ionicons
           name={focused ? filled : outline}
           size={22}
-          color={focused ? "#0A0A0A" : theme.tabIconDefault}
+          color={focused ? theme.buttonText : theme.tabIconDefault}
         />
       </View>
     </AnimatedTabIcon>
@@ -130,12 +136,19 @@ function HeaderTitle({
   subtitle?: string;
 }) {
   const { theme } = useTheme();
+  const { fontScale } = useWindowDimensions();
+  const showSubtitle = !!subtitle && fontScale <= 1.4;
   return (
-    <View style={headerTitleStyles.container}>
+    <View
+      style={headerTitleStyles.container}
+      accessible
+      accessibilityRole="header"
+      accessibilityLabel={[title, subtitle].filter(Boolean).join(", ")}
+    >
       <ThemedText style={[headerTitleStyles.title, { color: theme.text }]}>
         {title}
       </ThemedText>
-      {subtitle ? (
+      {showSubtitle ? (
         <ThemedText
           numberOfLines={1}
           style={[headerTitleStyles.subtitle, { color: theme.textSecondary }]}
@@ -245,7 +258,7 @@ export default function MainTabNavigator() {
     () => ({
       lazy: false,
       freezeOnBlur: false,
-      tabBarActiveTintColor: Colors.dark.accent,
+      tabBarActiveTintColor: theme.accent,
       tabBarInactiveTintColor: theme.tabIconDefault,
       tabBarStyle: {
         position: "absolute" as const,

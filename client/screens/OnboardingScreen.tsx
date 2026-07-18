@@ -741,15 +741,22 @@ export default function OnboardingScreen() {
             ) : null}
             <Pressable
               onPress={isLastIntroPage ? handleBeginOnboarding : handleNextPage}
+              accessibilityRole="button"
+              accessibilityLabel={
+                isLastIntroPage ? "Let's get started" : "Continue"
+              }
               style={({ pressed }) => [
                 styles.beginButton,
+                { backgroundColor: theme.accent },
                 { flex: 1, opacity: pressed ? 0.8 : 1 },
               ]}
             >
-              <ThemedText style={styles.beginButtonText}>
+              <ThemedText
+                style={[styles.beginButtonText, { color: theme.buttonText }]}
+              >
                 {isLastIntroPage ? "Let's Get Started" : "Continue"}
               </ThemedText>
-              <Feather name="arrow-right" size={20} color="#000000" />
+              <Feather name="arrow-right" size={20} color={theme.buttonText} />
             </Pressable>
           </View>
 
@@ -797,10 +804,7 @@ export default function OnboardingScreen() {
       <View style={styles.progressBarContainer}>
         <View style={styles.progressSteps}>
           <View
-            style={[
-              styles.progressStep,
-              { backgroundColor: Colors.dark.accent },
-            ]}
+            style={[styles.progressStep, { backgroundColor: theme.accent }]}
           />
           <View
             style={[
@@ -808,7 +812,7 @@ export default function OnboardingScreen() {
               {
                 backgroundColor:
                   messageCount.current >= 1
-                    ? Colors.dark.accent
+                    ? theme.accent
                     : theme.backgroundTertiary,
               },
             ]}
@@ -818,7 +822,7 @@ export default function OnboardingScreen() {
               styles.progressStep,
               {
                 backgroundColor: conversationComplete
-                  ? Colors.dark.accent
+                  ? theme.accent
                   : theme.backgroundTertiary,
               },
             ]}
@@ -853,7 +857,7 @@ export default function OnboardingScreen() {
             <ChatBubble message={streamingText} isUser={false} />
           ) : isLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={Colors.dark.accent} />
+              <ActivityIndicator size="small" color={theme.accent} />
             </View>
           ) : null
         }
@@ -867,11 +871,7 @@ export default function OnboardingScreen() {
           ]}
         >
           <View style={styles.progressIndicator}>
-            <Feather
-              name="check-circle"
-              size={16}
-              color={Colors.dark.success}
-            />
+            <Feather name="check-circle" size={16} color={theme.success} />
             <ThemedText
               style={[styles.progressText, { color: theme.textSecondary }]}
             >
@@ -884,13 +884,16 @@ export default function OnboardingScreen() {
             accessibilityLabel="Create my plan"
             style={({ pressed }) => [
               styles.finishButton,
+              { backgroundColor: theme.accent },
               { opacity: pressed ? 0.8 : 1 },
             ]}
           >
-            <ThemedText style={styles.finishButtonText}>
+            <ThemedText
+              style={[styles.finishButtonText, { color: theme.buttonText }]}
+            >
               Create My Plan
             </ThemedText>
-            <Feather name="arrow-right" size={20} color="#000000" />
+            <Feather name="arrow-right" size={20} color={theme.buttonText} />
           </Pressable>
         </View>
       ) : null}
@@ -902,7 +905,7 @@ export default function OnboardingScreen() {
             { paddingBottom: insets.bottom + Spacing.lg },
           ]}
         >
-          <ActivityIndicator size="large" color={Colors.dark.accent} />
+          <ActivityIndicator size="large" color={theme.accent} />
           <ThemedText
             style={[styles.extractingText, { color: theme.textSecondary }]}
           >
@@ -924,6 +927,7 @@ export default function OnboardingScreen() {
           ]}
         >
           <TextInput
+            accessibilityLabel="Message to your AI persona interviewer"
             style={[
               styles.input,
               {
@@ -952,7 +956,7 @@ export default function OnboardingScreen() {
               {
                 backgroundColor:
                   inputText.trim() && !isLoading
-                    ? Colors.dark.accent
+                    ? theme.accent
                     : isDark
                       ? Colors.dark.backgroundTertiary
                       : Colors.light.backgroundTertiary,

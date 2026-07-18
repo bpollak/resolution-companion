@@ -40,7 +40,7 @@ export function MonthRecapCard({
         <MaterialCommunityIcons
           name="calendar-star"
           size={18}
-          color={Colors.dark.accent}
+          color={theme.accent}
         />
         <ThemedText style={styles.title}>{recap.monthLabel}, closed</ThemedText>
         <Pressable
@@ -72,10 +72,10 @@ export function MonthRecapCard({
         accessibilityLabel="Open your Month in Votes story"
         style={({ pressed }) => [styles.cta, { opacity: pressed ? 0.7 : 1 }]}
       >
-        <ThemedText style={[styles.ctaText, { color: Colors.dark.accent }]}>
+        <ThemedText style={[styles.ctaText, { color: theme.accent }]}>
           See your story
         </ThemedText>
-        <Feather name="arrow-right" size={14} color={Colors.dark.accent} />
+        <Feather name="arrow-right" size={14} color={theme.accent} />
       </Pressable>
     </View>
   );

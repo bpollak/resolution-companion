@@ -580,14 +580,16 @@ export interface StreakResult {
    * shield-outline marker instead of the red "missed" ring.
    */
   shieldedDays: string[];
+  /** Dates on which seven clean scheduled completions banked a shield. */
+  shieldEarnedDays: string[];
   /** Shield capacity in effect (1 free, 2 premium). */
   maxShields: number;
-  /** Shields not currently spent on a bridged miss inside the rolling window. */
+  /** Earned, unspent shields currently in the bank. */
   shieldsAvailable: number;
 }
 
 const STREAK_LOOKBACK_DAYS = 365;
-const SHIELD_WINDOW_DAYS = 7;
+export const SHIELD_EARN_DAYS = 7;
 
 /**
  * Streak with grace, derived purely from actions + logs (no stored state).
@@ -595,11 +597,11 @@ const SHIELD_WINDOW_DAYS = 7;
  * Rules:
  * - A day counts when every action scheduled that day was completed.
  * - Days with nothing scheduled are free: they bridge a streak, never break it.
- * - Streak shield: up to `maxShields` missed scheduled days per rolling 7 are
- *   bridged (1 free, 2 premium); one more miss within SHIELD_WINDOW_DAYS of a
- *   bridged one resets the run. Shields are earned back by the window simply
- *   rolling past — forgiveness recharges through consistency, it is never
- *   bought.
+ * - Streak shields are earned, never granted up front: every seven fully
+ *   completed scheduled days banks one, up to `maxShields` (1 free, 2
+ *   premium). A missed scheduled day spends one; without a banked shield the
+ *   active run resets. After a spend, another seven clean completions earns
+ *   it back.
  * - Today is pending until complete: it never breaks a run, and increments it
  *   live once every scheduled action is logged.
  *
@@ -618,8 +620,9 @@ export function computeStreak(
       longest: 0,
       shieldUsed: false,
       shieldedDays: [],
+      shieldEarnedDays: [],
       maxShields,
-      shieldsAvailable: maxShields,
+      shieldsAvailable: 0,
     };
   }
 
@@ -646,16 +649,11 @@ export function computeStreak(
 
   let run = 0;
   let longest = 0;
-  // Bridged misses still inside the rolling window — each occupies one shield
-  let activeBridges: Date[] = [];
-  // Misses forgiven by the shield at the time they happened (kept even if a
-  // later over-capacity miss reset the run — the bridge was real when it was
-  // used)
+  let shieldsAvailable = 0;
+  let cleanDaysTowardShield = 0;
+  let currentRunShielded = false;
   const shieldedDays: string[] = [];
-
-  // Day-count deltas use Math.round to absorb DST's ±1h on local midnights
-  const daysBetween = (from: Date, to: Date) =>
-    Math.round((to.getTime() - from.getTime()) / 86400000);
+  const shieldEarnedDays: string[] = [];
 
   while (cursor <= today) {
     const dateStr = getLocalDateString(cursor);
@@ -680,37 +678,46 @@ export function computeStreak(
     } else if (completed === scheduled) {
       run++;
       if (run > longest) longest = run;
+      if (shieldsAvailable < maxShields) {
+        cleanDaysTowardShield++;
+        if (cleanDaysTowardShield >= SHIELD_EARN_DAYS) {
+          shieldsAvailable++;
+          shieldEarnedDays.push(dateStr);
+          cleanDaysTowardShield = 0;
+          currentRunShielded = false;
+        }
+      } else {
+        // A full bank does not accumulate hidden instant-recharge credit.
+        cleanDaysTowardShield = 0;
+      }
     } else if (dateStr === todayStr) {
       // Today is pending, never broken
     } else if (run > 0) {
-      activeBridges = activeBridges.filter(
-        (bridge) => daysBetween(bridge, cursor) <= SHIELD_WINDOW_DAYS,
-      );
-      if (activeBridges.length >= maxShields) {
-        // Every shield already spent inside the window: fresh start
-        run = 0;
-        activeBridges = [];
-      } else {
-        activeBridges.push(new Date(cursor));
+      if (shieldsAvailable > 0) {
+        shieldsAvailable--;
         shieldedDays.push(dateStr);
+        cleanDaysTowardShield = 0;
+        currentRunShielded = true;
+      } else {
+        run = 0;
+        cleanDaysTowardShield = 0;
+        currentRunShielded = false;
       }
     }
 
     cursor.setDate(cursor.getDate() + 1);
   }
 
-  const bridgesInWindow = activeBridges.filter(
-    (bridge) => daysBetween(bridge, today) <= SHIELD_WINDOW_DAYS,
-  ).length;
-  const shieldUsed = run > 0 && bridgesInWindow > 0;
+  const shieldUsed = run > 0 && currentRunShielded;
 
   return {
     current: run,
     longest,
     shieldUsed,
     shieldedDays,
+    shieldEarnedDays,
     maxShields,
-    shieldsAvailable: run > 0 ? maxShields - bridgesInWindow : maxShields,
+    shieldsAvailable,
   };
 }
 

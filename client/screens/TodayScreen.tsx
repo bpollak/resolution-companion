@@ -10,6 +10,7 @@ import {
   FlatList,
   StyleSheet,
   Pressable,
+  ScrollView,
   Alert,
   Platform,
 } from "react-native";
@@ -230,6 +231,7 @@ const logoStyles = StyleSheet.create({
 });
 
 function AnimatedStartButton({ onPress }: { onPress: () => void }) {
+  const { theme } = useTheme();
   const scale = useSharedValue(1);
   const arrowX = useSharedValue(0);
 
@@ -261,13 +263,23 @@ function AnimatedStartButton({ onPress }: { onPress: () => void }) {
       onPress={handlePress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
+      accessibilityRole="button"
+      accessibilityLabel="Start your journey"
     >
-      <Animated.View style={[styles.startButton, buttonStyle]}>
-        <ThemedText style={styles.startButtonText}>
+      <Animated.View
+        style={[
+          styles.startButton,
+          { backgroundColor: theme.accent },
+          buttonStyle,
+        ]}
+      >
+        <ThemedText
+          style={[styles.startButtonText, { color: theme.buttonText }]}
+        >
           Start Your Journey
         </ThemedText>
         <Animated.View style={arrowStyle}>
-          <Feather name="arrow-right" size={20} color="#000000" />
+          <Feather name="arrow-right" size={20} color={theme.buttonText} />
         </Animated.View>
       </Animated.View>
     </Pressable>
@@ -647,6 +659,7 @@ export default function TodayScreen() {
       ) : (
         <CompletedActionRow
           action={item.action}
+          log={item.log!}
           onToggle={handleToggle}
           note={item.log?.note}
           onNotePress={handleNotePress}
@@ -659,39 +672,59 @@ export default function TodayScreen() {
   // silently — make the earned-forgiveness loop visible. A spend gets a
   // dignified toast ("that's what it was for"); the recharge after the
   // rolling window passes is the earn moment.
-  const shieldUsed = streak.shieldUsed;
+  const latestShieldedDay = streak.shieldedDays.at(-1) ?? null;
+  const latestShieldEarnedDay = streak.shieldEarnedDays.at(-1) ?? null;
   const streakCurrentForShield = streak.current;
   useEffect(() => {
     if (!hasOnboarded) return;
     (async () => {
-      let previous: { shieldUsed: boolean } | null = null;
+      let previous: {
+        latestShieldedDay?: string | null;
+        latestShieldEarnedDay?: string | null;
+      } | null = null;
       try {
         const raw = await AsyncStorage.getItem(SHIELD_STATE_KEY);
         previous = raw ? JSON.parse(raw) : null;
       } catch {
         previous = null;
       }
-      if (previous !== null && previous.shieldUsed !== shieldUsed) {
-        if (shieldUsed) {
+      const hasVersionedState =
+        previous !== null &&
+        ("latestShieldedDay" in previous ||
+          "latestShieldEarnedDay" in previous);
+      if (hasVersionedState) {
+        if (
+          latestShieldedDay &&
+          latestShieldedDay !== previous?.latestShieldedDay
+        ) {
           track("shield_used");
           setToastMessage(
             "Your shield covered a missed day — streak intact. That's what it was for. 🛡",
           );
           setToastVisible(true);
-        } else if (streakCurrentForShield > 0) {
+        } else if (
+          latestShieldEarnedDay &&
+          latestShieldEarnedDay !== previous?.latestShieldEarnedDay &&
+          streakCurrentForShield > 0
+        ) {
           track("shield_earned");
           setToastMessage(
-            "Shield recharged — your consistency earned it back. 🛡",
+            "Seven clean action-days earned you a shield. Grace, banked. 🛡",
           );
           setToastVisible(true);
         }
       }
       await AsyncStorage.setItem(
         SHIELD_STATE_KEY,
-        JSON.stringify({ shieldUsed }),
+        JSON.stringify({ latestShieldedDay, latestShieldEarnedDay }),
       );
     })().catch((error) => logger.error("Failed to track shield state:", error));
-  }, [hasOnboarded, shieldUsed, streakCurrentForShield]);
+  }, [
+    hasOnboarded,
+    latestShieldEarnedDay,
+    latestShieldedDay,
+    streakCurrentForShield,
+  ]);
 
   // First-ever completion gets a one-time extra line on the celebration card
   useEffect(() => {
@@ -830,32 +863,28 @@ export default function TodayScreen() {
 
   if (!hasOnboarded || !persona) {
     return (
-      <View
-        style={[
-          styles.container,
+      <ScrollView
+        style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
+        contentContainerStyle={[
+          styles.emptyContainer,
           {
-            backgroundColor: theme.backgroundRoot,
             paddingTop: headerHeight + Spacing.xl,
             paddingBottom: tabBarHeight + Spacing.xl,
           },
         ]}
+        alwaysBounceVertical={false}
+        decelerationRate="fast"
       >
-        <View style={styles.emptyContainer}>
-          <StylizedAppLogo />
-          <ThemedText style={styles.emptyTitle}>
-            Begin Your Evolution
-          </ThemedText>
-          <ThemedText
-            style={[styles.emptyText, { color: theme.textSecondary }]}
-          >
-            Define who you are becoming and build the habits that will get you
-            there.
-          </ThemedText>
-          <AnimatedStartButton
-            onPress={() => navigation.navigate("Onboarding")}
-          />
-        </View>
-      </View>
+        <StylizedAppLogo />
+        <ThemedText style={styles.emptyTitle}>Begin Your Evolution</ThemedText>
+        <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
+          Define who you are becoming and build the habits that will get you
+          there.
+        </ThemedText>
+        <AnimatedStartButton
+          onPress={() => navigation.navigate("Onboarding")}
+        />
+      </ScrollView>
     );
   }
 
@@ -884,7 +913,7 @@ export default function TodayScreen() {
           <>
             <View style={styles.header}>
               <ThemedText
-                style={[styles.personaLabel, { color: Colors.dark.accent }]}
+                style={[styles.personaLabel, { color: theme.accent }]}
               >
                 Becoming
               </ThemedText>
@@ -962,7 +991,7 @@ export default function TodayScreen() {
                         size={16}
                         color={
                           streak.current > 0
-                            ? Colors.dark.warning
+                            ? theme.warning
                             : theme.textSecondary
                         }
                       />
@@ -976,7 +1005,7 @@ export default function TodayScreen() {
                   detailIcon={
                     // Make the grace shield legible BEFORE it's needed: a
                     // quiet "armed" marker once there's a streak worth keeping.
-                    !streak.shieldUsed && streak.current >= 2 ? (
+                    streak.shieldsAvailable > 0 ? (
                       <Feather
                         name="shield"
                         size={12}
@@ -985,22 +1014,18 @@ export default function TodayScreen() {
                     ) : undefined
                   }
                   detail={
-                    !streak.shieldUsed && streak.current >= 2
-                      ? "ready"
+                    streak.shieldsAvailable > 0
+                      ? `${streak.shieldsAvailable}/${streak.maxShields} ready`
                       : undefined
                   }
                   accessibilityLabel={
                     streak.shieldUsed
-                      ? "Streak protected by your shield"
-                      : streak.current >= 2
-                        ? `${streak.current}-day streak, shield ready — one missed day per week is covered`
-                        : `${streak.current}-day streak`
+                      ? `Streak protected by your shield, ${streak.shieldsAvailable} of ${streak.maxShields} shields ready`
+                      : `${streak.current}-day streak, ${streak.shieldsAvailable} of ${streak.maxShields} earned shields ready`
                   }
                 />
                 <StatChip
-                  icon={
-                    <Feather name="zap" size={14} color={Colors.dark.accent} />
-                  }
+                  icon={<Feather name="zap" size={14} color={theme.accent} />}
                   text={`${today.toLocaleDateString("en-US", { month: "long" })} · ${personaAlignment}%`}
                   detail={
                     momentumDelta > 0
@@ -1009,9 +1034,7 @@ export default function TodayScreen() {
                         ? `▼${Math.abs(momentumDelta)}`
                         : undefined
                   }
-                  detailColor={
-                    momentumDelta > 0 ? Colors.dark.success : Colors.dark.error
-                  }
+                  detailColor={momentumDelta > 0 ? theme.success : theme.error}
                 />
               </View>
             </View>
@@ -1069,11 +1092,7 @@ export default function TodayScreen() {
                   },
                 ]}
               >
-                <Feather
-                  name="check-circle"
-                  size={32}
-                  color={Colors.dark.success}
-                />
+                <Feather name="check-circle" size={32} color={theme.success} />
                 <ThemedText style={styles.noActionsText}>
                   No actions scheduled for today. Rest and recharge!
                 </ThemedText>
@@ -1089,16 +1108,9 @@ export default function TodayScreen() {
                       { opacity: pressed ? 0.7 : 1 },
                     ]}
                   >
-                    <Feather
-                      name="calendar"
-                      size={16}
-                      color={Colors.dark.accent}
-                    />
+                    <Feather name="calendar" size={16} color={theme.accent} />
                     <ThemedText
-                      style={[
-                        styles.tomorrowLinkText,
-                        { color: Colors.dark.accent },
-                      ]}
+                      style={[styles.tomorrowLinkText, { color: theme.accent }]}
                     >
                       {tomorrowActions.length} action
                       {tomorrowActions.length !== 1 ? "s" : ""} tomorrow
@@ -1106,7 +1118,7 @@ export default function TodayScreen() {
                     <Feather
                       name="chevron-right"
                       size={16}
-                      color={Colors.dark.accent}
+                      color={theme.accent}
                     />
                   </Pressable>
                 ) : null}
@@ -1130,18 +1142,14 @@ export default function TodayScreen() {
                 { opacity: pressed ? 0.7 : 1 },
               ]}
             >
-              <Feather name="calendar" size={16} color={Colors.dark.accent} />
+              <Feather name="calendar" size={16} color={theme.accent} />
               <ThemedText
-                style={[styles.tomorrowLinkText, { color: Colors.dark.accent }]}
+                style={[styles.tomorrowLinkText, { color: theme.accent }]}
               >
                 {tomorrowActions.length} action
                 {tomorrowActions.length !== 1 ? "s" : ""} tomorrow
               </ThemedText>
-              <Feather
-                name="chevron-right"
-                size={16}
-                color={Colors.dark.accent}
-              />
+              <Feather name="chevron-right" size={16} color={theme.accent} />
             </Pressable>
           ) : null
         }
@@ -1163,7 +1171,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
   },
   emptyContainer: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: Spacing.xl,

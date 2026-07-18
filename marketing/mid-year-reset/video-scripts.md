@@ -1,6 +1,6 @@
 # Mid-Year Reset: Short Video Scripts (TikTok / Reels / Shorts)
 
-*5 scripts, 15–40 sec each. Written to be said out loud, not read. Keep it loose and conversational. First line has ~2 seconds to stop the scroll. Pre-launch CTA = "link in bio → resolutioncompanion.com"; swap to App Store at launch.*
+*5 scripts, 15–40 sec each. Written to be said out loud, not read. Keep it loose and conversational. First line has ~2 seconds to stop the scroll. The app is live, so each app CTA ends at the App Store link in bio.*
 
 ---
 
@@ -30,7 +30,7 @@
 - "And here's the sneaky part. The 5K still happens. It just stops being the thing you're white-knuckling toward."
 - "So don't ask what you want to achieve this year. Ask who you want to be. Then let the small stuff prove it."
 
-**CTA:** "That one swap changed everything for me. Link in bio."
+**CTA:** "That one swap changed everything for me. Resolution Companion is free on the App Store — link in bio."
 
 **Caption:** Goals end. People keep going. #identity #habits #midyearreset #atomichabits
 
@@ -46,7 +46,7 @@
 - "Nobody's pretending six squats is a workout. That's not the point."
 - "The point is you didn't take a zero. And zeros are the only thing that actually kills a streak."
 
-**CTA:** "Stop taking zero days. Link in bio."
+**CTA:** "Stop taking zero days. Resolution Companion is free on the App Store — link in bio."
 
 **Caption:** Too tired? Do the two-minute version. Protect the streak. #habits #consistency #midyearreset
 
@@ -62,7 +62,7 @@
 - "I had a bad week, and instead of 'try harder,' it told me to shrink the action and keep the ambition."
 - "The thing I'd been missing all those other times wasn't willpower. It was having something in my corner when I slipped."
 
-**CTA:** "This is the app. Link in bio."
+**CTA:** "This is Resolution Companion. It's free on the App Store — link in bio."
 
 **Caption:** Went in skeptical. Did not stay skeptical. #ai #habits #accountability #midyearreset
 
@@ -78,6 +78,6 @@
 - "Because that's the whole idea. Any day can be day one."
 - "It's July. That's not too late. That's half-time."
 
-**CTA:** "Start again today. Link in bio."
+**CTA:** "Start again today. Resolution Companion is free on the App Store — link in bio."
 
 **Caption:** July 1st is the new January 1st. #midyearreset #newyearresolution #freshstart #habits #goals

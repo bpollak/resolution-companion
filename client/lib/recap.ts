@@ -27,8 +27,14 @@ export interface MonthRecap {
   consistency: number;
   /** Days with at least one completion. */
   activeDays: number;
+  /** Votes cast with the under-2-minute floor. */
+  kickstartVotes: number;
+  /** Votes completed automatically from Apple Health. */
+  healthVotes: number;
   /** Weekday with the most completions; null when nothing was completed. */
   bestWeekday: string | null;
+  /** Broad local time window with the most completions. */
+  bestTimeOfDay: string | null;
   /** Longest run of consecutive fully-complete scheduled days. */
   longestRun: number;
   /**
@@ -39,6 +45,8 @@ export interface MonthRecap {
   comeback: { date: string; gapDays: number } | null;
   /** Days inside the month bridged by the streak shield. */
   shieldedDays: number;
+  /** Shields banked during the month through seven clean completions. */
+  shieldsEarned: number;
   /** Templated identity-framed closing line. */
   closingLine: string;
 }
@@ -93,7 +101,10 @@ export function buildMonthRecap(
   let votesCast = 0;
   let scheduled = 0;
   let activeDays = 0;
+  let kickstartVotes = 0;
+  let healthVotes = 0;
   const weekdayCompletions = new Map<string, number>();
+  const timeCompletions = new Map<string, number>();
 
   let longestRun = 0;
   let currentRun = 0;
@@ -121,6 +132,24 @@ export function buildMonthRecap(
       if (log?.status) {
         dayCompleted++;
         votesCast++;
+        if (log.completionKind === "kickstart") kickstartVotes++;
+        if (log.completionSource === "health") healthVotes++;
+        const completedAt = new Date(log.createdAt);
+        if (!Number.isNaN(completedAt.getTime())) {
+          const hour = completedAt.getHours();
+          const timeOfDay =
+            hour < 5
+              ? "late night"
+              : hour < 12
+                ? "morning"
+                : hour < 17
+                  ? "afternoon"
+                  : "evening";
+          timeCompletions.set(
+            timeOfDay,
+            (timeCompletions.get(timeOfDay) ?? 0) + 1,
+          );
+        }
       }
     }
 
@@ -163,12 +192,22 @@ export function buildMonthRecap(
     }
   }
 
-  const shieldedDays = computeStreak(
-    actions,
-    logs,
-    logIndex,
-    maxShields,
-  ).shieldedDays.filter((d) => d.startsWith(monthKey)).length;
+  let bestTimeOfDay: string | null = null;
+  let bestTimeCount = 0;
+  for (const [time, count] of timeCompletions) {
+    if (count > bestTimeCount) {
+      bestTimeCount = count;
+      bestTimeOfDay = time;
+    }
+  }
+
+  const streak = computeStreak(actions, logs, logIndex, maxShields);
+  const shieldedDays = streak.shieldedDays.filter((d) =>
+    d.startsWith(monthKey),
+  ).length;
+  const shieldsEarned = streak.shieldEarnedDays.filter((d) =>
+    d.startsWith(monthKey),
+  ).length;
 
   const consistency =
     scheduled > 0 ? Math.round((votesCast / scheduled) * 100) : 0;
@@ -193,10 +232,14 @@ export function buildMonthRecap(
     scheduled,
     consistency,
     activeDays,
+    kickstartVotes,
+    healthVotes,
     bestWeekday,
+    bestTimeOfDay,
     longestRun,
     comeback,
     shieldedDays,
+    shieldsEarned,
     closingLine,
   };
 }

@@ -140,6 +140,7 @@ describe("buildMonthRecap", () => {
       TODAY,
     );
     expect(recap.bestWeekday).toBe("Monday");
+    expect(recap.bestTimeOfDay).toBe("morning");
   });
 
   it("caps a current-month recap at today", () => {
@@ -172,5 +173,27 @@ describe("buildMonthRecap", () => {
     );
     expect(recap.scheduled).toBe(5);
     expect(recap.votesCast).toBe(1);
+  });
+
+  it("reports kickstart floor saves and Health auto-votes", () => {
+    const kickstart = {
+      ...log("a", "2026-06-01"),
+      completionSource: "widget" as const,
+      completionKind: "kickstart" as const,
+    };
+    const health = {
+      ...log("a", "2026-06-02"),
+      completionSource: "health" as const,
+      completionKind: "full" as const,
+    };
+    const recap = buildMonthRecap(
+      [action("a")],
+      [kickstart, health],
+      persona,
+      "2026-06",
+      TODAY,
+    );
+    expect(recap.kickstartVotes).toBe(1);
+    expect(recap.healthVotes).toBe(1);
   });
 });

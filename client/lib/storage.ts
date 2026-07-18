@@ -16,6 +16,7 @@ const STORAGE_KEYS = {
   MONTHLY_REFLECTION_COUNT: "monthlyReflectionCount",
   DEVICE_ID: "deviceId",
   AI_CONSENT: "aiConsent",
+  RECAP_COACH_LINES: "recapCoachLines",
 };
 
 export interface Persona {
@@ -58,6 +59,10 @@ export interface DailyLog {
   createdAt: string;
   /** Optional one-line "how it went" note attached after completing. */
   note?: string;
+  /** How the vote was cast. Missing on legacy records and treated as manual. */
+  completionSource?: "manual" | "widget" | "siri" | "notification" | "health";
+  /** Whether the full action or its under-2-minute floor was completed. */
+  completionKind?: "full" | "kickstart";
 }
 
 export interface Reflection {
@@ -466,7 +471,14 @@ export const storage = {
     return write;
   },
 
-  async toggleDailyLog(actionId: string, date: string): Promise<DailyLog> {
+  async toggleDailyLog(
+    actionId: string,
+    date: string,
+    completion: Pick<DailyLog, "completionSource" | "completionKind"> = {
+      completionSource: "manual",
+      completionKind: "full",
+    },
+  ): Promise<DailyLog> {
     const logs = await this.getDailyLogs();
     const dateStr = date.includes("T") ? date.split("T")[0] : date;
 
@@ -479,6 +491,9 @@ export const storage = {
 
     if (existingIndex >= 0) {
       logs[existingIndex].status = !logs[existingIndex].status;
+      if (logs[existingIndex].status) {
+        Object.assign(logs[existingIndex], completion);
+      }
       await this.setDailyLogs(logs);
       return logs[existingIndex];
     } else {
@@ -488,6 +503,7 @@ export const storage = {
         logDate: dateStr,
         status: true,
         createdAt: new Date().toISOString(),
+        ...completion,
       };
       logs.push(newLog);
       await this.setDailyLogs(logs);
@@ -552,6 +568,21 @@ export const storage = {
 
   async setAiConsent(value: boolean): Promise<void> {
     await AsyncStorage.setItem(STORAGE_KEYS.AI_CONSENT, String(value));
+  },
+
+  async getRecapCoachLine(key: string): Promise<string | null> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.RECAP_COACH_LINES);
+    return safeParse<Record<string, string>>(value, {})[key] ?? null;
+  },
+
+  async setRecapCoachLine(key: string, line: string): Promise<void> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.RECAP_COACH_LINES);
+    const lines = safeParse<Record<string, string>>(value, {});
+    lines[key] = line;
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.RECAP_COACH_LINES,
+      JSON.stringify(lines),
+    );
   },
 
   // Keeps DEVICE_ID: server-side subscription records are keyed by it, so

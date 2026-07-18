@@ -55,7 +55,7 @@ export function WeeklyRecapCard({
       ]}
     >
       <View style={styles.header}>
-        <Feather name="bar-chart-2" size={18} color={Colors.dark.accent} />
+        <Feather name="bar-chart-2" size={18} color={theme.accent} />
         <ThemedText style={styles.title}>Last week</ThemedText>
         <Pressable
           onPress={onDismiss}
@@ -72,7 +72,7 @@ export function WeeklyRecapCard({
         <ThemedText style={styles.statHeadline}>
           {lastWeek.completed} of {lastWeek.scheduled} actions
         </ThemedText>
-        <ThemedText style={[styles.statScore, { color: Colors.dark.accent }]}>
+        <ThemedText style={[styles.statScore, { color: theme.accent }]}>
           {lastWeek.score}%
         </ThemedText>
         {prevWeek.scheduled > 0 && scoreDelta !== 0 ? (
@@ -80,7 +80,7 @@ export function WeeklyRecapCard({
             style={[
               styles.statDelta,
               {
-                color: scoreDelta > 0 ? Colors.dark.success : Colors.dark.error,
+                color: scoreDelta > 0 ? theme.success : theme.error,
               },
             ]}
           >
@@ -93,7 +93,7 @@ export function WeeklyRecapCard({
       <View style={styles.detailRow}>
         {lastWeek.bestDay ? (
           <View style={styles.detailItem}>
-            <Feather name="star" size={14} color={Colors.dark.warning} />
+            <Feather name="star" size={14} color={theme.warning} />
             <ThemedText
               style={[styles.detailText, { color: theme.textSecondary }]}
             >
@@ -103,14 +103,12 @@ export function WeeklyRecapCard({
         ) : null}
         <View style={styles.detailItem}>
           {streak.shieldUsed ? (
-            <Feather name="shield" size={14} color={Colors.dark.accent} />
+            <Feather name="shield" size={14} color={theme.accent} />
           ) : (
             <MaterialCommunityIcons
               name="fire"
               size={14}
-              color={
-                streak.current > 0 ? Colors.dark.warning : theme.textSecondary
-              }
+              color={streak.current > 0 ? theme.warning : theme.textSecondary}
             />
           )}
           <ThemedText
@@ -137,13 +135,11 @@ export function WeeklyRecapCard({
             { opacity: pressed ? 0.7 : 1 },
           ]}
         >
-          <Feather name="message-circle" size={14} color={Colors.dark.accent} />
-          <ThemedText
-            style={[styles.reviewCtaText, { color: Colors.dark.accent }]}
-          >
+          <Feather name="message-circle" size={14} color={theme.accent} />
+          <ThemedText style={[styles.reviewCtaText, { color: theme.accent }]}>
             3-min weekly review with your coach
           </ThemedText>
-          <Feather name="arrow-right" size={14} color={Colors.dark.accent} />
+          <Feather name="arrow-right" size={14} color={theme.accent} />
         </Pressable>
       ) : null}
     </View>
@@ -177,7 +173,7 @@ export function BeatLastWeekCard({
       ]}
     >
       <View style={styles.header}>
-        <Feather name="trending-up" size={18} color={Colors.dark.accent} />
+        <Feather name="trending-up" size={18} color={theme.accent} />
         <ThemedText style={styles.title}>So close</ThemedText>
         <Pressable
           onPress={onDismiss}

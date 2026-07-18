@@ -330,6 +330,10 @@ export interface WeeklyReviewContext {
   bestDay: string | null;
   /** Current streak, for continuity framing. */
   streak: number;
+  /** Shields earned during the reviewed week. */
+  shieldsEarned: number;
+  /** Missed days covered by shields during the reviewed week. */
+  shieldsUsed: number;
 }
 
 export interface ReflectionExtras {
@@ -351,6 +355,49 @@ export interface ReflectionExtras {
    * lightly) that remembering every session is part of Premium.
    */
   memoryTaste?: boolean;
+  /** Earned cosmetic preference; behavior stays MI-based in either voice. */
+  coachTone?: "supportive" | "direct";
+}
+
+export interface RecapCoachContext {
+  personaName: string;
+  monthLabel: string;
+  votesCast: number;
+  consistency: number;
+  kickstartVotes: number;
+  healthVotes: number;
+  shieldsEarned: number;
+  shieldedDays: number;
+  comebackGapDays: number | null;
+}
+
+/** Generate the recap's single forward-looking line from aggregate counts only. */
+export async function getRecapCoachLine(
+  recap: RecapCoachContext,
+): Promise<string> {
+  const url = new URL("/api/reflection", getApiUrl());
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    headers: await getAiHeaders(),
+    body: JSON.stringify({
+      messages: [
+        {
+          role: "system",
+          content:
+            "Write exactly one warm, forward-looking sentence of at most 22 words for a private habit recap. Celebrate evidence, never guilt. Do not use the word persona, percentages as grades, or generic praise.",
+        },
+        {
+          role: "user",
+          content: JSON.stringify(recap),
+        },
+      ],
+    }),
+  });
+  if (!response.ok) throw new Error("Failed to generate recap coach line");
+  const data = (await response.json()) as { content?: string };
+  const line = data.content?.replace(/\s+/g, " ").trim();
+  if (!line) throw new Error("Recap coach line was empty");
+  return line;
 }
 
 export async function getReflectionResponse(
@@ -421,12 +468,17 @@ LAST WEEK (their most recent complete Monday-Sunday week):
 - Completed ${wk.completed} of ${wk.scheduled} scheduled action-days${wk.prevCompleted > 0 ? ` (the week before: ${wk.prevCompleted})` : ""}.
 - ${wk.bestDay ? `Their strongest day was ${wk.bestDay}.` : "No completions last week — meet them with warmth, not pressure."}
 - Current streak: ${wk.streak} day${wk.streak === 1 ? "" : "s"}.
+- Shields last week: ${wk.shieldsEarned} earned, ${wk.shieldsUsed} used. Treat both as wins — earning is consistency and using one is the grace it was built for.
 `
     : "";
 
   const roleLine = isWeekly
     ? "You are a supportive coach guiding the user through a short WEEKLY REVIEW — a 3-minute ritual, not a deep session."
     : "You are a supportive coach helping the user with their monthly progress check-in.";
+  const toneInstruction =
+    extras?.coachTone === "direct"
+      ? "TONE: Be concise and candid. Name the pattern plainly and avoid cushioning every sentence, while remaining respectful and never harsh."
+      : "TONE: Be warm, patient, and gently encouraging without becoming vague or overly cheerful.";
 
   const firstMessageInstruction = isWeekly
     ? `FIRST MESSAGE: Be brief (2-3 sentences max). This is a light weekly ritual with three beats you'll walk through one at a time: one win from last week, one point of friction, and one small bend for the coming week. Open by naming their week in one warm sentence (use the week numbers naturally), then ask for the win. ONE question only.`
@@ -451,6 +503,8 @@ VOICE RULES:
 - Call their long-term metric "consistency" (it's their % of scheduled actions completed this month). Their goals are "milestones" that fill up as they complete daily actions — milestones never lose progress.
 - Identity framing: completed actions are votes for who they're becoming. A missed stretch is a plan problem, not a character problem — respond by shrinking the action or moving its schedule, never by scolding.
 - You are not a therapist or medical professional. If health, medication, or mental-health treatment comes up, be kind and suggest a qualified professional while staying supportive about their habits.
+
+${toneInstruction}
 
 ${isFirstMessage ? firstMessageInstruction : continueInstruction}
 

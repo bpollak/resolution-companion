@@ -43,15 +43,16 @@ appId: com.resolutioncompanion.app
 
 # --- Live weekly review: consent-agree + real coach reply ---
 - tapOn: ".*3-minute weekly review.*"
+- tapOn:
+    text: "Agree and continue.*"
+    optional: true
 - extendedWaitUntil:
-    visible: "Agree and continue.*"
-    timeout: 10000
-- tapOn: "Agree and continue.*"
-- extendedWaitUntil:
-    visible: "Share your thoughts.*"
+    visible: "Message to your AI coach.*"
     timeout: 45000
 - extendedWaitUntil:
-    visible: ".*[Ww]eek.*"
+    # Match a non-empty coach bubble. The old week regex matched the static
+    # "Weekly Review" title while the response was still spinning.
+    visible: "AI coach: .+"
     timeout: 90000
 - takeScreenshot: 17-weekly-review-live
 
@@ -69,8 +70,7 @@ appId: com.resolutioncompanion.app
     timeout: 30000
     centerElement: true
 - waitForAnimationToEnd
-- tapOn:
-    rightOf: "Dawn Theme.*"
+- tapOn: "Toggle Dawn Theme"
 - waitForAnimationToEnd
 - takeScreenshot: 19-profile-back-to-midnight
 - tapOn: "Close profile.*"

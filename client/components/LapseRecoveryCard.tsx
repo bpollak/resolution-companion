@@ -34,7 +34,7 @@ export function LapseRecoveryCard({
       ]}
     >
       <View style={styles.header}>
-        <Feather name="sunrise" size={18} color={Colors.dark.accent} />
+        <Feather name="sunrise" size={18} color={theme.accent} />
         <ThemedText style={styles.title}>
           Rough couple of days &mdash; that happens
         </ThemedText>
@@ -59,15 +59,16 @@ export function LapseRecoveryCard({
         accessibilityLabel="Open the Coach tab to adjust your plan"
         style={({ pressed }) => [
           styles.cta,
+          { borderColor: theme.accent },
           { opacity: pressed ? 0.7 : 1 },
           pressed && styles.ctaPressed,
         ]}
       >
-        <Feather name="message-circle" size={16} color={Colors.dark.accent} />
-        <ThemedText style={[styles.ctaText, { color: Colors.dark.accent }]}>
+        <Feather name="message-circle" size={16} color={theme.accent} />
+        <ThemedText style={[styles.ctaText, { color: theme.accent }]}>
           Talk it through with your coach
         </ThemedText>
-        <Feather name="chevron-right" size={16} color={Colors.dark.accent} />
+        <Feather name="chevron-right" size={16} color={theme.accent} />
       </Pressable>
     </View>
   );

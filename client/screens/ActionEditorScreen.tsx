@@ -283,7 +283,7 @@ export default function ActionEditorScreen() {
             { opacity: pressed || isSaving ? 0.5 : 1 },
           ]}
         >
-          <Feather name="check" size={24} color={Colors.dark.accent} />
+          <Feather name="check" size={24} color={theme.accent} />
         </Pressable>
       </View>
 
@@ -294,12 +294,12 @@ export default function ActionEditorScreen() {
         ]}
       >
         <View style={styles.section}>
-          <ThemedText
-            style={[styles.sectionLabel, { color: Colors.dark.accent }]}
-          >
+          <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
             Action Title
           </ThemedText>
           <TextInput
+            accessibilityLabel="Action title"
+            accessibilityHint="Enter the repeatable behavior you want to track"
             style={[
               styles.input,
               {
@@ -321,9 +321,7 @@ export default function ActionEditorScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText
-            style={[styles.sectionLabel, { color: Colors.dark.accent }]}
-          >
+          <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
             Frequency
           </ThemedText>
           <View style={styles.daysContainer}>
@@ -338,7 +336,7 @@ export default function ActionEditorScreen() {
                   styles.dayButton,
                   {
                     backgroundColor: frequency.includes(day)
-                      ? Colors.dark.accent
+                      ? theme.accent
                       : isDark
                         ? Colors.dark.backgroundDefault
                         : Colors.light.backgroundDefault,
@@ -360,12 +358,12 @@ export default function ActionEditorScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText
-            style={[styles.sectionLabel, { color: Colors.dark.accent }]}
-          >
+          <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
             120-Second Kickstart
           </ThemedText>
           <TextInput
+            accessibilityLabel="120-second kickstart"
+            accessibilityHint="Enter a two-minute version of this action"
             style={[
               styles.input,
               {
@@ -388,12 +386,12 @@ export default function ActionEditorScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText
-            style={[styles.sectionLabel, { color: Colors.dark.accent }]}
-          >
+          <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
             Anchor Link
           </ThemedText>
           <TextInput
+            accessibilityLabel="Anchor link"
+            accessibilityHint="Enter an existing habit that will cue this action"
             style={[
               styles.input,
               {
@@ -417,9 +415,7 @@ export default function ActionEditorScreen() {
 
         {isHealthAvailable() ? (
           <View style={styles.section}>
-            <ThemedText
-              style={[styles.sectionLabel, { color: Colors.dark.accent }]}
-            >
+            <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
               Auto-complete from Health
             </ThemedText>
             <View style={styles.daysContainer}>
@@ -459,7 +455,7 @@ export default function ActionEditorScreen() {
                       styles.dayButton,
                       {
                         backgroundColor: selected
-                          ? Colors.dark.accent
+                          ? theme.accent
                           : isDark
                             ? Colors.dark.backgroundDefault
                             : Colors.light.backgroundDefault,
@@ -492,6 +488,9 @@ export default function ActionEditorScreen() {
             <Pressable
               onPress={handleDelete}
               disabled={!canDeleteAction}
+              accessibilityRole="button"
+              accessibilityLabel="Delete action"
+              accessibilityState={{ disabled: !canDeleteAction }}
               style={({ pressed }) => [
                 styles.deleteButton,
                 {
@@ -505,17 +504,13 @@ export default function ActionEditorScreen() {
               <Feather
                 name="trash-2"
                 size={20}
-                color={
-                  canDeleteAction ? Colors.dark.error : theme.textSecondary
-                }
+                color={canDeleteAction ? theme.error : theme.textSecondary}
               />
               <ThemedText
                 style={[
                   styles.deleteButtonText,
                   {
-                    color: canDeleteAction
-                      ? Colors.dark.error
-                      : theme.textSecondary,
+                    color: canDeleteAction ? theme.error : theme.textSecondary,
                   },
                 ]}
               >

@@ -28,12 +28,28 @@ export interface WidgetData {
   nextActionId: string | null;
   nextActionTitle: string | null;
   nextActionKickstart: string | null;
+  /** Remaining actions today, so an optimistic widget tap can advance. */
+  remainingActions: WidgetActionData[];
+  /** Seven-day schedule lets the widget roll over at midnight without an app open. */
+  dayPlans: WidgetDayPlan[];
+}
+
+export interface WidgetActionData {
+  id: string;
+  title: string;
+  kickstart: string;
+}
+
+export interface WidgetDayPlan {
+  date: string;
+  actions: WidgetActionData[];
 }
 
 export interface PendingVote {
   actionId: string;
   date: string;
   kind: "full" | "kickstart";
+  source?: "widget" | "siri";
 }
 
 // Rotating identity-framed widget copy — warmth only, never guilt. The
@@ -54,13 +70,20 @@ export function buildWidgetData(
   date: Date = new Date(),
 ): WidgetData {
   const dateStr = getLocalDateString(date);
-  const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
 
-  const scheduledActions = actions.filter((action) => {
-    if (!action.frequency.includes(weekday)) return false;
-    const created = getLocalDateString(new Date(action.createdAt));
-    return created <= dateStr;
-  });
+  const scheduledFor = (target: Date) => {
+    const targetDate = getLocalDateString(target);
+    const targetWeekday = target.toLocaleDateString("en-US", {
+      weekday: "long",
+    });
+    return actions.filter((action) => {
+      if (!action.frequency.includes(targetWeekday)) return false;
+      const created = getLocalDateString(new Date(action.createdAt));
+      return created <= targetDate;
+    });
+  };
+
+  const scheduledActions = scheduledFor(date);
 
   const isCompleted = (actionId: string) =>
     dailyLogs.some(
@@ -75,6 +98,22 @@ export function buildWidgetData(
   const streak = computeStreak(actions, dailyLogs).current;
   const personaName = persona?.name ?? "Future You";
   const remaining = scheduledActions.length - completed;
+  const toWidgetAction = (action: ElementalAction): WidgetActionData => ({
+    id: action.id,
+    title: action.title,
+    kickstart: action.kickstartVersion,
+  });
+  const remainingActions = scheduledActions
+    .filter((action) => !isCompleted(action.id))
+    .map(toWidgetAction);
+  const dayPlans = Array.from({ length: 7 }, (_, offset) => {
+    const target = new Date(date);
+    target.setDate(target.getDate() + offset);
+    return {
+      date: getLocalDateString(target),
+      actions: scheduledFor(target).map(toWidgetAction),
+    };
+  });
 
   let copyLine: string;
   if (scheduledActions.length === 0) {
@@ -101,6 +140,8 @@ export function buildWidgetData(
     nextActionId: next?.id ?? null,
     nextActionTitle: next?.title ?? null,
     nextActionKickstart: next?.kickstartVersion || null,
+    remainingActions,
+    dayPlans,
   };
 }
 
@@ -157,7 +198,10 @@ export function consumePendingVotes(): PendingVote[] {
         !!v &&
         typeof v.actionId === "string" &&
         typeof v.date === "string" &&
-        (v.kind === "full" || v.kind === "kickstart"),
+        (v.kind === "full" || v.kind === "kickstart") &&
+        (v.source === undefined ||
+          v.source === "widget" ||
+          v.source === "siri"),
     );
   } catch (error) {
     logger.error("Failed to read pending widget votes:", error);

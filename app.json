@@ -2,9 +2,9 @@
   "expo": {
     "name": "Resolution Companion AI",
     "slug": "evolve-app",
-    "version": "1.0.5",
+    "version": "1.0.9",
     "description": "AI-powered personal development app to define your goals, build daily habits, and track your progress with coaching.",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "resolutioncompanion",
     "userInterfaceStyle": "automatic",

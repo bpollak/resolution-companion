@@ -69,7 +69,7 @@ export function InsightsPanel({
           <MaterialCommunityIcons
             name="chart-timeline-variant"
             size={18}
-            color={Colors.dark.accent}
+            color={theme.accent}
           />
           <ThemedText style={styles.title}>Insights</ThemedText>
           <Feather name="lock" size={16} color={theme.textSecondary} />
@@ -86,10 +86,10 @@ export function InsightsPanel({
           accessibilityLabel="Unlock insights with Premium"
           style={({ pressed }) => [styles.cta, { opacity: pressed ? 0.7 : 1 }]}
         >
-          <ThemedText style={[styles.ctaText, { color: Colors.dark.accent }]}>
+          <ThemedText style={[styles.ctaText, { color: theme.accent }]}>
             Unlock with Premium
           </ThemedText>
-          <Feather name="arrow-right" size={14} color={Colors.dark.accent} />
+          <Feather name="arrow-right" size={14} color={theme.accent} />
         </Pressable>
       </View>
     );
@@ -112,7 +112,7 @@ export function InsightsPanel({
         <MaterialCommunityIcons
           name="chart-timeline-variant"
           size={18}
-          color={Colors.dark.accent}
+          color={theme.accent}
         />
         <ThemedText style={styles.title}>Insights</ThemedText>
       </View>
@@ -148,7 +148,7 @@ export function InsightsPanel({
                     {
                       height: `${Math.max(heightRatio * 100, entry.completions > 0 ? 8 : 0)}%`,
                       backgroundColor: isBest
-                        ? Colors.dark.accent
+                        ? theme.accent
                         : isDark
                           ? Colors.dark.backgroundTertiary
                           : Colors.light.backgroundTertiary,
@@ -160,7 +160,7 @@ export function InsightsPanel({
                 style={[
                   styles.weekdayLabel,
                   {
-                    color: isBest ? Colors.dark.accent : theme.textSecondary,
+                    color: isBest ? theme.accent : theme.textSecondary,
                     fontWeight: isBest ? "700" : "400",
                   },
                 ]}
@@ -178,7 +178,7 @@ export function InsightsPanel({
         >
           MOMENTUM · WEEKLY CONSISTENCY
         </ThemedText>
-        <ThemedText style={[styles.sparkValue, { color: Colors.dark.accent }]}>
+        <ThemedText style={[styles.sparkValue, { color: theme.accent }]}>
           {lastPoint.score}%
         </ThemedText>
       </View>
@@ -191,17 +191,17 @@ export function InsightsPanel({
         <Polyline
           points={sparkPoints}
           fill="none"
-          stroke={Colors.dark.accent}
+          stroke={theme.accent}
           strokeWidth={2}
           strokeLinejoin="round"
           strokeLinecap="round"
           opacity={0.9}
         />
-        <Circle cx={lastX} cy={lastY} r={3.5} fill={Colors.dark.accent} />
+        <Circle cx={lastX} cy={lastY} r={3.5} fill={theme.accent} />
       </Svg>
 
       <View style={styles.recommendationRow}>
-        <Feather name="compass" size={14} color={Colors.dark.success} />
+        <Feather name="compass" size={14} color={theme.success} />
         <ThemedText
           style={[styles.recommendation, { color: theme.textSecondary }]}
         >

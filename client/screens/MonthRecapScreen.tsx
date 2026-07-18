@@ -11,17 +11,19 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import ViewShot, { ViewShotRef } from "react-native-view-shot";
+import ViewShot from "react-native-view-shot";
 import * as Haptics from "expo-haptics";
 
 import { useApp } from "@/context/AppContext";
 import { useTheme } from "@/hooks/useTheme";
 import { ThemedText } from "@/components/ThemedText";
-import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
+import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { buildMonthRecap, MonthRecap } from "@/lib/recap";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { track } from "@/lib/telemetry";
 import { logger } from "@/lib/logger";
+import { getRecapCoachLine } from "@/lib/ai";
+import { storage } from "@/lib/storage";
 
 /**
  * "Month in Votes" — a swipeable story of last month told the no-guilt way:
@@ -31,20 +33,27 @@ import { logger } from "@/lib/logger";
  * the picture the user chooses to send).
  */
 
-type CardKind = "votes" | "portrait" | "comeback" | "resilience" | "closing";
+type CardKind =
+  | "votes"
+  | "portrait"
+  | "support"
+  | "comeback"
+  | "resilience"
+  | "closing";
 
 interface RecapCard {
   kind: CardKind;
 }
 
-function buildCards(recap: MonthRecap): RecapCard[] {
-  const cards: RecapCard[] = [{ kind: "votes" }, { kind: "portrait" }];
-  if (recap.comeback) cards.push({ kind: "comeback" });
-  if (recap.shieldedDays > 0 || recap.longestRun >= 3) {
-    cards.push({ kind: "resilience" });
-  }
-  cards.push({ kind: "closing" });
-  return cards;
+function buildCards(): RecapCard[] {
+  return [
+    { kind: "votes" },
+    { kind: "portrait" },
+    { kind: "support" },
+    { kind: "comeback" },
+    { kind: "resilience" },
+    { kind: "closing" },
+  ];
 }
 
 function formatComebackDate(dateStr: string): string {
@@ -56,12 +65,14 @@ function formatComebackDate(dateStr: string): string {
 }
 
 function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
+  const { theme } = useTheme();
+
   switch (kind) {
     case "votes":
       return (
         <>
           <ThemedText style={styles.cardEyebrow}>{recap.monthLabel}</ThemedText>
-          <ThemedText style={[styles.bigNumber, { color: Colors.dark.accent }]}>
+          <ThemedText style={[styles.bigNumber, { color: theme.accent }]}>
             {recap.votesCast}
           </ThemedText>
           <ThemedText style={styles.cardHeadline}>
@@ -78,7 +89,7 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
           <ThemedText style={styles.cardEyebrow}>
             Your consistency portrait
           </ThemedText>
-          <ThemedText style={[styles.bigNumber, { color: Colors.dark.accent }]}>
+          <ThemedText style={[styles.bigNumber, { color: theme.accent }]}>
             {recap.consistency}%
           </ThemedText>
           <ThemedText style={styles.cardHeadline}>
@@ -87,27 +98,75 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
           </ThemedText>
           <ThemedText style={styles.cardSub}>
             {recap.bestWeekday
-              ? `${recap.bestWeekday}s are when you show up most.`
+              ? `${recap.bestWeekday}s${recap.bestTimeOfDay ? ` in the ${recap.bestTimeOfDay}` : ""} are when you show up most.`
               : "A fresh month is a fresh ballot."}
           </ThemedText>
         </>
       );
-    case "comeback":
+    case "support":
       return (
+        <>
+          <ThemedText style={styles.cardEyebrow}>
+            The plan met you there
+          </ThemedText>
+          <View style={styles.statPair}>
+            <View style={styles.statBlock}>
+              <ThemedText style={[styles.midNumber, { color: theme.warning }]}>
+                {recap.kickstartVotes}
+              </ThemedText>
+              <ThemedText style={styles.cardSub}>
+                2-minute floor saves
+              </ThemedText>
+            </View>
+            <View style={styles.statBlock}>
+              <ThemedText style={[styles.midNumber, { color: theme.success }]}>
+                {recap.healthVotes}
+              </ThemedText>
+              <ThemedText style={styles.cardSub}>Health auto-votes</ThemedText>
+            </View>
+          </View>
+          <ThemedText style={styles.cardHeadline}>
+            Small and automatic still count.
+          </ThemedText>
+          <ThemedText style={styles.cardSub}>
+            The floor exists for real life. Every smaller version was still a
+            vote for {recap.personaName}.
+          </ThemedText>
+        </>
+      );
+    case "comeback":
+      return recap.comeback ? (
         <>
           <ThemedText style={styles.cardEyebrow}>The comeback</ThemedText>
           <MaterialCommunityIcons
             name="undo-variant"
             size={56}
-            color={Colors.dark.success}
+            color={theme.success}
             style={styles.cardIcon}
           />
           <ThemedText style={styles.cardHeadline}>
-            On {formatComebackDate(recap.comeback!.date)} you came back after{" "}
-            {recap.comeback!.gapDays} days away
+            On {formatComebackDate(recap.comeback.date)} you came back after{" "}
+            {recap.comeback.gapDays} days away
           </ThemedText>
           <ThemedText style={styles.cardSub}>
             Coming back is the whole skill. Streaks are easy — returns are rare.
+          </ThemedText>
+        </>
+      ) : (
+        <>
+          <ThemedText style={styles.cardEyebrow}>The steady return</ThemedText>
+          <MaterialCommunityIcons
+            name="weather-sunset-up"
+            size={56}
+            color={theme.success}
+            style={styles.cardIcon}
+          />
+          <ThemedText style={styles.cardHeadline}>
+            You kept finding your way back.
+          </ThemedText>
+          <ThemedText style={styles.cardSub}>
+            No dramatic comeback required. Quiet returns are how identity gets
+            built.
           </ThemedText>
         </>
       );
@@ -116,35 +175,27 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
         <>
           <ThemedText style={styles.cardEyebrow}>Built to bend</ThemedText>
           <View style={styles.statPair}>
-            {recap.longestRun >= 3 ? (
-              <View style={styles.statBlock}>
-                <ThemedText
-                  style={[styles.midNumber, { color: Colors.dark.accent }]}
-                >
-                  {recap.longestRun}
-                </ThemedText>
-                <ThemedText style={styles.cardSub}>
-                  days, your longest run
-                </ThemedText>
-              </View>
-            ) : null}
-            {recap.shieldedDays > 0 ? (
-              <View style={styles.statBlock}>
-                <ThemedText
-                  style={[styles.midNumber, { color: Colors.dark.warning }]}
-                >
-                  {recap.shieldedDays} 🛡
-                </ThemedText>
-                <ThemedText style={styles.cardSub}>
-                  {recap.shieldedDays === 1 ? "day" : "days"} your shield
-                  covered
-                </ThemedText>
-              </View>
-            ) : null}
+            <View style={styles.statBlock}>
+              <ThemedText style={[styles.midNumber, { color: theme.accent }]}>
+                {recap.longestRun}
+              </ThemedText>
+              <ThemedText style={styles.cardSub}>
+                days, your longest run
+              </ThemedText>
+            </View>
+            <View style={styles.statBlock}>
+              <ThemedText style={[styles.midNumber, { color: theme.warning }]}>
+                {recap.shieldedDays} 🛡
+              </ThemedText>
+              <ThemedText style={styles.cardSub}>
+                {recap.shieldedDays === 1 ? "day" : "days"} your shield covered
+              </ThemedText>
+            </View>
           </View>
           <ThemedText style={styles.cardSub}>
-            Shields are earned by showing up — forgiveness as a reward, not an
-            apology.
+            You earned {recap.shieldsEarned} shield
+            {recap.shieldsEarned === 1 ? "" : "s"} by showing up — forgiveness
+            as a reward, not an apology.
           </ThemedText>
         </>
       );
@@ -157,7 +208,7 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
           <MaterialCommunityIcons
             name="compass-outline"
             size={56}
-            color={Colors.dark.accent}
+            color={theme.accent}
             style={styles.cardIcon}
           />
           <ThemedText style={styles.cardHeadline}>
@@ -176,10 +227,10 @@ export default function MonthRecapScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, "MonthRecap">>();
   const { theme } = useTheme();
-  const { actions, dailyLogs, persona, subscription } = useApp();
+  const { actions, dailyLogs, persona, subscription, aiConsent } = useApp();
   const { width } = useWindowDimensions();
   const [pageIndex, setPageIndex] = useState(0);
-  const shotRefs = useRef<Map<number, ViewShotRef | null>>(new Map());
+  const shotRefs = useRef<Map<number, ViewShot | null>>(new Map());
 
   const recap = useMemo(
     () =>
@@ -199,11 +250,52 @@ export default function MonthRecapScreen() {
       subscription.isPremium,
     ],
   );
-  const cards = useMemo(() => buildCards(recap), [recap]);
+  const cards = useMemo(() => buildCards(), []);
+  const [coachLine, setCoachLine] = useState(recap.closingLine);
 
   useEffect(() => {
     track("recap_viewed");
   }, []);
+
+  useEffect(() => {
+    setCoachLine(recap.closingLine);
+    if (!aiConsent || !persona) return;
+
+    let cancelled = false;
+    const cacheKey = `${persona.id}|${recap.monthKey}`;
+    void (async () => {
+      try {
+        const cached = await storage.getRecapCoachLine(cacheKey);
+        if (cached) {
+          if (!cancelled) setCoachLine(cached);
+          return;
+        }
+        const line = await getRecapCoachLine({
+          personaName: recap.personaName,
+          monthLabel: recap.monthLabel,
+          votesCast: recap.votesCast,
+          consistency: recap.consistency,
+          kickstartVotes: recap.kickstartVotes,
+          healthVotes: recap.healthVotes,
+          shieldsEarned: recap.shieldsEarned,
+          shieldedDays: recap.shieldedDays,
+          comebackGapDays: recap.comeback?.gapDays ?? null,
+        });
+        await storage.setRecapCoachLine(cacheKey, line);
+        if (!cancelled) setCoachLine(line);
+      } catch (error) {
+        logger.warn("Using offline recap closing line:", error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [aiConsent, persona, recap]);
+
+  const displayRecap = useMemo(
+    () => ({ ...recap, closingLine: coachLine }),
+    [coachLine, recap],
+  );
 
   const cardWidth = width - Spacing["3xl"] * 2;
 
@@ -275,12 +367,12 @@ export default function MonthRecapScreen() {
             options={{ format: "png", quality: 1 }}
             style={[styles.card, { width: cardWidth, marginRight: Spacing.lg }]}
           >
-            <CardBody recap={recap} kind={item.kind} />
+            <CardBody recap={displayRecap} kind={item.kind} />
             <View style={styles.brandRow}>
               <MaterialCommunityIcons
                 name="compass-outline"
                 size={14}
-                color={Colors.dark.accent}
+                color={theme.accent}
               />
               <ThemedText style={styles.brandText}>
                 Resolution Companion
@@ -299,9 +391,7 @@ export default function MonthRecapScreen() {
                 styles.dot,
                 {
                   backgroundColor:
-                    i === pageIndex
-                      ? Colors.dark.accent
-                      : theme.backgroundTertiary,
+                    i === pageIndex ? theme.accent : theme.backgroundTertiary,
                 },
               ]}
             />
@@ -316,13 +406,15 @@ export default function MonthRecapScreen() {
           style={({ pressed }) => [
             styles.shareButton,
             {
-              backgroundColor: Colors.dark.accent,
+              backgroundColor: theme.accent,
               opacity: pressed ? 0.8 : 1,
             },
           ]}
         >
-          <Feather name="share" size={16} color="#0f0f1a" />
-          <ThemedText style={styles.shareText}>Share this card</ThemedText>
+          <Feather name="share" size={16} color={theme.buttonText} />
+          <ThemedText style={[styles.shareText, { color: theme.buttonText }]}>
+            Share this card
+          </ThemedText>
         </Pressable>
       </View>
     </View>

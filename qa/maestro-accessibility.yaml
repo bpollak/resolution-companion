@@ -1,0 +1,22 @@
+appId: com.resolutioncompanion.app
+name: accessibility-large-text-orientation
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Start Your Journey.*"
+- takeScreenshot: a11y-00-large-text-portrait
+- tapOn: "Start Your Journey.*"
+- assertVisible: "Welcome to Resolution Companion.*"
+- takeScreenshot: a11y-01-onboarding-portrait
+- setOrientation: LANDSCAPE_LEFT
+- assertVisible: "Welcome to Resolution Companion.*"
+- takeScreenshot: a11y-02-onboarding-landscape
+- setOrientation: PORTRAIT
+- tapOn: "Continue.*"
+- assertVisible: "Start with a Quick Chat.*"
+- tapOn: "Continue.*"
+- assertVisible: "Free vs Premium.*"
+- tapOn: "Let's Get Started.*"
+- assertVisible: "Agree and continue.*"
+- assertVisible: "Not now.*"
+- takeScreenshot: a11y-03-consent-large-text

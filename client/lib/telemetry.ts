@@ -14,9 +14,8 @@ import { logger } from "@/lib/logger";
  * silently no-ops. Disclosed in the privacy policy alongside the deviceId.
  */
 
-// The complete funnel vocabulary. Adding an event = adding it here; the
-// server accepts any well-formed name, so client and dashboard stay the
-// single source of truth for what exists.
+// The complete funnel vocabulary. The server mirrors this allowlist so event
+// names cannot create an unbounded row dimension; update both sides together.
 export type TelemetryEvent =
   | "app_open"
   | "onboarding_started"
@@ -52,17 +51,23 @@ const MAX_BATCH = 50;
 type QueueShape = Record<string, number>; // "YYYY-MM-DD|event" -> count
 
 let memoryQueue: QueueShape | null = null;
+let loadPromise: Promise<QueueShape> | null = null;
 let persistChain: Promise<void> = Promise.resolve();
 
 async function loadQueue(): Promise<QueueShape> {
   if (memoryQueue) return memoryQueue;
-  try {
-    const raw = await AsyncStorage.getItem(QUEUE_KEY);
-    memoryQueue = raw ? (JSON.parse(raw) as QueueShape) : {};
-  } catch {
-    memoryQueue = {};
+  if (!loadPromise) {
+    loadPromise = (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(QUEUE_KEY);
+        memoryQueue = raw ? (JSON.parse(raw) as QueueShape) : {};
+      } catch {
+        memoryQueue = {};
+      }
+      return memoryQueue;
+    })();
   }
-  return memoryQueue;
+  return loadPromise;
 }
 
 function persistQueue(): void {

@@ -121,4 +121,32 @@ describe("buildWidgetData", () => {
     );
     expect(data.personaName).toBe("Future You");
   });
+
+  it("includes the coming week so midnight rollover does not reuse yesterday's schedule", () => {
+    const data = buildWidgetData(
+      [action("thu", ["Thursday"]), action("fri", ["Friday"])],
+      [],
+      persona,
+      THURSDAY,
+    );
+    expect(data.dayPlans).toHaveLength(7);
+    expect(data.dayPlans[0]).toMatchObject({
+      date: "2026-07-16",
+      actions: [{ id: "thu" }],
+    });
+    expect(data.dayPlans[1]).toMatchObject({
+      date: "2026-07-17",
+      actions: [{ id: "fri" }],
+    });
+  });
+
+  it("keeps every remaining action so the widget can advance after a tap", () => {
+    const data = buildWidgetData(
+      [action("a", ["Thursday"]), action("b", ["Thursday"])],
+      [log("a", "2026-07-16")],
+      persona,
+      THURSDAY,
+    );
+    expect(data.remainingActions.map((item) => item.id)).toEqual(["b"]);
+  });
 });

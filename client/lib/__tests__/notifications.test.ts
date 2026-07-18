@@ -121,9 +121,9 @@ describe("reminder bucket resolution", () => {
 
 describe("selectReminderHook", () => {
   const noSignal: ReminderHookStats = {
-    momentum: { taps: 0 },
-    coach: { taps: 0 },
-    calm: { taps: 0 },
+    momentum: { taps: 0, opportunities: 0 },
+    coach: { taps: 0, opportunities: 0 },
+    calm: { taps: 0, opportunities: 0 },
   };
 
   it("rotates deterministically when no voice has earned enough taps", () => {
@@ -144,9 +144,9 @@ describe("selectReminderHook", () => {
 
   it("exploits the leading voice once it has enough taps", () => {
     const stats: ReminderHookStats = {
-      momentum: { taps: 5 },
-      coach: { taps: 1 },
-      calm: { taps: 0 },
+      momentum: { taps: 5, opportunities: 8 },
+      coach: { taps: 1, opportunities: 8 },
+      calm: { taps: 0, opportunities: 8 },
     };
     const days = Array.from(
       { length: 12 },
@@ -162,9 +162,9 @@ describe("selectReminderHook", () => {
 
   it("keeps rotating below the tap threshold", () => {
     const stats: ReminderHookStats = {
-      momentum: { taps: 2 },
-      coach: { taps: 0 },
-      calm: { taps: 0 },
+      momentum: { taps: 2, opportunities: 3 },
+      coach: { taps: 0, opportunities: 3 },
+      calm: { taps: 0, opportunities: 3 },
     };
     const days = [
       "2026-09-01",
@@ -176,6 +176,22 @@ describe("selectReminderHook", () => {
     ];
     const picks = new Set(days.map((d) => selectReminderHook(stats, d)));
     expect(picks.size).toBeGreaterThanOrEqual(2);
+  });
+
+  it("chooses the best response rate rather than the largest raw tap count", () => {
+    const stats: ReminderHookStats = {
+      momentum: { taps: 8, opportunities: 40 },
+      coach: { taps: 4, opportunities: 8 },
+      calm: { taps: 3, opportunities: 30 },
+    };
+    const exploitDays = Array.from(
+      { length: 18 },
+      (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`,
+    );
+    const picks = exploitDays.map((day) => selectReminderHook(stats, day));
+    expect(picks.filter((pick) => pick === "coach").length).toBeGreaterThan(
+      picks.filter((pick) => pick === "momentum").length,
+    );
   });
 });
 

@@ -38,7 +38,7 @@ export function CoachObservationCard({
       ]}
     >
       <View style={styles.header}>
-        <Feather name="message-circle" size={18} color={Colors.dark.accent} />
+        <Feather name="message-circle" size={18} color={theme.accent} />
         <ThemedText style={styles.title}>Your coach noticed</ThemedText>
         <Pressable
           onPress={onDismiss}
@@ -63,10 +63,10 @@ export function CoachObservationCard({
         accessibilityLabel="Talk it through with your coach"
         style={({ pressed }) => [styles.cta, { opacity: pressed ? 0.7 : 1 }]}
       >
-        <ThemedText style={[styles.ctaText, { color: Colors.dark.accent }]}>
+        <ThemedText style={[styles.ctaText, { color: theme.accent }]}>
           Talk it through
         </ThemedText>
-        <Feather name="arrow-right" size={14} color={Colors.dark.accent} />
+        <Feather name="arrow-right" size={14} color={theme.accent} />
       </Pressable>
     </View>
   );

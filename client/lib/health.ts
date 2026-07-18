@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { ElementalAction } from "@/lib/storage";
+import type { ElementalAction } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 
 /**
@@ -91,29 +91,32 @@ function dayRange(date: Date): { startDate: string; endDate: string } {
 }
 
 /** Whether Health data satisfies the given auto-complete kind for `date`. */
-export async function isHealthGoalMet(
+export async function evaluateHealthGoal(
+  kit: Pick<
+    HealthKitModule,
+    "getStepCount" | "getSamples" | "getMindfulSession"
+  >,
   kind: NonNullable<ElementalAction["healthAutoComplete"]>,
   date: Date = new Date(),
 ): Promise<boolean> {
-  if (!healthKit || !initialized) return false;
   const range = dayRange(date);
   try {
     if (kind === "steps") {
       return await new Promise((resolve) => {
-        healthKit!.getStepCount({ date: range.startDate }, (error, result) =>
+        kit.getStepCount({ date: range.startDate }, (error, result) =>
           resolve(!error && (result?.value ?? 0) >= HEALTH_STEPS_THRESHOLD),
         );
       });
     }
     if (kind === "workout") {
       return await new Promise((resolve) => {
-        healthKit!.getSamples({ ...range, type: "Workout" }, (error, result) =>
+        kit.getSamples({ ...range, type: "Workout" }, (error, result) =>
           resolve(!error && Array.isArray(result) && result.length > 0),
         );
       });
     }
     return await new Promise((resolve) => {
-      healthKit!.getMindfulSession(range, (error, result) =>
+      kit.getMindfulSession(range, (error, result) =>
         resolve(!error && Array.isArray(result) && result.length > 0),
       );
     });
@@ -121,6 +124,15 @@ export async function isHealthGoalMet(
     logger.error("Health goal check failed:", error);
     return false;
   }
+}
+
+/** Whether initialized Health data satisfies the given auto-complete kind. */
+export async function isHealthGoalMet(
+  kind: NonNullable<ElementalAction["healthAutoComplete"]>,
+  date: Date = new Date(),
+): Promise<boolean> {
+  if (!healthKit || !initialized) return false;
+  return evaluateHealthGoal(healthKit, kind, date);
 }
 
 export const HEALTH_KIND_LABELS: Record<

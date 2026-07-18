@@ -56,6 +56,6 @@ Pick one for the launch (timed to the mid-year theme):
 
 ---
 
-## CTA swap reminder
+## Live CTA
 
-Everything in this campaign uses **resolutioncompanion.com** as a pre-launch CTA. The moment the app is approved and live, swap all CTAs to the App Store link (apps.apple.com/app/id6757996708) and change "coming soon" → "download now."
+The app is live. Every campaign destination should use **https://apps.apple.com/app/id6757996708** and say "download now" or "free on the App Store." Do not publish the old pre-launch "coming soon" copy.
