@@ -149,6 +149,21 @@ domain `resolutioncompanion.com`.
   Health auto-votes + Siri. New deps: @bacons/apple-targets,
   react-native-view-shot, react-native-health, @types/pg. Detail in the
   `resolution-companion-ground-up-sprint` memory.
+  - **Widget bridge gotcha:** the JS↔App-Group bridge is the LOCAL module
+    `modules/app-group-storage` (15.1 target). Do NOT use
+    `@bacons/apple-targets`' ExtensionStorage JS — its pod needs iOS 16.4 and
+    pod autolinking silently skips it at our deployment target, leaving the
+    JS as a no-op stub. apple-targets is used solely as the config plugin
+    that generates `targets/widget/`.
+  - **Regression QA:** `qa/maestro-regression.yaml` (fresh install → paywall)
+    and `qa/maestro-engagement.yaml` + `qa/seed_history.py` (seeded 5-week
+    history → milestone celebration, Dawn unlock, coach observation, live
+    weekly review). Both full-passed 2026-07-17 on iPhone 16 Pro / iOS 18.
+    Regression also caught+fixed a pending-widget-vote race: the AppState
+    'active' listener could consume votes before the store loaded (guarded
+    by isLoading in AppContext). To inject App Group values in sim tests use
+    `simctl spawn <udid> defaults write group.com.resolutioncompanion.app` —
+    editing the plist file directly desyncs cfprefsd.
 - **Website** (2026-07-11): direct App Store CTAs, official badge, social
   share card, FAQ (+ FAQPage schema), Pricing nav — live.
 

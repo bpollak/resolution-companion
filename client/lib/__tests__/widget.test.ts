@@ -7,15 +7,8 @@
 import { buildWidgetData } from "@/lib/widget";
 import type { ElementalAction, DailyLog, Persona } from "@/lib/storage";
 
-jest.mock("@bacons/apple-targets", () => ({
-  ExtensionStorage: class {
-    static reloadWidget() {}
-    set() {}
-    get() {
-      return null;
-    }
-    remove() {}
-  },
+jest.mock("expo-modules-core", () => ({
+  requireOptionalNativeModule: () => null,
 }));
 
 jest.mock("react-native", () => ({ Platform: { OS: "ios" } }));

@@ -28,7 +28,11 @@ Legend: ✅ built (v1.0.4 candidate, commits 9f54168 / 85c60b5 / 8345490) ·
   lock-screen ring, rotating identity copy, rest-day face. Built with
   `@bacons/apple-targets` (`targets/widget/`), App Group
   `group.com.resolutioncompanion.app`, JS bridge `client/lib/widget.ts`,
-  pending-vote reconciliation in AppContext.
+  pending-vote reconciliation in AppContext. The JS↔App-Group bridge is the
+  local module `modules/app-group-storage` — apple-targets' bundled
+  ExtensionStorage pod requires iOS 16.4 and is silently SKIPPED by pod
+  autolinking at our 15.1 deployment target (found in sim regression: the
+  binary shipped without it and the bridge no-opped).
 - 🆕 **4. Monthly "Identity Wrapped" share card** — "Month in Votes":
   swipeable no-guilt story (votes, portrait, comeback, shields, closing) on
   the 1st, share-as-image via react-native-view-shot; entry card on Today.

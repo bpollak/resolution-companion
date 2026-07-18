@@ -614,6 +614,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dailyLogs,
     persona,
     personaAlignment,
+    isLoading,
   });
   useEffect(() => {
     reminderStateRef.current = {
@@ -622,6 +623,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dailyLogs,
       persona,
       personaAlignment,
+      isLoading,
     };
   });
   useEffect(() => {
@@ -750,11 +752,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [isLoading, actions, dailyLogs, persona, toggleDailyLog]);
 
   // Widget votes cast while the app stayed backgrounded (state changes don't
-  // fire above): reconcile on every foreground.
+  // fire above): reconcile on every foreground. Never consume before the
+  // store has loaded — iOS fires an 'active' event right at launch, and
+  // reading votes against the still-empty action list would silently drop
+  // them (found in simulator regression: the injected pending vote vanished
+  // without completing anything).
   useEffect(() => {
     if (Platform.OS !== "ios") return;
     const subscription = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
+      if (reminderStateRef.current.isLoading) return;
       const { actions: currentActions } = reminderStateRef.current;
       for (const vote of consumePendingVotes()) {
         const existing = dailyLogsRef.current.find(

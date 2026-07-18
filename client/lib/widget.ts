@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { ExtensionStorage } from "@bacons/apple-targets";
+import { requireOptionalNativeModule } from "expo-modules-core";
 import { ElementalAction, DailyLog, Persona } from "@/lib/storage";
 import { computeStreak, getLocalDateString } from "@/lib/progress";
 import { logger } from "@/lib/logger";
@@ -104,14 +104,19 @@ export function buildWidgetData(
   };
 }
 
-function getStorage(): ExtensionStorage | null {
+// Local native module (modules/app-group-storage): App Group UserDefaults
+// with a 15.1 deployment target. Null in Expo Go / web, where the bridge
+// simply no-ops.
+interface AppGroupStorageModule {
+  getItem(appGroup: string, key: string): string | null;
+  setItem(appGroup: string, key: string, value: string): void;
+  removeItem(appGroup: string, key: string): void;
+  reloadWidgets(): void;
+}
+
+function getStorage(): AppGroupStorageModule | null {
   if (Platform.OS !== "ios") return null;
-  try {
-    return new ExtensionStorage(WIDGET_APP_GROUP);
-  } catch {
-    // Expo Go / simulator builds without the native module
-    return null;
-  }
+  return requireOptionalNativeModule<AppGroupStorageModule>("AppGroupStorage");
 }
 
 /** Write today's snapshot for the widget and refresh its timeline. */
@@ -123,11 +128,12 @@ export function syncWidgetData(
   const storage = getStorage();
   if (!storage) return;
   try {
-    storage.set(
+    storage.setItem(
+      WIDGET_APP_GROUP,
       WIDGET_DATA_KEY,
       JSON.stringify(buildWidgetData(actions, dailyLogs, persona)),
     );
-    ExtensionStorage.reloadWidget();
+    storage.reloadWidgets();
   } catch (error) {
     logger.error("Widget sync failed:", error);
   }
@@ -141,9 +147,9 @@ export function consumePendingVotes(): PendingVote[] {
   const storage = getStorage();
   if (!storage) return [];
   try {
-    const raw = storage.get(PENDING_VOTES_KEY);
+    const raw = storage.getItem(WIDGET_APP_GROUP, PENDING_VOTES_KEY);
     if (!raw) return [];
-    storage.remove(PENDING_VOTES_KEY);
+    storage.removeItem(WIDGET_APP_GROUP, PENDING_VOTES_KEY);
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(
