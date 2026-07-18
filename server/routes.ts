@@ -7,6 +7,7 @@ import {
   websiteFeedback,
   deviceSubscriptions,
   deviceAiUsage,
+  aiUsageDaily,
   deviceEvents,
 } from "@shared/schema";
 import { sql, eq } from "drizzle-orm";
@@ -49,6 +50,45 @@ function getOpenAI(): OpenAI {
     });
   }
   return openaiClient;
+}
+
+type ModelUsage = {
+  prompt_tokens?: number | null;
+  completion_tokens?: number | null;
+};
+
+async function recordAiModelUsage(
+  endpoint: "chat" | "extract" | "reflection" | "milestone-proposal",
+  usage: ModelUsage | null | undefined,
+): Promise<void> {
+  if (!db) return;
+  try {
+    const inputTokens = Math.max(0, usage?.prompt_tokens ?? 0);
+    const outputTokens = Math.max(0, usage?.completion_tokens ?? 0);
+    await db
+      .insert(aiUsageDaily)
+      .values({
+        day: new Date().toISOString().slice(0, 10),
+        endpoint,
+        model: OPENAI_MODEL,
+        requests: 1,
+        inputTokens,
+        outputTokens,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [aiUsageDaily.day, aiUsageDaily.endpoint, aiUsageDaily.model],
+        set: {
+          requests: sql`${aiUsageDaily.requests} + 1`,
+          inputTokens: sql`${aiUsageDaily.inputTokens} + ${inputTokens}`,
+          outputTokens: sql`${aiUsageDaily.outputTokens} + ${outputTokens}`,
+          updatedAt: new Date(),
+        },
+      });
+  } catch (error) {
+    // Operational metering must never make coaching fail.
+    console.error("AI usage aggregation error:", error);
+  }
 }
 
 if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
@@ -689,6 +729,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           reasoning_effort: "minimal",
           max_completion_tokens: 1024,
           stream: true,
+          stream_options: { include_usage: true },
         });
 
         // Mobile clients drop connections often (backgrounding, network loss).
@@ -699,12 +740,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } catch {}
         });
 
+        let modelUsage: ModelUsage | null = null;
         for await (const chunk of stream) {
+          if (chunk.usage) modelUsage = chunk.usage;
           const content = chunk.choices[0]?.delta?.content || "";
           if (content) {
             res.write(`data: ${JSON.stringify({ content })}\n\n`);
           }
         }
+
+        await recordAiModelUsage("chat", modelUsage);
 
         res.write("data: [DONE]\n\n");
         res.end();
@@ -772,6 +817,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           max_completion_tokens: 4096,
         });
 
+        await recordAiModelUsage("extract", response.usage);
+
         const content = response.choices[0]?.message?.content || "{}";
         const personaData = JSON.parse(content);
 
@@ -813,6 +860,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             reasoning_effort: "minimal",
             max_completion_tokens: 2048,
             stream: true,
+            stream_options: { include_usage: true },
           });
 
           // Abort the upstream completion if the mobile client drops mid-stream,
@@ -823,12 +871,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             } catch {}
           });
 
+          let modelUsage: ModelUsage | null = null;
           for await (const chunk of completion) {
+            if (chunk.usage) modelUsage = chunk.usage;
             const content = chunk.choices[0]?.delta?.content || "";
             if (content) {
               res.write(`data: ${JSON.stringify({ content })}\n\n`);
             }
           }
+
+          await recordAiModelUsage("reflection", modelUsage);
 
           res.write("data: [DONE]\n\n");
           res.end();
@@ -841,6 +893,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           reasoning_effort: "minimal",
           max_completion_tokens: 2048,
         });
+
+        await recordAiModelUsage("reflection", response.usage);
 
         const content = response.choices[0]?.message?.content || "";
         res.json({ content });
@@ -898,6 +952,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           reasoning_effort: "minimal",
           max_completion_tokens: 256,
         });
+        await recordAiModelUsage("milestone-proposal", response.usage);
         const parsed = JSON.parse(
           response.choices[0]?.message?.content || "{}",
         ) as { title?: unknown };
@@ -1028,6 +1083,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "witness_progress_shared",
     "icloud_backup_created",
     "icloud_backup_restored",
+    "client_error",
   ]);
   const TELEMETRY_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
   const TELEMETRY_DEVICE_RE = /^[A-Za-z0-9._-]{8,64}$/;
@@ -1156,6 +1212,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Telemetry summary error:", error);
         res.status(500).json({ error: "Failed to fetch telemetry summary" });
+      }
+    },
+  );
+
+  // Admin-only AI usage totals. Model + token counts let operations apply the
+  // current provider price without storing a prompt, response, or device id.
+  app.get(
+    "/api/telemetry/ai-usage",
+    requireAdminKey,
+    async (req: Request, res: Response) => {
+      try {
+        if (!db) {
+          res.json([]);
+          return;
+        }
+        const since =
+          typeof req.query.since === "string" &&
+          TELEMETRY_DAY_RE.test(req.query.since)
+            ? req.query.since
+            : "0000-00-00";
+        const rows = await db
+          .select({
+            day: aiUsageDaily.day,
+            endpoint: aiUsageDaily.endpoint,
+            model: aiUsageDaily.model,
+            requests: aiUsageDaily.requests,
+            inputTokens: aiUsageDaily.inputTokens,
+            outputTokens: aiUsageDaily.outputTokens,
+          })
+          .from(aiUsageDaily)
+          .where(sql`${aiUsageDaily.day} >= ${since}`)
+          .orderBy(aiUsageDaily.day, aiUsageDaily.endpoint);
+        res.json(rows);
+      } catch (error) {
+        console.error("AI usage summary error:", error);
+        res.status(500).json({ error: "Failed to fetch AI usage summary" });
       }
     },
   );

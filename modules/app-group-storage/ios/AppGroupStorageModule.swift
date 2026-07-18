@@ -1,4 +1,5 @@
 import ExpoModulesCore
+import UIKit
 import WidgetKit
 
 // App Group UserDefaults bridge for the "Cast Your Vote" widget. All values
@@ -48,6 +49,26 @@ public class AppGroupStorageModule: Module {
 
     Function("synchronizeICloud") { () -> Bool in
       NSUbiquitousKeyValueStore.default.synchronize()
+    }
+
+    Function("supportsAlternateIcons") { () -> Bool in
+      UIApplication.shared.supportsAlternateIcons
+    }
+
+    Function("getAlternateIconName") { () -> String? in
+      UIApplication.shared.alternateIconName
+    }
+
+    AsyncFunction("setAlternateIconName") { (name: String?, promise: Promise) in
+      DispatchQueue.main.async {
+        guard UIApplication.shared.supportsAlternateIcons else {
+          promise.resolve(false)
+          return
+        }
+        UIApplication.shared.setAlternateIconName(name) { error in
+          promise.resolve(error == nil)
+        }
+      }
     }
   }
 }

@@ -1,0 +1,37 @@
+appId: com.resolutioncompanion.app
+name: earned-cosmetic-rewards
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Momentum Builder.*"
+    timeout: 20000
+- tapOn: "Open profile and settings.*"
+- extendedWaitUntil:
+    visible: "My Personas.*"
+    timeout: 10000
+
+# The accent changes immediately and stays readable in the Profile surface.
+- scrollUntilVisible:
+    element:
+      text: "Violet Accent.*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn: "Toggle Violet Accent"
+- takeScreenshot: 22-violet-accent-enabled
+
+# The fourth-milestone icon uses Apple's native confirmation and persists as
+# the app's active alternate icon rather than an in-app imitation.
+- scrollUntilVisible:
+    element:
+      text: "Aurora App Icon.*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn: "Toggle Aurora App Icon"
+- extendedWaitUntil:
+    visible: "You have changed the icon for.*"
+    timeout: 10000
+- tapOn: "OK"
+- assertVisible: "Aurora App Icon.*"
+- takeScreenshot: 23-aurora-app-icon-enabled

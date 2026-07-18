@@ -2,7 +2,7 @@
   "expo": {
     "name": "Resolution Companion AI",
     "slug": "evolve-app",
-    "version": "1.0.10",
+    "version": "1.0.11",
     "description": "AI-powered personal development app to define your goals, build daily habits, and track your progress with coaching.",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
@@ -90,7 +90,8 @@
         {
           "healthSharePermission": "Resolution Companion reads workouts, steps, and mindful minutes — on this device only — to automatically complete matching daily actions so you never take a zero."
         }
-      ]
+      ],
+      "./plugins/with-alternate-app-icons"
     ],
     "experiments": {
       "reactCompiler": true

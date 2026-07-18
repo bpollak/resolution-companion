@@ -2,7 +2,7 @@
 
 **Audited:** July 18, 2026
 
-**Artifact:** Resolution Companion iOS simulator build **1.0.10**
+**Artifact:** Resolution Companion iOS simulator build **1.0.11**
 
 **Device:** iPhone 16 Pro simulator, iOS 18.0
 
@@ -12,12 +12,13 @@
 
 The application has completed a code and simulator conformance pass against
 the mobile-app technical standard used by the ADA Title II web and mobile-app
-rule: **WCAG 2.1 Level AA**. The exact 1.0.10 artifact passed dedicated
+rule: **WCAG 2.1 Level AA**. The exact 1.0.11 artifact passed dedicated
 regressions at iOS's largest accessibility text size with Increased Contrast
 and Reduce Motion enabled, in portrait and landscape. The exercised surfaces
 include onboarding, consent, core navigation, milestone proposal, contextual
 paywalls, witness settings, private backup, second-persona invitation, and the
-annual recap.
+annual recap. The newly completed Violet accent and native Aurora app-icon
+controls were also traversed at maximum text with named switch state.
 
 This is an engineering conformance record, not a legal opinion or a third-party
 accessibility certification. Title II directly governs state and local
@@ -51,7 +52,7 @@ technology review by qualified testers.
 | Check | Result |
 | --- | --- |
 | Accessibility source gate | Pass — `npm run check:a11y` |
-| WCAG contrast/unit coverage | Pass — included in 18 suites / 165 tests |
+| WCAG contrast/unit coverage | Pass — included in 19 suites / 169 tests |
 | Compiled orientation declarations | Pass — all four iPhone orientations present |
 | Maximum accessibility text | Pass — core, roadmap, witness, backup, and recap actions reachable |
 | Increased Contrast | Pass — final dedicated simulator flows |
@@ -62,6 +63,7 @@ technology review by qualified testers.
 | Later-bet regression | Pass — witness, iCloud fail-safe, and annual gate |
 | Premium annual recap | Pass — swipe/share cards with semantic image descriptions |
 | Seeded engagement | Pass — live Coach response, reward, and preference |
+| Earned cosmetic controls | Pass — contrast-safe accent and native app-icon switches reachable and operable at maximum text |
 | Native App Group regression | Pass — widget kickstart reconciled and announced as a 2-minute vote |
 
 During the annual-recap max-text review, the initial fixed share-card layout
@@ -70,8 +72,8 @@ inside that fixed-size exported graphic and add a full semantic image label;
 the rebuilt artifact then passed the same regression. This is retained as
 evidence that the test was defect-seeking rather than a checklist assertion.
 
-Screenshots are retained under `build/accessibility-evidence-1.0.10-final/`, and the
-exact extracted app is under `build/ios-sim-1.0.10-final/`.
+Screenshots are retained under `build/accessibility-evidence-1.0.11-final/`, and the
+exact extracted app is under `build/ios-sim-1.0.11-final/`.
 
 ## Manual release matrix
 

@@ -45,7 +45,8 @@ export type TelemetryEvent =
   | "year_recap_shared"
   | "witness_progress_shared"
   | "icloud_backup_created"
-  | "icloud_backup_restored";
+  | "icloud_backup_restored"
+  | "client_error";
 
 const QUEUE_KEY = "telemetryQueue";
 const LAST_FLUSH_KEY = "telemetryLastFlush";

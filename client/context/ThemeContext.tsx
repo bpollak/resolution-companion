@@ -19,32 +19,43 @@ import { Colors } from "@/constants/theme";
  */
 
 export type ThemeMode = "midnight" | "dawn";
+export type AccentStyle = "cyan" | "violet";
 
 const THEME_MODE_KEY = "app_theme_mode";
+const ACCENT_STYLE_KEY = "app_accent_style";
 
 interface ThemeContextValue {
   theme: typeof Colors.dark;
   isDark: boolean;
   mode: ThemeMode;
+  accentStyle: AccentStyle;
   setMode: (mode: ThemeMode) => void;
+  setAccentStyle: (style: AccentStyle) => void;
 }
 
 const defaultValue: ThemeContextValue = {
   theme: Colors.dark,
   isDark: true,
   mode: "midnight",
+  accentStyle: "cyan",
   setMode: () => {},
+  setAccentStyle: () => {},
 };
 
 const ThemeContext = createContext<ThemeContextValue>(defaultValue);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>("midnight");
+  const [accentStyle, setAccentStyleState] = useState<AccentStyle>("cyan");
 
   useEffect(() => {
-    AsyncStorage.getItem(THEME_MODE_KEY)
-      .then((value) => {
-        if (value === "dawn") setModeState("dawn");
+    Promise.all([
+      AsyncStorage.getItem(THEME_MODE_KEY),
+      AsyncStorage.getItem(ACCENT_STYLE_KEY),
+    ])
+      .then(([storedMode, storedAccent]) => {
+        if (storedMode === "dawn") setModeState("dawn");
+        if (storedAccent === "violet") setAccentStyleState("violet");
       })
       .catch(() => {});
   }, []);
@@ -54,14 +65,33 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem(THEME_MODE_KEY, next).catch(() => {});
   }, []);
 
+  const setAccentStyle = useCallback((next: AccentStyle) => {
+    setAccentStyleState(next);
+    AsyncStorage.setItem(ACCENT_STYLE_KEY, next).catch(() => {});
+  }, []);
+
+  const theme = useMemo(() => {
+    const base = mode === "dawn" ? Colors.light : Colors.dark;
+    if (accentStyle === "cyan") return base;
+    const accent = mode === "dawn" ? "#5E2F9E" : "#BFA1FF";
+    return {
+      ...base,
+      accent,
+      link: accent,
+      tabIconSelected: accent,
+    };
+  }, [accentStyle, mode]);
+
   const value = useMemo(
     () => ({
-      theme: mode === "dawn" ? Colors.light : Colors.dark,
+      theme,
       isDark: mode !== "dawn",
       mode,
+      accentStyle,
       setMode,
+      setAccentStyle,
     }),
-    [mode, setMode],
+    [accentStyle, mode, setAccentStyle, setMode, theme],
   );
 
   return (

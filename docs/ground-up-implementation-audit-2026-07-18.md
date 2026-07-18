@@ -5,16 +5,18 @@
 **Source plans:** `docs/ground-up-review-2026-07.md` and the approved
 `docs/enhancement-roadmap.md` it extends
 
-**Artifact tested:** iOS simulator build **1.0.10** on iPhone 16 Pro / iOS 18.0
+**Artifact tested:** iOS simulator build **1.0.11** on iPhone 16 Pro / iOS 18.0
 
 ## Outcome
 
 Every application and server deliverable in Phase 0 through Phase 3, every
 Later bet, and every currently applicable item in the approved enhancement
-roadmap is implemented in the repository. The exact 1.0.10 native artifact
-passed clean-install, largest-text accessibility, later-bet, annual-recap,
-live-Coach, and App Group widget-reconciliation regressions. Static validation
-also passes.
+roadmap is implemented in the repository. A final prose-level audit also
+closed the alternate-icon, accent-reward, large/lock widget, honest-pricing,
+client-error, and AI-cost visibility details. The exact 1.0.11 native artifact
+passed clean-install, largest-text accessibility, reward/icon, later-bet,
+roadmap-completion, annual-recap, live-Coach, and App Group widget-
+reconciliation regressions. Static validation also passes.
 
 Two commercial release-console actions are deliberately not represented as
 complete:
@@ -35,7 +37,7 @@ not disturbed.
 
 | Requirement | Status | Implementation and evidence |
 | --- | --- | --- |
-| Privacy-respecting telemetry | Complete | `client/lib/telemetry.ts` records only allowlisted daily event counts keyed to an anonymous device ID. Server validation, daily aggregation, admin summaries, disclosures, and tests are present. Witness, recap, backup, and pricing events are included without content payloads. |
+| Privacy-respecting telemetry | Complete | `client/lib/telemetry.ts` records only allowlisted daily event counts keyed to an anonymous device ID. Server validation, daily aggregation, admin summaries, disclosures, and tests are present. A caught JavaScript failure contributes only a `client_error` count; its message and stack remain on-device. AI requests separately aggregate model/input/output token totals by UTC day and endpoint without device IDs or content, exposed through an admin-only summary. |
 | One-month yearly trial | Client complete; ASC action requires approval | `client/lib/iap.ts` parses Apple's live introductory offer and eligibility; the paywall never invents trial terms. The current one-week live offer must be deleted before a one-month offer can replace it. |
 | Launch-time entitlement re-sync | Complete | Cold start reconciles cached entitlement with `/api/subscription/status`, including expired and lifetime cases. |
 
@@ -43,7 +45,7 @@ not disturbed.
 
 | Requirement | Status | Implementation and evidence |
 | --- | --- | --- |
-| Cast Your Vote widgets | Complete | The app mirrors current and seven-day action state to App Group storage. Home/lock widgets support full and kickstart votes, optimistic advancement, rest states, and stale roll-forward. The 1.0.10 artifact embeds `ResolutionWidget.appex`. |
+| Cast Your Vote widgets | Complete | The app mirrors current and seven-day action state to App Group storage. Small, medium, and large Home Screen families plus a circular lock-screen family cover ring, identity, rest, full-vote, and kickstart states. Interactive families advance optimistically and stale data rolls forward without guilt copy. The 1.0.11 artifact embeds the compiled `ResolutionWidget.appex`. |
 | App Intents / Siri | Complete | `targets/widget/AppShortcuts.swift` exposes kickstart and named-action intents using the same pending-vote contract. |
 | Portfolio-of-hooks notifications | Complete | Local response history selects momentum, coach, calm, or lapsed copy while preserving the one-notification-per-day covenant. |
 
@@ -63,7 +65,7 @@ not disturbed.
 | Proactive weekly observation | Complete | Today derives one local pattern observation and only frames it as AI noticing when AI consent exists. |
 | Real reflection SSE | Complete | `/api/reflection` streams native SSE; the client buffers updates without stealing user-controlled scroll. The final simulator run received a real non-empty coach response. |
 | Identity-science micro-notes | Complete | Eighteen bundled notes form a free/premium drip; expand/collapse is covered by native regression. |
-| Milestone reward layer | Complete | Permanent Dawn, Direct Coach, and Aurora rewards unlock at milestone thresholds and never drain. |
+| Milestone reward layer | Complete | Five permanent rewards unlock at successive milestones and never drain: Dawn theme, Direct Coach, Aurora celebration, a native Aurora Home Screen icon, and a contrast-safe Violet accent. Profile switches expose names, hints, and checked state. The compiled app declares `CFBundleAlternateIcons`, contains the `AuroraIcon` asset, displayed Apple's native confirmation, and visibly changed the Simulator Home Screen icon. |
 | Health auto-votes | Complete | Per-action workout, step, and mindful-minute triggers evaluate fail-closed and record Health as the source. |
 
 ## Later bets and foundation requirements
@@ -78,7 +80,7 @@ not disturbed.
 | Private API and quotas | Complete | Production auth and AI quota checks fail closed; distributed Postgres fixed-window rate limits replace instance-local counters. Database failure returns 503 rather than bypassing protection. |
 | Backup and progress-math debt | Complete | Private iCloud backup is shipped and duplicated momentum logic delegates to the canonical progress module. |
 | Current architecture/design guidance | Complete | `design_guidelines.md` documents the three-tab system, ambient surfaces, rewards, accessibility, and the iOS tab-animation landmine. |
-| Client UI regressions | Complete | Tracked Maestro flows cover clean install, accessibility/orientation, engagement/live Coach, later bets, annual recap, milestone proposal/second persona, and native widget reconciliation. |
+| Client UI regressions | Complete | Tracked Maestro flows cover clean install, accessibility/orientation, engagement/live Coach, later bets, annual recap, milestone proposal/second persona, earned cosmetics, and native widget reconciliation. |
 
 ## Approved enhancement-roadmap closure
 
@@ -104,20 +106,22 @@ explicitly approved console operation.
 | --- | --- |
 | TypeScript | Pass — `npm run check:types` |
 | Accessibility source gate | Pass — `npm run check:a11y` |
-| Jest, Pacific timezone | Pass — 18 suites / 165 tests |
+| Jest, Pacific timezone | Pass — 19 suites / 169 tests |
 | Expo ESLint | Pass — 0 errors, 0 warnings |
 | Prettier | Pass — `npm run check:format` |
 | Server bundle | Pass — `npm run server:build` |
 | Expo Doctor | Pass — 18/18 checks |
 | Production dependency audit | Reviewed — 20 advisories (3 high, 17 moderate, 0 critical), all in Expo/native build-tool dependency paths |
-| Native simulator compile | Pass — 1.0.10, app + widget extension |
+| Native simulator compile | Pass — 1.0.11, app + widget extension, alternate icon asset catalog |
 | Clean-install regression | Pass — onboarding, daily loop, navigation, Coach, and paywall |
 | Title II visual-accessibility flow | Pass — maximum iOS Dynamic Type, Increased Contrast, Reduce Motion, portrait and landscape |
 | Later-bet flow | Pass — witness opt-in, backup fail-safe, and annual-recap gate |
 | Premium annual recap | Pass — two-card swipe/share traversal at maximum Dynamic Type |
 | Roadmap completion moments | Pass — proposal, contextual gate, and second-persona invitation at maximum Dynamic Type |
 | Live engagement | Pass — note expansion, live weekly Coach reply, and theme preference |
+| Earned cosmetic rewards | Pass — Violet accent and Aurora icon switches at maximum Dynamic Type; native confirmation and Home Screen icon verified |
 | Native App Group reconciliation | Pass — pending widget vote consumed and cleared, accessible badge displayed, and log persisted as `widget` + `kickstart` |
+| Artifact inspection | Pass — version 1.0.11, `CFBundleAlternateIcons`, Aurora asset renditions, and embedded widget extension verified |
 
-Simulator screenshots and the extracted 1.0.10 application are retained under
+Simulator screenshots and the extracted 1.0.11 application are retained under
 the ignored `build/` evidence directory rather than committed as source files.

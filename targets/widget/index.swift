@@ -338,17 +338,104 @@ struct MediumVoteView: View {
     }
 }
 
+struct LargeVoteView: View {
+    let data: WidgetData
+
+    var allDone: Bool {
+        data.scheduled > 0 && data.completed >= data.scheduled
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 16) {
+                ProgressRing(completed: data.completed, scheduled: data.scheduled, lineWidth: 8)
+                    .frame(width: 84, height: 84)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Becoming \(data.personaName)")
+                        .font(.system(.headline, design: .rounded).weight(.bold))
+                        .foregroundStyle(.white)
+                    Text(data.isRestDay ? "Rest is part of becoming." : data.copyLine)
+                        .font(.system(.subheadline, design: .rounded))
+                        .foregroundStyle(brandTextSecondary)
+                        .lineLimit(3)
+                    if data.streak > 1 {
+                        Label("\(data.streak)-day streak", systemImage: "flame.fill")
+                            .font(.system(.caption, design: .rounded).weight(.semibold))
+                            .foregroundStyle(brandAccent)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+
+            Divider().overlay(Color.white.opacity(0.12))
+
+            if data.isRestDay {
+                Label("Your plan is clear today", systemImage: "moon.stars.fill")
+                    .font(.system(.headline, design: .rounded).weight(.semibold))
+                    .foregroundStyle(.white)
+            } else if allDone || data.nextActionId == nil {
+                Label("Every vote cast today", systemImage: "checkmark.seal.fill")
+                    .font(.system(.headline, design: .rounded).weight(.semibold))
+                    .foregroundStyle(.white)
+            } else {
+                VStack(alignment: .leading, spacing: 9) {
+                    Text("NEXT SMALL VOTE")
+                        .font(.system(.caption2, design: .rounded).weight(.bold))
+                        .foregroundStyle(brandTextSecondary)
+                    Text(data.nextActionTitle ?? "")
+                        .font(.system(.title3, design: .rounded).weight(.bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                    HStack(spacing: 10) {
+                        Button(intent: CastVoteIntent(actionId: data.nextActionId ?? "", isKickstart: false)) {
+                            Label("Full vote", systemImage: "checkmark")
+                                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(brandAccent)
+                        .foregroundStyle(brandBackground)
+                        if let kickstart = data.nextActionKickstart, !kickstart.isEmpty {
+                            Button(intent: CastVoteIntent(actionId: data.nextActionId ?? "", isKickstart: true)) {
+                                Text("2 min: \(kickstart)")
+                                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                                    .lineLimit(1)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(brandAccent)
+                        }
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            if let remaining = data.remainingActions, remaining.count > 1 {
+                Text("\(remaining.count - 1) more small \(remaining.count - 1 == 1 ? "vote" : "votes") after this")
+                    .font(.system(.caption, design: .rounded))
+                    .foregroundStyle(brandTextSecondary)
+            }
+        }
+    }
+}
+
 struct CircularAccessoryView: View {
     let data: WidgetData
 
+    var identityLabel: String {
+        data.personaName.split(separator: " ").last.map(String.init) ?? "You"
+    }
+
     var body: some View {
         Gauge(value: Double(data.completed), in: 0...Double(max(data.scheduled, 1))) {
-            Text("RC")
+            Text(identityLabel)
         } currentValueLabel: {
             Text("\(data.completed)/\(max(data.scheduled, 1))")
                 .font(.system(.caption2, design: .rounded).weight(.bold))
         }
         .gaugeStyle(.accessoryCircularCapacity)
+        .widgetLabel {
+            Text(identityLabel)
+        }
     }
 }
 
@@ -378,6 +465,8 @@ struct ResolutionWidgetView: View {
                     CircularAccessoryView(data: data)
                 case .systemMedium:
                     MediumVoteView(data: data)
+                case .systemLarge:
+                    LargeVoteView(data: data)
                 default:
                     SmallVoteView(data: data)
                 }
@@ -400,7 +489,7 @@ struct ResolutionWidget: Widget {
         }
         .configurationDisplayName("Cast Your Vote")
         .description("Today's ring and your next small action — log it in one tap.")
-        .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular])
     }
 }
 

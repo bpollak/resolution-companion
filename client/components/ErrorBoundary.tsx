@@ -1,5 +1,6 @@
 import React, { Component, ComponentType, PropsWithChildren } from "react";
 import { ErrorFallback, ErrorFallbackProps } from "@/components/ErrorFallback";
+import { track } from "@/lib/telemetry";
 
 export type ErrorBoundaryProps = PropsWithChildren<{
   FallbackComponent?: ComponentType<ErrorFallbackProps>;
@@ -30,6 +31,9 @@ export class ErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, info: { componentStack: string }): void {
+    // Count only that a render failure occurred. Error text and stack traces
+    // stay on-device so operational visibility does not expose user content.
+    track("client_error");
     if (typeof this.props.onError === "function") {
       this.props.onError(error, info.componentStack);
     }

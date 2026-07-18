@@ -13,7 +13,7 @@ export interface Reward {
   title: string;
   description: string;
   /** What unlocking it changes. "theme" rewards appear under Appearance. */
-  kind: "theme" | "coach-tone" | "celebration";
+  kind: "theme" | "coach-tone" | "celebration" | "app-icon";
   /** Total completed milestones (across personas) required to unlock. */
   milestonesRequired: number;
 }
@@ -42,6 +42,22 @@ export const REWARDS: Reward[] = [
       "A violet-and-gold milestone burst, permanently unlocked. Switch anytime in Profile → Appearance.",
     kind: "celebration",
     milestonesRequired: 3,
+  },
+  {
+    id: "aurora-app-icon",
+    title: "Aurora app icon",
+    description:
+      "A violet-and-cyan compass for your Home Screen, permanently unlocked. Switch anytime in Profile → Appearance.",
+    kind: "app-icon",
+    milestonesRequired: 4,
+  },
+  {
+    id: "violet-accent",
+    title: "Violet accent",
+    description:
+      "A softer violet highlight across the app, permanently unlocked. Switch anytime in Profile → Appearance.",
+    kind: "theme",
+    milestonesRequired: 5,
   },
 ];
 

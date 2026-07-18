@@ -1046,8 +1046,8 @@ export default function SubscriptionScreen() {
               style={[styles.cancelHint, { color: theme.textSecondary }]}
             >
               {selectedPlan === "lifetime"
-                ? "One payment. No subscription and no automatic renewal."
-                : `Cancel anytime in ${Platform.OS === "ios" ? "Settings" : "Google Play"} — you keep Premium until your period ends.`}
+                ? "Honest pricing, no dark patterns. One payment, no subscription, no automatic renewal."
+                : `Honest pricing, no dark patterns. Cancel anytime in ${Platform.OS === "ios" ? "Settings" : "Google Play"} — you keep Premium until your period ends.`}
             </ThemedText>
           </View>
         )}

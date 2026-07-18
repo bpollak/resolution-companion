@@ -69,6 +69,32 @@ export const deviceAiUsage = pgTable(
   }),
 );
 
+// Operational AI-cost visibility without user-level prompts or content.
+// Tokens are aggregated by UTC day, endpoint, and model; no device identifier
+// is stored in this table.
+export const aiUsageDaily = pgTable(
+  "ai_usage_daily",
+  {
+    id: serial("id").primaryKey(),
+    day: text("day").notNull(),
+    endpoint: text("endpoint").notNull(),
+    model: text("model").notNull(),
+    requests: integer("requests").default(0).notNull(),
+    inputTokens: integer("input_tokens").default(0).notNull(),
+    outputTokens: integer("output_tokens").default(0).notNull(),
+    updatedAt: timestamp("updated_at")
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  },
+  (table) => ({
+    dayEndpointModel: uniqueIndex("ai_usage_daily_key").on(
+      table.day,
+      table.endpoint,
+      table.model,
+    ),
+  }),
+);
+
 // Privacy-respecting product telemetry: daily event COUNTS only, keyed by the
 // same anonymous device UUID as subscriptions. No payloads, no timestamps
 // finer than a calendar day, no PII — enough to see activation/retention/

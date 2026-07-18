@@ -54,6 +54,12 @@ import {
 import { computeStreak } from "@/lib/progress";
 import { logger } from "@/lib/logger";
 import { deletePrivateBackup } from "@/lib/icloud-backup";
+import {
+  getAppIconStyle,
+  setAppIconStyle,
+  supportsAlternateAppIcons,
+  type AppIconStyle,
+} from "@/lib/app-icon";
 
 const springConfig = {
   damping: 15,
@@ -195,28 +201,57 @@ export default function ProfileScreen() {
 
   // Dawn theme: a milestone reward — the Appearance row only exists once
   // it has been earned
-  const { mode: themeMode, setMode: setThemeMode } = useThemeMode();
+  const {
+    mode: themeMode,
+    setMode: setThemeMode,
+    accentStyle,
+    setAccentStyle,
+  } = useThemeMode();
   const [dawnUnlocked, setDawnUnlocked] = useState(false);
   const [directCoachUnlocked, setDirectCoachUnlocked] = useState(false);
   const [auroraUnlocked, setAuroraUnlocked] = useState(false);
+  const [auroraIconUnlocked, setAuroraIconUnlocked] = useState(false);
+  const [violetAccentUnlocked, setVioletAccentUnlocked] = useState(false);
+  const [alternateIconsSupported, setAlternateIconsSupported] = useState(false);
   const [coachTone, setCoachToneState] = useState<CoachTone>("supportive");
   const [celebrationStyle, setCelebrationStyleState] =
     useState<CelebrationStyle>("classic");
+  const [appIconStyle, setAppIconStyleState] =
+    useState<AppIconStyle>("default");
   useEffect(() => {
     Promise.all([
       isRewardUnlocked("dawn-theme"),
       isRewardUnlocked("direct-coach-tone"),
       isRewardUnlocked("aurora-celebration"),
+      isRewardUnlocked("aurora-app-icon"),
+      isRewardUnlocked("violet-accent"),
       getCoachTone(),
       getCelebrationStyle(),
     ])
-      .then(([dawn, direct, aurora, storedTone, storedCelebration]) => {
-        setDawnUnlocked(dawn);
-        setDirectCoachUnlocked(direct);
-        setAuroraUnlocked(aurora);
-        setCoachToneState(direct ? storedTone : "supportive");
-        setCelebrationStyleState(aurora ? storedCelebration : "classic");
-      })
+      .then(
+        ([
+          dawn,
+          direct,
+          aurora,
+          auroraIcon,
+          violetAccent,
+          storedTone,
+          storedCelebration,
+        ]) => {
+          setDawnUnlocked(dawn);
+          setDirectCoachUnlocked(direct);
+          setAuroraUnlocked(aurora);
+          setAuroraIconUnlocked(auroraIcon);
+          setVioletAccentUnlocked(violetAccent);
+          setCoachToneState(direct ? storedTone : "supportive");
+          setCelebrationStyleState(aurora ? storedCelebration : "classic");
+          const supportsIcons = supportsAlternateAppIcons();
+          setAlternateIconsSupported(supportsIcons);
+          setAppIconStyleState(
+            supportsIcons && auroraIcon ? getAppIconStyle() : "default",
+          );
+        },
+      )
       .catch(() => {});
   }, []);
 
@@ -964,6 +999,52 @@ export default function ProfileScreen() {
         </View>
       ) : null}
 
+      {violetAccentUnlocked ? (
+        <View
+          style={[
+            styles.settingsRow,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.settingsIcon,
+              { backgroundColor: "rgba(191, 161, 255, 0.12)" },
+            ]}
+          >
+            <Feather name="droplet" size={20} color="#BFA1FF" />
+          </View>
+          <View style={styles.settingsContent}>
+            <ThemedText style={styles.settingsTitle}>Violet Accent</ThemedText>
+            <ThemedText
+              style={[styles.settingsSubtitle, { color: theme.textSecondary }]}
+            >
+              A softer highlight across the app
+            </ThemedText>
+          </View>
+          <Switch
+            value={accentStyle === "violet"}
+            accessibilityRole="switch"
+            accessibilityLabel="Toggle Violet Accent"
+            accessibilityHint="Changes interactive highlights between cyan and violet"
+            accessibilityState={{ checked: accentStyle === "violet" }}
+            onValueChange={(value) => {
+              Haptics.selectionAsync();
+              setAccentStyle(value ? "violet" : "cyan");
+            }}
+            trackColor={{
+              false: theme.backgroundSecondary,
+              true: "#BFA1FF",
+            }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+      ) : null}
+
       {directCoachUnlocked ? (
         <View
           style={[
@@ -1054,6 +1135,65 @@ export default function ProfileScreen() {
             trackColor={{
               false: theme.backgroundSecondary,
               true: "#9B6BFF",
+            }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+      ) : null}
+
+      {auroraIconUnlocked && alternateIconsSupported ? (
+        <View
+          style={[
+            styles.settingsRow,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.settingsIcon,
+              { backgroundColor: "rgba(0, 217, 255, 0.1)" },
+            ]}
+          >
+            <Feather name="compass" size={20} color={theme.accent} />
+          </View>
+          <View style={styles.settingsContent}>
+            <ThemedText style={styles.settingsTitle}>
+              Aurora App Icon
+            </ThemedText>
+            <ThemedText
+              style={[styles.settingsSubtitle, { color: theme.textSecondary }]}
+            >
+              Violet-and-cyan Home Screen compass
+            </ThemedText>
+          </View>
+          <Switch
+            value={appIconStyle === "aurora"}
+            accessibilityRole="switch"
+            accessibilityLabel="Toggle Aurora App Icon"
+            accessibilityHint="Changes the Resolution Companion icon on your Home Screen"
+            accessibilityState={{ checked: appIconStyle === "aurora" }}
+            onValueChange={(value) => {
+              const next: AppIconStyle = value ? "aurora" : "default";
+              const previous = appIconStyle;
+              Haptics.selectionAsync();
+              setAppIconStyleState(next);
+              void setAppIconStyle(next).then((success) => {
+                if (!success) {
+                  setAppIconStyleState(previous);
+                  Alert.alert(
+                    "Icon Not Changed",
+                    "Resolution Companion couldn't change its Home Screen icon. Please try again.",
+                  );
+                }
+              });
+            }}
+            trackColor={{
+              false: theme.backgroundSecondary,
+              true: theme.accent,
             }}
             thumbColor="#FFFFFF"
           />

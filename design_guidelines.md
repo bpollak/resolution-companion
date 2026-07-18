@@ -116,7 +116,9 @@ iOS. Keep all tabs mounted (`detachInactiveScreens={false}`, `lazy:false`,
 - Use themed tokens from `constants/theme.ts` and `useTheme`; do not add
   one-off colors when a semantic token exists.
 - Dawn is an earned light-theme reward. It is a full theme, not a single-screen
-  inversion. Reward unlocks are permanent and user-controllable in Profile.
+  inversion. Violet is a contrast-safe earned accent; Aurora celebrations and
+  the native alternate Home Screen icon are earned cosmetics too. Reward
+  unlocks are permanent and user-controllable in Profile.
 - Active tabs use filled versus outline icons, tint, and a spring-scale change.
 
 ## Accessibility
