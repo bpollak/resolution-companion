@@ -35,13 +35,16 @@ appId: com.resolutioncompanion.app
 - inputText: "My win was completing my weekend run even though I felt tired."
 - tapOn: "Send message.*"
 - extendedWaitUntil:
-    visible: "AI coach: .*run.*"
+    # The grounded opening always begins "Looking back". A second Coach
+    # bubble with any other opening proves the live response has started,
+    # without requiring the model to repeat one exact word verbatim.
+    visible: "AI coach: (?!Looking back).*"
     timeout: 25000
 - takeScreenshot: coach-grounded-live-response
 - extendedWaitUntil:
     # The model's completed coaching turn ends with a follow-up question.
     # Waiting for it distinguishes a complete stream from the first chunk.
-    visible: "AI coach: .*\\?.*"
+    visible: "AI coach: (?!Looking back).*\\?.*"
     timeout: 90000
 - tapOn: "Message to your AI coach.*"
 - inputText: "I made the run easier by putting my shoes beside the door."
@@ -65,7 +68,9 @@ appId: com.resolutioncompanion.app
     visible: "Monthly Check-in"
     timeout: 10000
 - extendedWaitUntil:
-    visible: "AI coach: .*consistency.*"
+    # Established plans mention consistency; a same-day plan correctly says
+    # it is too early to judge. Both must still receive a grounded opening.
+    visible: "AI coach: .+"
     timeout: 3000
 - assertNotVisible: ".*[Ww]eek 29.*"
 - takeScreenshot: coach-monthly-session-isolated

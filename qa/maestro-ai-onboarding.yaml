@@ -1,0 +1,44 @@
+appId: com.resolutioncompanion.app
+---
+# Fresh-install production AI path. This specifically covers the second
+# onboarding request that turns the interview into a persisted plan.
+
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Start Your Journey.*"
+    timeout: 20000
+- tapOn: "Start Your Journey.*"
+- extendedWaitUntil:
+    visible: "Welcome to Resolution Companion.*"
+    timeout: 20000
+- tapOn: "Continue.*"
+- tapOn: "Continue.*"
+- tapOn: "Let's Get Started.*"
+- extendedWaitUntil:
+    visible: "Agree and continue.*"
+    timeout: 10000
+- tapOn: "Agree and continue.*"
+
+- extendedWaitUntil:
+    visible: "AI coach: .*goal.*"
+    timeout: 30000
+- tapOn: "Message to your AI persona interviewer.*"
+- inputText: "I want to prepare for military service by improving land navigation and obstacle movement."
+- tapOn: "Send message.*"
+- extendedWaitUntil:
+    visible: "AI coach: .*starting points.*"
+    timeout: 60000
+- tapOn: "Message to your AI persona interviewer.*"
+- inputText: "Yes, they do."
+- tapOn: "Send message.*"
+
+- extendedWaitUntil:
+    visible: "Create my plan.*"
+    timeout: 60000
+- tapOn: "Create my plan.*"
+- extendedWaitUntil:
+    visible: "Today"
+    timeout: 60000
+- assertNotVisible: "Connection Issue"
+- takeScreenshot: ai-onboarding-plan-created
