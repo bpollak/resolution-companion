@@ -13,6 +13,7 @@ import {
 import { sql, eq } from "drizzle-orm";
 import { rateLimiter } from "./rate-limit";
 import { requireApiKey, requireAdminKey } from "./auth";
+import { validateMessages } from "./message-validation";
 import {
   Environment,
   SignedDataVerifier,
@@ -528,41 +529,6 @@ async function createGoogleJWT(credentials: {
   const signature = sign.sign(credentials.private_key, "base64url");
 
   return `${signatureInput}.${signature}`;
-}
-
-// Guard the OpenAI-backed endpoints against oversized payloads (token burn)
-const MAX_MESSAGES = 50;
-const MAX_MESSAGE_CHARS = 4000;
-const MAX_TOTAL_CHARS = 50000;
-const VALID_ROLES = new Set(["user", "assistant", "system"]);
-
-function validateMessages(messages: unknown): string | null {
-  if (!Array.isArray(messages) || messages.length === 0) {
-    return "messages must be a non-empty array";
-  }
-  if (messages.length > MAX_MESSAGES) {
-    return `messages must contain at most ${MAX_MESSAGES} entries`;
-  }
-  let totalChars = 0;
-  for (const message of messages) {
-    if (
-      typeof message !== "object" ||
-      message === null ||
-      typeof (message as any).content !== "string" ||
-      !VALID_ROLES.has((message as any).role)
-    ) {
-      return "each message must have a valid role and string content";
-    }
-    const length = (message as any).content.length;
-    if (length > MAX_MESSAGE_CHARS) {
-      return `each message must be at most ${MAX_MESSAGE_CHARS} characters`;
-    }
-    totalChars += length;
-  }
-  if (totalChars > MAX_TOTAL_CHARS) {
-    return `messages must total at most ${MAX_TOTAL_CHARS} characters`;
-  }
-  return null;
 }
 
 // --- Server-side monthly AI quota ---
