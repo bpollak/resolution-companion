@@ -114,6 +114,7 @@ RULES:
 
 const STREAM_DELAY_MS = 30;
 const REQUEST_TIMEOUT_MS = 20000;
+const PLAN_EXTRACTION_TIMEOUT_MS = 45000;
 
 async function fetchWithTimeout(
   input: string,
@@ -332,14 +333,18 @@ export async function extractPersonaFromConversation(
 ): Promise<PersonaData> {
   const url = new URL("/api/extract-persona", getApiUrl());
 
-  const response = await fetchWithTimeout(url.toString(), {
-    method: "POST",
-    headers: await getAiHeaders(),
-    body: JSON.stringify({
-      messages,
-      extractionPrompt: EXTRACTION_PROMPT,
-    }),
-  });
+  const response = await fetchWithTimeout(
+    url.toString(),
+    {
+      method: "POST",
+      headers: await getAiHeaders(),
+      body: JSON.stringify({
+        messages,
+        extractionPrompt: EXTRACTION_PROMPT,
+      }),
+    },
+    PLAN_EXTRACTION_TIMEOUT_MS,
+  );
 
   if (!response.ok) {
     throw new Error("Failed to extract persona");
