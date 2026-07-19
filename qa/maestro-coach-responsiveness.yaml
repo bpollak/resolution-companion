@@ -38,6 +38,15 @@ appId: com.resolutioncompanion.app
     visible: "AI coach: .*run.*"
     timeout: 25000
 - takeScreenshot: coach-grounded-live-response
+- extendedWaitUntil:
+    # The model's completed coaching turn ends with a follow-up question.
+    # Waiting for it distinguishes a complete stream from the first chunk.
+    visible: "AI coach: .*\\?.*"
+    timeout: 90000
+- tapOn: "Message to your AI coach.*"
+- inputText: "I made the run easier by putting my shoes beside the door."
+- assertVisible: ".*shoes beside the door.*"
+- takeScreenshot: coach-grounded-complete-response
 
 # Close the weekly session, then verify the next session cannot inherit it.
 - tapOn: "End session.*"
