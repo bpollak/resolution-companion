@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   useState,
   useEffect,
   useLayoutEffect,
@@ -17,7 +18,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, {
@@ -59,6 +60,7 @@ import {
 } from "@/lib/notifications";
 import { computeStreak } from "@/lib/progress";
 import { logger } from "@/lib/logger";
+import { getProfileSubscriptionCopy } from "@/lib/subscription";
 import { deletePrivateBackup } from "@/lib/icloud-backup";
 import {
   getAppIconStyle,
@@ -192,11 +194,14 @@ export default function ProfileScreen() {
     benchmarks,
     actions,
     dailyLogs,
+    personaAlignment,
     reflections,
     clearAllData,
     switchPersona,
     deletePersona,
     subscription,
+    subscriptionVerificationStatus,
+    verifySubscription,
     canAddPersona,
     monthlyReflectionCount,
     aiConsent,
@@ -210,6 +215,14 @@ export default function ProfileScreen() {
     null,
   );
   const [activePanel, setActivePanel] = useState<ProfilePanel>("main");
+
+  // A subscriber should never have to visit the paywall or press Restore just
+  // to make Profile recognize an existing StoreKit entitlement.
+  useFocusEffect(
+    useCallback(() => {
+      if (activePanel === "main") verifySubscription().catch(() => {});
+    }, [activePanel, verifySubscription]),
+  );
 
   useLayoutEffect(() => {
     const title =
@@ -317,6 +330,27 @@ export default function ProfileScreen() {
     [actions, dailyLogs],
   );
 
+  const reminderOptions = useMemo(
+    () => ({
+      streakCount,
+      personaName: persona?.name,
+      monthlyConsistency: personaAlignment,
+      actions,
+      dailyLogs,
+    }),
+    [actions, dailyLogs, persona?.name, personaAlignment, streakCount],
+  );
+  const subscriptionCopy = useMemo(
+    () =>
+      getProfileSubscriptionCopy(
+        subscription,
+        subscriptionVerificationStatus,
+        Math.max(0, 10 - monthlyReflectionCount),
+        Platform.OS === "ios" ? "App Store" : "store",
+      ),
+    [monthlyReflectionCount, subscription, subscriptionVerificationStatus],
+  );
+
   const handleToggleAiConsent = (value: boolean) => {
     if (value) {
       // Re-enabling must go through the full disclosure, same as first use
@@ -358,7 +392,7 @@ export default function ProfileScreen() {
   const handleSelectReminderBucket = async (bucket: ReminderBucket) => {
     if (Platform.OS === "web") return;
     Haptics.selectionAsync();
-    await setUserReminderBucket(bucket, { streakCount });
+    await setUserReminderBucket(bucket, reminderOptions);
     setReminderTime(await getResolvedReminderTime());
   };
 
@@ -397,7 +431,7 @@ export default function ProfileScreen() {
 
       const granted = await requestNotificationPermissions();
       if (granted) {
-        await scheduleDailyReminder({ streakCount });
+        await scheduleDailyReminder(reminderOptions);
         setNotificationsEnabled(true);
         setHasPermission(true);
         setReminderTime(await getResolvedReminderTime());
@@ -840,18 +874,19 @@ export default function ProfileScreen() {
           </ThemedText>
 
           <SettingsRow
-            icon={subscription.isPremium ? "check-circle" : "zap"}
-            title={
-              subscription.isPremium ? "Premium Active" : "Upgrade to Premium"
+            icon={
+              subscriptionVerificationStatus === "checking"
+                ? "refresh-cw"
+                : subscription.isPremium
+                  ? "check-circle"
+                  : "zap"
             }
-            subtitle={
-              subscription.isPremium
-                ? `${subscription.plan === "yearly" ? "Yearly" : subscription.plan === "lifetime" ? "Lifetime" : "Monthly"} plan`
-                : monthlyReflectionCount >= 10
-                  ? "Free check-in limit reached"
-                  : `${10 - monthlyReflectionCount} free check-ins left this month`
-            }
-            onPress={() => navigation.navigate("Subscription")}
+            title={subscriptionCopy.title}
+            subtitle={subscriptionCopy.subtitle}
+            onPress={() => {
+              verifySubscription().catch(() => {});
+              navigation.navigate("Subscription");
+            }}
           />
 
           <SettingsRow
@@ -911,12 +946,12 @@ export default function ProfileScreen() {
         <>
           <View style={styles.detailIntro}>
             <Feather name="bell" size={28} color={theme.accent} />
-            <ThemedText style={styles.detailTitle}>One gentle nudge</ThemedText>
+            <ThemedText style={styles.detailTitle}>One useful nudge</ThemedText>
             <ThemedText
               style={[styles.detailBody, { color: theme.textSecondary }]}
             >
-              Choose the part of your day that works best. The reminder stays
-              quiet after you finish your actions.
+              Choose the part of your day that works best. We’ll name what is
+              still open, skip rest days, and stay quiet after you finish.
             </ThemedText>
           </View>
 
@@ -951,7 +986,7 @@ export default function ProfileScreen() {
                 {Platform.OS === "web"
                   ? "Available on mobile"
                   : notificationsEnabled && reminderTime
-                    ? `Reminder at ${reminderTime.label}${
+                    ? `Personalized reminder at ${reminderTime.label}${
                         reminderTime.source === "routine"
                           ? " — based on your routine"
                           : ""

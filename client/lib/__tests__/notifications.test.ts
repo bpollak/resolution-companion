@@ -8,15 +8,20 @@
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Notifications from "expo-notifications";
 import {
   suggestReminderBucket,
   getResolvedReminderTime,
   getUserReminderBucket,
   selectReminderHook,
   reminderBody,
+  reminderTitle,
+  getRemainingReminderActions,
+  scheduleDailyReminder,
   REMINDER_BUCKETS,
   type ReminderHookStats,
 } from "@/lib/notifications";
+import type { DailyLog, ElementalAction } from "@/lib/storage";
 
 jest.mock("expo-notifications", () => ({
   setNotificationHandler: jest.fn(),
@@ -230,5 +235,122 @@ describe("reminderBody", () => {
 
   it("keeps the calm voice gentle and generic", () => {
     expect(reminderBody("calm", {})).toContain("momentum");
+  });
+
+  it("names the unfinished action and identity", () => {
+    const options = {
+      personaName: "5K-Ready Weekend Runner",
+      remainingActions: [
+        {
+          id: "run",
+          title: "Run for 20 minutes",
+          kickstartVersion: "Put on your running shoes",
+        },
+      ],
+    };
+    expect(reminderTitle(options)).toBe("One action left today");
+    expect(reminderBody("momentum", options)).toContain("Run for 20 minutes");
+    expect(reminderBody("momentum", options)).toContain(
+      "5K-Ready Weekend Runner",
+    );
+  });
+
+  it("uses the real kickstart version for a gentle comeback", () => {
+    expect(
+      reminderBody("calm", {
+        missedRun: 3,
+        remainingActions: [
+          {
+            id: "run",
+            title: "Run for 20 minutes",
+            kickstartVersion: "Put on your running shoes",
+          },
+        ],
+      }),
+    ).toContain("Put on your running shoes");
+  });
+});
+
+describe("getRemainingReminderActions", () => {
+  const action: ElementalAction = {
+    id: "run",
+    benchmarkId: "benchmark",
+    title: "Run for 20 minutes",
+    frequency: ["Sunday"],
+    anchorLink: "after breakfast",
+    kickstartVersion: "Put on running shoes",
+    createdAt: "2026-07-01T12:00:00",
+  };
+
+  it("includes only actions scheduled and unfinished on that date", () => {
+    const sunday = new Date(2026, 6, 19, 12);
+    expect(getRemainingReminderActions([action], [], sunday)).toEqual([action]);
+    expect(
+      getRemainingReminderActions(
+        [action],
+        [
+          {
+            id: "log",
+            actionId: action.id,
+            logDate: "2026-07-19",
+            status: true,
+            createdAt: "2026-07-19T12:00:00",
+          } satisfies DailyLog,
+        ],
+        sunday,
+      ),
+    ).toEqual([]);
+  });
+
+  it("stays quiet on an unscheduled day", () => {
+    expect(
+      getRemainingReminderActions([action], [], new Date(2026, 6, 20, 12)),
+    ).toEqual([]);
+  });
+});
+
+describe("personalized reminder plan", () => {
+  beforeEach(async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 6, 19, 18, 0));
+    await AsyncStorage.clear();
+    jest
+      .mocked(Notifications.scheduleNotificationAsync)
+      .mockReset()
+      .mockResolvedValueOnce("today")
+      .mockResolvedValueOnce("next-sunday");
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("queues a rolling schedule only on days that have unfinished work", async () => {
+    const action: ElementalAction = {
+      id: "run",
+      benchmarkId: "benchmark",
+      title: "Run for 20 minutes",
+      frequency: ["Sunday"],
+      anchorLink: "after breakfast",
+      kickstartVersion: "Put on running shoes",
+      createdAt: "2026-07-01T12:00:00",
+    };
+
+    await scheduleDailyReminder({
+      personaName: "5K-Ready Weekend Runner",
+      actions: [action],
+      dailyLogs: [],
+    });
+
+    expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(2);
+    const first = jest.mocked(Notifications.scheduleNotificationAsync).mock
+      .calls[0][0];
+    expect(first.content.title).toBe("One action left today");
+    expect(first.content.body).toContain("Run for 20 minutes");
+    expect(first.content.data).toMatchObject({
+      dateKey: "2026-07-19",
+      actionIds: ["run"],
+    });
+    expect(first.trigger).toMatchObject({ type: "date" });
   });
 });

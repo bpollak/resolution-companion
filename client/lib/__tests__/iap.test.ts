@@ -85,3 +85,17 @@ describe("lifetime entitlement", () => {
     ).toBe("lifetime");
   });
 });
+
+describe("subscription plan mapping", () => {
+  it("maps the production monthly SKU to Monthly", () => {
+    expect(
+      iapService.getPlanFromProductId("com.resolutioncompanion.monthly"),
+    ).toBe("monthly");
+  });
+
+  it("maps the production annual SKU to Yearly", () => {
+    expect(
+      iapService.getPlanFromProductId("com.resolutioncompanion.annual"),
+    ).toBe("yearly");
+  });
+});

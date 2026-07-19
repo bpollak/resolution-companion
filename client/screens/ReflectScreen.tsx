@@ -44,6 +44,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { track } from "@/lib/telemetry";
 import { getTodaysMicroNote } from "@/lib/micro-notes";
 import { getCoachTone, type CoachTone } from "@/lib/rewards";
+import { buildCoachActionContext, buildCoachOpening } from "@/lib/coach";
 
 // One-time free taste of coach memory: memory sells itself by demonstration,
 // not description. Set once the taste session has actually started.
@@ -101,6 +102,10 @@ export default function ReflectScreen() {
   const isDraggingChatRef = useRef(false);
   const isMomentumScrollingChatRef = useRef(false);
   const autoScrollFrameRef = useRef<number | null>(null);
+  // Each session owns a generation. A late response from a closed/replaced
+  // session is ignored instead of leaking into the next Coach screen.
+  const coachRequestGenerationRef = useRef(0);
+  const coachAbortControllerRef = useRef<AbortController | null>(null);
 
   const createStreamBuffer = useCallback(() => {
     streamBufferRef.current?.cancel();
@@ -205,6 +210,8 @@ export default function ReflectScreen() {
     const inReviewedWeek = (date: string) =>
       date >= weeklyRecap.weekKey && date <= weekEndKey;
     return {
+      weekStart: weeklyRecap.weekKey,
+      weekEnd: weekEndKey,
       completed: weeklyRecap.lastWeek.completed,
       scheduled: weeklyRecap.lastWeek.scheduled,
       prevCompleted: weeklyRecap.prevWeek.completed,
@@ -214,6 +221,11 @@ export default function ReflectScreen() {
       shieldsUsed: streak.shieldedDays.filter(inReviewedWeek).length,
     };
   }, [progressSnapshot]);
+
+  const actionContext = useMemo(
+    () => buildCoachActionContext(actions, dailyLogs),
+    [actions, dailyLogs],
+  );
 
   // The user's own completion notes from the last 7 days — the coach quoting
   // their words back is the "it knows me" moment. Newest first, capped at 8.
@@ -247,6 +259,7 @@ export default function ReflectScreen() {
       weeklyContext: period === "weekly" ? weeklyContext : undefined,
       previousSessionNotes,
       recentNotes,
+      actionContext,
       memoryTaste: memoryTasteAvailable && previousSessionNotes !== undefined,
       coachTone,
     }),
@@ -254,6 +267,7 @@ export default function ReflectScreen() {
       weeklyContext,
       previousSessionNotes,
       recentNotes,
+      actionContext,
       memoryTasteAvailable,
       coachTone,
     ],
@@ -322,66 +336,33 @@ export default function ReflectScreen() {
       AsyncStorage.setItem(MEMORY_TASTE_USED_KEY, "true").catch(() => {});
     }
 
+    coachRequestGenerationRef.current += 1;
+    coachAbortControllerRef.current?.abort();
+    coachAbortControllerRef.current = null;
+    streamBufferRef.current?.cancel();
     setSelectedPeriod(period);
     setIsInSession(true);
-    setIsLoading(true);
-    setIsStreaming(true);
+    setIsLoading(false);
+    setIsStreaming(false);
     setStreamingText("");
     isNearBottomRef.current = true;
     isDraggingChatRef.current = false;
     isMomentumScrollingChatRef.current = false;
-    const streamBuffer = createStreamBuffer();
-
-    // The coach's "consistency" must be the same month-to-date number the
-    // UI shows (July · X%) — not the 7-day momentum from the lobby card
-    const monthlyContext = getMonthlyContext(
-      personaAlignment,
-      persona.createdAt,
-    );
-
-    try {
-      const response = await getReflectionResponse(
-        [
-          {
-            role: "user",
-            content:
-              period === "weekly"
-                ? `I'm ready for my weekly review. My persona is "${persona.name}". Let's look at last week together.`
-                : `I'm ready for my monthly check-in. My persona is "${persona.name}". Please help me review my progress this month.`,
-          },
-        ],
-        momentumScore,
-        period,
-        streamBuffer.append,
-        monthlyContext,
-        { name: persona.name, description: persona.description },
-        buildExtras(period),
-      );
-
-      finishStreamBuffer(streamBuffer);
-      setIsStreaming(false);
-      const aiMessage: ChatMessage = {
+    // Opening a review should feel instant and requires no generative work.
+    // The model joins after the user's first answer, when it has something
+    // meaningful to reflect on.
+    setMessages([
+      {
         id: Date.now().toString(),
         role: "assistant",
-        content: response,
-      };
-      setMessages([aiMessage]);
-      setStreamingText("");
-    } catch (error) {
-      streamBuffer.cancel();
-      logger.error("Failed to start reflection:", error);
-      setIsStreaming(false);
-      setStreamingText("");
-      // Don't leave the user stranded in an empty session
-      setIsInSession(false);
-      setSelectedPeriod(null);
-      Alert.alert(
-        "Connection Issue",
-        "We couldn't reach your AI coach. Please check your internet connection and try again.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
+        content: buildCoachOpening({
+          period,
+          personaName: persona.name,
+          monthlyConsistency: personaAlignment,
+          weekly: period === "weekly" ? weeklyContext : undefined,
+        }),
+      },
+    ]);
   };
 
   const sendMessage = async () => {
@@ -402,6 +383,10 @@ export default function ReflectScreen() {
     isDraggingChatRef.current = false;
     isMomentumScrollingChatRef.current = false;
     const streamBuffer = createStreamBuffer();
+    const requestGeneration = coachRequestGenerationRef.current;
+    coachAbortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    coachAbortControllerRef.current = abortController;
 
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -429,7 +414,16 @@ export default function ReflectScreen() {
           ? { name: persona.name, description: persona.description }
           : undefined,
         buildExtras(selectedPeriod || "monthly"),
+        abortController.signal,
       );
+
+      if (requestGeneration !== coachRequestGenerationRef.current) {
+        streamBuffer.cancel();
+        return;
+      }
+      if (coachAbortControllerRef.current === abortController) {
+        coachAbortControllerRef.current = null;
+      }
 
       finishStreamBuffer(streamBuffer);
       setIsStreaming(false);
@@ -442,15 +436,34 @@ export default function ReflectScreen() {
       setStreamingText("");
     } catch (error) {
       streamBuffer.cancel();
+      if (requestGeneration !== coachRequestGenerationRef.current) return;
+      if (error instanceof Error && error.name === "AbortError") return;
       logger.error("Failed to send message:", error);
       setIsStreaming(false);
       setStreamingText("");
+      setMessages((previous) =>
+        previous.filter((message) => message.id !== userMessage.id),
+      );
+      setInputText(userMessage.content);
+      Alert.alert(
+        "Coach Paused",
+        "That response could not complete. Your answer is ready to send again.",
+      );
     } finally {
-      setIsLoading(false);
+      if (requestGeneration === coachRequestGenerationRef.current) {
+        if (coachAbortControllerRef.current === abortController) {
+          coachAbortControllerRef.current = null;
+        }
+        setIsLoading(false);
+      }
     }
   };
 
   const finishReflection = async () => {
+    coachRequestGenerationRef.current += 1;
+    coachAbortControllerRef.current?.abort();
+    coachAbortControllerRef.current = null;
+    streamBufferRef.current?.cancel();
     if (messages.length > 0 && selectedPeriod) {
       const userMessages = messages
         .filter((m) => m.role === "user")
@@ -488,6 +501,12 @@ export default function ReflectScreen() {
 
   const handleCloseSession = () => {
     if (messages.length === 0) {
+      coachRequestGenerationRef.current += 1;
+      coachAbortControllerRef.current?.abort();
+      coachAbortControllerRef.current = null;
+      streamBufferRef.current?.cancel();
+      setIsLoading(false);
+      setIsStreaming(false);
       setIsInSession(false);
       setSelectedPeriod(null);
       return;
@@ -497,6 +516,12 @@ export default function ReflectScreen() {
       if (window.confirm("Save this coaching session before closing?")) {
         finishReflection();
       } else {
+        coachRequestGenerationRef.current += 1;
+        coachAbortControllerRef.current?.abort();
+        coachAbortControllerRef.current = null;
+        streamBufferRef.current?.cancel();
+        setIsLoading(false);
+        setIsStreaming(false);
         setIsInSession(false);
         setSelectedPeriod(null);
         setMessages([]);
@@ -510,6 +535,12 @@ export default function ReflectScreen() {
             text: "Discard",
             style: "destructive",
             onPress: () => {
+              coachRequestGenerationRef.current += 1;
+              coachAbortControllerRef.current?.abort();
+              coachAbortControllerRef.current = null;
+              streamBufferRef.current?.cancel();
+              setIsLoading(false);
+              setIsStreaming(false);
               setIsInSession(false);
               setSelectedPeriod(null);
               setMessages([]);

@@ -871,6 +871,8 @@ export default function TodayScreen() {
       missedRun: lapseMissedDays,
       personaName: persona?.name,
       monthlyConsistency: personaAlignment,
+      actions,
+      dailyLogs,
     };
     (async () => {
       await applySuggestedReminderBucket(
@@ -891,6 +893,7 @@ export default function TodayScreen() {
     streakCurrent,
     lapseMissedDays,
     actions,
+    dailyLogs,
     persona?.name,
     personaAlignment,
   ]);
@@ -921,11 +924,17 @@ export default function TodayScreen() {
               onPress: async () => {
                 const granted = await requestNotificationPermissions();
                 if (granted) {
-                  await scheduleDailyReminder({ streakCount: streakCurrent });
-                  // Today is already complete — stay quiet tonight
-                  await suppressReminderForToday({
+                  const reminderContext = {
                     streakCount: streakCurrent,
-                  });
+                    missedRun: lapseMissedDays,
+                    personaName: persona?.name,
+                    monthlyConsistency: personaAlignment,
+                    actions,
+                    dailyLogs,
+                  };
+                  await scheduleDailyReminder(reminderContext);
+                  // Today is already complete — stay quiet tonight
+                  await suppressReminderForToday(reminderContext);
                 }
               },
             },
@@ -936,7 +945,15 @@ export default function TodayScreen() {
     return () => {
       cancelled = true;
     };
-  }, [celebrateDayComplete, streakCurrent]);
+  }, [
+    actions,
+    celebrateDayComplete,
+    dailyLogs,
+    lapseMissedDays,
+    persona?.name,
+    personaAlignment,
+    streakCurrent,
+  ]);
 
   // One-time App Store review ask at the third day-complete celebration —
   // peak-moment timing, and disjoint from the first-day notification ask.

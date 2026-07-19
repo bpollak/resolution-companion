@@ -43,8 +43,11 @@ import { unlockRewardsForMilestoneCount, Reward } from "@/lib/rewards";
 import { isHealthAvailable, initHealth, isHealthGoalMet } from "@/lib/health";
 import {
   reconcileSubscription,
+  selectPreferredEntitlement,
   type ServerSubscriptionStatus,
+  type SubscriptionVerificationStatus,
 } from "@/lib/subscription";
+import { iapService } from "@/lib/iap";
 import {
   createPrivateBackup,
   getPrivateBackupEnabled,
@@ -64,6 +67,7 @@ interface AppContextType {
   progressSnapshot: ProgressSnapshot;
   isLoading: boolean;
   subscription: Subscription;
+  subscriptionVerificationStatus: SubscriptionVerificationStatus;
   monthlyReflectionCount: number;
   aiConsent: boolean;
   /** Milestone that just flipped to completed and hasn't been celebrated yet. */
@@ -110,8 +114,8 @@ interface AppContextType {
     reflection: Omit<Reflection, "id" | "createdAt">,
   ) => Promise<Reflection>;
   refreshData: () => Promise<void>;
+  verifySubscription: () => Promise<SubscriptionVerificationStatus>;
   clearAllData: () => Promise<void>;
-  upgradeToPremium: (plan: "monthly" | "yearly" | "lifetime") => Promise<void>;
   incrementReflectionCount: () => Promise<number>;
   canUseReflection: () => boolean;
   canAddPersona: () => boolean;
@@ -142,6 +146,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     expiresAt: null,
     purchasedAt: null,
   });
+  const [subscriptionVerificationStatus, setSubscriptionVerificationStatus] =
+    useState<SubscriptionVerificationStatus>("checking");
+  const subscriptionVerificationPromiseRef =
+    useRef<Promise<SubscriptionVerificationStatus> | null>(null);
   // Derived from the persona-scoped state, so they can never drift from the
   // data they describe (state mirrors storage via refreshData + mutators).
   // Premium holds 2 streak shields — extra grace, earned the same way.
@@ -231,6 +239,100 @@ export function AppProvider({ children }: { children: ReactNode }) {
     refreshData();
   }, [refreshData]);
 
+  const verifySubscription = useCallback(() => {
+    if (subscriptionVerificationPromiseRef.current) {
+      return subscriptionVerificationPromiseRef.current;
+    }
+
+    setSubscriptionVerificationStatus("checking");
+    const verification = (async (): Promise<SubscriptionVerificationStatus> => {
+      const local = await storage.getSubscription();
+      let server: ServerSubscriptionStatus | null = null;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+
+      try {
+        const deviceId = await storage.getDeviceId();
+        const res = await fetch(
+          new URL(
+            `/api/subscription/status/${deviceId}`,
+            getApiUrl(),
+          ).toString(),
+          { headers: getAuthHeaders(), signal: controller.signal },
+        );
+        if (res.ok) server = (await res.json()) as ServerSubscriptionStatus;
+      } catch {
+        // StoreKit below can still recover a current entitlement. Its receipt
+        // will be server-validated before Premium is granted.
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      if (Platform.OS !== "web") {
+        const store = await iapService.checkCurrentEntitlements();
+        const purchase = selectPreferredEntitlement(
+          store.purchases,
+          (productId) => iapService.getPlanFromProductId(productId),
+        );
+
+        if (purchase) {
+          const plan = iapService.getPlanFromProductId(purchase.productId);
+          const next: Subscription = {
+            isPremium: true,
+            plan,
+            expiresAt:
+              plan === "lifetime"
+                ? null
+                : (purchase.expirationDate ??
+                  (local.plan === plan ? local.expiresAt : null)),
+            purchasedAt: new Date(purchase.purchaseTime).toISOString(),
+          };
+          await storage.setSubscription(next);
+          setSubscriptionState(next);
+          setSubscriptionVerificationStatus("verified");
+          return "verified";
+        }
+
+        if (store.storeAvailable && store.verificationCompleted) {
+          // StoreKit's active-entitlements list is current account truth. An
+          // empty completed result clears stale local/server Premium flags,
+          // including lifetime access left behind by a missed revocation.
+          const next: Subscription = {
+            isPremium: false,
+            plan: "free",
+            expiresAt: local.expiresAt,
+            purchasedAt: local.purchasedAt,
+          };
+          await storage.setSubscription(next);
+          setSubscriptionState(next);
+          setSubscriptionVerificationStatus("verified");
+          return "verified";
+        }
+      }
+
+      if (server) {
+        const next = reconcileSubscription(local, server);
+        await storage.setSubscription(next);
+        setSubscriptionState(next);
+        const status =
+          server.isPremium || !next.isPremium ? "verified" : "unavailable";
+        setSubscriptionVerificationStatus(status);
+        return status;
+      }
+
+      // Offline or validation service unavailable. Preserve any local access,
+      // but do not describe it as verified until a store-backed check succeeds.
+      setSubscriptionState(local);
+      setSubscriptionVerificationStatus("unavailable");
+      return "unavailable";
+    })().finally(() => {
+      subscriptionVerificationPromiseRef.current = null;
+    });
+
+    subscriptionVerificationPromiseRef.current = verification;
+    return verification;
+  }, []);
+
   // Private iCloud backup is opt-in. Once enabled, coalesce local changes
   // into one quiet snapshot; manual Backup Now remains available in Profile.
   useEffect(() => {
@@ -252,46 +354,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     aiConsent,
   ]);
 
-  // Cold-start telemetry + entitlement re-sync. Both are fire-and-forget:
-  // offline keeps local truth, and neither can delay first render.
+  // Cold-start telemetry is fire-and-forget and never delays first render.
   useEffect(() => {
     if (Platform.OS === "web") return;
     track("app_open");
     flushTelemetry().catch(() => {});
 
-    // The paywall path already persists server-validated expiry, but nothing
-    // re-checked it afterwards — an expired subscription stayed premium
-    // locally until the user happened to open the paywall. Reconcile once per
-    // launch. Conservative on downgrade: the server may legitimately lack a
-    // row (validation raced, webhook missed), so local premium is only revoked
-    // when the server disagrees AND the locally-known period has lapsed.
-    (async () => {
-      try {
-        const local = await storage.getSubscription();
-        const deviceId = await storage.getDeviceId();
-        const res = await fetch(
-          new URL(
-            `/api/subscription/status/${deviceId}`,
-            getApiUrl(),
-          ).toString(),
-          { headers: getAuthHeaders() },
-        );
-        if (!res.ok) return;
-        const data = (await res.json()) as ServerSubscriptionStatus;
-        const next = reconcileSubscription(local, data);
-        if (
-          next.isPremium !== local.isPremium ||
-          next.plan !== local.plan ||
-          next.expiresAt !== local.expiresAt
-        ) {
-          await storage.setSubscription(next);
-          setSubscriptionState(next);
-        }
-      } catch {
-        // Offline or server unreachable — keep local state.
-      }
-    })();
+    // Subscription verification runs separately after AsyncStorage hydration
+    // so an older refresh result cannot overwrite a newly verified purchase.
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS === "web" || isLoading) return;
+
+    verifySubscription().catch(() => {});
+  }, [isLoading, verifySubscription]);
 
   // All mutators are memoized (and the provider value below is useMemo'd):
   // an unmemoized value object re-renders every consumer screen on every
@@ -541,29 +618,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAiConsentState(false);
   }, []);
 
-  const upgradeToPremium = useCallback(
-    async (plan: "monthly" | "yearly" | "lifetime") => {
-      const now = new Date();
-      const expiresAt = new Date(now);
-      if (plan === "lifetime") {
-        // Non-consumable entitlement has no renewal or expiry.
-      } else if (plan === "monthly") {
-        expiresAt.setMonth(expiresAt.getMonth() + 1);
-      } else {
-        expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-      }
-      const newSubscription: Subscription = {
-        isPremium: true,
-        plan,
-        expiresAt: plan === "lifetime" ? null : expiresAt.toISOString(),
-        purchasedAt: now.toISOString(),
-      };
-      await storage.setSubscription(newSubscription);
-      setSubscriptionState(newSubscription);
-    },
-    [],
-  );
-
   const incrementReflectionCountFn = useCallback(async () => {
     const count = await storage.incrementReflectionCount();
     setMonthlyReflectionCount(count);
@@ -634,10 +688,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCelebrationReward(null);
   }, []);
 
-  // Reminder-chain self-heal: a suppressed night (one-shot queued for
-  // "tomorrow") followed by days of absence leaves no repeating reminder.
-  // Every app foreground restores the chain — idempotent and cheap, a no-op
-  // unless reminders are enabled and the schedule is actually stale.
+  // Reminder-plan self-heal: every foreground refreshes the rolling local
+  // schedule when its date or completion context changed. The signature check
+  // keeps this idempotent when the existing 14-day plan is still current.
   const reminderStateRef = useRef({
     hasOnboarded,
     actions,
@@ -672,6 +725,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         missedRun: computeLapse(currentActions, currentLogs).missedDays,
         personaName: reminderStateRef.current.persona?.name,
         monthlyConsistency: reminderStateRef.current.personaAlignment,
+        actions: currentActions,
+        dailyLogs: currentLogs,
       });
     });
     return () => subscription.remove();
@@ -691,7 +746,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ) => {
       if (!response) return;
       const data = response.notification.request.content.data as
-        | { type?: string; hook?: string }
+        | {
+            type?: string;
+            hook?: string;
+            dateKey?: string;
+            actionIds?: string[];
+          }
         | undefined;
       if (data?.type !== "daily-reminder") return;
       // A plain tap opened the app from the reminder: credit the voice that
@@ -719,7 +779,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (response.actionIdentifier !== MARK_ALL_DONE_ACTION) return;
 
       const firedAt = new Date(response.notification.date);
-      const dateKey = getLocalDateString(firedAt);
+      const dateKey = data.dateKey ?? getLocalDateString(firedAt);
       const handledKey = `evolve_reminder_action_handled`;
       const marker = `${response.notification.request.identifier}|${dateKey}`;
       try {
@@ -733,8 +793,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       track("notification_mark_all_done");
       const { actions: currentActions, dailyLogs: currentLogs } =
         reminderStateRef.current;
-      const weekday = firedAt.toLocaleDateString("en-US", { weekday: "long" });
+      const [year, month, day] = dateKey.split("-").map(Number);
+      const intendedDate = new Date(year, month - 1, day);
+      const weekday = intendedDate.toLocaleDateString("en-US", {
+        weekday: "long",
+      });
+      const intendedActionIds = new Set(data.actionIds ?? []);
       for (const action of currentActions) {
+        if (intendedActionIds.size > 0 && !intendedActionIds.has(action.id)) {
+          continue;
+        }
         if (!action.frequency.includes(weekday)) continue;
         const created = getLocalDateString(new Date(action.createdAt));
         if (created > dateKey) continue;
@@ -904,6 +972,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       progressSnapshot,
       isLoading,
       subscription,
+      subscriptionVerificationStatus,
       monthlyReflectionCount,
       aiConsent,
       milestoneCelebration,
@@ -927,8 +996,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setDailyLogNote,
       addReflection,
       refreshData,
+      verifySubscription,
       clearAllData,
-      upgradeToPremium,
       incrementReflectionCount: incrementReflectionCountFn,
       canUseReflection,
       canAddPersona,
@@ -947,6 +1016,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       progressSnapshot,
       isLoading,
       subscription,
+      subscriptionVerificationStatus,
       monthlyReflectionCount,
       aiConsent,
       milestoneCelebration,
@@ -970,8 +1040,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setDailyLogNote,
       addReflection,
       refreshData,
+      verifySubscription,
       clearAllData,
-      upgradeToPremium,
       incrementReflectionCountFn,
       canUseReflection,
       canAddPersona,

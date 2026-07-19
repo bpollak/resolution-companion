@@ -113,6 +113,36 @@ RULES:
 - Write everything in the user's language and vocabulary where possible — the plan should feel like it came from their own words.`;
 
 const STREAM_DELAY_MS = 30;
+const REQUEST_TIMEOUT_MS = 20000;
+
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit,
+  timeoutMs: number = REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const externalSignal = init.signal;
+  let timedOut = false;
+  const handleExternalAbort = () => controller.abort();
+  if (externalSignal?.aborted) controller.abort();
+  else
+    externalSignal?.addEventListener("abort", handleExternalAbort, {
+      once: true,
+    });
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (timedOut) throw new Error("The coach response timed out.");
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    externalSignal?.removeEventListener("abort", handleExternalAbort);
+  }
+}
 
 async function delayedChunkEmitter(
   chunk: string,
@@ -144,6 +174,7 @@ async function streamSSERequest(
   body: Record<string, unknown>,
   onChunk: (chunk: string) => void,
   charDelayMs: number,
+  signal?: AbortSignal,
 ): Promise<string> {
   const url = new URL(path, getApiUrl());
   const headers = await getAiHeaders();
@@ -151,17 +182,41 @@ async function streamSSERequest(
   return new Promise((resolve, reject) => {
     let fullContent = "";
     let streamDone = false;
+    let settled = false;
     const queue = { pending: [] as string[], processing: false };
 
     // Abort if the stream stalls so the UI never spins forever
-    const IDLE_TIMEOUT_MS = 45000;
+    const IDLE_TIMEOUT_MS = REQUEST_TIMEOUT_MS;
     let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    let es: EventSource<"message">;
+    const cleanup = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      signal?.removeEventListener("abort", handleAbort);
+    };
+    const resolveOnce = (content: string) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(content);
+    };
+    const rejectOnce = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const handleAbort = () => {
+      es?.close();
+      const error = new Error("Coach request cancelled");
+      error.name = "AbortError";
+      rejectOnce(error);
+    };
     const resetIdleTimer = () => {
       if (idleTimer) clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
         es.close();
         if (!streamDone) {
-          reject(
+          rejectOnce(
             new Error(
               "The connection timed out. Please check your internet and try again.",
             ),
@@ -188,15 +243,21 @@ async function streamSSERequest(
 
       queue.processing = false;
       if (streamDone && queue.pending.length === 0) {
-        resolve(fullContent);
+        resolveOnce(fullContent);
       }
     };
 
-    const es = new EventSource<"message">(url.toString(), {
+    es = new EventSource<"message">(url.toString(), {
       method: "POST",
       headers,
       body: JSON.stringify(body),
     });
+
+    if (signal?.aborted) {
+      handleAbort();
+      return;
+    }
+    signal?.addEventListener("abort", handleAbort, { once: true });
 
     resetIdleTimer();
 
@@ -208,7 +269,7 @@ async function streamSSERequest(
         streamDone = true;
         if (!fullContent) {
           // Stream ended without any text — never leave an empty bubble
-          reject(
+          rejectOnce(
             new Error(
               "The coach didn't send a reply that time. Please try again.",
             ),
@@ -216,7 +277,7 @@ async function streamSSERequest(
           return;
         }
         if (!queue.processing && queue.pending.length === 0) {
-          resolve(fullContent);
+          resolveOnce(fullContent);
         }
         return;
       }
@@ -230,7 +291,7 @@ async function streamSSERequest(
         if (parsed.error) {
           if (idleTimer) clearTimeout(idleTimer);
           es.close();
-          reject(new Error(parsed.error));
+          rejectOnce(new Error(parsed.error));
         }
       } catch (parseError) {
         // Skip the malformed event but surface it for debugging
@@ -241,7 +302,7 @@ async function streamSSERequest(
     es.addEventListener("error", () => {
       if (idleTimer) clearTimeout(idleTimer);
       es.close();
-      reject(
+      rejectOnce(
         new Error(
           "We couldn't reach the coaching service. Please check your internet connection and try again.",
         ),
@@ -271,7 +332,7 @@ export async function extractPersonaFromConversation(
 ): Promise<PersonaData> {
   const url = new URL("/api/extract-persona", getApiUrl());
 
-  const response = await fetch(url.toString(), {
+  const response = await fetchWithTimeout(url.toString(), {
     method: "POST",
     headers: await getAiHeaders(),
     body: JSON.stringify({
@@ -338,6 +399,9 @@ export function getMonthlyContext(
 }
 
 export interface WeeklyReviewContext {
+  /** Exact local dates for the completed week being reviewed. */
+  weekStart: string;
+  weekEnd: string;
   /** Completed action-days in the most recent complete Mon-Sun week. */
   completed: number;
   /** Scheduled action-days that week. */
@@ -367,6 +431,8 @@ export interface ReflectionExtras {
    * coach can quote their words back ("you wrote 'felt easy'").
    */
   recentNotes?: string;
+  /** Action-level evidence used to make suggestions concrete and feasible. */
+  actionContext?: string;
   /**
    * True when a free user is getting their one-time taste of coach memory —
    * memory sells itself by demonstration, so the coach may mention (once,
@@ -426,6 +492,7 @@ export async function getReflectionResponse(
   monthlyContext?: MonthlyContext,
   persona?: { name: string; description: string },
   extras?: ReflectionExtras,
+  signal?: AbortSignal,
 ): Promise<string> {
   const isFirstMessage = messages.length === 1;
   const ctx = monthlyContext || getMonthlyContext(momentumScore);
@@ -477,12 +544,20 @@ ${extras.recentNotes}
 `
     : "";
 
+  const actionContext = extras?.actionContext
+    ? `
+THEIR ACTIVE ACTIONS (use this evidence when discussing friction or suggesting a change; name ONE real action and its real 2-minute version or routine anchor rather than giving generic advice):
+${extras.actionContext}
+`
+    : "";
+
   const isWeekly = periodType === "weekly" && extras?.weeklyContext;
   const wk = extras?.weeklyContext;
 
   const weeklyProgressContext = wk
     ? `
 LAST WEEK (their most recent complete Monday-Sunday week):
+- Reviewed dates: ${wk.weekStart} through ${wk.weekEnd}. Refer to this period by its date range, never by a calendar week number.
 - Completed ${wk.completed} of ${wk.scheduled} scheduled action-days${wk.prevCompleted > 0 ? ` (the week before: ${wk.prevCompleted})` : ""}.
 - ${wk.bestDay ? `Their strongest day was ${wk.bestDay}.` : "No completions last week — meet them with warmth, not pressure."}
 - Current streak: ${wk.streak} day${wk.streak === 1 ? "" : "s"}.
@@ -499,7 +574,7 @@ LAST WEEK (their most recent complete Monday-Sunday week):
       : "TONE: Be warm, patient, and gently encouraging without becoming vague or overly cheerful.";
 
   const firstMessageInstruction = isWeekly
-    ? `FIRST MESSAGE: Be brief (2-3 sentences max). This is a light weekly ritual with three beats you'll walk through one at a time: one win from last week, one point of friction, and one small bend for the coming week. Open by naming their week in one warm sentence (use the week numbers naturally), then ask for the win. ONE question only.`
+    ? `FIRST MESSAGE: Be brief (2-3 sentences max). This is a light weekly ritual with three beats you'll walk through one at a time: one win from last week, one point of friction, and one small bend for the coming week. Open by naming the exact reviewed date range, then ask for the win. Never use a calendar week number. ONE question only.`
     : `FIRST MESSAGE: Be brief (2-3 sentences max). Anchor on how long they've been at their plan${justStarted ? " — they just started, so welcome them to their first days and celebrate showing up at all" : " and their consistency over that time"}. ${ctx.isAhead ? "Their consistency is strong — celebrate it." : ctx.isBehind ? "They're struggling — be encouraging and ask what's been challenging." : "They're building — note the steady progress."} Ask ONE simple question about their experience. No lengthy explanations.`;
 
   const continueInstruction = isWeekly
@@ -508,7 +583,7 @@ LAST WEEK (their most recent complete Monday-Sunday week):
 
   const systemMessage: AIMessage = {
     role: "system",
-    content: `${roleLine} ${isWeekly ? weeklyProgressContext : progressContext}${identityContext}${memoryContext}${notesContext}
+    content: `${roleLine} ${isWeekly ? weeklyProgressContext : progressContext}${identityContext}${memoryContext}${notesContext}${actionContext}
 
 COACHING METHOD (motivational interviewing, adapted — the user should leave feeling heard, not lectured):
 - Reflect before you direct: open with one short reflection of what they just said, in your own words, before anything else.
@@ -531,35 +606,18 @@ Be warm and practical. No bullet points or lists in responses.`,
 
   const allMessages = [systemMessage, ...messages];
 
-  // Real SSE — the reply appears as fast as the model produces it (the old
-  // path fetched the full reply, then replayed it at 30ms/char). The JSON
-  // path remains as a fallback for a server that predates streaming here —
-  // but only when nothing was streamed yet, so a mid-reply drop can never
-  // duplicate text in the transcript.
-  if (onChunk) {
-    let streamedAny = false;
-    try {
-      return await streamSSERequest(
-        "/api/reflection",
-        { messages: allMessages, stream: true },
-        (chunk) => {
-          streamedAny = true;
-          onChunk(chunk);
-        },
-        0,
-      );
-    } catch (error) {
-      if (streamedAny) throw error;
-      logger.warn("Reflection SSE failed, falling back to JSON:", error);
-    }
-  }
-
+  // Production currently serves reflection replies as JSON even when sent a
+  // stream flag. Opening that response through EventSource leaves the client
+  // waiting for SSE delimiters that never arrive, then repeats the same model
+  // call as a fallback. Use the endpoint's stable JSON contract directly;
+  // the deterministic local opening already makes session entry immediate.
   const url = new URL("/api/reflection", getApiUrl());
 
   const response = await fetch(url.toString(), {
     method: "POST",
     headers: await getAiHeaders(),
     body: JSON.stringify({ messages: allMessages }),
+    signal,
   });
 
   if (!response.ok) {

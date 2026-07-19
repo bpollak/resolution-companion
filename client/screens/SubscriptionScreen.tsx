@@ -32,6 +32,7 @@ import {
 import { logger } from "@/lib/logger";
 import { track } from "@/lib/telemetry";
 import { chooseYearlyProductId } from "@/lib/pricing";
+import { getSubscriptionPlanLabel } from "@/lib/subscription";
 
 type PlanType = "monthly" | "yearly" | "lifetime";
 
@@ -253,7 +254,12 @@ export default function SubscriptionScreen() {
   const fromCoachLimit = route.params?.source === "coach-limit";
   const fromMilestoneProposal = route.params?.source === "milestone-proposal";
   const { theme, isDark } = useTheme();
-  const { subscription, refreshData } = useApp();
+  const {
+    subscription,
+    subscriptionVerificationStatus,
+    refreshData,
+    verifySubscription,
+  } = useApp();
   const [selectedPlan, setSelectedPlan] = useState<PlanType>("yearly");
   const [isLoading, setIsLoading] = useState(false);
   const [iapProducts, setIapProducts] = useState<IAPProduct[]>([]);
@@ -342,6 +348,7 @@ export default function SubscriptionScreen() {
                 };
                 await storage.setSubscription(newSubscription);
                 await refreshData();
+                await verifySubscription();
                 setIsLoading(false);
                 track("paywall_purchase_success");
                 Alert.alert(
@@ -433,25 +440,7 @@ export default function SubscriptionScreen() {
   const checkSubscriptionStatus = async () => {
     try {
       setCheckingStatus(true);
-      const deviceId = await storage.getDeviceId();
-      const response = await fetch(
-        new URL(`/api/subscription/status/${deviceId}`, getApiUrl()).toString(),
-        {
-          headers: getAuthHeaders(),
-        },
-      );
-      const data = await response.json();
-
-      if (data.isPremium) {
-        const newSubscription = {
-          isPremium: true,
-          plan: data.plan as "monthly" | "yearly" | "lifetime",
-          expiresAt: data.currentPeriodEnd,
-          purchasedAt: new Date().toISOString(),
-        };
-        await storage.setSubscription(newSubscription);
-        await refreshData();
-      }
+      await verifySubscription();
     } catch (error) {
       logger.error("Failed to check subscription status:", error);
     } finally {
@@ -576,6 +565,7 @@ export default function SubscriptionScreen() {
         };
         await storage.setSubscription(newSubscription);
         await refreshData();
+        await verifySubscription();
         track("paywall_restore_success");
         Alert.alert("Success", "Your subscription has been restored!");
         setCheckingStatus(false);
@@ -623,6 +613,7 @@ export default function SubscriptionScreen() {
         };
         await storage.setSubscription(newSubscription);
         await refreshData();
+        await verifySubscription();
         track("paywall_restore_success");
         Alert.alert("Success", "Your subscription has been restored!");
       } else {
@@ -722,7 +713,7 @@ export default function SubscriptionScreen() {
             <Feather name="check" size={48} color={theme.buttonText} />
           </View>
           <ThemedText style={styles.premiumActiveTitle}>
-            You&apos;re Premium!
+            {getSubscriptionPlanLabel(subscription.plan)} Premium is active
           </ThemedText>
           <ThemedText
             style={[
@@ -730,9 +721,9 @@ export default function SubscriptionScreen() {
               { color: theme.textSecondary },
             ]}
           >
-            {subscription.plan === "lifetime"
-              ? "Lifetime Premium is active on this store account."
-              : "You have unlimited access to all features."}
+            {subscriptionVerificationStatus === "verified"
+              ? `Verified with the ${Platform.OS === "ios" ? "App Store" : "store"}. You have unlimited access to all features.`
+              : "Your Premium access is available while verification completes."}
           </ThemedText>
           {expiresAtDate ? (
             <ThemedText
