@@ -1,8 +1,9 @@
 appId: com.resolutioncompanion.app
 ---
 # Fresh-install regression: onboarding (no-AI starter path) → Today daily
-# loop → Journey (insights + milestones) → Coach (micro-note, weekly review)
-# → paywall. Exercises the surfaces touched by the 2026-07-17 sprint.
+# loop → Journey → Coach (micro-note, weekly review) → paywall.
+# Historical Journey/Coach behavior is covered after seeding by the focused
+# engagement and Coach flows; a new plan must not pretend history exists.
 # Selectors use .* suffixes: RN Pressables concatenate child text + icons
 # into labels like "Start Your Journey, " and Maestro full-matches regexes.
 
@@ -58,37 +59,36 @@ appId: com.resolutioncompanion.app
     optional: true
 - takeScreenshot: 04-today-actions-done
 # Completing the last scheduled action triggers the day-complete +
-# contextual notification ask (~4s delay).
+# contextual notification ask (~4s delay). Rest days correctly have no
+# scheduled action and therefore no prompt, so both checks are optional.
 - extendedWaitUntil:
     visible: "Keep the streak alive?.*"
     timeout: 10000
+    optional: true
 - takeScreenshot: 04c-contextual-notif-ask
-- tapOn: "Not now.*"
+- tapOn:
+    text: "Not now.*"
+    optional: true
 
-# --- Journey: calendar, milestones, locked Insights panel ---
+# --- Journey: fresh-plan identity and support surface ---
 - tapOn: "Journey, tab.*"
 - extendedWaitUntil:
-    visible: ".*Consistency.*"
+    # A same-day Sunday starter plan has no scheduled history yet, so the
+    # consistency module is intentionally absent. This stable section still
+    # proves the Journey surface mounted and became interactive.
+    visible: "Stories & Support.*"
     timeout: 10000
 - takeScreenshot: 05-journey-top
-- scrollUntilVisible:
-    element:
-      text: "Unlock insights with Premium.*"
-    direction: DOWN
-    timeout: 30000
-- takeScreenshot: 06-journey-insights-locked
-- scrollUntilVisible:
-    element:
-      text: "Go further with Premium.*"
-    direction: DOWN
-    timeout: 30000
-- takeScreenshot: 07-journey-premium-footer
 
 # --- Coach lobby: momentum, weekly review, micro-note drip ---
 - tapOn: "Coach, tab.*"
-- extendedWaitUntil:
-    visible: ".*3-minute weekly review.*"
-    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: ".*3-minute weekly review.*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+    visibilityPercentage: 40
 - takeScreenshot: 08-coach-lobby
 - scrollUntilVisible:
     element:
@@ -98,18 +98,30 @@ appId: com.resolutioncompanion.app
 - tapOn: "60-second read.*"
 - takeScreenshot: 09-coach-micro-note
 
-# --- Paywall (via Journey's premium footer) ---
-- tapOn: "Journey, tab.*"
+# --- Paywall (via stable Profile entry on every fresh plan) ---
+- tapOn: "Today, tab.*"
+- tapOn: "Open profile and settings.*"
 - scrollUntilVisible:
     element:
-      text: "Go further with Premium.*"
+      text: "Upgrade to Premium.*"
     direction: DOWN
     timeout: 30000
-- tapOn: "Go further with Premium.*"
+- tapOn: "Upgrade to Premium.*"
 - extendedWaitUntil:
-    visible: "Streak shields.*"
+    visible: "Upgrade to Premium"
     timeout: 15000
+- assertVisible: ".*24.99.*year.*"
 - takeScreenshot: 10-paywall-compare-table
+- scrollUntilVisible:
+    element:
+      text: "Monthly plan, .*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+    visibilityPercentage: 40
+- tapOn: "Monthly plan, .*"
+- assertVisible: ".*2.99.*month.*"
+- takeScreenshot: 11-paywall-monthly-price
 # Run with: JAVA_HOME=/opt/homebrew/opt/openjdk@17 PATH="$JAVA_HOME/bin:$PATH:$HOME/.maestro/bin" \
 #   DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer maestro test qa/maestro-regression.yaml
 # (build + install first: npm run build:local:sim → tar -xzf → xcrun simctl install)

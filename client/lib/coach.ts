@@ -5,6 +5,7 @@ export interface CoachOpeningContext {
   period: "weekly" | "monthly";
   personaName: string;
   monthlyConsistency: number;
+  daysSincePlanStarted?: number;
   weekly?: {
     weekStart: string;
     weekEnd: string;
@@ -47,6 +48,17 @@ export function buildCoachOpening(context: CoachOpeningContext): string {
       return `Looking back at ${range}, nothing was logged—and that is useful information, not a verdict. What is one win from the week that the tracker may not show?`;
     }
     return `Looking back at ${range}, you completed ${context.weekly.completed} of ${context.weekly.scheduled} scheduled actions. What felt like one win for the ${context.personaName} you're becoming?`;
+  }
+
+  if (
+    context.daysSincePlanStarted !== undefined &&
+    context.daysSincePlanStarted <= 7
+  ) {
+    const startLabel =
+      context.daysSincePlanStarted <= 0
+        ? "You're just getting started with this plan"
+        : `You're only ${context.daysSincePlanStarted} day${context.daysSincePlanStarted === 1 ? "" : "s"} into this plan`;
+    return `${startLabel}, so it's too early to judge the numbers. What would make the next few days feel realistic and doable?`;
   }
 
   const consistency = Math.round(context.monthlyConsistency);

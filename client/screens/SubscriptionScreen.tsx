@@ -1042,18 +1042,7 @@ export default function SubscriptionScreen() {
             </ThemedText>
           </View>
         )}
-      </ScrollView>
 
-      <View
-        onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
-        style={[
-          styles.footer,
-          {
-            paddingBottom: insets.bottom + Spacing.lg,
-            backgroundColor: theme.backgroundRoot,
-          },
-        ]}
-      >
         {storeReady && selectedProduct ? (
           <ThemedText
             style={[
@@ -1071,7 +1060,18 @@ export default function SubscriptionScreen() {
               : "Lifetime Premium can be restored on devices using the same store account."}
           </ThemedText>
         ) : null}
+      </ScrollView>
 
+      <View
+        onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
+        style={[
+          styles.footer,
+          {
+            paddingBottom: insets.bottom + Spacing.lg,
+            backgroundColor: theme.backgroundRoot,
+          },
+        ]}
+      >
         {Platform.OS !== "web" ? (
           <Pressable
             onPress={handleSubscribe}

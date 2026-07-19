@@ -606,30 +606,13 @@ Be warm and practical. No bullet points or lists in responses.`,
 
   const allMessages = [systemMessage, ...messages];
 
-  // Production currently serves reflection replies as JSON even when sent a
-  // stream flag. Opening that response through EventSource leaves the client
-  // waiting for SSE delimiters that never arrive, then repeats the same model
-  // call as a fallback. Use the endpoint's stable JSON contract directly;
-  // the deterministic local opening already makes session entry immediate.
-  const url = new URL("/api/reflection", getApiUrl());
-
-  const response = await fetch(url.toString(), {
-    method: "POST",
-    headers: await getAiHeaders(),
-    body: JSON.stringify({ messages: allMessages }),
+  // Use the same incremental SSE + typewriter path as onboarding so Coach
+  // starts speaking as soon as the first model token arrives.
+  return streamSSERequest(
+    "/api/reflection",
+    { messages: allMessages, stream: true },
+    onChunk || (() => {}),
+    STREAM_DELAY_MS,
     signal,
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to get AI response");
-  }
-
-  const data = await response.json();
-  const fullContent = data.content || "";
-
-  if (onChunk) {
-    onChunk(fullContent);
-  }
-
-  return fullContent;
+  );
 }

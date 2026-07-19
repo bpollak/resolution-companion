@@ -59,6 +59,31 @@ describe("Coach opening", () => {
       }),
     ).toContain("73% consistency");
   });
+
+  it("does not overstate a perfect percentage for a brand-new plan", () => {
+    const opening = buildCoachOpening({
+      period: "monthly",
+      personaName: "Conversational Spanish Speaker",
+      monthlyConsistency: 100,
+      daysSincePlanStarted: 0,
+    });
+
+    expect(opening).toContain("just getting started");
+    expect(opening).toContain("too early to judge the numbers");
+    expect(opening).not.toContain("100%");
+    expect(opening).not.toContain("reliably");
+  });
+
+  it("uses an established plan's grounded consistency", () => {
+    const opening = buildCoachOpening({
+      period: "monthly",
+      personaName: "Conversational Spanish Speaker",
+      monthlyConsistency: 100,
+      daysSincePlanStarted: 8,
+    });
+
+    expect(opening).toContain("100% consistency");
+  });
 });
 
 describe("Coach action context", () => {

@@ -121,6 +121,10 @@ export default function ReflectScreen() {
     if (streamBufferRef.current === buffer) streamBufferRef.current = null;
   }, []);
 
+  const resetStreamingPreview = useCallback(() => {
+    setStreamingText("");
+  }, []);
+
   useEffect(
     () => () => {
       streamBufferRef.current?.cancel();
@@ -344,7 +348,7 @@ export default function ReflectScreen() {
     setIsInSession(true);
     setIsLoading(false);
     setIsStreaming(false);
-    setStreamingText("");
+    resetStreamingPreview();
     isNearBottomRef.current = true;
     isDraggingChatRef.current = false;
     isMomentumScrollingChatRef.current = false;
@@ -359,26 +363,20 @@ export default function ReflectScreen() {
           period,
           personaName: persona.name,
           monthlyConsistency: personaAlignment,
+          daysSincePlanStarted: getMonthlyContext(
+            personaAlignment,
+            persona.createdAt,
+          ).daysSincePersonaCreated,
           weekly: period === "weekly" ? weeklyContext : undefined,
         }),
       },
     ]);
   };
 
-  const sendMessage = async () => {
-    if (!inputText.trim() || isLoading) return;
-
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      content: inputText.trim(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInputText("");
+  const requestCoachReply = async (conversation: ChatMessage[]) => {
     setIsLoading(true);
     setIsStreaming(true);
-    setStreamingText("");
+    resetStreamingPreview();
     isNearBottomRef.current = true;
     isDraggingChatRef.current = false;
     isMomentumScrollingChatRef.current = false;
@@ -388,16 +386,11 @@ export default function ReflectScreen() {
     const abortController = new AbortController();
     coachAbortControllerRef.current = abortController;
 
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-
     try {
-      const aiMessages: AIMessage[] = messages.map((m) => ({
+      const aiMessages: AIMessage[] = conversation.map((m) => ({
         role: m.role,
         content: m.content,
       }));
-      aiMessages.push({ role: "user", content: userMessage.content });
 
       const monthlyContext = getMonthlyContext(
         personaAlignment,
@@ -433,22 +426,20 @@ export default function ReflectScreen() {
         content: response,
       };
       setMessages((prev) => [...prev, aiMessage]);
-      setStreamingText("");
+      resetStreamingPreview();
     } catch (error) {
-      streamBuffer.cancel();
-      if (requestGeneration !== coachRequestGenerationRef.current) return;
-      if (error instanceof Error && error.name === "AbortError") return;
+      if (requestGeneration !== coachRequestGenerationRef.current) {
+        streamBuffer.cancel();
+        return;
+      }
+      if (error instanceof Error && error.name === "AbortError") {
+        streamBuffer.cancel();
+        return;
+      }
       logger.error("Failed to send message:", error);
+      streamBuffer.cancel();
       setIsStreaming(false);
-      setStreamingText("");
-      setMessages((previous) =>
-        previous.filter((message) => message.id !== userMessage.id),
-      );
-      setInputText(userMessage.content);
-      Alert.alert(
-        "Coach Paused",
-        "That response could not complete. Your answer is ready to send again.",
-      );
+      resetStreamingPreview();
     } finally {
       if (requestGeneration === coachRequestGenerationRef.current) {
         if (coachAbortControllerRef.current === abortController) {
@@ -457,6 +448,26 @@ export default function ReflectScreen() {
         setIsLoading(false);
       }
     }
+  };
+
+  const sendMessage = async () => {
+    if (!inputText.trim() || isLoading) return;
+
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      role: "user",
+      content: inputText.trim(),
+    };
+    const conversation = [...messages, userMessage];
+
+    setMessages(conversation);
+    setInputText("");
+
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    await requestCoachReply(conversation);
   };
 
   const finishReflection = async () => {
@@ -497,6 +508,7 @@ export default function ReflectScreen() {
     setIsInSession(false);
     setSelectedPeriod(null);
     setMessages([]);
+    resetStreamingPreview();
   };
 
   const handleCloseSession = () => {
@@ -509,6 +521,7 @@ export default function ReflectScreen() {
       setIsStreaming(false);
       setIsInSession(false);
       setSelectedPeriod(null);
+      resetStreamingPreview();
       return;
     }
 
@@ -525,6 +538,7 @@ export default function ReflectScreen() {
         setIsInSession(false);
         setSelectedPeriod(null);
         setMessages([]);
+        resetStreamingPreview();
       }
     } else {
       Alert.alert(
@@ -544,6 +558,7 @@ export default function ReflectScreen() {
               setIsInSession(false);
               setSelectedPeriod(null);
               setMessages([]);
+              resetStreamingPreview();
             },
           },
           {
