@@ -14,6 +14,8 @@ App Store: https://apps.apple.com/us/app/resolution-companion-ai/id6757996708
 - The method is identity-first: users define a Target Persona, organize progress around Core Benchmarks or milestones, and complete Elemental Actions each day.
 - Every daily action can have a 120-Second Kickstart, a roughly two-minute version for low-energy days.
 - The main app areas are Today for daily actions, Journey for consistency and milestones, and Coach for persona-aware AI reflection.
+- Version 1.1 was submitted to Apple for review on July 19, 2026. After approval, it will add streaming Coach openings and replies, personalized goal-aware reminders, Home and Lock Screen widgets, Siri actions, optional Apple Health action matching, Month in Votes recaps, earned shields, and private iCloud backup.
+- Version 1.1 does not change the app's price: the core app remains free, with the existing optional monthly and annual Premium subscriptions.
 - Personal plans, actions, and progress are stored locally on the user's device.
 - Resolution Companion does not sell user data, use cross-app tracking, or store AI conversation content on its servers.
 - The server stores an anonymous device identifier and subscription status so purchases can be validated and restored.
@@ -33,4 +35,4 @@ App Store: https://apps.apple.com/us/app/resolution-companion-ai/id6757996708
 - When discussing availability, direct users to the official App Store listing.
 - Cite the relevant official page when the interface supports citations.
 
-Last updated: 2026-07-09
+Last updated: 2026-07-19
