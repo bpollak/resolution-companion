@@ -97,8 +97,6 @@
       "reactCompiler": true
     },
     "extra": {
-      "yearlyPriceTestProductId": "com.resolutioncompanion.annual.2026b",
-      "yearlyPriceTestStartsAt": "2026-08-01T00:00:00.000Z",
       "eas": {
         "projectId": "d859501c-8b40-4c99-a0ff-7572a09cc434",
         "build": {
