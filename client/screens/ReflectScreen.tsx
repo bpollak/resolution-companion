@@ -45,6 +45,10 @@ import { track } from "@/lib/telemetry";
 import { getTodaysMicroNote } from "@/lib/micro-notes";
 import { getCoachTone, type CoachTone } from "@/lib/rewards";
 import { buildCoachActionContext, buildCoachOpening } from "@/lib/coach";
+import {
+  startTextTypewriter,
+  type TypewriterController,
+} from "@/lib/typewriter";
 
 // One-time free taste of coach memory: memory sells itself by demonstration,
 // not description. Set once the taste session has actually started.
@@ -98,6 +102,7 @@ export default function ReflectScreen() {
 
   const chatScrollRef = useRef<ScrollView>(null);
   const streamBufferRef = useRef<TextStreamBuffer | null>(null);
+  const coachOpeningStreamRef = useRef<TypewriterController | null>(null);
   const isNearBottomRef = useRef(true);
   const isDraggingChatRef = useRef(false);
   const isMomentumScrollingChatRef = useRef(false);
@@ -128,6 +133,7 @@ export default function ReflectScreen() {
   useEffect(
     () => () => {
       streamBufferRef.current?.cancel();
+      coachOpeningStreamRef.current?.cancel();
       if (autoScrollFrameRef.current !== null) {
         cancelAnimationFrame(autoScrollFrameRef.current);
       }
@@ -344,33 +350,47 @@ export default function ReflectScreen() {
     coachAbortControllerRef.current?.abort();
     coachAbortControllerRef.current = null;
     streamBufferRef.current?.cancel();
+    coachOpeningStreamRef.current?.cancel();
+    coachOpeningStreamRef.current = null;
     setSelectedPeriod(period);
     setIsInSession(true);
-    setIsLoading(false);
-    setIsStreaming(false);
+    setIsLoading(true);
+    setIsStreaming(true);
     resetStreamingPreview();
     isNearBottomRef.current = true;
     isDraggingChatRef.current = false;
     isMomentumScrollingChatRef.current = false;
-    // Opening a review should feel instant and requires no generative work.
-    // The model joins after the user's first answer, when it has something
-    // meaningful to reflect on.
-    setMessages([
-      {
-        id: Date.now().toString(),
-        role: "assistant",
-        content: buildCoachOpening({
-          period,
-          personaName: persona.name,
-          monthlyConsistency: personaAlignment,
-          daysSincePlanStarted: getMonthlyContext(
-            personaAlignment,
-            persona.createdAt,
-          ).daysSincePersonaCreated,
-          weekly: period === "weekly" ? weeklyContext : undefined,
-        }),
+    setMessages([]);
+
+    // Keep the first question deterministic and immediate, but reveal it with
+    // the same typewriter pacing as the AI-led onboarding conversation.
+    const openingMessage: ChatMessage = {
+      id: Date.now().toString(),
+      role: "assistant",
+      content: buildCoachOpening({
+        period,
+        personaName: persona.name,
+        monthlyConsistency: personaAlignment,
+        daysSincePlanStarted: getMonthlyContext(
+          personaAlignment,
+          persona.createdAt,
+        ).daysSincePersonaCreated,
+        weekly: period === "weekly" ? weeklyContext : undefined,
+      }),
+    };
+    const requestGeneration = coachRequestGenerationRef.current;
+    coachOpeningStreamRef.current = startTextTypewriter(
+      openingMessage.content,
+      setStreamingText,
+      () => {
+        if (requestGeneration !== coachRequestGenerationRef.current) return;
+        coachOpeningStreamRef.current = null;
+        setMessages([openingMessage]);
+        resetStreamingPreview();
+        setIsStreaming(false);
+        setIsLoading(false);
       },
-    ]);
+    );
   };
 
   const requestCoachReply = async (conversation: ChatMessage[]) => {
@@ -475,6 +495,8 @@ export default function ReflectScreen() {
     coachAbortControllerRef.current?.abort();
     coachAbortControllerRef.current = null;
     streamBufferRef.current?.cancel();
+    coachOpeningStreamRef.current?.cancel();
+    coachOpeningStreamRef.current = null;
     if (messages.length > 0 && selectedPeriod) {
       const userMessages = messages
         .filter((m) => m.role === "user")
@@ -508,6 +530,8 @@ export default function ReflectScreen() {
     setIsInSession(false);
     setSelectedPeriod(null);
     setMessages([]);
+    setIsLoading(false);
+    setIsStreaming(false);
     resetStreamingPreview();
   };
 
@@ -517,6 +541,8 @@ export default function ReflectScreen() {
       coachAbortControllerRef.current?.abort();
       coachAbortControllerRef.current = null;
       streamBufferRef.current?.cancel();
+      coachOpeningStreamRef.current?.cancel();
+      coachOpeningStreamRef.current = null;
       setIsLoading(false);
       setIsStreaming(false);
       setIsInSession(false);
@@ -533,6 +559,8 @@ export default function ReflectScreen() {
         coachAbortControllerRef.current?.abort();
         coachAbortControllerRef.current = null;
         streamBufferRef.current?.cancel();
+        coachOpeningStreamRef.current?.cancel();
+        coachOpeningStreamRef.current = null;
         setIsLoading(false);
         setIsStreaming(false);
         setIsInSession(false);
@@ -553,6 +581,8 @@ export default function ReflectScreen() {
               coachAbortControllerRef.current?.abort();
               coachAbortControllerRef.current = null;
               streamBufferRef.current?.cancel();
+              coachOpeningStreamRef.current?.cancel();
+              coachOpeningStreamRef.current = null;
               setIsLoading(false);
               setIsStreaming(false);
               setIsInSession(false);
@@ -1227,7 +1257,10 @@ export default function ReflectScreen() {
         ]}
       >
         <TextInput
-          accessibilityLabel="Message to your AI coach"
+          accessibilityLabel={
+            isLoading ? "Coach is typing" : "Message to your AI coach"
+          }
+          accessibilityState={{ disabled: isLoading, busy: isLoading }}
           style={[
             styles.input,
             {

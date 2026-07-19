@@ -7,14 +7,16 @@ describe("Coach session lifecycle", () => {
     "utf8",
   );
 
-  it("opens with grounded local copy instead of waiting on the model", () => {
+  it("streams grounded local opening copy instead of waiting on the model", () => {
     const starter = source.slice(
       source.indexOf("const beginReflectionSession"),
       source.indexOf("const requestCoachReply"),
     );
     expect(starter).toContain("buildCoachOpening");
+    expect(starter).toContain("startTextTypewriter");
+    expect(starter).toContain("setStreamingText");
     expect(starter).not.toContain("getReflectionResponse(");
-    expect(starter).toContain("setIsLoading(false)");
+    expect(starter).toContain("setIsStreaming(true)");
   });
 
   it("invalidates late responses before they can enter a newer session", () => {
@@ -39,6 +41,6 @@ describe("Coach session lifecycle", () => {
     );
     expect(reflection).toContain('streamSSERequest(\n    "/api/reflection"');
     expect(reflection).toContain("{ messages: allMessages, stream: true }");
-    expect(reflection).toContain("STREAM_DELAY_MS");
+    expect(reflection).toContain("TYPEWRITER_DELAY_MS");
   });
 });

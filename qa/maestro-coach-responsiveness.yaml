@@ -1,7 +1,7 @@
 appId: com.resolutioncompanion.app
 ---
 # Requires the standard seeded simulator state used by qa/maestro-regression.
-# Verifies the grounded opening is local/instant, then exercises one real
+# Verifies the grounded opening streams locally, then exercises one real
 # production Coach response and the weekly-to-monthly session boundary.
 
 - launchApp
@@ -20,16 +20,20 @@ appId: com.resolutioncompanion.app
     timeout: 20000
     centerElement: true
     visibilityPercentage: 40
-- tapOn: ".*3-minute weekly review.*"
 - tapOn:
-    text: "Agree and continue.*"
-    optional: true
+    text: ".*3-minute weekly review.*"
+    waitToSettleTimeoutMs: 500
 - extendedWaitUntil:
     visible: "Weekly Review"
     timeout: 10000
 - extendedWaitUntil:
-    visible: "AI coach: Looking back at .+"
-    timeout: 3000
+    visible: "AI coach: .+"
+    timeout: 2000
+- assertVisible: "Coach is typing.*"
+- takeScreenshot: coach-weekly-opening-streaming
+- extendedWaitUntil:
+    visible: "Message to your AI coach.*"
+    timeout: 10000
 - assertNotVisible: ".*[Ww]eek 29.*"
 - tapOn: "Message to your AI coach.*"
 - inputText: "My win was completing my weekend run even though I felt tired."
@@ -63,14 +67,20 @@ appId: com.resolutioncompanion.app
     timeout: 20000
     centerElement: true
     visibilityPercentage: 40
-- tapOn: "Your coach is ready for your .* check-in.*"
+- tapOn:
+    text: "Your coach is ready for your .* check-in.*"
+    waitToSettleTimeoutMs: 500
 - extendedWaitUntil:
     visible: "Monthly Check-in"
     timeout: 10000
 - extendedWaitUntil:
-    # Established plans mention consistency; a same-day plan correctly says
-    # it is too early to judge. Both must still receive a grounded opening.
     visible: "AI coach: .+"
-    timeout: 3000
+    timeout: 2000
+- assertVisible: "Coach is typing.*"
+- takeScreenshot: coach-monthly-opening-streaming
+- extendedWaitUntil:
+    # The input becomes available only after the grounded opening completes.
+    visible: "Message to your AI coach.*"
+    timeout: 10000
 - assertNotVisible: ".*[Ww]eek 29.*"
 - takeScreenshot: coach-monthly-session-isolated

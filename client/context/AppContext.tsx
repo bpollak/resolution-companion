@@ -29,6 +29,7 @@ import {
 } from "@/lib/progress";
 import {
   ensureReminderScheduled,
+  enableDefaultPersonalizedReminders,
   registerReminderActions,
   recordOrganicAppOpen,
   recordReminderHookTap,
@@ -691,12 +692,51 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Reminder-plan self-heal: every foreground refreshes the rolling local
   // schedule when its date or completion context changed. The signature check
   // keeps this idempotent when the existing 14-day plan is still current.
+  const reminderMilestoneTitles = useMemo(
+    () => Object.fromEntries(benchmarks.map((item) => [item.id, item.title])),
+    [benchmarks],
+  );
+  const defaultReminderInitializationStartedRef = useRef(false);
+  useEffect(() => {
+    if (
+      Platform.OS === "web" ||
+      isLoading ||
+      !hasOnboarded ||
+      !persona ||
+      actions.length === 0 ||
+      defaultReminderInitializationStartedRef.current
+    ) {
+      return;
+    }
+    defaultReminderInitializationStartedRef.current = true;
+    enableDefaultPersonalizedReminders({
+      streakCount: computeStreak(actions, dailyLogs).current,
+      missedRun: computeLapse(actions, dailyLogs).missedDays,
+      personaName: persona.name,
+      monthlyConsistency: personaAlignment,
+      actions,
+      dailyLogs,
+      milestoneTitles: reminderMilestoneTitles,
+    }).catch((error) =>
+      logger.error("Failed to initialize personalized reminders:", error),
+    );
+  }, [
+    actions,
+    dailyLogs,
+    hasOnboarded,
+    isLoading,
+    persona,
+    personaAlignment,
+    reminderMilestoneTitles,
+  ]);
+
   const reminderStateRef = useRef({
     hasOnboarded,
     actions,
     dailyLogs,
     persona,
     personaAlignment,
+    milestoneTitles: reminderMilestoneTitles,
     isLoading,
   });
   useEffect(() => {
@@ -706,6 +746,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dailyLogs,
       persona,
       personaAlignment,
+      milestoneTitles: reminderMilestoneTitles,
       isLoading,
     };
   });
@@ -727,6 +768,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         monthlyConsistency: reminderStateRef.current.personaAlignment,
         actions: currentActions,
         dailyLogs: currentLogs,
+        milestoneTitles: reminderStateRef.current.milestoneTitles,
       });
     });
     return () => subscription.remove();
