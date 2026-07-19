@@ -15,7 +15,7 @@ interface ProgressBarProps {
 }
 
 export function ProgressBar({ progress, height = 8, color }: ProgressBarProps) {
-  const { isDark } = useTheme();
+  const { theme, isDark } = useTheme();
   const animatedWidth = useSharedValue(0);
 
   useEffect(() => {
@@ -29,10 +29,10 @@ export function ProgressBar({ progress, height = 8, color }: ProgressBarProps) {
   const barColor =
     color ||
     (progress >= 80
-      ? Colors.dark.success
+      ? theme.success
       : progress >= 50
-        ? Colors.dark.accent
-        : Colors.dark.warning);
+        ? theme.accent
+        : theme.warning);
 
   return (
     <View

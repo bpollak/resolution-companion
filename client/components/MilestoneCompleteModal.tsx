@@ -1,5 +1,12 @@
-import React, { useEffect } from "react";
-import { View, StyleSheet, Pressable, Modal, Platform } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  StyleSheet,
+  Pressable,
+  Modal,
+  Platform,
+  ScrollView,
+} from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, {
@@ -17,10 +24,20 @@ import { useApp } from "@/context/AppContext";
 import { MILESTONE_TARGET_DAYS } from "@/lib/progress";
 import { navigationRef } from "@/navigation/navigationRef";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
+import { getCelebrationStyle, type CelebrationStyle } from "@/lib/rewards";
+import { getNextMilestoneProposal } from "@/lib/ai";
+import {
+  buildLocalMilestoneProposal,
+  type MilestoneProposal,
+} from "@/lib/milestone-proposal";
 
 interface MilestoneCompleteModalProps {
   milestoneTitle: string;
   personaName: string;
+  /** Cosmetic reward newly unlocked by this milestone, when there is one. */
+  rewardTitle?: string;
+  rewardDescription?: string;
+  proposal: MilestoneProposal;
   onAddNext: () => void;
   onDismiss: () => void;
 }
@@ -33,12 +50,23 @@ interface MilestoneCompleteModalProps {
 export function MilestoneCompleteModal({
   milestoneTitle,
   personaName,
+  rewardTitle,
+  rewardDescription,
+  proposal,
   onAddNext,
   onDismiss,
 }: MilestoneCompleteModalProps) {
   const { theme, isDark } = useTheme();
   const opacity = useSharedValue(0);
   const scale = useSharedValue(0.92);
+  const [celebrationStyle, setCelebrationStyle] =
+    useState<CelebrationStyle>("classic");
+
+  useEffect(() => {
+    getCelebrationStyle()
+      .then(setCelebrationStyle)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     opacity.value = withDelay(100, withTiming(1, { duration: 300 }));
@@ -69,7 +97,11 @@ export function MilestoneCompleteModal({
       onRequestClose={onDismiss}
       accessibilityViewIsModal
     >
-      <View style={styles.backdrop}>
+      <ScrollView
+        style={styles.backdropScroll}
+        contentContainerStyle={styles.backdrop}
+        showsVerticalScrollIndicator={false}
+      >
         <Animated.View
           style={[
             styles.card,
@@ -82,20 +114,45 @@ export function MilestoneCompleteModal({
           ]}
         >
           <View style={styles.iconContainer}>
-            {BURST_DOTS.map((dot) => (
+            {BURST_DOTS.map((dot, index) => (
               <BurstDot
                 key={dot.angle}
                 angle={dot.angle}
-                color={dot.color}
+                color={
+                  celebrationStyle === "aurora"
+                    ? ["#9B6BFF", "#FFB800", "#FF6B9D", "#00D9FF"][index % 4]
+                    : dot.color
+                }
                 active
               />
             ))}
-            <View style={styles.iconCircle}>
-              <Feather name="award" size={30} color="#000000" />
+            <View
+              style={[
+                styles.iconCircle,
+                { backgroundColor: theme.accent },
+                celebrationStyle === "aurora" && {
+                  backgroundColor: "#9B6BFF",
+                },
+              ]}
+            >
+              <Feather
+                name="award"
+                size={30}
+                color={
+                  celebrationStyle === "aurora" ? "#000000" : theme.buttonText
+                }
+              />
             </View>
           </View>
 
-          <ThemedText style={[styles.eyebrow, { color: Colors.dark.accent }]}>
+          <ThemedText
+            style={[
+              styles.eyebrow,
+              {
+                color: celebrationStyle === "aurora" ? "#FFB800" : theme.accent,
+              },
+            ]}
+          >
             Milestone complete
           </ThemedText>
           <ThemedText style={styles.title}>{milestoneTitle}</ThemedText>
@@ -105,19 +162,60 @@ export function MilestoneCompleteModal({
             you&rsquo;re becoming {personaName}.
           </ThemedText>
 
+          {rewardTitle ? (
+            <View style={styles.rewardRow}>
+              <Feather name="unlock" size={16} color={theme.warning} />
+              <View style={styles.rewardText}>
+                <ThemedText style={styles.rewardTitle}>
+                  Unlocked: {rewardTitle}
+                </ThemedText>
+                {rewardDescription ? (
+                  <ThemedText
+                    style={[
+                      styles.rewardDescription,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    {rewardDescription}
+                  </ThemedText>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
+
+          <View
+            accessible
+            accessibilityLabel={`${proposal.source === "coach" ? "Coach suggestion" : "Suggested next milestone"}. ${proposal.title}`}
+            style={[styles.proposal, { borderColor: theme.border }]}
+          >
+            <ThemedText
+              style={[styles.proposalLabel, { color: theme.textSecondary }]}
+            >
+              {proposal.source === "coach"
+                ? "COACH SUGGESTION"
+                : "SUGGESTED NEXT MILESTONE"}
+            </ThemedText>
+            <ThemedText style={styles.proposalTitle}>
+              {proposal.title}
+            </ThemedText>
+          </View>
+
           <Pressable
             onPress={onAddNext}
             accessibilityRole="button"
-            accessibilityLabel="Add your next milestone"
+            accessibilityLabel={`Add next milestone: ${proposal.title}`}
             style={({ pressed }) => [
               styles.primaryButton,
+              { backgroundColor: theme.accent },
               { opacity: pressed ? 0.8 : 1 },
             ]}
           >
-            <ThemedText style={styles.primaryButtonText}>
-              Add your next milestone
+            <ThemedText
+              style={[styles.primaryButtonText, { color: theme.buttonText }]}
+            >
+              Add this milestone
             </ThemedText>
-            <Feather name="arrow-right" size={16} color="#000000" />
+            <Feather name="arrow-right" size={16} color={theme.buttonText} />
           </Pressable>
           <Pressable
             onPress={onDismiss}
@@ -138,7 +236,7 @@ export function MilestoneCompleteModal({
             </ThemedText>
           </Pressable>
         </Animated.View>
-      </View>
+      </ScrollView>
     </Modal>
   );
 }
@@ -150,19 +248,60 @@ export function MilestoneCompleteModal({
  * routes into the existing BenchmarkEditor via the container ref.
  */
 export function MilestoneCelebrationHost() {
-  const { milestoneCelebration, dismissMilestoneCelebration, persona } =
-    useApp();
+  const {
+    milestoneCelebration,
+    celebrationReward,
+    dismissMilestoneCelebration,
+    persona,
+    aiConsent,
+    canAddBenchmark,
+  } = useApp();
+  const [proposal, setProposal] = useState<MilestoneProposal | null>(null);
 
-  if (!milestoneCelebration) return null;
+  useEffect(() => {
+    if (!milestoneCelebration) {
+      setProposal(null);
+      return;
+    }
+    const fallback = buildLocalMilestoneProposal(
+      milestoneCelebration.title,
+      persona,
+    );
+    setProposal(fallback);
+    if (!aiConsent || !persona) return;
+
+    let cancelled = false;
+    getNextMilestoneProposal(milestoneCelebration.title, persona.name)
+      .then((title) => {
+        if (!cancelled) setProposal({ title, source: "coach" });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [aiConsent, milestoneCelebration, persona]);
+
+  if (!milestoneCelebration || !proposal) return null;
 
   return (
     <MilestoneCompleteModal
       milestoneTitle={milestoneCelebration.title}
       personaName={persona?.name ?? "your persona"}
+      rewardTitle={celebrationReward?.title}
+      rewardDescription={celebrationReward?.description}
+      proposal={proposal}
       onAddNext={() => {
         dismissMilestoneCelebration();
         if (navigationRef.isReady()) {
-          navigationRef.navigate("BenchmarkEditor", {});
+          if (canAddBenchmark()) {
+            navigationRef.navigate("BenchmarkEditor", {
+              suggestedTitle: proposal.title,
+            });
+          } else {
+            navigationRef.navigate("Subscription", {
+              source: "milestone-proposal",
+            });
+          }
         }
       }}
       onDismiss={dismissMilestoneCelebration}
@@ -171,13 +310,49 @@ export function MilestoneCelebrationHost() {
 }
 
 const styles = StyleSheet.create({
+  backdropScroll: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.65)" },
   backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: Spacing.xl,
   },
+  rewardRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+    backgroundColor: "rgba(255, 184, 0, 0.08)",
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    alignSelf: "stretch",
+  },
+  rewardText: {
+    flex: 1,
+    gap: 2,
+  },
+  rewardTitle: {
+    ...Typography.small,
+    fontWeight: "700",
+  },
+  rewardDescription: {
+    ...Typography.caption,
+    lineHeight: 16,
+  },
+  proposal: {
+    alignSelf: "stretch",
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    gap: Spacing.xs,
+  },
+  proposalLabel: {
+    ...Typography.caption,
+    fontWeight: "700",
+    letterSpacing: 0.7,
+  },
+  proposalTitle: { ...Typography.headline },
   card: {
     width: "100%",
     maxWidth: 400,

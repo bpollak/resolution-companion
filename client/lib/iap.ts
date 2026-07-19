@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import { storage } from "./storage";
 import { getApiUrl, getAuthHeaders } from "./query-client";
 import { logger } from "./logger";
+import { getYearlyPricingConfig } from "./pricing";
 
 type IAPModule = typeof import("react-native-iap");
 
@@ -13,7 +14,10 @@ async function loadIAPModule(): Promise<boolean> {
   }
 
   try {
-    const mod = await import("react-native-iap");
+    // Load lazily so Expo Go can catch the missing Nitro module while native
+    // builds and tests still use one stable module instance.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require("react-native-iap") as IAPModule;
     // The Nitro native module is unavailable in Expo Go — only enable IAP
     // when it's actually ready so the rest of the app degrades gracefully.
     if (!mod.isNitroReady()) {
@@ -41,6 +45,10 @@ export const PRODUCT_IDS = {
     android: "premium_yearly",
     default: "premium_yearly",
   }),
+  // Lifetime is an App Store non-consumable. Do not surface an Android SKU
+  // until Google Play one-time-product validation is implemented server-side.
+  LIFETIME:
+    Platform.OS === "ios" ? "com.resolutioncompanion.lifetime" : undefined,
 };
 
 export interface IAPProduct {
@@ -51,6 +59,13 @@ export interface IAPProduct {
   priceAmountMicros: number;
   priceCurrencyCode: string;
   subscriptionPeriod?: string;
+  subscriptionGroupId?: string;
+  introductoryOffer?: {
+    paymentMode: "free-trial" | "pay-as-you-go" | "pay-up-front" | "unknown";
+    periodUnit: "day" | "week" | "month" | "year" | "unknown";
+    periodCount: number;
+    displayPrice: string;
+  };
 }
 
 export interface IAPPurchase {
@@ -60,6 +75,26 @@ export interface IAPPurchase {
   purchaseTime: number;
   /** Server-validated expiry (ISO string), when the backend returned one. */
   expirationDate?: string | null;
+}
+
+export interface IAPEntitlementCheck {
+  /** StoreKit/Play Billing was reachable and returned current entitlements. */
+  storeAvailable: boolean;
+  /** Every returned entitlement received a definitive server response. */
+  verificationCompleted: boolean;
+  /** Purchases confirmed by both the store and this app's validation server. */
+  purchases: IAPPurchase[];
+}
+
+/** Human-readable StoreKit offer duration, derived only from live metadata. */
+export function formatIntroOfferDuration(
+  product: IAPProduct | undefined,
+): string | null {
+  const offer = product?.introductoryOffer;
+  if (!offer || offer.paymentMode !== "free-trial") return null;
+  const unit =
+    offer.periodCount === 1 ? offer.periodUnit : `${offer.periodUnit}s`;
+  return `${offer.periodCount} ${unit}`;
 }
 
 class IAPService {
@@ -91,34 +126,19 @@ class IAPService {
 
     try {
       const connectPromise = IAP.initConnection();
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("IAP connect timeout")), 8000),
-      );
-
-      await Promise.race([connectPromise, timeoutPromise]);
-      this.isConnected = true;
-      // Finish any transactions left unfinished by earlier sessions (e.g. a
-      // purchase whose server validation failed). Unfinished transactions
-      // block every future purchase attempt on this device with an
-      // immediate StoreKit error, so sweep them before anything else.
-      // getAvailablePurchases only covers CURRENT entitlements — an expired
-      // subscription's unfinished transaction is invisible to it, so also
-      // clear the pending-transaction queue directly on iOS.
-      if (Platform.OS === "ios") {
-        try {
-          await IAP.clearTransactionIOS();
-        } catch (error) {
-          logger.log("clearTransactionIOS failed (non-fatal):", error);
-        }
-      }
+      let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
-        const stuck = await IAP.getAvailablePurchases();
-        for (const purchase of stuck ?? []) {
-          try {
-            await IAP.finishTransaction({ purchase, isConsumable: false });
-          } catch {}
-        }
-      } catch {}
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timeout = setTimeout(
+            () => reject(new Error("IAP connect timeout")),
+            8000,
+          );
+        });
+        await Promise.race([connectPromise, timeoutPromise]);
+      } finally {
+        if (timeout) clearTimeout(timeout);
+      }
+      this.isConnected = true;
       return true;
     } catch (error) {
       logger.error("Failed to connect to IAP:", error);
@@ -158,18 +178,34 @@ class IAPService {
         return [];
       }
 
-      const skus = [PRODUCT_IDS.MONTHLY, PRODUCT_IDS.YEARLY].filter(
-        Boolean,
-      ) as string[];
+      const yearlyTestProductId =
+        getYearlyPricingConfig().alternateProductId ??
+        (typeof process.env.EXPO_PUBLIC_YEARLY_TEST_PRODUCT_ID === "string"
+          ? process.env.EXPO_PUBLIC_YEARLY_TEST_PRODUCT_ID
+          : undefined);
+      const skus = [
+        PRODUCT_IDS.MONTHLY,
+        PRODUCT_IDS.YEARLY,
+        PRODUCT_IDS.LIFETIME,
+        yearlyTestProductId,
+      ].filter(Boolean) as string[];
 
       logger.log("Fetching IAP products:", skus);
 
-      const fetchPromise = IAP.fetchProducts({ skus, type: "subs" });
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("IAP fetchProducts timeout")), 8000),
-      );
-
-      const results = await Promise.race([fetchPromise, timeoutPromise]);
+      const fetchPromise = IAP.fetchProducts({ skus, type: "all" });
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      let results;
+      try {
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timeout = setTimeout(
+            () => reject(new Error("IAP fetchProducts timeout")),
+            8000,
+          );
+        });
+        results = await Promise.race([fetchPromise, timeoutPromise]);
+      } finally {
+        if (timeout) clearTimeout(timeout);
+      }
 
       if (!results || results.length === 0) {
         logger.log("No IAP products returned from store");
@@ -178,24 +214,66 @@ class IAPService {
 
       logger.log("IAP products fetched successfully:", results.length);
 
-      this.products = results.map((product) => ({
-        productId: product.id,
-        title: product.title,
-        description: product.description,
-        price: product.displayPrice,
-        priceAmountMicros: Math.round((product.price ?? 0) * 1_000_000),
-        priceCurrencyCode: product.currency,
-        subscriptionPeriod:
-          product.id.toLowerCase().includes("year") ||
-          product.id.toLowerCase().includes("annual")
-            ? "year"
-            : "month",
-      }));
+      this.products = results.map((product) => {
+        const offers = product.subscriptionOffers ?? [];
+        const intro = offers.find(
+          (offer) =>
+            offer.type === "introductory" || offer.paymentMode === "free-trial",
+        );
+        const subscriptionInfo =
+          "subscriptionInfoIOS" in product
+            ? product.subscriptionInfoIOS
+            : undefined;
+        return {
+          productId: product.id,
+          title: product.title,
+          description: product.description,
+          price: product.displayPrice,
+          priceAmountMicros: Math.round((product.price ?? 0) * 1_000_000),
+          priceCurrencyCode: product.currency,
+          subscriptionPeriod:
+            product.id === PRODUCT_IDS.LIFETIME
+              ? undefined
+              : product.id.toLowerCase().includes("year") ||
+                  product.id.toLowerCase().includes("annual")
+                ? "year"
+                : "month",
+          subscriptionGroupId: subscriptionInfo?.subscriptionGroupId,
+          introductoryOffer: intro
+            ? {
+                paymentMode: intro.paymentMode ?? "unknown",
+                periodUnit: intro.period?.unit ?? "unknown",
+                periodCount:
+                  (intro.period?.value ?? 1) * (intro.periodCount ?? 1),
+                displayPrice: intro.displayPrice,
+              }
+            : undefined,
+        };
+      });
 
       return this.products;
     } catch (error: any) {
       logger.error("Failed to get products:", error);
       return [];
+    }
+  }
+
+  /** StoreKit eligibility is per subscription group, not merely offer existence. */
+  async isIntroOfferEligible(product: IAPProduct): Promise<boolean> {
+    if (
+      Platform.OS !== "ios" ||
+      !product.subscriptionGroupId ||
+      product.introductoryOffer?.paymentMode !== "free-trial"
+    ) {
+      return false;
+    }
+    const available = await this.isAvailable();
+    if (!available || !IAP || !(await this.connect())) return false;
+    try {
+      return await IAP.isEligibleForIntroOfferIOS(product.subscriptionGroupId);
+    } catch (error) {
+      logger.log("Intro offer eligibility check failed:", error);
+      return false;
     }
   }
 
@@ -237,15 +315,14 @@ class IAPService {
           };
 
           const validation = await this.validateReceipt(iapPurchase);
-          // Always finish the transaction — for subscriptions the
-          // entitlement lives with Apple and can be re-validated via
-          // Restore Purchases at any time. Leaving it unfinished blocks
-          // every future purchase attempt on this device.
-          try {
-            await iap.finishTransaction({ purchase, isConsumable: false });
-          } catch {}
           if (validation.valid) {
             iapPurchase.expirationDate = validation.expirationDate;
+            // Finish only after the server has verified the transaction and
+            // access can be delivered. Failed validation remains recoverable
+            // through StoreKit instead of being silently discarded.
+            try {
+              await iap.finishTransaction({ purchase, isConsumable: false });
+            } catch {}
             onPurchase(iapPurchase);
           } else {
             onError(new Error("Receipt validation failed"));
@@ -273,7 +350,10 @@ class IAPService {
     );
   }
 
-  async purchaseProduct(productId: string): Promise<void> {
+  async purchaseProduct(
+    productId: string,
+    introductoryOfferEligibility = false,
+  ): Promise<void> {
     const available = await this.isAvailable();
     if (!available || !IAP) {
       throw new Error(
@@ -290,13 +370,23 @@ class IAPService {
       }
 
       // Result is delivered via purchaseUpdatedListener / purchaseErrorListener
-      await IAP.requestPurchase({
-        type: "subs",
-        request: {
-          apple: { sku: productId },
-          google: { skus: [productId] },
-        },
-      });
+      if (productId === PRODUCT_IDS.LIFETIME) {
+        await IAP.requestPurchase({
+          type: "in-app",
+          request: {
+            apple: { sku: productId },
+            google: { skus: [productId] },
+          },
+        });
+      } else {
+        await IAP.requestPurchase({
+          type: "subs",
+          request: {
+            apple: { sku: productId, introductoryOfferEligibility },
+            google: { skus: [productId] },
+          },
+        });
+      }
     } catch (error: any) {
       logger.error("Purchase failed:", error);
 
@@ -332,23 +422,62 @@ class IAPService {
 
   async restorePurchases(): Promise<IAPPurchase[]> {
     const available = await this.isAvailable();
-    if (!available || !IAP) {
+    if (!available || !IAP) return [];
+
+    try {
+      if (!(await this.connect())) return [];
+      // Explicit Restore Purchases is the only path that asks StoreKit to
+      // synchronize account history. Background/profile verification uses
+      // the quieter current-entitlements lookup below.
+      if (Platform.OS === "ios") await IAP.syncIOS();
+    } catch (error) {
+      logger.error("Failed to synchronize purchases:", error);
       return [];
+    }
+
+    const result = await this.checkCurrentEntitlements();
+    return result.purchases;
+  }
+
+  /**
+   * Quietly reconcile current store entitlements with server validation.
+   * This is safe to run at launch or when Profile gains focus: it does not
+   * display the App Store sign-in sheet or mutate local subscription state.
+   */
+  async checkCurrentEntitlements(): Promise<IAPEntitlementCheck> {
+    const available = await this.isAvailable();
+    if (!available || !IAP) {
+      return {
+        storeAvailable: false,
+        verificationCompleted: false,
+        purchases: [],
+      };
     }
 
     try {
       const connected = await this.connect();
       if (!connected) {
-        return [];
+        return {
+          storeAvailable: false,
+          verificationCompleted: false,
+          purchases: [],
+        };
       }
 
-      const results = await IAP.getAvailablePurchases();
+      const results = await IAP.getAvailablePurchases({
+        onlyIncludeActiveItemsIOS: true,
+      });
 
       if (!results || results.length === 0) {
-        return [];
+        return {
+          storeAvailable: true,
+          verificationCompleted: true,
+          purchases: [],
+        };
       }
 
       const purchases: IAPPurchase[] = [];
+      let verificationCompleted = true;
 
       for (const purchase of results) {
         const iapPurchase: IAPPurchase = {
@@ -365,30 +494,35 @@ class IAPService {
           iapPurchase.expirationDate = validation.expirationDate;
           purchases.push(iapPurchase);
         }
-        // Acknowledge regardless of validity so stale transactions can't
-        // clog the queue (entitlements remain restorable from Apple).
-        try {
-          await IAP.finishTransaction({ purchase, isConsumable: false });
-        } catch {}
+        if (!validation.verificationCompleted) verificationCompleted = false;
       }
 
-      return purchases;
+      return { storeAvailable: true, verificationCompleted, purchases };
     } catch (error) {
-      logger.error("Failed to restore purchases:", error);
-      return [];
+      logger.error("Failed to check current entitlements:", error);
+      return {
+        storeAvailable: false,
+        verificationCompleted: false,
+        purchases: [],
+      };
     }
   }
 
-  private async validateReceipt(
-    purchase: IAPPurchase,
-  ): Promise<{ valid: boolean; expirationDate: string | null }> {
+  private async validateReceipt(purchase: IAPPurchase): Promise<{
+    valid: boolean;
+    expirationDate: string | null;
+    verificationCompleted: boolean;
+  }> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
     try {
       const deviceId = await storage.getDeviceId();
 
-      const validatePromise = fetch(
+      const response = await fetch(
         new URL("/api/iap/validate", getApiUrl()).toString(),
         {
           method: "POST",
+          signal: controller.signal,
           headers: {
             "Content-Type": "application/json",
             ...getAuthHeaders(),
@@ -403,28 +537,39 @@ class IAPService {
           }),
         },
       );
-
-      const timeoutPromise = new Promise<Response>((_, reject) =>
-        setTimeout(() => reject(new Error("Validation timeout")), 15000),
-      );
-
-      const response = await Promise.race([validatePromise, timeoutPromise]);
       if (!response.ok) {
         logger.error("Receipt validation server error:", response.status);
-        return { valid: false, expirationDate: null };
+        return {
+          valid: false,
+          expirationDate: null,
+          verificationCompleted: false,
+        };
       }
       const data = await response.json();
       return {
         valid: data.valid === true,
         expirationDate: data.expirationDate || null,
+        verificationCompleted: true,
       };
     } catch (error) {
       logger.error("Receipt validation error:", error);
-      return { valid: false, expirationDate: null };
+      return {
+        valid: false,
+        expirationDate: null,
+        verificationCompleted: false,
+      };
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
-  getPlanFromProductId(productId: string): "monthly" | "yearly" {
+  getPlanFromProductId(productId: string): "monthly" | "yearly" | "lifetime" {
+    if (
+      productId === PRODUCT_IDS.LIFETIME ||
+      productId.toLowerCase().includes("lifetime")
+    ) {
+      return "lifetime";
+    }
     if (
       productId === PRODUCT_IDS.YEARLY ||
       productId.toLowerCase().includes("yearly") ||

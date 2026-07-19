@@ -533,10 +533,12 @@
             <h3>The Short Version</h3>
             <p style="margin-bottom: 0">
               Your personal growth data stays on your device. We don't sell your
-              data, track you across apps, or use analytics. We store only the
-              minimum needed to make subscriptions work: an anonymous device
-              identifier and your subscription status. AI conversations are
-              processed by OpenAI (see details below).
+              data, track you across apps, or use third-party analytics or ad
+              trackers. On our own servers we store only the minimum: an
+              anonymous device identifier, your subscription status, and
+              privacy-respecting usage counts (how often features are used, by
+              day — never what you write or do). AI conversations are processed
+              by OpenAI (see details below).
             </p>
           </div>
         </section>
@@ -549,8 +551,10 @@
               an account or providing personal information.
             </li>
             <li>
-              <strong>No Analytics or Tracking:</strong> We do not use analytics
-              tools, advertising trackers, or cross-app tracking of any kind.
+              <strong>No Third-Party Analytics or Ad Tracking:</strong> We do
+              not use third-party analytics SDKs, advertising trackers, or
+              cross-app tracking of any kind. The only usage data we keep is our
+              own privacy-respecting, aggregate feature counts, described below.
             </li>
             <li>
               <strong>No Data Selling:</strong> We never sell or rent your
@@ -577,6 +581,21 @@
               restored after a reinstall.
             </li>
             <li>
+              <strong>Aggregate Usage Counts:</strong> To understand which
+              features are useful and where the app can be improved, we keep
+              per-day counts of anonymous events (for example, "a plan was
+              created," "the coach was opened," or the app caught an error), tied only to the same
+              anonymous device identifier above. We never record what you write,
+              your goals, your messages, or any content — only how many times a
+              feature was used on a given day.
+            </li>
+            <li>
+              <strong>Aggregate AI Operations:</strong> We total AI request and
+              token counts by day, feature, and model so we can monitor cost.
+              These totals contain no device identifier, prompt, response, or
+              other user content.
+            </li>
+            <li>
               <strong>Feedback Submissions:</strong> If you contact us through
               the website feedback form, we store the name, email address, and
               message you provide so we can respond.
@@ -595,8 +614,10 @@
               Retained while your subscription records are needed to verify or
               restore purchases. When you use
               <strong>Delete My Account &amp; Data</strong> in the app, these
-              records (including monthly AI usage counters) are permanently
-              deleted from our servers immediately.
+              records (including monthly AI usage counters and the aggregate
+              usage counts) are permanently deleted from our servers
+              immediately. The app also removes its private iCloud backup and
+              local product data.
             </li>
             <li>
               <strong>Feedback Submissions:</strong> Retained only as long as
@@ -623,8 +644,26 @@
             <li>App settings and preferences</li>
           </ul>
           <p>
-            This data never leaves your device unless you explicitly choose to
-            use AI features.
+            This data stays on your device unless you explicitly use an AI
+            feature, turn on Private iCloud Backup, or choose to share a recap
+            or witness celebration through the system share sheet.
+          </p>
+          <div class="highlight-box">
+            <h3>Private iCloud Backup</h3>
+            <p>
+              If you opt in, the app copies your local product data to your own
+              private Apple iCloud key-value store. Resolution Companion does
+              not receive or read that backup. Subscription information, the
+              anonymous device identifier, and aggregate telemetry are excluded.
+              You can turn backup off, create a new backup, or explicitly
+              confirm a restore from Profile at any time.
+            </p>
+          </div>
+          <p>
+            Recap and witness sharing is never automatic. The app prepares an
+            image or message locally, and you decide whether to share it, which
+            app receives it, and who receives it. Resolution Companion has no
+            social feed, shared account, or contact list.
           </p>
         </section>
 
@@ -678,13 +717,18 @@
 
         <section>
           <h2>Subscription & Payments</h2>
-          <p>If you choose to subscribe to Resolution Companion Premium:</p>
+          <p>
+            If you choose a subscription or one-time Lifetime Premium purchase:
+          </p>
           <ul>
             <li>
               Payments are processed securely through the Apple App Store.
             </li>
             <li>We never see, access, or store your payment information.</li>
-            <li>Subscription management is handled entirely by Apple.</li>
+            <li>
+              Subscription management and restoration of eligible purchases are
+              handled by Apple.
+            </li>
           </ul>
         </section>
 

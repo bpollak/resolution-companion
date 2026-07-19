@@ -69,6 +69,80 @@ export const deviceAiUsage = pgTable(
   }),
 );
 
+// Operational AI-cost visibility without user-level prompts or content.
+// Tokens are aggregated by UTC day, endpoint, and model; no device identifier
+// is stored in this table.
+export const aiUsageDaily = pgTable(
+  "ai_usage_daily",
+  {
+    id: serial("id").primaryKey(),
+    day: text("day").notNull(),
+    endpoint: text("endpoint").notNull(),
+    model: text("model").notNull(),
+    requests: integer("requests").default(0).notNull(),
+    inputTokens: integer("input_tokens").default(0).notNull(),
+    outputTokens: integer("output_tokens").default(0).notNull(),
+    updatedAt: timestamp("updated_at")
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  },
+  (table) => ({
+    dayEndpointModel: uniqueIndex("ai_usage_daily_key").on(
+      table.day,
+      table.endpoint,
+      table.model,
+    ),
+  }),
+);
+
+// Privacy-respecting product telemetry: daily event COUNTS only, keyed by the
+// same anonymous device UUID as subscriptions. No payloads, no timestamps
+// finer than a calendar day, no PII — enough to see activation/retention/
+// conversion funnels in aggregate and nothing else.
+export const deviceEvents = pgTable(
+  "device_events",
+  {
+    id: serial("id").primaryKey(),
+    deviceId: text("device_id").notNull(),
+    day: text("day").notNull(), // YYYY-MM-DD, device-local calendar day
+    event: text("event").notNull(),
+    count: integer("count").default(0).notNull(),
+    updatedAt: timestamp("updated_at")
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  },
+  (table) => ({
+    deviceDayEvent: uniqueIndex("device_events_key").on(
+      table.deviceId,
+      table.day,
+      table.event,
+    ),
+  }),
+);
+
+// Fixed-window request counters shared by every server instance. The window
+// id is an epoch bucket; old rows are harmless and can be pruned operationally.
+export const rateLimitWindows = pgTable(
+  "rate_limit_windows",
+  {
+    id: serial("id").primaryKey(),
+    scope: text("scope").notNull(),
+    clientKey: text("client_key").notNull(),
+    windowId: text("window_id").notNull(),
+    count: integer("count").default(0).notNull(),
+    updatedAt: timestamp("updated_at")
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  },
+  (table) => ({
+    scopeClientWindow: uniqueIndex("rate_limit_windows_key").on(
+      table.scope,
+      table.clientKey,
+      table.windowId,
+    ),
+  }),
+);
+
 export const insertWebsiteFeedbackSchema = createInsertSchema(
   websiteFeedback,
 ).omit({ id: true, createdAt: true });

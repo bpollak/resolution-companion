@@ -134,8 +134,8 @@ export function DayCompleteCard({
             active={celebrate}
           />
         ))}
-        <View style={styles.checkCircle}>
-          <Feather name="check" size={28} color="#000000" />
+        <View style={[styles.checkCircle, { backgroundColor: theme.success }]}>
+          <Feather name="check" size={28} color={theme.buttonText} />
         </View>
       </View>
 
@@ -145,21 +145,19 @@ export function DayCompleteCard({
         {personaName}.
       </ThemedText>
       {isFirstEver ? (
-        <ThemedText style={[styles.firstEver, { color: Colors.dark.accent }]}>
+        <ThemedText style={[styles.firstEver, { color: theme.accent }]}>
           This is how it starts.
         </ThemedText>
       ) : null}
 
       <View style={styles.momentumRow}>
-        <Feather name="zap" size={16} color={Colors.dark.warning} />
+        <Feather name="zap" size={16} color={theme.warning} />
         <ThemedText style={styles.momentumText}>
           {new Date().toLocaleDateString("en-US", { month: "long" })}{" "}
           consistency: {momentum}%
         </ThemedText>
         {momentumDelta > 0 ? (
-          <ThemedText
-            style={[styles.momentumDelta, { color: Colors.dark.success }]}
-          >
+          <ThemedText style={[styles.momentumDelta, { color: theme.success }]}>
             +{momentumDelta} today
           </ThemedText>
         ) : null}
@@ -182,7 +180,7 @@ export function DayCompleteCard({
             Tomorrow: {tomorrowCount} action{tomorrowCount === 1 ? "" : "s"}
             {tomorrowFirstTitle ? ` · ${tomorrowFirstTitle}` : ""}
           </ThemedText>
-          <Feather name="chevron-right" size={16} color={Colors.dark.accent} />
+          <Feather name="chevron-right" size={16} color={theme.accent} />
         </Pressable>
       ) : (
         <ThemedText

@@ -1,0 +1,62 @@
+appId: com.resolutioncompanion.app
+---
+# Requires the standard seeded simulator state used by qa/maestro-regression.
+# Verifies the grounded opening is local/instant, then exercises one real
+# production Coach response and the weekly-to-monthly session boundary.
+
+- launchApp
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          text: "Dismiss milestone celebration.*"
+          optional: true
+      - waitForAnimationToEnd
+- tapOn: "Coach, tab.*"
+- scrollUntilVisible:
+    element:
+      text: ".*3-minute weekly review.*"
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+    visibilityPercentage: 40
+- tapOn: ".*3-minute weekly review.*"
+- tapOn:
+    text: "Agree and continue.*"
+    optional: true
+- extendedWaitUntil:
+    visible: "Weekly Review"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "AI coach: Looking back at .+"
+    timeout: 3000
+- assertNotVisible: ".*[Ww]eek 29.*"
+- tapOn: "Message to your AI coach.*"
+- inputText: "My win was completing my weekend run even though I felt tired."
+- tapOn: "Send message.*"
+- extendedWaitUntil:
+    visible: "AI coach: .*run.*"
+    timeout: 25000
+- takeScreenshot: coach-grounded-live-response
+
+# Close the weekly session, then verify the next session cannot inherit it.
+- tapOn: "End session.*"
+- tapOn:
+    text: "Discard"
+    optional: true
+- scrollUntilVisible:
+    element:
+      text: "Your coach is ready for your .* check-in.*"
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+    visibilityPercentage: 40
+- tapOn: "Your coach is ready for your .* check-in.*"
+- extendedWaitUntil:
+    visible: "Monthly Check-in"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "AI coach: .*consistency.*"
+    timeout: 3000
+- assertNotVisible: ".*[Ww]eek 29.*"
+- takeScreenshot: coach-monthly-session-isolated

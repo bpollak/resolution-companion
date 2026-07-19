@@ -1,6 +1,6 @@
 # You're halfway through the year. That resolution isn't dead yet.
 
-*Draft. Flagship blog post for the Mid-Year Reset campaign. Pre-launch CTA points to resolutioncompanion.com; swap to the App Store link once the app is live.*
+*Draft. Flagship blog post for the Mid-Year Reset campaign. The app is live, so the CTA points directly to the App Store.*
 
 ---
 
@@ -56,4 +56,4 @@ So start again. Same goal, better system. Name the person you're becoming, do on
 
 ---
 
-**Want to restart?** Resolution Companion turns a dropped resolution into something you can actually keep. → [resolutioncompanion.com](https://resolutioncompanion.com) *(coming soon to the App Store)*
+**Want to restart?** Resolution Companion turns a dropped resolution into something you can actually keep. → [Download it free on the App Store](https://apps.apple.com/app/id6757996708)

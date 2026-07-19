@@ -30,10 +30,29 @@ import {
 import {
   ensureReminderScheduled,
   registerReminderActions,
+  recordOrganicAppOpen,
+  recordReminderHookTap,
   MARK_ALL_DONE_ACTION,
 } from "@/lib/notifications";
 import * as Notifications from "expo-notifications";
 import { logger } from "@/lib/logger";
+import { track, flushTelemetry } from "@/lib/telemetry";
+import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
+import { syncWidgetData, consumePendingVotes } from "@/lib/widget";
+import { unlockRewardsForMilestoneCount, Reward } from "@/lib/rewards";
+import { isHealthAvailable, initHealth, isHealthGoalMet } from "@/lib/health";
+import {
+  reconcileSubscription,
+  selectPreferredEntitlement,
+  type ServerSubscriptionStatus,
+  type SubscriptionVerificationStatus,
+} from "@/lib/subscription";
+import { iapService } from "@/lib/iap";
+import {
+  createPrivateBackup,
+  getPrivateBackupEnabled,
+  setPrivateBackupEnabled,
+} from "@/lib/icloud-backup";
 
 interface AppContextType {
   hasOnboarded: boolean;
@@ -48,10 +67,13 @@ interface AppContextType {
   progressSnapshot: ProgressSnapshot;
   isLoading: boolean;
   subscription: Subscription;
+  subscriptionVerificationStatus: SubscriptionVerificationStatus;
   monthlyReflectionCount: number;
   aiConsent: boolean;
   /** Milestone that just flipped to completed and hasn't been celebrated yet. */
   milestoneCelebration: Benchmark | null;
+  /** Reward newly unlocked by that milestone, revealed in the celebration. */
+  celebrationReward: Reward | null;
   dismissMilestoneCelebration: () => void;
 
   setHasOnboarded: (value: boolean) => Promise<void>;
@@ -78,7 +100,11 @@ interface AppContextType {
   ) => Promise<ElementalAction | null>;
   deleteAction: (id: string) => Promise<void>;
   setActions: (actions: ElementalAction[]) => Promise<void>;
-  toggleDailyLog: (actionId: string, date: string) => Promise<DailyLog>;
+  toggleDailyLog: (
+    actionId: string,
+    date: string,
+    completion?: Pick<DailyLog, "completionSource" | "completionKind">,
+  ) => Promise<DailyLog>;
   setDailyLogNote: (
     actionId: string,
     date: string,
@@ -88,8 +114,8 @@ interface AppContextType {
     reflection: Omit<Reflection, "id" | "createdAt">,
   ) => Promise<Reflection>;
   refreshData: () => Promise<void>;
+  verifySubscription: () => Promise<SubscriptionVerificationStatus>;
   clearAllData: () => Promise<void>;
-  upgradeToPremium: (plan: "monthly" | "yearly") => Promise<void>;
   incrementReflectionCount: () => Promise<number>;
   canUseReflection: () => boolean;
   canAddPersona: () => boolean;
@@ -114,23 +140,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [reflections, setReflectionsState] = useState<Reflection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Derived from the persona-scoped state, so they can never drift from the
-  // data they describe (state mirrors storage via refreshData + mutators)
-  const progressSnapshot = useMemo(
-    () => buildProgressSnapshot(actions, dailyLogs, benchmarks),
-    [actions, dailyLogs, benchmarks],
-  );
-  const { momentumScore, personaAlignment } = progressSnapshot;
   const [subscription, setSubscriptionState] = useState<Subscription>({
     isPremium: false,
     plan: "free",
     expiresAt: null,
     purchasedAt: null,
   });
+  const [subscriptionVerificationStatus, setSubscriptionVerificationStatus] =
+    useState<SubscriptionVerificationStatus>("checking");
+  const subscriptionVerificationPromiseRef =
+    useRef<Promise<SubscriptionVerificationStatus> | null>(null);
+  // Derived from the persona-scoped state, so they can never drift from the
+  // data they describe (state mirrors storage via refreshData + mutators).
+  // Premium holds 2 streak shields — extra grace, earned the same way.
+  const progressSnapshot = useMemo(
+    () =>
+      buildProgressSnapshot(actions, dailyLogs, benchmarks, {
+        maxShields: subscription.isPremium ? 2 : 1,
+      }),
+    [actions, dailyLogs, benchmarks, subscription.isPremium],
+  );
+  const { momentumScore, personaAlignment } = progressSnapshot;
   const [monthlyReflectionCount, setMonthlyReflectionCount] = useState(0);
   const [aiConsent, setAiConsentState] = useState(false);
   const [milestoneCelebration, setMilestoneCelebration] =
     useState<Benchmark | null>(null);
+  const [celebrationReward, setCelebrationReward] = useState<Reward | null>(
+    null,
+  );
   // Ids already being flipped this session, so the effect below can't fire
   // twice for the same milestone while an update is in flight
   const milestoneFlipsInFlight = useRef<Set<string>>(new Set());
@@ -201,6 +238,137 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refreshData();
   }, [refreshData]);
+
+  const verifySubscription = useCallback(() => {
+    if (subscriptionVerificationPromiseRef.current) {
+      return subscriptionVerificationPromiseRef.current;
+    }
+
+    setSubscriptionVerificationStatus("checking");
+    const verification = (async (): Promise<SubscriptionVerificationStatus> => {
+      const local = await storage.getSubscription();
+      let server: ServerSubscriptionStatus | null = null;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+
+      try {
+        const deviceId = await storage.getDeviceId();
+        const res = await fetch(
+          new URL(
+            `/api/subscription/status/${deviceId}`,
+            getApiUrl(),
+          ).toString(),
+          { headers: getAuthHeaders(), signal: controller.signal },
+        );
+        if (res.ok) server = (await res.json()) as ServerSubscriptionStatus;
+      } catch {
+        // StoreKit below can still recover a current entitlement. Its receipt
+        // will be server-validated before Premium is granted.
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      if (Platform.OS !== "web") {
+        const store = await iapService.checkCurrentEntitlements();
+        const purchase = selectPreferredEntitlement(
+          store.purchases,
+          (productId) => iapService.getPlanFromProductId(productId),
+        );
+
+        if (purchase) {
+          const plan = iapService.getPlanFromProductId(purchase.productId);
+          const next: Subscription = {
+            isPremium: true,
+            plan,
+            expiresAt:
+              plan === "lifetime"
+                ? null
+                : (purchase.expirationDate ??
+                  (local.plan === plan ? local.expiresAt : null)),
+            purchasedAt: new Date(purchase.purchaseTime).toISOString(),
+          };
+          await storage.setSubscription(next);
+          setSubscriptionState(next);
+          setSubscriptionVerificationStatus("verified");
+          return "verified";
+        }
+
+        if (store.storeAvailable && store.verificationCompleted) {
+          // StoreKit's active-entitlements list is current account truth. An
+          // empty completed result clears stale local/server Premium flags,
+          // including lifetime access left behind by a missed revocation.
+          const next: Subscription = {
+            isPremium: false,
+            plan: "free",
+            expiresAt: local.expiresAt,
+            purchasedAt: local.purchasedAt,
+          };
+          await storage.setSubscription(next);
+          setSubscriptionState(next);
+          setSubscriptionVerificationStatus("verified");
+          return "verified";
+        }
+      }
+
+      if (server) {
+        const next = reconcileSubscription(local, server);
+        await storage.setSubscription(next);
+        setSubscriptionState(next);
+        const status =
+          server.isPremium || !next.isPremium ? "verified" : "unavailable";
+        setSubscriptionVerificationStatus(status);
+        return status;
+      }
+
+      // Offline or validation service unavailable. Preserve any local access,
+      // but do not describe it as verified until a store-backed check succeeds.
+      setSubscriptionState(local);
+      setSubscriptionVerificationStatus("unavailable");
+      return "unavailable";
+    })().finally(() => {
+      subscriptionVerificationPromiseRef.current = null;
+    });
+
+    subscriptionVerificationPromiseRef.current = verification;
+    return verification;
+  }, []);
+
+  // Private iCloud backup is opt-in. Once enabled, coalesce local changes
+  // into one quiet snapshot; manual Backup Now remains available in Profile.
+  useEffect(() => {
+    if (Platform.OS !== "ios" || isLoading || !hasOnboarded) return;
+    const timeout = setTimeout(() => {
+      getPrivateBackupEnabled()
+        .then((enabled) => (enabled ? createPrivateBackup() : null))
+        .catch((error) => logger.warn("Private iCloud backup skipped:", error));
+    }, 2500);
+    return () => clearTimeout(timeout);
+  }, [
+    isLoading,
+    hasOnboarded,
+    personas,
+    benchmarks,
+    actions,
+    dailyLogs,
+    reflections,
+    aiConsent,
+  ]);
+
+  // Cold-start telemetry is fire-and-forget and never delays first render.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    track("app_open");
+    flushTelemetry().catch(() => {});
+
+    // Subscription verification runs separately after AsyncStorage hydration
+    // so an older refresh result cannot overwrite a newly verified purchase.
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === "web" || isLoading) return;
+
+    verifySubscription().catch(() => {});
+  }, [isLoading, verifySubscription]);
 
   // All mutators are memoized (and the provider value below is useMemo'd):
   // an unmemoized value object re-renders every consumer screen on every
@@ -343,7 +511,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const dailyLogsRef = useRef(dailyLogs);
   dailyLogsRef.current = dailyLogs;
   const toggleDailyLog = useCallback(
-    async (actionId: string, date: string) => {
+    async (
+      actionId: string,
+      date: string,
+      completion: Pick<DailyLog, "completionSource" | "completionKind"> = {
+        completionSource: "manual",
+        completionKind: "full",
+      },
+    ) => {
       const dateStr = date.includes("T") ? date.split("T")[0] : date;
       const existing = dailyLogsRef.current.find((l) => {
         const logDateStr = l.logDate.includes("T")
@@ -351,15 +526,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : l.logDate;
         return l.actionId === actionId && logDateStr === dateStr;
       });
+      const nextStatus = !existing?.status;
       const log: DailyLog = existing
-        ? { ...existing, status: !existing.status }
+        ? {
+            ...existing,
+            status: nextStatus,
+            ...(nextStatus ? completion : {}),
+          }
         : {
             id: generateStorageId(),
             actionId,
             logDate: dateStr,
             status: true,
             createdAt: new Date().toISOString(),
+            ...completion,
           };
+      if (log.status) {
+        if (!dailyLogsRef.current.some((l) => l.status)) {
+          track("first_action_logged");
+        }
+        track("action_logged");
+      }
       setDailyLogsState((prev) =>
         prev.some((l) => l.id === log.id)
           ? prev.map((l) => (l.id === log.id ? log : l))
@@ -412,6 +599,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const clearAllData = useCallback(async () => {
+    await setPrivateBackupEnabled(false);
     await storage.clearAll();
     setHasOnboardedState(false);
     setPersonaState(null);
@@ -428,24 +616,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     setMonthlyReflectionCount(0);
     setAiConsentState(false);
-  }, []);
-
-  const upgradeToPremium = useCallback(async (plan: "monthly" | "yearly") => {
-    const now = new Date();
-    const expiresAt = new Date(now);
-    if (plan === "monthly") {
-      expiresAt.setMonth(expiresAt.getMonth() + 1);
-    } else {
-      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-    }
-    const newSubscription: Subscription = {
-      isPremium: true,
-      plan,
-      expiresAt: expiresAt.toISOString(),
-      purchasedAt: now.toISOString(),
-    };
-    await storage.setSubscription(newSubscription);
-    setSubscriptionState(newSubscription);
   }, []);
 
   const incrementReflectionCountFn = useCallback(async () => {
@@ -472,10 +642,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         continue;
       }
       milestoneFlipsInFlight.current.add(benchmark.id);
+      track("milestone_complete");
       (async () => {
         const updated = await updateBenchmark(benchmark.id, {
           status: "completed",
         });
+        // Dedup FIRST: if this milestone was already celebrated, bail before
+        // unlocking/persisting a reward — otherwise an edge-triggered re-flip
+        // silently consumes the reward and the celebration is never shown.
         const raw = await AsyncStorage.getItem(MILESTONE_CELEBRATION_SEEN_KEY);
         let seen: string[] = [];
         try {
@@ -484,10 +658,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
           seen = [];
         }
         if (seen.includes(benchmark.id)) return;
+        // Rewards key off the lifetime completed count across ALL personas
+        // (read from storage post-write, so this flip is included)
+        const allBenchmarks = await storage.getBenchmarks();
+        const completedCount = allBenchmarks.filter(
+          (b) => b.status === "completed",
+        ).length;
+        const newRewards = await unlockRewardsForMilestoneCount(completedCount);
         await AsyncStorage.setItem(
           MILESTONE_CELEBRATION_SEEN_KEY,
           JSON.stringify([...seen, benchmark.id]),
         );
+        if (newRewards.length > 0) {
+          track("reward_unlocked");
+          setCelebrationReward(newRewards[0]);
+        }
         setMilestoneCelebration(
           updated ?? { ...benchmark, status: "completed" },
         );
@@ -500,20 +685,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const dismissMilestoneCelebration = useCallback(() => {
     setMilestoneCelebration(null);
+    setCelebrationReward(null);
   }, []);
 
-  // Reminder-chain self-heal: a suppressed night (one-shot queued for
-  // "tomorrow") followed by days of absence leaves no repeating reminder.
-  // Every app foreground restores the chain — idempotent and cheap, a no-op
-  // unless reminders are enabled and the schedule is actually stale.
-  const reminderStateRef = useRef({ hasOnboarded, actions, dailyLogs });
+  // Reminder-plan self-heal: every foreground refreshes the rolling local
+  // schedule when its date or completion context changed. The signature check
+  // keeps this idempotent when the existing 14-day plan is still current.
+  const reminderStateRef = useRef({
+    hasOnboarded,
+    actions,
+    dailyLogs,
+    persona,
+    personaAlignment,
+    isLoading,
+  });
   useEffect(() => {
-    reminderStateRef.current = { hasOnboarded, actions, dailyLogs };
+    reminderStateRef.current = {
+      hasOnboarded,
+      actions,
+      dailyLogs,
+      persona,
+      personaAlignment,
+      isLoading,
+    };
   });
   useEffect(() => {
     if (Platform.OS === "web") return;
     const subscription = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
+      flushTelemetry().catch(() => {});
       const {
         hasOnboarded: onboarded,
         actions: currentActions,
@@ -523,6 +723,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ensureReminderScheduled({
         streakCount: computeStreak(currentActions, currentLogs).current,
         missedRun: computeLapse(currentActions, currentLogs).missedDays,
+        personaName: reminderStateRef.current.persona?.name,
+        monthlyConsistency: reminderStateRef.current.personaAlignment,
+        actions: currentActions,
+        dailyLogs: currentLogs,
       });
     });
     return () => subscription.remove();
@@ -541,14 +745,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
       response: Notifications.NotificationResponse | null,
     ) => {
       if (!response) return;
-      if (response.actionIdentifier !== MARK_ALL_DONE_ACTION) return;
       const data = response.notification.request.content.data as
-        | { type?: string }
+        | {
+            type?: string;
+            hook?: string;
+            dateKey?: string;
+            actionIds?: string[];
+          }
         | undefined;
       if (data?.type !== "daily-reminder") return;
+      // A plain tap opened the app from the reminder: credit the voice that
+      // earned it so the hook portfolio learns what this user responds to.
+      // getLastNotificationResponseAsync replays the same response on every
+      // launch, so the credit is deduped with a persisted marker (same
+      // pattern as the mark-all-done guard below).
+      if (
+        response.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER
+      ) {
+        const tapMarker = `${response.notification.request.identifier}|${response.notification.date}`;
+        try {
+          const tapHandledKey = "evolve_reminder_tap_handled";
+          if ((await AsyncStorage.getItem(tapHandledKey)) === tapMarker) {
+            return;
+          }
+          await AsyncStorage.setItem(tapHandledKey, tapMarker);
+        } catch {
+          // Guard failed open — an over-count nudges the portfolio, nothing more.
+        }
+        track("notification_tap");
+        recordReminderHookTap(data.hook).catch(() => {});
+        return;
+      }
+      if (response.actionIdentifier !== MARK_ALL_DONE_ACTION) return;
 
       const firedAt = new Date(response.notification.date);
-      const dateKey = getLocalDateString(firedAt);
+      const dateKey = data.dateKey ?? getLocalDateString(firedAt);
       const handledKey = `evolve_reminder_action_handled`;
       const marker = `${response.notification.request.identifier}|${dateKey}`;
       try {
@@ -559,10 +790,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // skip already-completed actions).
       }
 
+      track("notification_mark_all_done");
       const { actions: currentActions, dailyLogs: currentLogs } =
         reminderStateRef.current;
-      const weekday = firedAt.toLocaleDateString("en-US", { weekday: "long" });
+      const [year, month, day] = dateKey.split("-").map(Number);
+      const intendedDate = new Date(year, month - 1, day);
+      const weekday = intendedDate.toLocaleDateString("en-US", {
+        weekday: "long",
+      });
+      const intendedActionIds = new Set(data.actionIds ?? []);
       for (const action of currentActions) {
+        if (intendedActionIds.size > 0 && !intendedActionIds.has(action.id)) {
+          continue;
+        }
         if (!action.frequency.includes(weekday)) continue;
         const created = getLocalDateString(new Date(action.createdAt));
         if (created > dateKey) continue;
@@ -571,7 +811,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
             l.actionId === action.id && l.logDate.split("T")[0] === dateKey,
         );
         if (existing?.status) continue;
-        await toggleDailyLog(action.id, dateKey);
+        await toggleDailyLog(action.id, dateKey, {
+          completionSource: "notification",
+          completionKind: "full",
+        });
       }
     };
 
@@ -583,10 +826,123 @@ export function AppProvider({ children }: { children: ReactNode }) {
       },
     );
     Notifications.getLastNotificationResponseAsync()
-      .then(handleResponse)
+      .then(async (response) => {
+        if (response) {
+          await handleResponse(response);
+          await Notifications.clearLastNotificationResponseAsync();
+        } else {
+          await recordOrganicAppOpen();
+        }
+      })
       .catch(() => {});
     return () => subscription.remove();
   }, [toggleDailyLog]);
+
+  // Keep the home/lock-screen widget's snapshot in step with the store, and
+  // fold in votes cast from the widget while the app was closed. Widget taps
+  // only ever complete (never un-complete): a queued vote for an action the
+  // user has since completed in-app is dropped, not toggled.
+  useEffect(() => {
+    if (Platform.OS !== "ios" || isLoading) return;
+    for (const vote of consumePendingVotes()) {
+      const existing = dailyLogsRef.current.find(
+        (l) =>
+          l.actionId === vote.actionId && l.logDate.split("T")[0] === vote.date,
+      );
+      if (existing?.status) continue;
+      if (!actions.some((a) => a.id === vote.actionId)) continue;
+      track("widget_action_logged");
+      toggleDailyLog(vote.actionId, vote.date, {
+        completionSource: vote.source ?? "widget",
+        completionKind: vote.kind,
+      }).catch((error) => logger.error("Failed to apply widget vote:", error));
+    }
+    syncWidgetData(actions, dailyLogs, persona);
+  }, [isLoading, actions, dailyLogs, persona, toggleDailyLog]);
+
+  // Widget votes cast while the app stayed backgrounded (state changes don't
+  // fire above): reconcile on every foreground. Never consume before the
+  // store has loaded — iOS fires an 'active' event right at launch, and
+  // reading votes against the still-empty action list would silently drop
+  // them (found in simulator regression: the injected pending vote vanished
+  // without completing anything).
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      if (reminderStateRef.current.isLoading) return;
+      const { actions: currentActions } = reminderStateRef.current;
+      for (const vote of consumePendingVotes()) {
+        const existing = dailyLogsRef.current.find(
+          (l) =>
+            l.actionId === vote.actionId &&
+            l.logDate.split("T")[0] === vote.date,
+        );
+        if (existing?.status) continue;
+        if (!currentActions.some((a) => a.id === vote.actionId)) continue;
+        track("widget_action_logged");
+        toggleDailyLog(vote.actionId, vote.date, {
+          completionSource: vote.source ?? "widget",
+          completionKind: vote.kind,
+        }).catch((error) =>
+          logger.error("Failed to apply widget vote:", error),
+        );
+      }
+    });
+    return () => subscription.remove();
+  }, [toggleDailyLog]);
+
+  // Apple Health auto-votes: actions opted into Health auto-completion get
+  // their vote cast when a matching sample exists for today. Runs once per
+  // foreground; a cast vote flows through the normal optimistic toggle, so
+  // rings, streaks, and the widget all update the same way a tap would.
+  const healthCheckDoneRef = useRef(false);
+  useEffect(() => {
+    if (Platform.OS !== "ios" || isLoading || !isHealthAvailable()) return;
+
+    const runHealthAutoVotes = async () => {
+      const { actions: currentActions } = reminderStateRef.current;
+      const today = new Date();
+      const todayStr = getLocalDateString(today);
+      const weekday = today.toLocaleDateString("en-US", { weekday: "long" });
+      const candidates = currentActions.filter((action) => {
+        if (!action.healthAutoComplete) return false;
+        if (!action.frequency.includes(weekday)) return false;
+        if (getLocalDateString(new Date(action.createdAt)) > todayStr)
+          return false;
+        const existing = dailyLogsRef.current.find(
+          (l) =>
+            l.actionId === action.id && l.logDate.split("T")[0] === todayStr,
+        );
+        return !existing?.status;
+      });
+      if (candidates.length === 0) return;
+      if (!(await initHealth())) return;
+      for (const action of candidates) {
+        if (await isHealthGoalMet(action.healthAutoComplete!, today)) {
+          track("health_auto_vote");
+          await toggleDailyLog(action.id, todayStr, {
+            completionSource: "health",
+            completionKind: "full",
+          });
+        }
+      }
+    };
+
+    if (!healthCheckDoneRef.current) {
+      healthCheckDoneRef.current = true;
+      runHealthAutoVotes().catch((error) =>
+        logger.error("Health auto-vote failed:", error),
+      );
+    }
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      runHealthAutoVotes().catch((error) =>
+        logger.error("Health auto-vote failed:", error),
+      );
+    });
+    return () => subscription.remove();
+  }, [isLoading, toggleDailyLog]);
 
   const canUseReflection = useCallback(() => {
     if (subscription.isPremium) return true;
@@ -616,9 +972,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       progressSnapshot,
       isLoading,
       subscription,
+      subscriptionVerificationStatus,
       monthlyReflectionCount,
       aiConsent,
       milestoneCelebration,
+      celebrationReward,
       dismissMilestoneCelebration,
       setHasOnboarded,
       setAiConsent,
@@ -638,8 +996,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setDailyLogNote,
       addReflection,
       refreshData,
+      verifySubscription,
       clearAllData,
-      upgradeToPremium,
       incrementReflectionCount: incrementReflectionCountFn,
       canUseReflection,
       canAddPersona,
@@ -658,9 +1016,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       progressSnapshot,
       isLoading,
       subscription,
+      subscriptionVerificationStatus,
       monthlyReflectionCount,
       aiConsent,
       milestoneCelebration,
+      celebrationReward,
       dismissMilestoneCelebration,
       setHasOnboarded,
       setAiConsent,
@@ -680,8 +1040,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setDailyLogNote,
       addReflection,
       refreshData,
+      verifySubscription,
       clearAllData,
-      upgradeToPremium,
       incrementReflectionCountFn,
       canUseReflection,
       canAddPersona,

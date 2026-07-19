@@ -53,6 +53,7 @@ function formatTargetDateLabel(dateStr: string): string {
 type RouteParams = {
   BenchmarkEditor: {
     benchmarkId?: string;
+    suggestedTitle?: string;
   };
 };
 
@@ -106,7 +107,9 @@ export default function BenchmarkEditorScreen() {
     }
   }, [isEditing, existingBenchmark, persona, navigation, canAddBenchmark]);
 
-  const [title, setTitle] = useState(existingBenchmark?.title || "");
+  const [title, setTitle] = useState(
+    existingBenchmark?.title || route.params?.suggestedTitle || "",
+  );
   const [targetDate, setTargetDate] = useState<string | null>(
     existingBenchmark?.targetDate?.split("T")[0] || null,
   );
@@ -316,7 +319,7 @@ export default function BenchmarkEditorScreen() {
             { opacity: pressed || isSaving ? 0.5 : 1 },
           ]}
         >
-          <Feather name="check" size={24} color={Colors.dark.accent} />
+          <Feather name="check" size={24} color={theme.accent} />
         </Pressable>
       </View>
 
@@ -327,12 +330,12 @@ export default function BenchmarkEditorScreen() {
         ]}
       >
         <View style={styles.section}>
-          <ThemedText
-            style={[styles.sectionLabel, { color: Colors.dark.accent }]}
-          >
+          <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
             Milestone Goal
           </ThemedText>
           <TextInput
+            accessibilityLabel="Milestone goal"
+            accessibilityHint="Enter the milestone this plan will build toward"
             style={[
               styles.input,
               {
@@ -354,9 +357,7 @@ export default function BenchmarkEditorScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText
-            style={[styles.sectionLabel, { color: Colors.dark.accent }]}
-          >
+          <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
             Target Date (Optional)
           </ThemedText>
           <View style={styles.presetRow}>
@@ -384,9 +385,7 @@ export default function BenchmarkEditorScreen() {
                         : isDark
                           ? Colors.dark.backgroundDefault
                           : Colors.light.backgroundDefault,
-                      borderColor: selected
-                        ? "rgba(0, 217, 255, 0.5)"
-                        : "transparent",
+                      borderColor: selected ? theme.accent : "transparent",
                       opacity: pressed ? 0.7 : 1,
                     },
                   ]}
@@ -395,7 +394,7 @@ export default function BenchmarkEditorScreen() {
                     style={[
                       styles.presetChipText,
                       {
-                        color: selected ? Colors.dark.accent : theme.text,
+                        color: selected ? theme.accent : theme.text,
                       },
                     ]}
                   >
@@ -441,7 +440,7 @@ export default function BenchmarkEditorScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <ThemedText
-                style={[styles.sectionLabel, { color: Colors.dark.accent }]}
+                style={[styles.sectionLabel, { color: theme.accent }]}
               >
                 Actions ({personaActionsCount}/{MAX_ACTIONS_PER_PERSONA})
               </ThemedText>
@@ -464,17 +463,13 @@ export default function BenchmarkEditorScreen() {
                 <Feather
                   name="plus"
                   size={18}
-                  color={
-                    canAddAction ? Colors.dark.accent : theme.textSecondary
-                  }
+                  color={canAddAction ? theme.accent : theme.textSecondary}
                 />
                 <ThemedText
                   style={[
                     styles.addButtonText,
                     {
-                      color: canAddAction
-                        ? Colors.dark.accent
-                        : theme.textSecondary,
+                      color: canAddAction ? theme.accent : theme.textSecondary,
                     },
                   ]}
                 >
@@ -518,15 +513,17 @@ export default function BenchmarkEditorScreen() {
                         accessibilityLabel={`Edit action ${action.title}`}
                         style={({ pressed }) => [
                           styles.editActionButton,
+                          { borderColor: theme.accent },
                           { opacity: pressed ? 0.7 : 1 },
                         ]}
                       >
-                        <Feather
-                          name="edit-2"
-                          size={14}
-                          color={Colors.dark.accent}
-                        />
-                        <ThemedText style={styles.editActionButtonText}>
+                        <Feather name="edit-2" size={14} color={theme.accent} />
+                        <ThemedText
+                          style={[
+                            styles.editActionButtonText,
+                            { color: theme.accent },
+                          ]}
+                        >
                           Edit
                         </ThemedText>
                       </Pressable>
@@ -546,9 +543,7 @@ export default function BenchmarkEditorScreen() {
                           name="trash-2"
                           size={18}
                           color={
-                            canDeleteAction
-                              ? Colors.dark.error
-                              : theme.textSecondary
+                            canDeleteAction ? theme.error : theme.textSecondary
                           }
                         />
                       </Pressable>
@@ -597,7 +592,7 @@ export default function BenchmarkEditorScreen() {
               },
             ]}
           >
-            <Feather name="info" size={20} color={Colors.dark.accent} />
+            <Feather name="info" size={20} color={theme.accent} />
             <ThemedText
               style={[styles.infoText, { color: theme.textSecondary }]}
             >
@@ -610,6 +605,8 @@ export default function BenchmarkEditorScreen() {
         {isEditing ? (
           <Pressable
             onPress={handleDelete}
+            accessibilityRole="button"
+            accessibilityLabel="Delete milestone"
             style={({ pressed }) => [
               styles.deleteButton,
               {
@@ -620,9 +617,9 @@ export default function BenchmarkEditorScreen() {
               },
             ]}
           >
-            <Feather name="trash-2" size={20} color={Colors.dark.error} />
+            <Feather name="trash-2" size={20} color={theme.error} />
             <ThemedText
-              style={[styles.deleteButtonText, { color: Colors.dark.error }]}
+              style={[styles.deleteButtonText, { color: theme.error }]}
             >
               Delete Milestone
             </ThemedText>

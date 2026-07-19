@@ -40,6 +40,15 @@ import {
 } from "@/lib/ai";
 import { logger } from "@/lib/logger";
 import { createTextStreamBuffer, TextStreamBuffer } from "@/lib/stream-buffer";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { track } from "@/lib/telemetry";
+import { getTodaysMicroNote } from "@/lib/micro-notes";
+import { getCoachTone, type CoachTone } from "@/lib/rewards";
+import { buildCoachActionContext, buildCoachOpening } from "@/lib/coach";
+
+// One-time free taste of coach memory: memory sells itself by demonstration,
+// not description. Set once the taste session has actually started.
+const MEMORY_TASTE_USED_KEY = "coach_memory_taste_used";
 
 type PeriodType = "monthly" | "weekly";
 
@@ -93,6 +102,10 @@ export default function ReflectScreen() {
   const isDraggingChatRef = useRef(false);
   const isMomentumScrollingChatRef = useRef(false);
   const autoScrollFrameRef = useRef<number | null>(null);
+  // Each session owns a generation. A late response from a closed/replaced
+  // session is ignored instead of leaking into the next Coach screen.
+  const coachRequestGenerationRef = useRef(0);
+  const coachAbortControllerRef = useRef<AbortController | null>(null);
 
   const createStreamBuffer = useCallback(() => {
     streamBufferRef.current?.cancel();
@@ -127,12 +140,35 @@ export default function ReflectScreen() {
     [reflections],
   );
 
+  // Identity-science micro-note drip: daily for premium, weekly for free
+  const [noteExpanded, setNoteExpanded] = useState(false);
+  const microNote = useMemo(
+    () => getTodaysMicroNote(subscription.isPremium),
+    [subscription.isPremium],
+  );
+
+  // Free users get to experience memory exactly once before the gate —
+  // null until the persisted flag loads (memory stays off that first render)
+  const [memoryTasteUsed, setMemoryTasteUsed] = useState<boolean | null>(null);
+  const [coachTone, setCoachToneState] = useState<CoachTone>("supportive");
+  useEffect(() => {
+    Promise.all([AsyncStorage.getItem(MEMORY_TASTE_USED_KEY), getCoachTone()])
+      .then(([value, storedTone]) => {
+        setMemoryTasteUsed(value === "true");
+        setCoachToneState(storedTone);
+      })
+      .catch(() => setMemoryTasteUsed(true));
+  }, []);
+
   // Premium coach memory: a compact digest of the two most recent saved
   // sessions, injected into the system prompt as the coach's own notes.
   // Free sessions stay single-session — this is what "unlimited coaching"
-  // buys beyond quantity: a coach that remembers.
+  // buys beyond quantity: a coach that remembers. Exception: one free
+  // taste, so the upgrade pitch is an experience instead of a bullet point.
+  const memoryTasteAvailable =
+    !subscription.isPremium && memoryTasteUsed === false;
   const previousSessionNotes = useMemo(() => {
-    if (!subscription.isPremium) return undefined;
+    if (!subscription.isPremium && !memoryTasteAvailable) return undefined;
     const trim = (s: string, n: number) =>
       s.length > n ? `${s.slice(0, n).trimEnd()}…` : s;
     const notes = sortedReflections.slice(0, 2).map((r) => {
@@ -159,19 +195,37 @@ export default function ReflectScreen() {
       return `- ${when} (${kind}, momentum ${r.momentumScore}%): they opened with "${trim(firstUser, 200)}" and you closed with "${trim(lastCoach, 280)}"`;
     });
     return notes.length > 0 ? notes.join("\n") : undefined;
-  }, [subscription.isPremium, sortedReflections]);
+  }, [subscription.isPremium, memoryTasteAvailable, sortedReflections]);
 
   // Week numbers for the free Sunday-style weekly review ritual
   const weeklyContext = useMemo(() => {
     const { weeklyRecap, streak } = progressSnapshot;
+    const [year, month, day] = weeklyRecap.weekKey.split("-").map(Number);
+    const weekEnd = new Date(year, month - 1, day + 6);
+    const weekEndKey = [
+      weekEnd.getFullYear(),
+      String(weekEnd.getMonth() + 1).padStart(2, "0"),
+      String(weekEnd.getDate()).padStart(2, "0"),
+    ].join("-");
+    const inReviewedWeek = (date: string) =>
+      date >= weeklyRecap.weekKey && date <= weekEndKey;
     return {
+      weekStart: weeklyRecap.weekKey,
+      weekEnd: weekEndKey,
       completed: weeklyRecap.lastWeek.completed,
       scheduled: weeklyRecap.lastWeek.scheduled,
       prevCompleted: weeklyRecap.prevWeek.completed,
       bestDay: weeklyRecap.lastWeek.bestDay,
       streak: streak.current,
+      shieldsEarned: streak.shieldEarnedDays.filter(inReviewedWeek).length,
+      shieldsUsed: streak.shieldedDays.filter(inReviewedWeek).length,
     };
   }, [progressSnapshot]);
+
+  const actionContext = useMemo(
+    () => buildCoachActionContext(actions, dailyLogs),
+    [actions, dailyLogs],
+  );
 
   // The user's own completion notes from the last 7 days — the coach quoting
   // their words back is the "it knows me" moment. Newest first, capped at 8.
@@ -205,8 +259,18 @@ export default function ReflectScreen() {
       weeklyContext: period === "weekly" ? weeklyContext : undefined,
       previousSessionNotes,
       recentNotes,
+      actionContext,
+      memoryTaste: memoryTasteAvailable && previousSessionNotes !== undefined,
+      coachTone,
     }),
-    [weeklyContext, previousSessionNotes, recentNotes],
+    [
+      weeklyContext,
+      previousSessionNotes,
+      recentNotes,
+      actionContext,
+      memoryTasteAvailable,
+      coachTone,
+    ],
   );
 
   const formatDate = (dateString: string) => {
@@ -263,66 +327,42 @@ export default function ReflectScreen() {
       return;
     }
 
+    track(
+      period === "weekly" ? "weekly_review_started" : "coach_session_started",
+    );
+    // The memory taste is spent the moment a session starts with it in play
+    if (memoryTasteAvailable && previousSessionNotes !== undefined) {
+      setMemoryTasteUsed(true);
+      AsyncStorage.setItem(MEMORY_TASTE_USED_KEY, "true").catch(() => {});
+    }
+
+    coachRequestGenerationRef.current += 1;
+    coachAbortControllerRef.current?.abort();
+    coachAbortControllerRef.current = null;
+    streamBufferRef.current?.cancel();
     setSelectedPeriod(period);
     setIsInSession(true);
-    setIsLoading(true);
-    setIsStreaming(true);
+    setIsLoading(false);
+    setIsStreaming(false);
     setStreamingText("");
     isNearBottomRef.current = true;
     isDraggingChatRef.current = false;
     isMomentumScrollingChatRef.current = false;
-    const streamBuffer = createStreamBuffer();
-
-    // The coach's "consistency" must be the same month-to-date number the
-    // UI shows (July · X%) — not the 7-day momentum from the lobby card
-    const monthlyContext = getMonthlyContext(
-      personaAlignment,
-      persona.createdAt,
-    );
-
-    try {
-      const response = await getReflectionResponse(
-        [
-          {
-            role: "user",
-            content:
-              period === "weekly"
-                ? `I'm ready for my weekly review. My persona is "${persona.name}". Let's look at last week together.`
-                : `I'm ready for my monthly check-in. My persona is "${persona.name}". Please help me review my progress this month.`,
-          },
-        ],
-        momentumScore,
-        period,
-        streamBuffer.append,
-        monthlyContext,
-        { name: persona.name, description: persona.description },
-        buildExtras(period),
-      );
-
-      finishStreamBuffer(streamBuffer);
-      setIsStreaming(false);
-      const aiMessage: ChatMessage = {
+    // Opening a review should feel instant and requires no generative work.
+    // The model joins after the user's first answer, when it has something
+    // meaningful to reflect on.
+    setMessages([
+      {
         id: Date.now().toString(),
         role: "assistant",
-        content: response,
-      };
-      setMessages([aiMessage]);
-      setStreamingText("");
-    } catch (error) {
-      streamBuffer.cancel();
-      logger.error("Failed to start reflection:", error);
-      setIsStreaming(false);
-      setStreamingText("");
-      // Don't leave the user stranded in an empty session
-      setIsInSession(false);
-      setSelectedPeriod(null);
-      Alert.alert(
-        "Connection Issue",
-        "We couldn't reach your AI coach. Please check your internet connection and try again.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
+        content: buildCoachOpening({
+          period,
+          personaName: persona.name,
+          monthlyConsistency: personaAlignment,
+          weekly: period === "weekly" ? weeklyContext : undefined,
+        }),
+      },
+    ]);
   };
 
   const sendMessage = async () => {
@@ -343,6 +383,10 @@ export default function ReflectScreen() {
     isDraggingChatRef.current = false;
     isMomentumScrollingChatRef.current = false;
     const streamBuffer = createStreamBuffer();
+    const requestGeneration = coachRequestGenerationRef.current;
+    coachAbortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    coachAbortControllerRef.current = abortController;
 
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -370,7 +414,16 @@ export default function ReflectScreen() {
           ? { name: persona.name, description: persona.description }
           : undefined,
         buildExtras(selectedPeriod || "monthly"),
+        abortController.signal,
       );
+
+      if (requestGeneration !== coachRequestGenerationRef.current) {
+        streamBuffer.cancel();
+        return;
+      }
+      if (coachAbortControllerRef.current === abortController) {
+        coachAbortControllerRef.current = null;
+      }
 
       finishStreamBuffer(streamBuffer);
       setIsStreaming(false);
@@ -383,15 +436,34 @@ export default function ReflectScreen() {
       setStreamingText("");
     } catch (error) {
       streamBuffer.cancel();
+      if (requestGeneration !== coachRequestGenerationRef.current) return;
+      if (error instanceof Error && error.name === "AbortError") return;
       logger.error("Failed to send message:", error);
       setIsStreaming(false);
       setStreamingText("");
+      setMessages((previous) =>
+        previous.filter((message) => message.id !== userMessage.id),
+      );
+      setInputText(userMessage.content);
+      Alert.alert(
+        "Coach Paused",
+        "That response could not complete. Your answer is ready to send again.",
+      );
     } finally {
-      setIsLoading(false);
+      if (requestGeneration === coachRequestGenerationRef.current) {
+        if (coachAbortControllerRef.current === abortController) {
+          coachAbortControllerRef.current = null;
+        }
+        setIsLoading(false);
+      }
     }
   };
 
   const finishReflection = async () => {
+    coachRequestGenerationRef.current += 1;
+    coachAbortControllerRef.current?.abort();
+    coachAbortControllerRef.current = null;
+    streamBufferRef.current?.cancel();
     if (messages.length > 0 && selectedPeriod) {
       const userMessages = messages
         .filter((m) => m.role === "user")
@@ -429,6 +501,12 @@ export default function ReflectScreen() {
 
   const handleCloseSession = () => {
     if (messages.length === 0) {
+      coachRequestGenerationRef.current += 1;
+      coachAbortControllerRef.current?.abort();
+      coachAbortControllerRef.current = null;
+      streamBufferRef.current?.cancel();
+      setIsLoading(false);
+      setIsStreaming(false);
       setIsInSession(false);
       setSelectedPeriod(null);
       return;
@@ -438,6 +516,12 @@ export default function ReflectScreen() {
       if (window.confirm("Save this coaching session before closing?")) {
         finishReflection();
       } else {
+        coachRequestGenerationRef.current += 1;
+        coachAbortControllerRef.current?.abort();
+        coachAbortControllerRef.current = null;
+        streamBufferRef.current?.cancel();
+        setIsLoading(false);
+        setIsStreaming(false);
         setIsInSession(false);
         setSelectedPeriod(null);
         setMessages([]);
@@ -451,6 +535,12 @@ export default function ReflectScreen() {
             text: "Discard",
             style: "destructive",
             onPress: () => {
+              coachRequestGenerationRef.current += 1;
+              coachAbortControllerRef.current?.abort();
+              coachAbortControllerRef.current = null;
+              streamBufferRef.current?.cancel();
+              setIsLoading(false);
+              setIsStreaming(false);
               setIsInSession(false);
               setSelectedPeriod(null);
               setMessages([]);
@@ -647,7 +737,7 @@ export default function ReflectScreen() {
               <ThemedText
                 style={[
                   styles.pastSessionMomentumValue,
-                  { color: Colors.dark.accent },
+                  { color: theme.accent },
                 ]}
               >
                 {session.momentumScore}%
@@ -700,9 +790,7 @@ export default function ReflectScreen() {
         </View>
 
         <View style={styles.scoreCard}>
-          <ThemedText
-            style={[styles.scoreLabel, { color: Colors.dark.accent }]}
-          >
+          <ThemedText style={[styles.scoreLabel, { color: theme.accent }]}>
             Current Momentum
           </ThemedText>
           <ThemedText style={styles.scoreValue}>{momentumScore}%</ThemedText>
@@ -735,8 +823,8 @@ export default function ReflectScreen() {
                 {
                   color:
                     monthlyReflectionCount >= 10 && !subscription.isPremium
-                      ? Colors.dark.error
-                      : Colors.dark.accent,
+                      ? theme.error
+                      : theme.accent,
                 },
               ]}
             >
@@ -759,12 +847,13 @@ export default function ReflectScreen() {
               accessibilityLabel="Upgrade to Premium for unlimited check-ins"
               style={({ pressed }) => [
                 styles.upgradeLink,
+                { borderColor: theme.accent },
                 { opacity: pressed ? 0.7 : 1 },
               ]}
             >
-              <Feather name="zap" size={16} color={Colors.dark.accent} />
+              <Feather name="zap" size={16} color={theme.accent} />
               <ThemedText
-                style={[styles.upgradeLinkText, { color: Colors.dark.accent }]}
+                style={[styles.upgradeLinkText, { color: theme.accent }]}
               >
                 Upgrade to Premium
               </ThemedText>
@@ -789,7 +878,7 @@ export default function ReflectScreen() {
           ]}
         >
           <View style={styles.weeklyReviewIcon}>
-            <Feather name="rotate-ccw" size={20} color={Colors.dark.accent} />
+            <Feather name="rotate-ccw" size={20} color={theme.accent} />
           </View>
           <View style={styles.heroCtaContent}>
             <ThemedText style={styles.weeklyReviewTitle}>
@@ -806,6 +895,56 @@ export default function ReflectScreen() {
             </ThemedText>
           </View>
           <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+        </Pressable>
+
+        <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
+          {subscription.isPremium ? "Today's read" : "This week's read"}
+        </ThemedText>
+
+        <Pressable
+          onPress={() => {
+            if (!noteExpanded) track("micro_note_read");
+            setNoteExpanded((v) => !v);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`60-second read: ${microNote.title}. ${noteExpanded ? "Collapse" : "Expand"}.`}
+          style={({ pressed }) => [
+            styles.microNoteCard,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          <View style={styles.microNoteHeader}>
+            <Feather name="book-open" size={16} color={theme.accent} />
+            <ThemedText style={styles.microNoteTitle}>
+              {microNote.title}
+            </ThemedText>
+            <Feather
+              name={noteExpanded ? "chevron-up" : "chevron-down"}
+              size={18}
+              color={theme.textSecondary}
+            />
+          </View>
+          {noteExpanded ? (
+            <>
+              <ThemedText
+                style={[styles.microNoteBody, { color: theme.textSecondary }]}
+              >
+                {microNote.body}
+              </ThemedText>
+              {!subscription.isPremium ? (
+                <ThemedText
+                  style={[styles.microNoteHint, { color: theme.textSecondary }]}
+                >
+                  A new read every week — daily with Premium.
+                </ThemedText>
+              ) : null}
+            </>
+          ) : null}
         </Pressable>
 
         <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
@@ -829,7 +968,7 @@ export default function ReflectScreen() {
           >
             <View style={styles.coachInviteRow}>
               <View style={styles.coachInviteAvatar}>
-                <Feather name="compass" size={22} color={Colors.dark.accent} />
+                <Feather name="compass" size={22} color={theme.accent} />
               </View>
               <View
                 style={[
@@ -848,11 +987,21 @@ export default function ReflectScreen() {
                 </ThemedText>
               </View>
             </View>
-            <View style={styles.coachInviteButton}>
-              <ThemedText style={styles.coachInviteButtonText}>
+            <View
+              style={[
+                styles.coachInviteButton,
+                { backgroundColor: theme.accent },
+              ]}
+            >
+              <ThemedText
+                style={[
+                  styles.coachInviteButtonText,
+                  { color: theme.buttonText },
+                ]}
+              >
                 Start check-in
               </ThemedText>
-              <Feather name="arrow-right" size={18} color="#000000" />
+              <Feather name="arrow-right" size={18} color={theme.buttonText} />
             </View>
           </Pressable>
         ) : (
@@ -932,7 +1081,7 @@ export default function ReflectScreen() {
                   <Feather
                     name="message-circle"
                     size={20}
-                    color={Colors.dark.accent}
+                    color={theme.accent}
                   />
                 </View>
                 <View style={styles.pastSessionContent}>
@@ -954,7 +1103,7 @@ export default function ReflectScreen() {
                   <ThemedText
                     style={[
                       styles.pastSessionMomentumValue,
-                      { color: Colors.dark.accent },
+                      { color: theme.accent },
                     ]}
                   >
                     {reflection.momentumScore}%
@@ -1013,9 +1162,7 @@ export default function ReflectScreen() {
             { opacity: pressed ? 0.6 : 1 },
           ]}
         >
-          <ThemedText
-            style={[styles.doneButtonText, { color: Colors.dark.accent }]}
-          >
+          <ThemedText style={[styles.doneButtonText, { color: theme.accent }]}>
             Save
           </ThemedText>
         </Pressable>
@@ -1048,7 +1195,7 @@ export default function ReflectScreen() {
           <ChatBubble message={streamingText} isUser={false} />
         ) : isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={Colors.dark.accent} />
+            <ActivityIndicator size="small" color={theme.accent} />
           </View>
         ) : null}
       </ScrollView>
@@ -1065,6 +1212,7 @@ export default function ReflectScreen() {
         ]}
       >
         <TextInput
+          accessibilityLabel="Message to your AI coach"
           style={[
             styles.input,
             {
@@ -1093,7 +1241,7 @@ export default function ReflectScreen() {
             {
               backgroundColor:
                 inputText.trim() && !isLoading
-                  ? Colors.dark.accent
+                  ? theme.accent
                   : isDark
                     ? Colors.dark.backgroundTertiary
                     : Colors.light.backgroundTertiary,
@@ -1178,6 +1326,32 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     marginBottom: Spacing["2xl"],
     alignItems: "center",
+  },
+  microNoteCard: {
+    borderRadius: BorderRadius.md,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: "rgba(0, 217, 255, 0.2)",
+  },
+  microNoteHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  microNoteTitle: {
+    ...Typography.body,
+    fontWeight: "600",
+    flex: 1,
+  },
+  microNoteBody: {
+    ...Typography.small,
+    lineHeight: 20,
+    marginTop: Spacing.md,
+  },
+  microNoteHint: {
+    ...Typography.caption,
+    fontStyle: "italic",
+    marginTop: Spacing.md,
   },
   sessionsInfo: {
     alignItems: "center",

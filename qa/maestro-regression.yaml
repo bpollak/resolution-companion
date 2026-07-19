@@ -1,0 +1,117 @@
+appId: com.resolutioncompanion.app
+---
+# Fresh-install regression: onboarding (no-AI starter path) → Today daily
+# loop → Journey (insights + milestones) → Coach (micro-note, weekly review)
+# → paywall. Exercises the surfaces touched by the 2026-07-17 sprint.
+# Selectors use .* suffixes: RN Pressables concatenate child text + icons
+# into labels like "Start Your Journey, " and Maestro full-matches regexes.
+
+- launchApp:
+    clearState: true
+
+# --- Empty Today state → onboarding entry ---
+- extendedWaitUntil:
+    visible: "Start Your Journey.*"
+    timeout: 20000
+- takeScreenshot: 00-empty-today
+- tapOn: "Start Your Journey.*"
+
+# --- Onboarding intro carousel ---
+- extendedWaitUntil:
+    visible: "Welcome to Resolution Companion.*"
+    timeout: 20000
+- takeScreenshot: 01-onboarding-intro
+- tapOn: "Continue.*"
+- tapOn: "Continue.*"
+- assertVisible: "Free vs Premium.*"
+- tapOn: "Let's Get Started.*"
+
+# --- AI consent → decline → starter plan (no network needed) ---
+# (buttons carry explicit accessibility labels, lowercase variants)
+- extendedWaitUntil:
+    visible: "Agree and continue.*"
+    timeout: 10000
+- takeScreenshot: 02-ai-consent
+- tapOn: "Not now.*"
+- extendedWaitUntil:
+    visible: "Use Starter Plan.*"
+    timeout: 10000
+- tapOn: "Use Starter Plan.*"
+
+# --- Today: complete whichever starter actions are scheduled today ---
+# The no-AI starter plan schedules different actions per weekday
+# (Mon-Fri / Mon-Wed-Fri / Tue-Thu-Sat), so the daily loop must be
+# date-robust: complete each possible action optionally rather than
+# assuming a specific day. (Sunday schedules none — see engagement note.)
+- extendedWaitUntil:
+    visible: "Momentum Builder.*"
+    timeout: 20000
+- takeScreenshot: 03-today-fresh
+- tapOn:
+    text: "Mark Complete one action toward your goal complete.*"
+    optional: true
+- tapOn:
+    text: "Mark Practice mindful breathing complete.*"
+    optional: true
+- tapOn:
+    text: "Mark Move your body intentionally complete.*"
+    optional: true
+- takeScreenshot: 04-today-actions-done
+# Completing the last scheduled action triggers the day-complete +
+# contextual notification ask (~4s delay).
+- extendedWaitUntil:
+    visible: "Keep the streak alive?.*"
+    timeout: 10000
+- takeScreenshot: 04c-contextual-notif-ask
+- tapOn: "Not now.*"
+
+# --- Journey: calendar, milestones, locked Insights panel ---
+- tapOn: "Journey, tab.*"
+- extendedWaitUntil:
+    visible: ".*Consistency.*"
+    timeout: 10000
+- takeScreenshot: 05-journey-top
+- scrollUntilVisible:
+    element:
+      text: "Unlock insights with Premium.*"
+    direction: DOWN
+    timeout: 30000
+- takeScreenshot: 06-journey-insights-locked
+- scrollUntilVisible:
+    element:
+      text: "Go further with Premium.*"
+    direction: DOWN
+    timeout: 30000
+- takeScreenshot: 07-journey-premium-footer
+
+# --- Coach lobby: momentum, weekly review, micro-note drip ---
+- tapOn: "Coach, tab.*"
+- extendedWaitUntil:
+    visible: ".*3-minute weekly review.*"
+    timeout: 10000
+- takeScreenshot: 08-coach-lobby
+- scrollUntilVisible:
+    element:
+      text: "60-second read.*"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "60-second read.*"
+- takeScreenshot: 09-coach-micro-note
+
+# --- Paywall (via Journey's premium footer) ---
+- tapOn: "Journey, tab.*"
+- scrollUntilVisible:
+    element:
+      text: "Go further with Premium.*"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "Go further with Premium.*"
+- extendedWaitUntil:
+    visible: "Streak shields.*"
+    timeout: 15000
+- takeScreenshot: 10-paywall-compare-table
+# Run with: JAVA_HOME=/opt/homebrew/opt/openjdk@17 PATH="$JAVA_HOME/bin:$PATH:$HOME/.maestro/bin" \
+#   DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer maestro test qa/maestro-regression.yaml
+# (build + install first: npm run build:local:sim → tar -xzf → xcrun simctl install)
+# Full pass verified 2026-07-17 on iPhone 16 Pro / iOS 18.0 against the
+# ground-up-sprint build (widget extension embedded, HealthKit linked).

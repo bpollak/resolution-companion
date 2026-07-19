@@ -1,6 +1,6 @@
 # Owned-Channel Posts: Mid-Year Reset
 
-*For accounts you control. Schedule via a tool (Buffer/Typefully/Publer) or the platform's own scheduler. Pre-launch CTA = resolutioncompanion.com; swap to App Store link at launch.*
+*For accounts you control. Schedule via a tool (Buffer/Typefully/Publer) or the platform's own scheduler. The app is live, so every CTA points to the App Store.*
 
 ---
 
@@ -41,7 +41,7 @@ Any day can be day one. It's July. Not too late. Half-time.
 **7/**
 I got tired of watching my own resolutions fall apart every spring, so I built an app around this: name who you're becoming → small daily actions → a consistency score that resets every month → an AI coach that helps you adjust instead of quit.
 
-It's called Resolution Companion → resolutioncompanion.com
+It's called Resolution Companion, free on the App Store → https://apps.apple.com/app/id6757996708
 
 ---
 
@@ -63,7 +63,7 @@ Track consistency instead of perfection, and let every month start clean.
 
 There's nothing magic about January 1st. Any day is a fine day one. If you dropped a goal this year, today works.
 
-(If you're curious what I've been building: resolutioncompanion.com)
+(If you're curious what I've been building: Resolution Companion is free on the App Store → https://apps.apple.com/app/id6757996708)
 
 ---
 
@@ -75,6 +75,6 @@ You didn't quit because you're undisciplined. You quit because "get in shape" is
 
 Restart with an actual system this time. Become someone instead of chasing a number. Shrink the habit on the days you've got nothing. Let every month start at zero.
 
-Any day can be day one. → link in bio
+Any day can be day one. → Download Resolution Companion free on the App Store: https://apps.apple.com/app/id6757996708
 
 #midyearreset #newyearsresolution #habits #atomichabits #selfimprovement #goals #freshstart

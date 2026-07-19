@@ -31,7 +31,7 @@ export const ChatBubble = React.memo(function ChatBubble({
       {!isUser ? (
         <View style={styles.avatarContainer}>
           <View style={styles.avatar}>
-            <Feather name="compass" size={16} color={Colors.dark.accent} />
+            <Feather name="compass" size={16} color={theme.accent} />
           </View>
         </View>
       ) : null}
@@ -40,7 +40,7 @@ export const ChatBubble = React.memo(function ChatBubble({
           styles.bubble,
           isUser
             ? {
-                backgroundColor: Colors.dark.accent,
+                backgroundColor: theme.accent,
                 borderBottomRightRadius: Spacing.xs,
               }
             : {
@@ -52,7 +52,10 @@ export const ChatBubble = React.memo(function ChatBubble({
         ]}
       >
         <ThemedText
-          style={[styles.text, { color: isUser ? "#000000" : theme.text }]}
+          style={[
+            styles.text,
+            { color: isUser ? theme.buttonText : theme.text },
+          ]}
         >
           {isTyping ? `${message}...` : message}
         </ThemedText>

@@ -437,74 +437,145 @@ describe("computeStreak", () => {
     expect(result.longest).toBe(6);
   });
 
-  it("shields a single missed scheduled day within the rolling window", () => {
+  it("does not grant a shield before seven clean scheduled days", () => {
     jest.setSystemTime(new Date(2026, 6, 6, 9, 0));
     const action = makeAction(DAILY, "2026-06-29T08:00:00");
     const logs = logsFor(action, [
       "2026-06-29",
       "2026-06-30",
       "2026-07-01",
-      // 2026-07-02 missed — bridged by the shield
+      // 07-02 misses before a shield is earned, so the run resets
       "2026-07-03",
       "2026-07-04",
       "2026-07-05",
     ]);
     const result = computeStreak([action], logs);
-    expect(result.current).toBe(6);
-    expect(result.shieldUsed).toBe(true);
-    expect(result.shieldedDays).toEqual(["2026-07-02"]);
+    expect(result.current).toBe(3);
+    expect(result.longest).toBe(3);
+    expect(result.shieldsAvailable).toBe(0);
+    expect(result.shieldedDays).toEqual([]);
   });
 
-  it("resets on a second miss within 7 days of the shielded one, and tracks longest", () => {
+  it("banks a shield after seven clean days and spends it on a miss", () => {
     jest.setSystemTime(new Date(2026, 6, 6, 9, 0));
-    const action = makeAction(DAILY, "2026-06-27T08:00:00");
+    const action = makeAction(DAILY, "2026-06-22T08:00:00");
     const logs = logsFor(action, [
+      "2026-06-22",
+      "2026-06-23",
+      "2026-06-24",
+      "2026-06-25",
+      "2026-06-26",
       "2026-06-27",
-      "2026-06-28",
-      "2026-06-29",
-      // 2026-06-30 missed — shielded (run stays at 3)
+      "2026-06-28", // shield earned
+      // 06-29 shielded
+      "2026-06-30",
       "2026-07-01",
       "2026-07-02",
-      // 2026-07-03 missed — second miss within 7 days: reset
+      "2026-07-03",
       "2026-07-04",
       "2026-07-05",
     ]);
     const result = computeStreak([action], logs);
-    expect(result.current).toBe(2);
-    expect(result.longest).toBe(5);
+    expect(result.current).toBe(13);
+    expect(result.shieldEarnedDays).toEqual(["2026-06-28"]);
+    expect(result.shieldedDays).toEqual(["2026-06-29"]);
+    expect(result.shieldsAvailable).toBe(0);
+    expect(result.shieldUsed).toBe(true);
+  });
+
+  it("earns a spent shield back only after another seven clean days", () => {
+    jest.setSystemTime(new Date(2026, 6, 6, 9, 0));
+    const action = makeAction(DAILY, "2026-06-15T08:00:00");
+    const completed = [
+      ...Array.from(
+        { length: 7 },
+        (_, i) => `2026-06-${String(15 + i).padStart(2, "0")}`,
+      ),
+      // 06-22 spends the first shield
+      ...Array.from(
+        { length: 7 },
+        (_, i) => `2026-06-${String(23 + i).padStart(2, "0")}`,
+      ),
+      // 06-30 spends the re-earned shield
+      "2026-07-01",
+      "2026-07-02",
+      "2026-07-03",
+      "2026-07-04",
+      "2026-07-05",
+    ];
+    const result = computeStreak([action], logsFor(action, completed));
+    expect(result.shieldEarnedDays).toEqual(["2026-06-21", "2026-06-29"]);
+    expect(result.shieldedDays).toEqual(["2026-06-22", "2026-06-30"]);
+    expect(result.current).toBe(19);
+    expect(result.shieldsAvailable).toBe(0);
+  });
+
+  it("lets premium bank and spend two earned shields", () => {
+    jest.setSystemTime(new Date(2026, 6, 6, 9, 0));
+    const action = makeAction(DAILY, "2026-06-15T08:00:00");
+    const completed = [
+      ...Array.from(
+        { length: 14 },
+        (_, i) => `2026-06-${String(15 + i).padStart(2, "0")}`,
+      ),
+      // 06-29 and 06-30 spend both banked shields
+      "2026-07-01",
+      "2026-07-02",
+      "2026-07-03",
+      "2026-07-04",
+      "2026-07-05",
+    ];
+    const result = computeStreak(
+      [action],
+      logsFor(action, completed),
+      undefined,
+      2,
+    );
+    expect(result.shieldEarnedDays).toEqual(["2026-06-21", "2026-06-28"]);
+    expect(result.shieldedDays).toEqual(["2026-06-29", "2026-06-30"]);
+    expect(result.current).toBe(19);
+    expect(result.shieldsAvailable).toBe(0);
+    expect(result.maxShields).toBe(2);
+  });
+
+  it("resets on a miss after every earned premium shield is spent", () => {
+    jest.setSystemTime(new Date(2026, 6, 6, 9, 0));
+    const action = makeAction(DAILY, "2026-06-15T08:00:00");
+    const completed = [
+      ...Array.from(
+        { length: 14 },
+        (_, i) => `2026-06-${String(15 + i).padStart(2, "0")}`,
+      ),
+      // 06-29 + 06-30 shielded; 07-01 unshielded and resets
+      "2026-07-02",
+      "2026-07-03",
+      "2026-07-04",
+      "2026-07-05",
+    ];
+    const result = computeStreak(
+      [action],
+      logsFor(action, completed),
+      undefined,
+      2,
+    );
+    expect(result.current).toBe(4);
+    expect(result.longest).toBe(14);
+    expect(result.shieldedDays).toEqual(["2026-06-29", "2026-06-30"]);
+    expect(result.shieldsAvailable).toBe(0);
     expect(result.shieldUsed).toBe(false);
-    // The first bridge was real when it happened; it stays marked
-    expect(result.shieldedDays).toEqual(["2026-06-30"]);
   });
 
-  it("bridges a second miss when it falls more than 7 days after the first", () => {
+  it("reports no earned shield after only three clean days", () => {
     jest.setSystemTime(new Date(2026, 6, 6, 9, 0));
-    const action = makeAction(DAILY, "2026-06-20T08:00:00");
-    const allDates: string[] = [];
-    for (let i = 16; i >= 1; i--) allDates.push(daysAgo(i)); // 06-20 .. 07-05
-    const logs = logsFor(
-      action,
-      allDates.filter((d) => d !== "2026-06-23" && d !== "2026-07-02"),
+    const action = makeAction(DAILY, "2026-07-03T08:00:00");
+    const result = computeStreak(
+      [action],
+      logsFor(action, ["2026-07-03", "2026-07-04", "2026-07-05"]),
+      undefined,
+      2,
     );
-    const result = computeStreak([action], logs);
-    expect(result.current).toBe(14); // 16 days minus the two bridged misses
-    expect(result.shieldedDays).toEqual(["2026-06-23", "2026-07-02"]);
-    expect(result.shieldUsed).toBe(true); // 07-02 is within 7 days of today
-  });
-
-  it("reports shieldUsed false once the bridged miss ages out of the window", () => {
-    jest.setSystemTime(new Date(2026, 6, 6, 9, 0));
-    const action = makeAction(DAILY, "2026-06-20T08:00:00");
-    const allDates: string[] = [];
-    for (let i = 16; i >= 1; i--) allDates.push(daysAgo(i));
-    const logs = logsFor(
-      action,
-      allDates.filter((d) => d !== "2026-06-25"),
-    );
-    const result = computeStreak([action], logs);
-    expect(result.current).toBe(15);
-    expect(result.shieldUsed).toBe(false); // 11 days ago — outside the 7-day window
-    expect(result.shieldedDays).toEqual(["2026-06-25"]);
+    expect(result.shieldsAvailable).toBe(0);
+    expect(result.shieldEarnedDays).toEqual([]);
   });
 
   it("does not count days before the action existed as misses", () => {
@@ -552,6 +623,9 @@ describe("computeStreak", () => {
       longest: 0,
       shieldUsed: false,
       shieldedDays: [],
+      shieldEarnedDays: [],
+      maxShields: 1,
+      shieldsAvailable: 0,
     });
   });
 });

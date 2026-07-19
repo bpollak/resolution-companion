@@ -23,6 +23,7 @@ import { CircularProgress } from "@/components/CircularProgress";
 import { ProgressBar } from "@/components/ProgressBar";
 import { StatChip } from "@/components/StatChip";
 import { Toast } from "@/components/Toast";
+import { InsightsPanel } from "@/components/InsightsPanel";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -42,6 +43,56 @@ const MONTHS = [
 
 const GUIDE_DISMISSED_KEY = "progress_next_steps_dismissed";
 const MILESTONE_INFO_DISMISSED_KEY = "journey_milestone_info_dismissed";
+
+function JourneyTool({
+  icon,
+  title,
+  subtitle,
+  onPress,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+}) {
+  const { theme, isDark } = useTheme();
+
+  return (
+    <Pressable
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        onPress();
+      }}
+      hitSlop={8}
+      pressRetentionOffset={16}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}. ${subtitle}`}
+      style={({ pressed }) => [
+        styles.journeyTool,
+        {
+          backgroundColor: isDark
+            ? Colors.dark.backgroundDefault
+            : Colors.light.backgroundDefault,
+          opacity: pressed ? 0.75 : 1,
+          transform: [{ scale: pressed ? 0.98 : 1 }],
+        },
+      ]}
+    >
+      <View style={styles.journeyToolIcon}>
+        <Feather name={icon} size={20} color={theme.accent} />
+      </View>
+      <View style={styles.journeyToolContent}>
+        <ThemedText style={styles.journeyToolTitle}>{title}</ThemedText>
+        <ThemedText
+          style={[styles.journeyToolSubtitle, { color: theme.textSecondary }]}
+        >
+          {subtitle}
+        </ThemedText>
+      </View>
+      <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+    </Pressable>
+  );
+}
 
 interface DayInfo {
   date: Date;
@@ -102,6 +153,8 @@ function SelectedDateDetails({
       benchmark,
       completed: log?.status === true,
       note: log?.status === true ? log?.note : undefined,
+      completionSource: log?.status === true ? log.completionSource : undefined,
+      completionKind: log?.status === true ? log.completionKind : undefined,
     };
   });
 
@@ -124,7 +177,7 @@ function SelectedDateDetails({
       ]}
     >
       <View style={styles.selectedDateHeader}>
-        <Feather name="calendar" size={18} color={Colors.dark.accent} />
+        <Feather name="calendar" size={18} color={theme.accent} />
         <ThemedText style={styles.selectedDateTitle}>
           {formattedDate}
         </ThemedText>
@@ -151,70 +204,100 @@ function SelectedDateDetails({
         </ThemedText>
       ) : (
         <View style={styles.selectedDateActions}>
-          {actionStatuses.map(({ action, benchmark, completed, note }) => (
-            <Pressable
-              key={action.id}
-              style={({ pressed }) => [
-                styles.selectedDateAction,
-                { opacity: pressed && !isFutureDate ? 0.6 : 1 },
-              ]}
-              onPress={() => handleToggle(action.id, completed)}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: completed }}
-              accessibilityLabel={`${action.title}${benchmark ? `, ${benchmark.title}` : ""}`}
-              accessibilityHint={
-                completed
-                  ? "Marks this action as not done"
-                  : "Marks this action as done"
-              }
-            >
-              <Feather
-                name={completed ? "check-circle" : "circle"}
-                size={18}
-                color={completed ? Colors.dark.success : theme.textSecondary}
-              />
-              <View style={styles.selectedDateActionInfo}>
-                <ThemedText
-                  style={[
-                    styles.selectedDateActionTitle,
-                    completed && {
-                      textDecorationLine: "line-through",
-                      opacity: 0.7,
-                    },
-                  ]}
-                >
-                  {action.title}
-                </ThemedText>
-                {benchmark ? (
+          {actionStatuses.map(
+            ({
+              action,
+              benchmark,
+              completed,
+              note,
+              completionSource,
+              completionKind,
+            }) => (
+              <Pressable
+                key={action.id}
+                style={({ pressed }) => [
+                  styles.selectedDateAction,
+                  { opacity: pressed && !isFutureDate ? 0.6 : 1 },
+                ]}
+                onPress={() => handleToggle(action.id, completed)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: completed }}
+                accessibilityLabel={`${action.title}${benchmark ? `, ${benchmark.title}` : ""}`}
+                accessibilityHint={
+                  completed
+                    ? "Marks this action as not done"
+                    : "Marks this action as done"
+                }
+              >
+                <Feather
+                  name={completed ? "check-circle" : "circle"}
+                  size={18}
+                  color={completed ? theme.success : theme.textSecondary}
+                />
+                <View style={styles.selectedDateActionInfo}>
                   <ThemedText
                     style={[
-                      styles.selectedDateBenchmark,
-                      { color: theme.textSecondary },
+                      styles.selectedDateActionTitle,
+                      completed && {
+                        textDecorationLine: "line-through",
+                        opacity: 0.7,
+                      },
                     ]}
                   >
-                    {benchmark.title}
+                    {action.title}
                   </ThemedText>
-                ) : null}
-                {note ? (
-                  <ThemedText
-                    style={[
-                      styles.selectedDateNote,
-                      { color: theme.textSecondary },
-                    ]}
-                    numberOfLines={2}
-                  >
-                    &ldquo;{note}&rdquo;
-                  </ThemedText>
-                ) : null}
-              </View>
-              <Feather
-                name="chevron-right"
-                size={16}
-                color={theme.textSecondary}
-                style={{ opacity: 0.5 }}
-              />
-            </Pressable>
-          ))}
+                  {benchmark ? (
+                    <ThemedText
+                      style={[
+                        styles.selectedDateBenchmark,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      {benchmark.title}
+                    </ThemedText>
+                  ) : null}
+                  {completed &&
+                  (completionSource === "health" ||
+                    completionKind === "kickstart") ? (
+                    <View style={styles.selectedDateSource}>
+                      <Feather
+                        name={completionSource === "health" ? "heart" : "zap"}
+                        size={11}
+                        color={theme.accent}
+                      />
+                      <ThemedText
+                        style={[
+                          styles.selectedDateSourceText,
+                          { color: theme.accent },
+                        ]}
+                      >
+                        {completionSource === "health"
+                          ? "Health auto-vote"
+                          : "2-minute vote"}
+                      </ThemedText>
+                    </View>
+                  ) : null}
+                  {note ? (
+                    <ThemedText
+                      style={[
+                        styles.selectedDateNote,
+                        { color: theme.textSecondary },
+                      ]}
+                      numberOfLines={2}
+                    >
+                      &ldquo;{note}&rdquo;
+                    </ThemedText>
+                  ) : null}
+                </View>
+                <Feather
+                  name="chevron-right"
+                  size={16}
+                  color={theme.textSecondary}
+                  style={{ opacity: 0.5 }}
+                />
+              </Pressable>
+            ),
+          )}
         </View>
       )}
     </View>
@@ -272,7 +355,7 @@ const MilestoneRow = React.memo(function MilestoneRow({
               <Feather
                 name={completed ? "check-circle" : "circle"}
                 size={16}
-                color={completed ? Colors.dark.success : Colors.dark.accent}
+                color={completed ? theme.success : theme.accent}
                 style={styles.milestoneStatusIcon}
               />
               <ThemedText style={styles.benchmarkTitle}>
@@ -294,7 +377,7 @@ const MilestoneRow = React.memo(function MilestoneRow({
               style={[
                 styles.benchmarkDays,
                 {
-                  color: completed ? Colors.dark.success : Colors.dark.accent,
+                  color: completed ? theme.success : theme.accent,
                 },
               ]}
             >
@@ -309,14 +392,14 @@ const MilestoneRow = React.memo(function MilestoneRow({
         </View>
         <ProgressBar
           progress={progress}
-          color={completed ? Colors.dark.success : Colors.dark.accent}
+          color={completed ? theme.success : theme.accent}
         />
         <View style={styles.benchmarkFooter}>
           <ThemedText
             style={[
               styles.milestoneCaption,
               {
-                color: completed ? Colors.dark.success : theme.textSecondary,
+                color: completed ? theme.success : theme.textSecondary,
               },
             ]}
           >
@@ -335,12 +418,17 @@ const MilestoneRow = React.memo(function MilestoneRow({
             accessibilityLabel={`Edit ${benchmark.title} milestone`}
             style={({ pressed }) => [
               styles.editButton,
+              { borderColor: theme.accent },
               { opacity: pressed ? 0.7 : 1 },
               pressed && styles.editButtonPressed,
             ]}
           >
-            <Feather name="edit-2" size={14} color={Colors.dark.accent} />
-            <ThemedText style={styles.editButtonText}>Edit</ThemedText>
+            <Feather name="edit-2" size={14} color={theme.accent} />
+            <ThemedText
+              style={[styles.editButtonText, { color: theme.accent }]}
+            >
+              Edit
+            </ThemedText>
           </Pressable>
         </View>
       </Pressable>
@@ -374,14 +462,14 @@ const MilestoneRow = React.memo(function MilestoneRow({
                   <Feather
                     name="calendar"
                     size={14}
-                    color={Colors.dark.accent}
+                    color={theme.accent}
                     style={styles.actionDetailIcon}
                   />
                   <View style={styles.actionDetailContent}>
                     <ThemedText
                       style={[
                         styles.actionDetailLabel,
-                        { color: Colors.dark.accent },
+                        { color: theme.accent },
                       ]}
                     >
                       On:
@@ -401,14 +489,14 @@ const MilestoneRow = React.memo(function MilestoneRow({
                   <Feather
                     name="link"
                     size={14}
-                    color={Colors.dark.accent}
+                    color={theme.accent}
                     style={styles.actionDetailIcon}
                   />
                   <View style={styles.actionDetailContent}>
                     <ThemedText
                       style={[
                         styles.actionDetailLabel,
-                        { color: Colors.dark.accent },
+                        { color: theme.accent },
                       ]}
                     >
                       When:
@@ -427,14 +515,14 @@ const MilestoneRow = React.memo(function MilestoneRow({
                   <Feather
                     name="zap"
                     size={14}
-                    color={Colors.dark.warning}
+                    color={theme.warning}
                     style={styles.actionDetailIcon}
                   />
                   <View style={styles.actionDetailContent}>
                     <ThemedText
                       style={[
                         styles.actionDetailLabel,
-                        { color: Colors.dark.warning },
+                        { color: theme.warning },
                       ]}
                     >
                       Too busy? Just:
@@ -469,11 +557,13 @@ export default function JourneyScreen() {
     persona,
     benchmarks,
     actions,
+    dailyLogs,
     personaAlignment,
     progressSnapshot,
     toggleDailyLog,
     canAddBenchmark,
     subscription,
+    aiConsent,
   } = useApp();
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -787,11 +877,11 @@ export default function JourneyScreen() {
             >
               <View style={styles.personaHeader}>
                 <View style={styles.personaIcon}>
-                  <Feather name="target" size={24} color={Colors.dark.accent} />
+                  <Feather name="target" size={24} color={theme.accent} />
                 </View>
                 <View style={styles.personaInfo}>
                   <ThemedText
-                    style={[styles.personaLabel, { color: Colors.dark.accent }]}
+                    style={[styles.personaLabel, { color: theme.accent }]}
                   >
                     Becoming
                   </ThemedText>
@@ -812,6 +902,34 @@ export default function JourneyScreen() {
               ) : null}
             </View>
 
+            <View style={styles.journeyToolsSection}>
+              <ThemedText style={styles.journeyToolsHeading}>
+                Stories &amp; Support
+              </ThemedText>
+              <JourneyTool
+                icon="award"
+                title="The Year You Became"
+                subtitle={
+                  subscription.isPremium
+                    ? `${new Date().getFullYear()} year-to-date story`
+                    : "Premium annual story"
+                }
+                onPress={() =>
+                  subscription.isPremium
+                    ? navigation.navigate("YearRecap", {
+                        year: new Date().getFullYear(),
+                      })
+                    : navigation.navigate("Subscription")
+                }
+              />
+              <JourneyTool
+                icon="users"
+                title="Someone in Your Corner"
+                subtitle="One trusted witness · you choose every share"
+                onPress={() => navigation.navigate("Witness")}
+              />
+            </View>
+
             {showGuide ? (
               <View
                 style={[
@@ -824,11 +942,7 @@ export default function JourneyScreen() {
                 ]}
               >
                 <View style={styles.guideHeader}>
-                  <Feather
-                    name="compass"
-                    size={18}
-                    color={Colors.dark.accent}
-                  />
+                  <Feather name="compass" size={18} color={theme.accent} />
                   <ThemedText style={styles.guideTitle}>Next Steps</ThemedText>
                   <Pressable
                     onPress={dismissGuide}
@@ -847,9 +961,10 @@ export default function JourneyScreen() {
                 <ThemedText
                   style={[styles.guideText, { color: theme.textSecondary }]}
                 >
-                  1. Your AI coach created the milestones below — steps on the
-                  way to becoming your persona. Tap Edit to adjust one or change
-                  which days it repeats.{"\n"}
+                  1. {aiConsent ? "Your AI coach" : "Your starter plan"} created
+                  the milestones below — steps on the way to becoming who you
+                  chose. Tap Edit to adjust one or change which days it repeats.
+                  {"\n"}
                   2. Each milestone comes with one small daily action on its
                   scheduled days.{"\n"}
                   3. Check off your actions in the Today tab — each completed
@@ -862,13 +977,20 @@ export default function JourneyScreen() {
                   accessibilityLabel="Go to Today tab"
                   style={({ pressed }) => [
                     styles.guideCta,
+                    { backgroundColor: theme.accent },
                     { opacity: pressed ? 0.8 : 1 },
                   ]}
                 >
-                  <ThemedText style={styles.guideCtaText}>
+                  <ThemedText
+                    style={[styles.guideCtaText, { color: theme.buttonText }]}
+                  >
                     Log today&rsquo;s actions
                   </ThemedText>
-                  <Feather name="arrow-right" size={16} color="#000000" />
+                  <Feather
+                    name="arrow-right"
+                    size={16}
+                    color={theme.buttonText}
+                  />
                 </Pressable>
               </View>
             ) : null}
@@ -885,11 +1007,7 @@ export default function JourneyScreen() {
                 ]}
               >
                 <View style={styles.guideHeader}>
-                  <Feather
-                    name="trending-up"
-                    size={18}
-                    color={Colors.dark.accent}
-                  />
+                  <Feather name="trending-up" size={18} color={theme.accent} />
                   <ThemedText style={styles.guideTitle}>
                     Milestones now fill up
                   </ThemedText>
@@ -1043,7 +1161,7 @@ export default function JourneyScreen() {
                       <View
                         style={[
                           styles.streakLine,
-                          { backgroundColor: Colors.dark.accent },
+                          { backgroundColor: theme.accent },
                         ]}
                       />
                     ) : null}
@@ -1051,18 +1169,18 @@ export default function JourneyScreen() {
                       style={[
                         styles.dayMarker,
                         dayInfo.isToday && styles.todayMarker,
-                        dayInfo.isToday && { borderColor: Colors.dark.accent },
-                        isComplete && { backgroundColor: Colors.dark.success },
-                        isPartial && { backgroundColor: Colors.dark.warning },
+                        dayInfo.isToday && { borderColor: theme.accent },
+                        isComplete && { backgroundColor: theme.success },
+                        isPartial && { backgroundColor: theme.warning },
                         isShielded && {
                           backgroundColor: "transparent",
                           borderWidth: 2,
-                          borderColor: Colors.dark.accent,
+                          borderColor: theme.accent,
                         },
                         isMissed && {
                           backgroundColor: "transparent",
                           borderWidth: 2,
-                          borderColor: Colors.dark.error,
+                          borderColor: theme.error,
                         },
                       ]}
                     >
@@ -1080,7 +1198,7 @@ export default function JourneyScreen() {
                           <Feather
                             name="shield"
                             size={12}
-                            color={Colors.dark.accent}
+                            color={theme.accent}
                           />
                         </View>
                       ) : null}
@@ -1093,10 +1211,7 @@ export default function JourneyScreen() {
             <View style={styles.legendContainer}>
               <View style={styles.legendItem}>
                 <View
-                  style={[
-                    styles.legendDot,
-                    { backgroundColor: Colors.dark.success },
-                  ]}
+                  style={[styles.legendDot, { backgroundColor: theme.success }]}
                 />
                 <ThemedText
                   style={[styles.legendText, { color: theme.textSecondary }]}
@@ -1106,10 +1221,7 @@ export default function JourneyScreen() {
               </View>
               <View style={styles.legendItem}>
                 <View
-                  style={[
-                    styles.legendDot,
-                    { backgroundColor: Colors.dark.warning },
-                  ]}
+                  style={[styles.legendDot, { backgroundColor: theme.warning }]}
                 />
                 <ThemedText
                   style={[styles.legendText, { color: theme.textSecondary }]}
@@ -1124,7 +1236,7 @@ export default function JourneyScreen() {
                     {
                       backgroundColor: "transparent",
                       borderWidth: 2,
-                      borderColor: Colors.dark.error,
+                      borderColor: theme.error,
                     },
                   ]}
                 />
@@ -1135,7 +1247,7 @@ export default function JourneyScreen() {
                 </ThemedText>
               </View>
               <View style={styles.legendItem}>
-                <Feather name="shield" size={12} color={Colors.dark.accent} />
+                <Feather name="shield" size={12} color={theme.accent} />
                 <ThemedText
                   style={[styles.legendText, { color: theme.textSecondary }]}
                 >
@@ -1170,9 +1282,7 @@ export default function JourneyScreen() {
                       name="fire"
                       size={16}
                       color={
-                        streak.current > 0
-                          ? Colors.dark.warning
-                          : theme.textSecondary
+                        streak.current > 0 ? theme.warning : theme.textSecondary
                       }
                     />
                   )
@@ -1184,10 +1294,12 @@ export default function JourneyScreen() {
                 }
               />
               <StatChip
-                icon={
-                  <Feather name="award" size={14} color={Colors.dark.accent} />
-                }
+                icon={<Feather name="award" size={14} color={theme.accent} />}
                 text={`Best: ${streak.longest} ${streak.longest === 1 ? "day" : "days"}`}
+              />
+              <StatChip
+                icon={<Feather name="shield" size={14} color={theme.accent} />}
+                text={`${streak.shieldsAvailable}/${subscription.isPremium ? 2 : 1} shield${subscription.isPremium ? "s" : ""} ready`}
               />
             </View>
 
@@ -1205,15 +1317,18 @@ export default function JourneyScreen() {
                 }
                 style={({ pressed }) => [
                   styles.addButton,
+                  { backgroundColor: theme.accent },
                   pressed && styles.addButtonPressed,
                 ]}
               >
                 <Feather
                   name={canAddBenchmark() ? "plus" : "lock"}
                   size={16}
-                  color="#000000"
+                  color={theme.buttonText}
                 />
-                <ThemedText style={styles.addButtonText}>
+                <ThemedText
+                  style={[styles.addButtonText, { color: theme.buttonText }]}
+                >
                   Add milestone
                 </ThemedText>
               </Pressable>
@@ -1221,57 +1336,67 @@ export default function JourneyScreen() {
           </>
         }
         ListFooterComponent={
-          !subscription.isPremium ? (
-            <Pressable
-              onPress={() => navigation.navigate("Subscription")}
-              accessibilityRole="button"
-              accessibilityLabel="Go further with Premium. Unlimited milestones, plans and coaching. See plans."
-              style={({ pressed }) => [
-                styles.premiumCard,
-                {
-                  backgroundColor: isDark
-                    ? Colors.dark.backgroundDefault
-                    : Colors.light.backgroundDefault,
-                  opacity: pressed ? 0.9 : 1,
-                  transform: [{ scale: pressed ? 0.98 : 1 }],
-                },
-              ]}
-            >
-              <View style={styles.premiumIconRing}>
-                <View style={styles.premiumIconCore}>
-                  <Feather name="zap" size={20} color={Colors.dark.accent} />
+          <>
+            <InsightsPanel
+              actions={personaActions}
+              dailyLogs={dailyLogs}
+              personaName={persona?.name ?? "Future You"}
+              isPremium={subscription.isPremium}
+              onUpgrade={() => navigation.navigate("Subscription")}
+            />
+            {!subscription.isPremium ? (
+              <Pressable
+                onPress={() => navigation.navigate("Subscription")}
+                accessibilityRole="button"
+                accessibilityLabel="Go further with Premium. Unlimited milestones, plans and coaching. See plans."
+                style={({ pressed }) => [
+                  styles.premiumCard,
+                  {
+                    backgroundColor: isDark
+                      ? Colors.dark.backgroundDefault
+                      : Colors.light.backgroundDefault,
+                    borderColor: theme.accent,
+                    opacity: pressed ? 0.9 : 1,
+                    transform: [{ scale: pressed ? 0.98 : 1 }],
+                  },
+                ]}
+              >
+                <View style={styles.premiumIconRing}>
+                  <View style={styles.premiumIconCore}>
+                    <Feather name="zap" size={20} color={theme.accent} />
+                  </View>
+                  <View style={[styles.premiumDot, styles.premiumDotTop]} />
+                  <View style={[styles.premiumDot, styles.premiumDotRight]} />
+                  <View style={[styles.premiumDot, styles.premiumDotBottom]} />
                 </View>
-                <View style={[styles.premiumDot, styles.premiumDotTop]} />
-                <View style={[styles.premiumDot, styles.premiumDotRight]} />
-                <View style={[styles.premiumDot, styles.premiumDotBottom]} />
-              </View>
-              <View style={styles.premiumContent}>
-                <ThemedText style={styles.premiumTitle}>
-                  Go further with Premium
-                </ThemedText>
-                <ThemedText
-                  style={[
-                    styles.premiumSubtitle,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  Unlimited milestones, plans &amp; coaching
-                </ThemedText>
-              </View>
-              <View style={styles.premiumCta}>
-                <ThemedText
-                  style={[styles.premiumCtaText, { color: Colors.dark.accent }]}
-                >
-                  See plans
-                </ThemedText>
-                <Feather
-                  name="chevron-right"
-                  size={16}
-                  color={Colors.dark.accent}
-                />
-              </View>
-            </Pressable>
-          ) : null
+                <View style={styles.premiumContent}>
+                  <ThemedText style={styles.premiumTitle}>
+                    Go further with Premium
+                  </ThemedText>
+                  <ThemedText
+                    style={[
+                      styles.premiumSubtitle,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Unlimited milestones, plans &amp; coaching
+                  </ThemedText>
+                </View>
+                <View style={styles.premiumCta}>
+                  <ThemedText
+                    style={[styles.premiumCtaText, { color: theme.accent }]}
+                  >
+                    See plans
+                  </ThemedText>
+                  <Feather
+                    name="chevron-right"
+                    size={16}
+                    color={theme.accent}
+                  />
+                </View>
+              </Pressable>
+            ) : null}
+          </>
         }
       />
       <Toast
@@ -1334,6 +1459,41 @@ const styles = StyleSheet.create({
   personaDescription: {
     ...Typography.body,
     marginTop: Spacing.md,
+  },
+  journeyToolsSection: {
+    marginBottom: Spacing.xl,
+  },
+  journeyToolsHeading: {
+    ...Typography.headline,
+    marginBottom: Spacing.md,
+  },
+  journeyTool: {
+    minHeight: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+  },
+  journeyToolIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: "rgba(0, 217, 255, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.md,
+  },
+  journeyToolContent: {
+    flex: 1,
+  },
+  journeyToolTitle: {
+    ...Typography.body,
+    fontWeight: "600",
+  },
+  journeyToolSubtitle: {
+    ...Typography.caption,
+    marginTop: 2,
   },
   guideCard: {
     padding: Spacing.lg,
@@ -1517,8 +1677,19 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     marginTop: 2,
   },
+  selectedDateSource: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  selectedDateSourceText: {
+    ...Typography.caption,
+    fontWeight: "600",
+  },
   streakStatsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "center",
     gap: Spacing.sm,
     marginBottom: Spacing["2xl"],
@@ -1557,7 +1728,7 @@ const styles = StyleSheet.create({
   },
   benchmarkCardCompleted: {
     borderWidth: 1,
-    // Colors.dark.success (#00FF88) at 35% opacity
+    // theme.success (#00FF88) at 35% opacity
     borderColor: "rgba(0, 255, 136, 0.35)",
   },
   benchmarkHeader: {

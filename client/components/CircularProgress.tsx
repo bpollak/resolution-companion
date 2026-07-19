@@ -44,7 +44,7 @@ export function CircularProgress({
   animated = true,
   valueText,
 }: CircularProgressProps) {
-  const { isDark } = useTheme();
+  const { theme, isDark } = useTheme();
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
 
@@ -66,14 +66,14 @@ export function CircularProgress({
     } else {
       animatedProgress.value = progress;
     }
-  }, [progress, animated]);
+  }, [progress, animated, animatedProgress, glowOpacity]);
 
   const progressColor =
     progress >= 80
-      ? Colors.dark.success
+      ? theme.success
       : progress >= 50
-        ? Colors.dark.accent
-        : Colors.dark.warning;
+        ? theme.accent
+        : theme.warning;
 
   const animatedProps = useAnimatedProps(() => {
     const strokeDashoffset =

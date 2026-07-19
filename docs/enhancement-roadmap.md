@@ -9,8 +9,9 @@ the persistent-memory pickup notes (`enhancement-sprint-v1-0-4`).
 streak guilt; ≤2 notifications/day; jargon budget ~2 concepts; milestones
 only fill, never drain; identity framing ("votes for who you're becoming").
 
-Legend: ✅ built (v1.0.4 candidate, commits 9f54168 / 85c60b5 / 8345490) ·
-▢ not started
+Legend: ✅ built before the ground-up sprint · 🆕 built in the ground-up
+implementation branch · ⚠️ code-complete with an external release-console
+action still open · ▢ not started
 
 ## Tier 1 — Highest leverage
 
@@ -21,12 +22,21 @@ Legend: ✅ built (v1.0.4 candidate, commits 9f54168 / 85c60b5 / 8345490) ·
 - ✅ **2. Coach memory** (premium) — digest of the last 2 saved sessions
   injected into the reflection prompt; the feature that makes "unlimited
   check-ins" mean something ("a coach that knows you").
-- ▢ **3. Home-screen + lock-screen widget** — today ring + next action;
-  interactive logging via App Intents. Biggest remaining stickiness lever;
-  needs an iOS widget extension (expo-apple-targets + local builds).
-- ▢ **4. Monthly "Identity Wrapped" share card** — "47 votes for Consistent
-  Morning Mover · 87%"; native share sheet; December year-in-review premium
-  version. Recap math exists; render via styled view + react-native-view-shot.
+- 🆕 **3. Home-screen + lock-screen widget** — "Cast Your Vote": interactive
+  home widget (Done + 2-min kickstart buttons via App Intents, iOS 17),
+  lock-screen ring, rotating identity copy, rest-day face. Built with
+  `@bacons/apple-targets` (`targets/widget/`), App Group
+  `group.com.resolutioncompanion.app`, JS bridge `client/lib/widget.ts`,
+  pending-vote reconciliation in AppContext. The JS↔App-Group bridge is the
+  local module `modules/app-group-storage` — apple-targets' bundled
+  ExtensionStorage pod requires iOS 16.4 and is silently SKIPPED by pod
+  autolinking at our 15.1 deployment target (found in sim regression: the
+  binary shipped without it and the bridge no-opped).
+- 🆕 **4. Monthly "Identity Wrapped" share card** — "Month in Votes":
+  swipeable no-guilt story (votes, portrait, comeback, shields, closing) on
+  the 1st, share-as-image via react-native-view-shot; entry card on Today.
+  `client/lib/recap.ts`, `MonthRecapScreen`. The premium December/January
+  **The Year You Became** annual edition is also complete.
 - ✅ **5. Milestone deadline countdown** — optional target date (preset
   chips 3w/1m/2m/3m) + gentle countdown chip; no red urgency states.
 
@@ -35,26 +45,33 @@ Legend: ✅ built (v1.0.4 candidate, commits 9f54168 / 85c60b5 / 8345490) ·
 - ✅ **6. One-line "how it went" completion note** — optional, skippable;
   shows on Today + Journey day detail; last 7 days feed the coach so it can
   quote the user's own words.
-- ▢ **7. Insights panel** (premium) — day-of-week heatmap (bestDay), 7-day
-  momentum sparkline, per-milestone trend (revive computeBenchmarkProgress).
-  Free tier sees one insight; premium sees all.
+- 🆕 **7. Insights panel** (premium) — day-of-week profile, 8-week momentum
+  sparkline, and one narrative + recommendation (Oura pattern) on Journey;
+  quiet locked state for free. `client/lib/insights.ts`, `InsightsPanel`.
 - ✅ **8. "Mark all done ✓" on the daily reminder** — notification action,
   no app open needed; credits the notification's fire date.
-- ▢ **9. Siri / App Intents voice logging** — build together with #3.
-- ▢ **10. Apple Health auto-complete** — park until widgets prove out the
-  native-extension workflow.
+- 🆕 **9. Siri / App Intents voice logging** — "Log my kickstart in
+  Resolution Companion" (`targets/widget/AppShortcuts.swift`); logs the next
+  pending action's floor version with a spoken reply.
+- 🆕 **10. Apple Health auto-complete** — per-action opt-in
+  (workout / 7,000+ steps / mindful session) in the Action editor;
+  auto-votes on foreground via `client/lib/health.ts` (react-native-health;
+  reads stay on-device).
 
 ## Tier 3 — Natural premium pull (endow first, gate second)
 
-- ▢ **11. Post-milestone "next milestone" proposal** — coach generates the
-  actual next milestone, fully visible; "Add" is the paywall moment.
-- ▢ **12. Second-persona invitation** — one quiet card after ~30 days of
-  sustained consistency; never more than once a month.
-- ▢ **13. 7-day free trial on yearly** — StoreKit intro offer; ASC config
-  only, can be set up as soon as the subscriptions are Approved.
+- 🆕 **11. Post-milestone "next milestone" proposal** — an immediate private
+  fallback is fully visible; an opted-in coach can refine it; "Add" is the
+  paywall moment for free users.
+- 🆕 **12. Second-persona invitation** — one quiet card after 30+ days at 70%+
+  rolling consistency; never more than once a month.
+- ⚠️ **13. One-month free trial on yearly** — StoreKit eligibility and exact
+  live-offer rendering are complete. App Store Connect currently has a
+  one-week offer in 175 territories; replacing it requires explicit approval
+  to delete the live offer first.
 - ✅ **14. Streak shield visibility** — "shield ready" marker on the Today
-  streak chip before it's needed (partial: premium 2-shield variant not
-  built).
+  streak chip before it's needed. 🆕 completed: premium 2-shield capacity
+  (`computeStreak` maxShields), earn/spend toasts on Today, paywall rows.
 
 ## Tier 4 — Streamlining
 
@@ -63,18 +80,63 @@ Legend: ✅ built (v1.0.4 candidate, commits 9f54168 / 85c60b5 / 8345490) ·
 - ✅ App Store ratings prompt at the 3rd day-complete (expo-store-review)
 - ✅ Completed rows stay visible under the day-complete card (bug found in
   live sim testing)
-- ▢ Real SSE for `/api/reflection` (client currently simulates streaming)
-- ▢ Contextual paywall card at the 10/10 coach gate (from
+- 🆕 Real SSE for `/api/reflection` (`stream: true`, JSON fallback kept for
+  old builds; simulated 30ms/char typewriter removed for the coach)
+- 🆕 Contextual paywall card at the 10/10 coach gate (from
   ux-optimization-plan next wave)
-- ▢ Website social-proof strip + aggregateRating schema once App Store
-  ratings accumulate
+- 🆕 Website social-proof strip + `aggregateRating` schema. Apple's live
+  lookup reported 3 ratings at 5.0 on 2026-07-18, activating this item.
 
-## Suggested sequence from here
+## Release-console sequence from here
 
-1. Ship the ✅ set as **v1.0.4** once the v1.0.2 subscriptions are Approved
-   and the paywall is verified live (never submit a binary while they are
-   still in review).
-2. Same day as approval: configure **#13 intro offer** in ASC.
-3. Next build cycle: **#3 widget + #9 App Intents** together.
-4. Then growth: **#4 Wrapped card**, **#11 next-milestone proposal**,
-   **#7 insights panel**.
+1. Preserve the current App Store review/release state; do not submit this
+   branch merely to change console products.
+2. With explicit approval, delete the one-week yearly offer and recreate it as
+   a one-month free offer across all 175 territories.
+3. Choose final App Store prices before creating the lifetime and alternate
+   yearly products. The client hides both until StoreKit returns them.
+4. Refresh the website's rating count when Apple's public count changes.
+
+## 2026-07-17 ground-up sprint — additions beyond the numbered items
+
+Built as part of the numbered 🆕 marks above (strategy in
+`docs/ground-up-review-2026-07.md`):
+
+- 🆕 **Privacy-respecting telemetry** — daily event counts only, keyed to
+  the anonymous deviceId (`client/lib/telemetry.ts`, `POST /api/telemetry`,
+  `device_events` table, admin `GET /api/telemetry/summary`). Funnel events
+  instrumented across onboarding, daily loop, paywall, coach, widget.
+  Disclose in the privacy policy before shipping.
+- 🆕 **Launch-time entitlement re-sync** — AppContext reconciles the local
+  subscription against `GET /api/subscription/status` on cold start
+  (conservative downgrade: only when the server disagrees AND local expiry
+  has lapsed).
+- 🆕 **Portfolio-of-hooks reminders** — the single daily notification learns
+  which voice (momentum / coach / calm) this user taps; lapsed users always
+  get the no-guilt reopen (`selectReminderHook` in `lib/notifications.ts`).
+- 🆕 **MI coach spine** — reflection prompts restructured around
+  motivational interviewing (reflect → permission → evoke → evidence-based
+  affirmation).
+- 🆕 **Proactive coach observation** — one locally-computed weekly
+  observation card on Today ("every Tuesday for 4 weeks — Tuesday You is
+  real"); `computeCoachObservation` in `lib/insights.ts`.
+- 🆕 **Free memory taste** — free users experience coach memory exactly once
+  before the gate; the coach may mention Premium once if it lands naturally.
+- 🆕 **Identity-science micro-notes** — 18 bundled 60-second reads
+  (`lib/micro-notes.ts`), daily for premium / weekly for free, in the Coach
+  lobby.
+- 🆕 **Milestone reward layer** — un-drainable cosmetics unlocked by
+  completed milestones (`lib/rewards.ts`); first reward ships the previously
+  hard-locked light palette as the **Dawn theme** (ThemeProvider +
+  Profile → Appearance row; reveal in the milestone celebration modal).
+- 🆕 **Premium 2-shield capacity + earn/spend visibility** (completes #14).
+
+Additional completed Later bets: celebration-only witness sharing, private
+iCloud backup/restore, The Year You Became annual recap, lifetime entitlement
+support, and stable new-install price-cohort support. Production rate limits
+now use shared Postgres counters and production quota/auth failures fail
+closed.
+
+Still external: **#13 trial replacement**, plus creation and pricing of the
+lifetime and alternate-yearly products. The App Store CTA, telemetry/privacy
+disclosures, and conditional website rating strip are complete.

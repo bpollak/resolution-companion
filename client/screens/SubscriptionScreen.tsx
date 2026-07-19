@@ -22,17 +22,27 @@ import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { storage } from "@/lib/storage";
-import { iapService, PRODUCT_IDS, IAPProduct, IAPPurchase } from "@/lib/iap";
+import {
+  iapService,
+  PRODUCT_IDS,
+  IAPProduct,
+  IAPPurchase,
+  formatIntroOfferDuration,
+} from "@/lib/iap";
 import { logger } from "@/lib/logger";
+import { track } from "@/lib/telemetry";
+import { chooseYearlyProductId } from "@/lib/pricing";
+import { getSubscriptionPlanLabel } from "@/lib/subscription";
 
-type PlanType = "monthly" | "yearly";
+type PlanType = "monthly" | "yearly" | "lifetime";
 
 type SubscriptionRouteParams = {
-  Subscription: { source?: "coach-limit" } | undefined;
+  Subscription: { source?: "coach-limit" | "milestone-proposal" } | undefined;
 };
 
 // Fallback expiry estimate when the server didn't return a store-validated date
-function estimateExpiryIso(plan: PlanType): string {
+function estimateExpiryIso(plan: PlanType): string | null {
+  if (plan === "lifetime") return null;
   const days = plan === "yearly" ? 365 : 30;
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 }
@@ -93,7 +103,8 @@ function PlanCard({
   onSelect,
 }: PlanCardProps) {
   const { theme, isDark } = useTheme();
-  const title = type === "yearly" ? "Yearly" : "Monthly";
+  const title =
+    type === "yearly" ? "Yearly" : type === "lifetime" ? "Lifetime" : "Monthly";
 
   return (
     <Pressable
@@ -111,16 +122,18 @@ function PlanCard({
             : isDark
               ? Colors.dark.backgroundDefault
               : Colors.light.backgroundDefault,
-          borderColor: selected ? Colors.dark.accent : "transparent",
+          borderColor: selected ? theme.accent : "transparent",
           opacity: pressed ? 0.9 : 1,
         },
       ]}
     >
       {badge ? (
-        <View
-          style={[styles.planBadge, { backgroundColor: Colors.dark.accent }]}
-        >
-          <ThemedText style={styles.planBadgeText}>{badge}</ThemedText>
+        <View style={[styles.planBadge, { backgroundColor: theme.accent }]}>
+          <ThemedText
+            style={[styles.planBadgeText, { color: theme.buttonText }]}
+          >
+            {badge}
+          </ThemedText>
         </View>
       ) : null}
       <View style={styles.planHeader}>
@@ -128,16 +141,13 @@ function PlanCard({
           style={[
             styles.radioOuter,
             {
-              borderColor: selected ? Colors.dark.accent : theme.textSecondary,
+              borderColor: selected ? theme.accent : theme.textSecondary,
             },
           ]}
         >
           {selected ? (
             <View
-              style={[
-                styles.radioInner,
-                { backgroundColor: Colors.dark.accent },
-              ]}
+              style={[styles.radioInner, { backgroundColor: theme.accent }]}
             />
           ) : null}
         </View>
@@ -218,13 +228,13 @@ function CompareRow({
       </View>
       <View style={styles.compareValueCol}>
         {premium === null ? (
-          <Feather name="check" size={16} color={Colors.dark.accent} />
+          <Feather name="check" size={16} color={theme.accent} />
         ) : (
           <ThemedText
             style={[
               styles.compareValue,
               styles.compareValuePremium,
-              { color: Colors.dark.accent },
+              { color: theme.accent },
             ]}
           >
             {premium}
@@ -242,8 +252,14 @@ export default function SubscriptionScreen() {
   // Presentation-only framing: arriving from the coach 10/10 gate explains
   // which cap was hit before the generic hero
   const fromCoachLimit = route.params?.source === "coach-limit";
+  const fromMilestoneProposal = route.params?.source === "milestone-proposal";
   const { theme, isDark } = useTheme();
-  const { subscription, refreshData } = useApp();
+  const {
+    subscription,
+    subscriptionVerificationStatus,
+    refreshData,
+    verifySubscription,
+  } = useApp();
   const [selectedPlan, setSelectedPlan] = useState<PlanType>("yearly");
   const [isLoading, setIsLoading] = useState(false);
   const [iapProducts, setIapProducts] = useState<IAPProduct[]>([]);
@@ -251,12 +267,33 @@ export default function SubscriptionScreen() {
   const [useNativeIAP, setUseNativeIAP] = useState(false);
   const [iapError, setIapError] = useState<string | null>(null);
   const [initializationComplete, setInitializationComplete] = useState(false);
+  const [introEligibleProductIds, setIntroEligibleProductIds] = useState<
+    Set<string>
+  >(new Set());
+  const [yearlyProductId, setYearlyProductId] = useState(
+    PRODUCT_IDS.YEARLY || "",
+  );
+  const [footerHeight, setFooterHeight] = useState(260);
   const appState = useRef(AppState.currentState);
 
   useEffect(() => {
+    track("paywall_viewed");
     initializePurchases();
     checkSubscriptionStatus();
+    // Store bootstrap is intentionally mount-only; foreground rechecks are
+    // handled by the AppState listener below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!PRODUCT_IDS.YEARLY || iapProducts.length === 0) return;
+    chooseYearlyProductId(
+      PRODUCT_IDS.YEARLY,
+      iapProducts.map((product) => product.productId),
+    )
+      .then(setYearlyProductId)
+      .catch(() => setYearlyProductId(PRODUCT_IDS.YEARLY!));
+  }, [iapProducts]);
 
   const initializePurchases = async () => {
     setIapError(null);
@@ -283,6 +320,19 @@ export default function SubscriptionScreen() {
           logger.log("IAP products loaded:", products.length);
           setIapProducts(products);
           setUseNativeIAP(true);
+          const eligibility = await Promise.all(
+            products.map(async (product) => ({
+              id: product.productId,
+              eligible: await iapService.isIntroOfferEligible(product),
+            })),
+          );
+          setIntroEligibleProductIds(
+            new Set(
+              eligibility
+                .filter((item) => item.eligible)
+                .map((item) => item.id),
+            ),
+          );
 
           iapService.setPurchaseListener(
             async (purchase: IAPPurchase) => {
@@ -298,7 +348,9 @@ export default function SubscriptionScreen() {
                 };
                 await storage.setSubscription(newSubscription);
                 await refreshData();
+                await verifySubscription();
                 setIsLoading(false);
+                track("paywall_purchase_success");
                 Alert.alert(
                   "Success",
                   "Welcome to Premium! Your subscription is now active.",
@@ -381,30 +433,14 @@ export default function SubscriptionScreen() {
     return () => {
       appStateSubscription.remove();
     };
+    // The listener must retain one stable registration for this modal's life.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkSubscriptionStatus = async () => {
     try {
       setCheckingStatus(true);
-      const deviceId = await storage.getDeviceId();
-      const response = await fetch(
-        new URL(`/api/subscription/status/${deviceId}`, getApiUrl()).toString(),
-        {
-          headers: getAuthHeaders(),
-        },
-      );
-      const data = await response.json();
-
-      if (data.isPremium) {
-        const newSubscription = {
-          isPremium: true,
-          plan: data.plan as "monthly" | "yearly",
-          expiresAt: data.currentPeriodEnd,
-          purchasedAt: new Date().toISOString(),
-        };
-        await storage.setSubscription(newSubscription);
-        await refreshData();
-      }
+      await verifySubscription();
     } catch (error) {
       logger.error("Failed to check subscription status:", error);
     } finally {
@@ -413,8 +449,11 @@ export default function SubscriptionScreen() {
   };
 
   const getIAPProductId = (plan: PlanType): string | null => {
+    if (plan === "lifetime") {
+      return PRODUCT_IDS.LIFETIME || null;
+    }
     if (plan === "yearly") {
-      return PRODUCT_IDS.YEARLY || null;
+      return yearlyProductId || PRODUCT_IDS.YEARLY || null;
     }
     return PRODUCT_IDS.MONTHLY || null;
   };
@@ -465,7 +504,10 @@ export default function SubscriptionScreen() {
       }
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await iapService.purchaseProduct(productId);
+      await iapService.purchaseProduct(
+        productId,
+        introEligibleProductIds.has(productId),
+      );
     } catch (error: any) {
       logger.error("Purchase failed:", error);
       setIsLoading(false);
@@ -505,7 +547,15 @@ export default function SubscriptionScreen() {
     try {
       const purchases = await iapService.restorePurchases();
       if (purchases.length > 0) {
-        const latestPurchase = purchases[0];
+        // A restored non-consumable lifetime purchase always outranks an old
+        // subscription. Otherwise use the most recent active transaction.
+        const latestPurchase =
+          purchases.find(
+            (purchase) =>
+              iapService.getPlanFromProductId(purchase.productId) ===
+              "lifetime",
+          ) ??
+          [...purchases].sort((a, b) => b.purchaseTime - a.purchaseTime)[0];
         const plan = iapService.getPlanFromProductId(latestPurchase.productId);
         const newSubscription = {
           isPremium: true,
@@ -515,6 +565,8 @@ export default function SubscriptionScreen() {
         };
         await storage.setSubscription(newSubscription);
         await refreshData();
+        await verifySubscription();
+        track("paywall_restore_success");
         Alert.alert("Success", "Your subscription has been restored!");
         setCheckingStatus(false);
       } else {
@@ -555,12 +607,14 @@ export default function SubscriptionScreen() {
       if (data.success && data.isPremium) {
         const newSubscription = {
           isPremium: true,
-          plan: data.plan as "monthly" | "yearly",
+          plan: data.plan as "monthly" | "yearly" | "lifetime",
           expiresAt: data.currentPeriodEnd,
           purchasedAt: new Date().toISOString(),
         };
         await storage.setSubscription(newSubscription);
         await refreshData();
+        await verifySubscription();
+        track("paywall_restore_success");
         Alert.alert("Success", "Your subscription has been restored!");
       } else {
         Alert.alert(
@@ -580,13 +634,20 @@ export default function SubscriptionScreen() {
     (p) => p.productId === PRODUCT_IDS.MONTHLY,
   );
   const yearlyProduct = iapProducts.find(
-    (p) => p.productId === PRODUCT_IDS.YEARLY,
+    (p) => p.productId === yearlyProductId,
+  );
+  const lifetimeProduct = iapProducts.find(
+    (p) => p.productId === PRODUCT_IDS.LIFETIME,
   );
   // Only offer purchase once real store pricing has loaded — never show
   // placeholder prices on the paywall.
   const storeReady = useNativeIAP && !!monthlyProduct && !!yearlyProduct;
   const selectedProduct =
-    selectedPlan === "yearly" ? yearlyProduct : monthlyProduct;
+    selectedPlan === "yearly"
+      ? yearlyProduct
+      : selectedPlan === "lifetime"
+        ? lifetimeProduct
+        : monthlyProduct;
 
   // Derived, live-price-only marketing math (never hardcoded amounts)
   const savingsPercent = computeYearlySavingsPercent(
@@ -596,13 +657,23 @@ export default function SubscriptionScreen() {
   const yearlyPerMonth = yearlyProduct
     ? formatMonthlyEquivalent(yearlyProduct)
     : null;
-  const yearlyBadge =
-    savingsPercent !== null
+  const yearlyIntroDuration = formatIntroOfferDuration(yearlyProduct);
+  const yearlyTrialEligible =
+    !!yearlyProduct && introEligibleProductIds.has(yearlyProduct.productId);
+  const yearlyBadge = yearlyTrialEligible
+    ? `${yearlyIntroDuration?.toUpperCase()} FREE`
+    : savingsPercent !== null
       ? `BEST VALUE · SAVE ${savingsPercent}%`
       : "BEST VALUE";
-  const yearlySubline = yearlyPerMonth
-    ? `about ${yearlyPerMonth}/mo`
-    : "12 months, one payment";
+  const yearlySubline = yearlyTrialEligible
+    ? `${yearlyIntroDuration} free, then ${yearlyProduct!.price}/year`
+    : yearlyPerMonth
+      ? `about ${yearlyPerMonth}/mo`
+      : "12 months, one payment";
+  const selectedTrialDuration =
+    selectedProduct && introEligibleProductIds.has(selectedProduct.productId)
+      ? formatIntroOfferDuration(selectedProduct)
+      : null;
 
   if (subscription.isPremium) {
     const expiresAtDate = subscription.expiresAt
@@ -636,13 +707,13 @@ export default function SubscriptionScreen() {
           <View
             style={[
               styles.premiumActiveIcon,
-              { backgroundColor: Colors.dark.accent },
+              { backgroundColor: theme.accent },
             ]}
           >
-            <Feather name="check" size={48} color="#000000" />
+            <Feather name="check" size={48} color={theme.buttonText} />
           </View>
           <ThemedText style={styles.premiumActiveTitle}>
-            You&apos;re Premium!
+            {getSubscriptionPlanLabel(subscription.plan)} Premium is active
           </ThemedText>
           <ThemedText
             style={[
@@ -650,7 +721,9 @@ export default function SubscriptionScreen() {
               { color: theme.textSecondary },
             ]}
           >
-            You have unlimited access to all features.
+            {subscriptionVerificationStatus === "verified"
+              ? `Verified with the ${Platform.OS === "ios" ? "App Store" : "store"}. You have unlimited access to all features.`
+              : "Your Premium access is available while verification completes."}
           </ThemedText>
           {expiresAtDate ? (
             <ThemedText
@@ -661,30 +734,34 @@ export default function SubscriptionScreen() {
                 : `Your subscription renews on ${expiresAtDate.toLocaleDateString()}`}
             </ThemedText>
           ) : null}
-          <Pressable
-            onPress={() => {
-              if (Platform.OS === "ios") {
-                Linking.openURL("https://apps.apple.com/account/subscriptions");
-              } else if (Platform.OS === "android") {
-                Linking.openURL(
-                  "https://play.google.com/store/account/subscriptions",
-                );
-              }
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Manage subscription in store settings"
-            style={({ pressed }) => [
-              styles.manageButton,
-              { opacity: pressed ? 0.8 : 1 },
-            ]}
-          >
-            <Feather name="settings" size={16} color={Colors.dark.accent} />
-            <ThemedText
-              style={[styles.manageButtonText, { color: Colors.dark.accent }]}
+          {subscription.plan !== "lifetime" ? (
+            <Pressable
+              onPress={() => {
+                if (Platform.OS === "ios") {
+                  Linking.openURL(
+                    "https://apps.apple.com/account/subscriptions",
+                  );
+                } else if (Platform.OS === "android") {
+                  Linking.openURL(
+                    "https://play.google.com/store/account/subscriptions",
+                  );
+                }
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Manage subscription in store settings"
+              style={({ pressed }) => [
+                styles.manageButton,
+                { opacity: pressed ? 0.8 : 1 },
+              ]}
             >
-              Manage Subscription
-            </ThemedText>
-          </Pressable>
+              <Feather name="settings" size={16} color={theme.accent} />
+              <ThemedText
+                style={[styles.manageButtonText, { color: theme.accent }]}
+              >
+                Manage Subscription
+              </ThemedText>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     );
@@ -710,7 +787,9 @@ export default function SubscriptionScreen() {
         contentContainerStyle={[
           styles.content,
           {
-            paddingBottom: insets.bottom + (Platform.OS === "web" ? 140 : 260),
+            paddingBottom:
+              insets.bottom +
+              (Platform.OS === "web" ? 140 : footerHeight + Spacing.lg),
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -737,7 +816,7 @@ export default function SubscriptionScreen() {
               ]}
             >
               <ThemedText
-                style={[styles.retryButtonText, { color: Colors.dark.accent }]}
+                style={[styles.retryButtonText, { color: theme.accent }]}
               >
                 Retry
               </ThemedText>
@@ -745,7 +824,7 @@ export default function SubscriptionScreen() {
           </View>
         ) : null}
 
-        {fromCoachLimit ? (
+        {fromCoachLimit || fromMilestoneProposal ? (
           <View
             style={[
               styles.contextCard,
@@ -756,23 +835,18 @@ export default function SubscriptionScreen() {
               },
             ]}
           >
-            <Feather
-              name="message-circle"
-              size={20}
-              color={Colors.dark.accent}
-            />
+            <Feather name="message-circle" size={20} color={theme.accent} />
             <ThemedText style={styles.contextCardText}>
-              You&rsquo;ve used all 10 free check-ins this month &mdash; Premium
-              removes the cap.
+              {fromCoachLimit
+                ? "You’ve used all 10 free check-ins this month — Premium removes the cap."
+                : "Your next milestone is ready — Premium lets you add it while keeping the full proposal visible first."}
             </ThemedText>
           </View>
         ) : null}
 
         <View style={styles.heroSection}>
-          <View
-            style={[styles.heroIcon, { backgroundColor: Colors.dark.accent }]}
-          >
-            <Feather name="zap" size={32} color="#000000" />
+          <View style={[styles.heroIcon, { backgroundColor: theme.accent }]}>
+            <Feather name="zap" size={32} color={theme.buttonText} />
           </View>
           <ThemedText style={styles.heroTitle}>
             Become who you&rsquo;re becoming &mdash; without limits
@@ -809,7 +883,7 @@ export default function SubscriptionScreen() {
             </View>
             <View style={styles.compareValueCol}>
               <ThemedText
-                style={[styles.compareColLabel, { color: Colors.dark.accent }]}
+                style={[styles.compareColLabel, { color: theme.accent }]}
               >
                 PREMIUM
               </ThemedText>
@@ -835,6 +909,18 @@ export default function SubscriptionScreen() {
             premium="Unlimited"
           />
           <CompareRow
+            title="Streak shields"
+            description="Missed days bridged — extra grace, earned by consistency"
+            free="1"
+            premium="2"
+          />
+          <CompareRow
+            title="Insights"
+            description="When you show up, and the one thing to protect"
+            free="—"
+            premium="Included"
+          />
+          <CompareRow
             title="Daily action tracking"
             description="Log actions and build momentum every day"
             free={null}
@@ -854,7 +940,7 @@ export default function SubscriptionScreen() {
               },
             ]}
           >
-            <Feather name="smartphone" size={24} color={Colors.dark.accent} />
+            <Feather name="smartphone" size={24} color={theme.accent} />
             <ThemedText
               style={[styles.storeStateText, { color: theme.textSecondary }]}
             >
@@ -873,7 +959,7 @@ export default function SubscriptionScreen() {
               },
             ]}
           >
-            <ActivityIndicator size="small" color={Colors.dark.accent} />
+            <ActivityIndicator size="small" color={theme.accent} />
             <ThemedText
               style={[styles.storeStateText, { color: theme.textSecondary }]}
             >
@@ -891,7 +977,7 @@ export default function SubscriptionScreen() {
               },
             ]}
           >
-            <Feather name="alert-circle" size={24} color={Colors.dark.error} />
+            <Feather name="alert-circle" size={24} color={theme.error} />
             <ThemedText
               style={[styles.storeStateText, { color: theme.textSecondary }]}
             >
@@ -908,7 +994,7 @@ export default function SubscriptionScreen() {
               ]}
             >
               <ThemedText
-                style={[styles.retryButtonText, { color: Colors.dark.accent }]}
+                style={[styles.retryButtonText, { color: theme.accent }]}
               >
                 Retry
               </ThemedText>
@@ -936,18 +1022,30 @@ export default function SubscriptionScreen() {
               selected={selectedPlan === "monthly"}
               onSelect={() => setSelectedPlan("monthly")}
             />
+            {lifetimeProduct ? (
+              <PlanCard
+                type="lifetime"
+                price={lifetimeProduct.price}
+                period="one time"
+                subline="Premium without a subscription"
+                badge="PAY ONCE"
+                selected={selectedPlan === "lifetime"}
+                onSelect={() => setSelectedPlan("lifetime")}
+              />
+            ) : null}
             <ThemedText
               style={[styles.cancelHint, { color: theme.textSecondary }]}
             >
-              Cancel anytime in{" "}
-              {Platform.OS === "ios" ? "Settings" : "Google Play"} &mdash; you
-              keep Premium until your period ends.
+              {selectedPlan === "lifetime"
+                ? "Honest pricing, no dark patterns. One payment, no subscription, no automatic renewal."
+                : `Honest pricing, no dark patterns. Cancel anytime in ${Platform.OS === "ios" ? "Settings" : "Google Play"} — you keep Premium until your period ends.`}
             </ThemedText>
           </View>
         )}
       </ScrollView>
 
       <View
+        onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
         style={[
           styles.footer,
           {
@@ -963,12 +1061,14 @@ export default function SubscriptionScreen() {
               { color: theme.textSecondary },
             ]}
           >
-            {`Payment of ${selectedProduct.price} per ${selectedPlan === "yearly" ? "year" : "month"} will be charged to your ${Platform.OS === "ios" ? "Apple Account" : "Google Play account"} at confirmation of purchase. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. `}
-            You can manage and cancel your subscription in your device&apos;s{" "}
-            {Platform.OS === "ios"
-              ? "Settings > Subscriptions"
-              : "Google Play > Subscriptions"}
-            .
+            {selectedPlan === "lifetime"
+              ? `A one-time payment of ${selectedProduct.price} will be charged to your ${Platform.OS === "ios" ? "Apple Account" : "Google Play account"} at confirmation. This purchase does not renew. `
+              : selectedTrialDuration
+                ? `No charge for ${selectedTrialDuration}. After the free trial, ${selectedProduct.price} per ${selectedPlan === "yearly" ? "year" : "month"} will be charged to your ${Platform.OS === "ios" ? "Apple Account" : "Google Play account"} unless canceled before the trial ends. `
+                : `Payment of ${selectedProduct.price} per ${selectedPlan === "yearly" ? "year" : "month"} will be charged to your ${Platform.OS === "ios" ? "Apple Account" : "Google Play account"} at confirmation of purchase. `}
+            {selectedPlan !== "lifetime"
+              ? `Subscription automatically renews unless canceled at least 24 hours before the end of the current period. You can manage and cancel your subscription in your device's ${Platform.OS === "ios" ? "Settings > Subscriptions" : "Google Play > Subscriptions"}.`
+              : "Lifetime Premium can be restored on devices using the same store account."}
           </ThemedText>
         ) : null}
 
@@ -979,20 +1079,31 @@ export default function SubscriptionScreen() {
             accessibilityRole="button"
             accessibilityLabel={
               storeReady && selectedProduct
-                ? `Subscribe for ${selectedProduct.price} per ${selectedPlan === "yearly" ? "year" : "month"}`
+                ? selectedPlan === "lifetime"
+                  ? `Buy Lifetime Premium for ${selectedProduct.price}, one-time payment`
+                  : selectedTrialDuration
+                    ? `Start ${selectedTrialDuration} free trial, then ${selectedProduct.price} per ${selectedPlan === "yearly" ? "year" : "month"}`
+                    : `Subscribe for ${selectedProduct.price} per ${selectedPlan === "yearly" ? "year" : "month"}`
                 : "Subscribe"
             }
             accessibilityState={{ disabled: isLoading || !storeReady }}
             style={({ pressed }) => [
               styles.subscribeButton,
+              { backgroundColor: theme.accent },
               { opacity: !storeReady ? 0.4 : pressed || isLoading ? 0.8 : 1 },
             ]}
           >
-            <ThemedText style={styles.subscribeButtonText}>
+            <ThemedText
+              style={[styles.subscribeButtonText, { color: theme.buttonText }]}
+            >
               {isLoading
                 ? "Processing..."
                 : storeReady && selectedProduct
-                  ? `Subscribe for ${selectedProduct.price}/${selectedPlan === "yearly" ? "year" : "month"}`
+                  ? selectedPlan === "lifetime"
+                    ? `Buy once\n${selectedProduct.price}`
+                    : selectedTrialDuration
+                      ? `Start free trial\n${selectedTrialDuration}`
+                      : `Subscribe\n${selectedProduct.price} / ${selectedPlan === "yearly" ? "year" : "month"}`
                   : "Subscribe"}
             </ThemedText>
           </Pressable>
@@ -1284,14 +1395,19 @@ const styles = StyleSheet.create({
   },
   subscribeButton: {
     backgroundColor: Colors.dark.accent,
+    minHeight: 56,
+    paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.lg,
     borderRadius: BorderRadius.full,
     alignItems: "center",
+    justifyContent: "center",
     marginBottom: Spacing.sm,
   },
   subscribeButtonText: {
     ...Typography.headline,
     color: "#000000",
+    flexShrink: 1,
+    textAlign: "center",
   },
   footerLinksRow: {
     flexDirection: "row",

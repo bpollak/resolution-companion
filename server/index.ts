@@ -257,8 +257,9 @@ function setupErrorHandler(app: express.Application) {
   app.use(
     compression({
       filter: (req, res) => {
-        // Never buffer the SSE chat stream — chunks must flush immediately
-        if (req.path === "/api/chat") return false;
+        // Never buffer the SSE streams — chunks must flush immediately
+        if (req.path === "/api/chat" || req.path === "/api/reflection")
+          return false;
         return compression.filter(req, res);
       },
     }),

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet } from "react-native";
+import { AccessibilityInfo, StyleSheet } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
+import { useTheme } from "@/hooks/useTheme";
 
 interface ToastProps {
   message: string;
@@ -38,6 +39,7 @@ export function Toast({
   type = "info",
   topOffset,
 }: ToastProps) {
+  const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const finalTop =
     topOffset !== undefined ? topOffset : insets.top + Spacing.md;
@@ -48,6 +50,7 @@ export function Toast({
 
   useEffect(() => {
     if (visible) {
+      AccessibilityInfo.announceForAccessibility(message);
       setShouldRender(true);
       opacity.value = withTiming(1, { duration: 200 });
       translateY.value = withSpring(0, springConfig);
@@ -71,7 +74,7 @@ export function Toast({
       translateY.value = -30;
       scale.value = 0.9;
     }
-  }, [visible, duration]);
+  }, [duration, message, onHide, opacity, scale, translateY, visible]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
@@ -81,10 +84,10 @@ export function Toast({
   const glowStyle = useAnimatedStyle(() => {
     const glowColor =
       type === "success"
-        ? Colors.dark.success
+        ? theme.success
         : type === "warning"
-          ? Colors.dark.warning
-          : Colors.dark.accent;
+          ? theme.warning
+          : theme.accent;
 
     return {
       shadowColor: glowColor,
@@ -101,13 +104,15 @@ export function Toast({
 
   const backgroundColor =
     type === "success"
-      ? Colors.dark.success
+      ? theme.success
       : type === "warning"
-        ? Colors.dark.warning
+        ? theme.warning
         : Colors.dark.backgroundTertiary;
 
   const textColor =
-    type === "success" || type === "warning" ? "#000000" : "#FFFFFF";
+    type === "success" || type === "warning"
+      ? theme.buttonText
+      : Colors.dark.text;
 
   const iconName: keyof typeof Feather.glyphMap =
     type === "success"
@@ -121,6 +126,10 @@ export function Toast({
   return (
     <Animated.View
       pointerEvents="none"
+      accessible
+      accessibilityRole="alert"
+      accessibilityLiveRegion="polite"
+      accessibilityLabel={message}
       style={[
         styles.container,
         animatedStyle,

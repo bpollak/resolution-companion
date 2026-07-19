@@ -2,6 +2,7 @@ import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { logger } from "@/lib/logger";
 import { storage } from "@/lib/storage";
 import EventSource from "react-native-sse";
+import { normalizeCoachMilestoneProposal } from "@/lib/milestone-proposal";
 
 // The server keys its monthly AI usage quotas on this header; without it,
 // requests fall back to a shared per-IP bucket.
@@ -30,6 +31,23 @@ export interface PersonaData {
       anchorLink: string;
     };
   }[];
+}
+
+export async function getNextMilestoneProposal(
+  completedMilestone: string,
+  personaName: string,
+): Promise<string> {
+  const url = new URL("/api/milestone-proposal", getApiUrl());
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    headers: await getAiHeaders(),
+    body: JSON.stringify({ completedMilestone, personaName }),
+  });
+  if (!response.ok) throw new Error("Failed to suggest a milestone");
+  const payload = (await response.json()) as { title?: unknown };
+  const proposal = normalizeCoachMilestoneProposal(payload.title);
+  if (!proposal) throw new Error("The coach returned an invalid milestone");
+  return proposal.title;
 }
 
 const getSystemPrompt = (
@@ -95,6 +113,36 @@ RULES:
 - Write everything in the user's language and vocabulary where possible — the plan should feel like it came from their own words.`;
 
 const STREAM_DELAY_MS = 30;
+const REQUEST_TIMEOUT_MS = 20000;
+
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit,
+  timeoutMs: number = REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const externalSignal = init.signal;
+  let timedOut = false;
+  const handleExternalAbort = () => controller.abort();
+  if (externalSignal?.aborted) controller.abort();
+  else
+    externalSignal?.addEventListener("abort", handleExternalAbort, {
+      once: true,
+    });
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (timedOut) throw new Error("The coach response timed out.");
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    externalSignal?.removeEventListener("abort", handleExternalAbort);
+  }
+}
 
 async function delayedChunkEmitter(
   chunk: string,
@@ -112,23 +160,63 @@ export async function sendChatMessageStreaming(
   messages: AIMessage[],
   onChunk: (chunk: string) => void,
 ): Promise<string> {
-  const url = new URL("/api/chat", getApiUrl());
+  return streamSSERequest("/api/chat", { messages }, onChunk, STREAM_DELAY_MS);
+}
+
+/**
+ * POST an SSE endpoint and stream its `{content}` events. `charDelayMs > 0`
+ * replays each chunk character-by-character for a typewriter feel (the
+ * onboarding interview); 0 emits chunks as they truly arrive (the coach —
+ * perceived responsiveness is coach-quality UX).
+ */
+async function streamSSERequest(
+  path: string,
+  body: Record<string, unknown>,
+  onChunk: (chunk: string) => void,
+  charDelayMs: number,
+  signal?: AbortSignal,
+): Promise<string> {
+  const url = new URL(path, getApiUrl());
   const headers = await getAiHeaders();
 
   return new Promise((resolve, reject) => {
     let fullContent = "";
     let streamDone = false;
+    let settled = false;
     const queue = { pending: [] as string[], processing: false };
 
     // Abort if the stream stalls so the UI never spins forever
-    const IDLE_TIMEOUT_MS = 45000;
+    const IDLE_TIMEOUT_MS = REQUEST_TIMEOUT_MS;
     let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    let es: EventSource<"message">;
+    const cleanup = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      signal?.removeEventListener("abort", handleAbort);
+    };
+    const resolveOnce = (content: string) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(content);
+    };
+    const rejectOnce = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const handleAbort = () => {
+      es?.close();
+      const error = new Error("Coach request cancelled");
+      error.name = "AbortError";
+      rejectOnce(error);
+    };
     const resetIdleTimer = () => {
       if (idleTimer) clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
         es.close();
         if (!streamDone) {
-          reject(
+          rejectOnce(
             new Error(
               "The connection timed out. Please check your internet and try again.",
             ),
@@ -143,23 +231,33 @@ export async function sendChatMessageStreaming(
 
       while (queue.pending.length > 0) {
         const text = queue.pending.shift()!;
-        for (const char of text) {
-          onChunk(char);
-          await new Promise((r) => setTimeout(r, STREAM_DELAY_MS));
+        if (charDelayMs > 0) {
+          for (const char of text) {
+            onChunk(char);
+            await new Promise((r) => setTimeout(r, charDelayMs));
+          }
+        } else {
+          onChunk(text);
         }
       }
 
       queue.processing = false;
       if (streamDone && queue.pending.length === 0) {
-        resolve(fullContent);
+        resolveOnce(fullContent);
       }
     };
 
-    const es = new EventSource<"message">(url.toString(), {
+    es = new EventSource<"message">(url.toString(), {
       method: "POST",
       headers,
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify(body),
     });
+
+    if (signal?.aborted) {
+      handleAbort();
+      return;
+    }
+    signal?.addEventListener("abort", handleAbort, { once: true });
 
     resetIdleTimer();
 
@@ -171,7 +269,7 @@ export async function sendChatMessageStreaming(
         streamDone = true;
         if (!fullContent) {
           // Stream ended without any text — never leave an empty bubble
-          reject(
+          rejectOnce(
             new Error(
               "The coach didn't send a reply that time. Please try again.",
             ),
@@ -179,7 +277,7 @@ export async function sendChatMessageStreaming(
           return;
         }
         if (!queue.processing && queue.pending.length === 0) {
-          resolve(fullContent);
+          resolveOnce(fullContent);
         }
         return;
       }
@@ -193,7 +291,7 @@ export async function sendChatMessageStreaming(
         if (parsed.error) {
           if (idleTimer) clearTimeout(idleTimer);
           es.close();
-          reject(new Error(parsed.error));
+          rejectOnce(new Error(parsed.error));
         }
       } catch (parseError) {
         // Skip the malformed event but surface it for debugging
@@ -204,7 +302,7 @@ export async function sendChatMessageStreaming(
     es.addEventListener("error", () => {
       if (idleTimer) clearTimeout(idleTimer);
       es.close();
-      reject(
+      rejectOnce(
         new Error(
           "We couldn't reach the coaching service. Please check your internet connection and try again.",
         ),
@@ -234,7 +332,7 @@ export async function extractPersonaFromConversation(
 ): Promise<PersonaData> {
   const url = new URL("/api/extract-persona", getApiUrl());
 
-  const response = await fetch(url.toString(), {
+  const response = await fetchWithTimeout(url.toString(), {
     method: "POST",
     headers: await getAiHeaders(),
     body: JSON.stringify({
@@ -301,6 +399,9 @@ export function getMonthlyContext(
 }
 
 export interface WeeklyReviewContext {
+  /** Exact local dates for the completed week being reviewed. */
+  weekStart: string;
+  weekEnd: string;
   /** Completed action-days in the most recent complete Mon-Sun week. */
   completed: number;
   /** Scheduled action-days that week. */
@@ -311,6 +412,10 @@ export interface WeeklyReviewContext {
   bestDay: string | null;
   /** Current streak, for continuity framing. */
   streak: number;
+  /** Shields earned during the reviewed week. */
+  shieldsEarned: number;
+  /** Missed days covered by shields during the reviewed week. */
+  shieldsUsed: number;
 }
 
 export interface ReflectionExtras {
@@ -326,6 +431,57 @@ export interface ReflectionExtras {
    * coach can quote their words back ("you wrote 'felt easy'").
    */
   recentNotes?: string;
+  /** Action-level evidence used to make suggestions concrete and feasible. */
+  actionContext?: string;
+  /**
+   * True when a free user is getting their one-time taste of coach memory —
+   * memory sells itself by demonstration, so the coach may mention (once,
+   * lightly) that remembering every session is part of Premium.
+   */
+  memoryTaste?: boolean;
+  /** Earned cosmetic preference; behavior stays MI-based in either voice. */
+  coachTone?: "supportive" | "direct";
+}
+
+export interface RecapCoachContext {
+  personaName: string;
+  monthLabel: string;
+  votesCast: number;
+  consistency: number;
+  kickstartVotes: number;
+  healthVotes: number;
+  shieldsEarned: number;
+  shieldedDays: number;
+  comebackGapDays: number | null;
+}
+
+/** Generate the recap's single forward-looking line from aggregate counts only. */
+export async function getRecapCoachLine(
+  recap: RecapCoachContext,
+): Promise<string> {
+  const url = new URL("/api/reflection", getApiUrl());
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    headers: await getAiHeaders(),
+    body: JSON.stringify({
+      messages: [
+        {
+          role: "system",
+          content:
+            "Write exactly one warm, forward-looking sentence of at most 22 words for a private habit recap. Celebrate evidence, never guilt. Do not use the word persona, percentages as grades, or generic praise.",
+        },
+        {
+          role: "user",
+          content: JSON.stringify(recap),
+        },
+      ],
+    }),
+  });
+  if (!response.ok) throw new Error("Failed to generate recap coach line");
+  const data = (await response.json()) as { content?: string };
+  const line = data.content?.replace(/\s+/g, " ").trim();
+  if (!line) throw new Error("Recap coach line was empty");
+  return line;
 }
 
 export async function getReflectionResponse(
@@ -336,6 +492,7 @@ export async function getReflectionResponse(
   monthlyContext?: MonthlyContext,
   persona?: { name: string; description: string },
   extras?: ReflectionExtras,
+  signal?: AbortSignal,
 ): Promise<string> {
   const isFirstMessage = messages.length === 1;
   const ctx = monthlyContext || getMonthlyContext(momentumScore);
@@ -373,7 +530,11 @@ Speak to them as this person-in-progress. Frame feedback around what "${persona.
     ? `
 WHAT YOU REMEMBER FROM YOUR PREVIOUS SESSIONS WITH THEM (your own notes — draw on these naturally when relevant, e.g. following up on something they said last time; never recite them back verbatim or list them):
 ${extras.previousSessionNotes}
-`
+${
+  extras.memoryTaste
+    ? `(This is a one-time preview of your memory for a free user. If it lands naturally — e.g. they respond to you remembering — you may mention ONCE, lightly, that remembering every session is part of Premium. Never lead with it and never repeat it.)`
+    : ""
+}`
     : "";
 
   const notesContext = extras?.recentNotes
@@ -383,24 +544,37 @@ ${extras.recentNotes}
 `
     : "";
 
+  const actionContext = extras?.actionContext
+    ? `
+THEIR ACTIVE ACTIONS (use this evidence when discussing friction or suggesting a change; name ONE real action and its real 2-minute version or routine anchor rather than giving generic advice):
+${extras.actionContext}
+`
+    : "";
+
   const isWeekly = periodType === "weekly" && extras?.weeklyContext;
   const wk = extras?.weeklyContext;
 
   const weeklyProgressContext = wk
     ? `
 LAST WEEK (their most recent complete Monday-Sunday week):
+- Reviewed dates: ${wk.weekStart} through ${wk.weekEnd}. Refer to this period by its date range, never by a calendar week number.
 - Completed ${wk.completed} of ${wk.scheduled} scheduled action-days${wk.prevCompleted > 0 ? ` (the week before: ${wk.prevCompleted})` : ""}.
 - ${wk.bestDay ? `Their strongest day was ${wk.bestDay}.` : "No completions last week — meet them with warmth, not pressure."}
 - Current streak: ${wk.streak} day${wk.streak === 1 ? "" : "s"}.
+- Shields last week: ${wk.shieldsEarned} earned, ${wk.shieldsUsed} used. Treat both as wins — earning is consistency and using one is the grace it was built for.
 `
     : "";
 
   const roleLine = isWeekly
     ? "You are a supportive coach guiding the user through a short WEEKLY REVIEW — a 3-minute ritual, not a deep session."
     : "You are a supportive coach helping the user with their monthly progress check-in.";
+  const toneInstruction =
+    extras?.coachTone === "direct"
+      ? "TONE: Be concise and candid. Name the pattern plainly and avoid cushioning every sentence, while remaining respectful and never harsh."
+      : "TONE: Be warm, patient, and gently encouraging without becoming vague or overly cheerful.";
 
   const firstMessageInstruction = isWeekly
-    ? `FIRST MESSAGE: Be brief (2-3 sentences max). This is a light weekly ritual with three beats you'll walk through one at a time: one win from last week, one point of friction, and one small bend for the coming week. Open by naming their week in one warm sentence (use the week numbers naturally), then ask for the win. ONE question only.`
+    ? `FIRST MESSAGE: Be brief (2-3 sentences max). This is a light weekly ritual with three beats you'll walk through one at a time: one win from last week, one point of friction, and one small bend for the coming week. Open by naming the exact reviewed date range, then ask for the win. Never use a calendar week number. ONE question only.`
     : `FIRST MESSAGE: Be brief (2-3 sentences max). Anchor on how long they've been at their plan${justStarted ? " — they just started, so welcome them to their first days and celebrate showing up at all" : " and their consistency over that time"}. ${ctx.isAhead ? "Their consistency is strong — celebrate it." : ctx.isBehind ? "They're struggling — be encouraging and ask what's been challenging." : "They're building — note the steady progress."} Ask ONE simple question about their experience. No lengthy explanations.`;
 
   const continueInstruction = isWeekly
@@ -409,7 +583,13 @@ LAST WEEK (their most recent complete Monday-Sunday week):
 
   const systemMessage: AIMessage = {
     role: "system",
-    content: `${roleLine} ${isWeekly ? weeklyProgressContext : progressContext}${identityContext}${memoryContext}${notesContext}
+    content: `${roleLine} ${isWeekly ? weeklyProgressContext : progressContext}${identityContext}${memoryContext}${notesContext}${actionContext}
+
+COACHING METHOD (motivational interviewing, adapted — the user should leave feeling heard, not lectured):
+- Reflect before you direct: open with one short reflection of what they just said, in your own words, before anything else.
+- Ask permission before advising: "Want a suggestion?" or "Open to an idea?" — then offer ONE idea, not a menu.
+- Evoke their reasons: draw out why this matters to them or what has worked before, rather than telling them why it should matter.
+- Affirm with evidence: tie encouragement to something they actually did ("you came back after two days away"), never generic cheerleading.
 
 VOICE RULES:
 - NEVER use the word "persona" — say "your plan" or "who you're becoming."
@@ -417,17 +597,27 @@ VOICE RULES:
 - Identity framing: completed actions are votes for who they're becoming. A missed stretch is a plan problem, not a character problem — respond by shrinking the action or moving its schedule, never by scolding.
 - You are not a therapist or medical professional. If health, medication, or mental-health treatment comes up, be kind and suggest a qualified professional while staying supportive about their habits.
 
+${toneInstruction}
+
 ${isFirstMessage ? firstMessageInstruction : continueInstruction}
 
 Be warm and practical. No bullet points or lists in responses.`,
   };
 
+  const allMessages = [systemMessage, ...messages];
+
+  // Production currently serves reflection replies as JSON even when sent a
+  // stream flag. Opening that response through EventSource leaves the client
+  // waiting for SSE delimiters that never arrive, then repeats the same model
+  // call as a fallback. Use the endpoint's stable JSON contract directly;
+  // the deterministic local opening already makes session entry immediate.
   const url = new URL("/api/reflection", getApiUrl());
 
   const response = await fetch(url.toString(), {
     method: "POST",
     headers: await getAiHeaders(),
-    body: JSON.stringify({ messages: [systemMessage, ...messages] }),
+    body: JSON.stringify({ messages: allMessages }),
+    signal,
   });
 
   if (!response.ok) {
@@ -438,10 +628,7 @@ Be warm and practical. No bullet points or lists in responses.`,
   const fullContent = data.content || "";
 
   if (onChunk) {
-    for (const char of fullContent) {
-      onChunk(char);
-      await new Promise((r) => setTimeout(r, STREAM_DELAY_MS));
-    }
+    onChunk(fullContent);
   }
 
   return fullContent;

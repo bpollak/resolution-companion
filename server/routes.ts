@@ -7,10 +7,16 @@ import {
   websiteFeedback,
   deviceSubscriptions,
   deviceAiUsage,
+  aiUsageDaily,
+  deviceEvents,
 } from "@shared/schema";
 import { sql, eq } from "drizzle-orm";
 import { rateLimiter } from "./rate-limit";
 import { requireApiKey, requireAdminKey } from "./auth";
+import {
+  Environment,
+  SignedDataVerifier,
+} from "@apple/app-store-server-library";
 
 // Lazily construct the OpenAI client so a missing API key degrades the AI
 // endpoints instead of crashing the whole server (website, webhooks, legal pages).
@@ -19,6 +25,23 @@ let openaiClient: OpenAI | null = null;
 // gpt-5-mini outperforms gpt-4o on instruction-following and structured
 // output at roughly a tenth of the input cost; override via env if needed
 const OPENAI_MODEL = process.env.AI_MODEL || "gpt-5-mini";
+const LIFETIME_PRODUCT_ID = "com.resolutioncompanion.lifetime";
+const YEARLY_TEST_PRODUCT_ID =
+  process.env.YEARLY_PRICE_TEST_PRODUCT_ID ||
+  "com.resolutioncompanion.annual.2026b";
+
+function isLifetimeProduct(productId: string): boolean {
+  return productId === LIFETIME_PRODUCT_ID || productId.includes("lifetime");
+}
+
+function planForProduct(productId: string): "monthly" | "yearly" | "lifetime" {
+  if (isLifetimeProduct(productId)) return "lifetime";
+  return productId.toLowerCase().includes("yearly") ||
+    productId.toLowerCase().includes("year") ||
+    productId.toLowerCase().includes("annual")
+    ? "yearly"
+    : "monthly";
+}
 
 function getOpenAI(): OpenAI {
   if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
@@ -31,6 +54,45 @@ function getOpenAI(): OpenAI {
     });
   }
   return openaiClient;
+}
+
+type ModelUsage = {
+  prompt_tokens?: number | null;
+  completion_tokens?: number | null;
+};
+
+async function recordAiModelUsage(
+  endpoint: "chat" | "extract" | "reflection" | "milestone-proposal",
+  usage: ModelUsage | null | undefined,
+): Promise<void> {
+  if (!db) return;
+  try {
+    const inputTokens = Math.max(0, usage?.prompt_tokens ?? 0);
+    const outputTokens = Math.max(0, usage?.completion_tokens ?? 0);
+    await db
+      .insert(aiUsageDaily)
+      .values({
+        day: new Date().toISOString().slice(0, 10),
+        endpoint,
+        model: OPENAI_MODEL,
+        requests: 1,
+        inputTokens,
+        outputTokens,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [aiUsageDaily.day, aiUsageDaily.endpoint, aiUsageDaily.model],
+        set: {
+          requests: sql`${aiUsageDaily.requests} + 1`,
+          inputTokens: sql`${aiUsageDaily.inputTokens} + ${inputTokens}`,
+          outputTokens: sql`${aiUsageDaily.outputTokens} + ${outputTokens}`,
+          updatedAt: new Date(),
+        },
+      });
+  } catch (error) {
+    // Operational metering must never make coaching fail.
+    console.error("AI usage aggregation error:", error);
+  }
 }
 
 if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
@@ -85,113 +147,61 @@ async function createAppStoreJWT(): Promise<string> {
   return `${signatureInput}.${signature}`;
 }
 
-function decodeJWSPayload(jws: string): any {
-  const parts = jws.split(".");
-  if (parts.length !== 3) throw new Error("Invalid JWS format");
-  return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8"));
+// Official Apple Root CA - G3 (DER, base64-encoded), downloaded from Apple PKI.
+// The official App Store Server Library validates the complete certificate
+// chain, JWS signature, bundle id, App Store id, and environment against it.
+const APPLE_ROOT_CA_G3_DER = Buffer.from(
+  "MIICQzCCAcmgAwIBAgIILcX8iNLFS5UwCgYIKoZIzj0EAwMwZzEbMBkGA1UEAwwSQXBwbGUgUm9vdCBDQSAtIEczMSYwJAYDVQQLDB1BcHBsZSBDZXJ0aWZpY2F0aW9uIEF1dGhvcml0eTETMBEGA1UECgwKQXBwbGUgSW5jLjELMAkGA1UEBhMCVVMwHhcNMTQwNDMwMTgxOTA2WhcNMzkwNDMwMTgxOTA2WjBnMRswGQYDVQQDDBJBcHBsZSBSb290IENBIC0gRzMxJjAkBgNVBAsMHUFwcGxlIENlcnRpZmljYXRpb24gQXV0aG9yaXR5MRMwEQYDVQQKDApBcHBsZSBJbmMuMQswCQYDVQQGEwJVUzB2MBAGByqGSM49AgEGBSuBBAAiA2IABJjpLz1AcqTtkyJygRMc3RCV8cWjTnHcFBbZDuWmBSp3ZHtfTjjTuxxEtX/1H7YyYl3J6YRbTzBPEVoA/VhYDKX1DyxNB0cTddqXl5dvMVztK517IDvYuVTZXpmkOlEKMaNCMEAwHQYDVR0OBBYEFLuw3qFYM4iapIqZ3r6966/ayySrMA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgEGMAoGCCqGSM49BAMDA2gAMGUCMQCD6cHEFl4aXTQY2e3v9GwOAEZLuN+yRhHFD/3meoyhpmvOwgPUnPWTxnS4at+qIxUCMG1mihDK1A3UT82NQz60imOlM27jbdoXt2QfyFMm+YhidDkLF1vLUagM6BgD56KyKA==",
+  "base64",
+);
+const APPLE_BUNDLE_ID = "com.resolutioncompanion.app";
+const APPLE_APP_ID = 6757996708;
+const appleVerifierCache = new Map<Environment, SignedDataVerifier>();
+
+function getAppleVerifier(environment: Environment): SignedDataVerifier {
+  const cached = appleVerifierCache.get(environment);
+  if (cached) return cached;
+  const verifier = new SignedDataVerifier(
+    [APPLE_ROOT_CA_G3_DER],
+    process.env.APPLE_JWS_ONLINE_CHECKS === "true",
+    environment,
+    APPLE_BUNDLE_ID,
+    environment === Environment.PRODUCTION ? APPLE_APP_ID : undefined,
+  );
+  appleVerifierCache.set(environment, verifier);
+  return verifier;
 }
 
-function decodeJWSHeader(jws: string): any {
-  const parts = jws.split(".");
-  if (parts.length !== 3) throw new Error("Invalid JWS format");
-  return JSON.parse(Buffer.from(parts[0], "base64url").toString("utf-8"));
+async function verifyAppleTransaction(
+  jws: string,
+  environment: Environment,
+): Promise<any> {
+  return getAppleVerifier(environment).verifyAndDecodeTransaction(jws);
 }
 
-// Apple Root CA - G3 certificate (DER, base64-encoded)
-// Download from https://www.apple.com/certificateauthority/AppleRootCA-G3.cer
-// This is the trust anchor for all App Store Server Notifications V2.
-const APPLE_ROOT_CA_G3_FINGERPRINT_SHA256 =
-  "b0b1730ecbc7ff4505142c49f1295e6eda6bcaed7e2c68c5be91b5a11001f024";
-
-/**
- * Verify an Apple JWS signed payload:
- * 1. Extract x5c certificate chain from JWS header
- * 2. Verify the leaf cert was issued by an intermediate signed by Apple Root CA G3
- * 3. Verify the JWS signature using the leaf cert's public key
- *
- * Returns the decoded payload if valid, throws if verification fails.
- */
-function verifyAppleJWS(jws: string): any {
-  const parts = jws.split(".");
-  if (parts.length !== 3) throw new Error("Invalid JWS format");
-
-  const header = decodeJWSHeader(jws);
-  const x5c: string[] | undefined = header.x5c;
-
-  if (!x5c || x5c.length < 3) {
-    throw new Error(
-      "Missing or incomplete x5c certificate chain in JWS header",
-    );
-  }
-
-  // Build PEM certificates from the base64-encoded DER certs in x5c
-  const certs = x5c.map((certBase64) => {
-    const lines = certBase64.match(/.{1,64}/g)!.join("\n");
-    return `-----BEGIN CERTIFICATE-----\n${lines}\n-----END CERTIFICATE-----`;
-  });
-
-  // Verify the root certificate matches Apple Root CA G3
-  const rootCertDer = Buffer.from(x5c[x5c.length - 1], "base64");
-  const rootFingerprint = crypto
-    .createHash("sha256")
-    .update(rootCertDer)
-    .digest("hex");
-
-  if (rootFingerprint !== APPLE_ROOT_CA_G3_FINGERPRINT_SHA256) {
-    throw new Error(
-      `Root certificate fingerprint mismatch: expected Apple Root CA G3, got ${rootFingerprint}`,
-    );
-  }
-
-  // Verify the certificate chain: each cert should be signed by the next one
-  for (let i = 0; i < certs.length - 1; i++) {
-    const certObj = new crypto.X509Certificate(certs[i]);
-    const issuerCert = new crypto.X509Certificate(certs[i + 1]);
-
-    if (!certObj.verify(issuerCert.publicKey)) {
-      throw new Error(`Certificate chain verification failed at index ${i}`);
+async function verifyAppleNotification(jws: string): Promise<{
+  payload: any;
+  environment: Environment;
+}> {
+  try {
+    return {
+      payload: await getAppleVerifier(
+        Environment.PRODUCTION,
+      ).verifyAndDecodeNotification(jws),
+      environment: Environment.PRODUCTION,
+    };
+  } catch (productionError) {
+    try {
+      return {
+        payload: await getAppleVerifier(
+          Environment.SANDBOX,
+        ).verifyAndDecodeNotification(jws),
+        environment: Environment.SANDBOX,
+      };
+    } catch {
+      throw productionError;
     }
   }
-
-  // Verify the root cert is self-signed
-  const rootCertObj = new crypto.X509Certificate(certs[certs.length - 1]);
-  if (!rootCertObj.verify(rootCertObj.publicKey)) {
-    throw new Error("Root certificate is not self-signed");
-  }
-
-  // Verify the JWS signature using the leaf certificate's public key
-  const leafCert = new crypto.X509Certificate(certs[0]);
-  const signatureInput = `${parts[0]}.${parts[1]}`;
-  const signature = Buffer.from(parts[2], "base64url");
-
-  const alg = header.alg;
-  let algorithm: string;
-  if (alg === "ES256") {
-    algorithm = "SHA256";
-  } else if (alg === "PS256" || alg === "RS256") {
-    algorithm = "SHA256";
-  } else {
-    throw new Error(`Unsupported JWS algorithm: ${alg}`);
-  }
-
-  const verifier = crypto.createVerify(algorithm);
-  verifier.update(signatureInput);
-
-  const isValid = verifier.verify(
-    {
-      key: leafCert.publicKey,
-      // ES256 uses ECDSA with DER-encoded signatures in JWS
-      ...(alg === "ES256" ? { dsaEncoding: "ieee-p1363" as const } : {}),
-    },
-    signature,
-  );
-
-  if (!isValid) {
-    throw new Error("JWS signature verification failed");
-  }
-
-  // Signature is valid — return the decoded payload
-  return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8"));
 }
 
 async function validateAppleReceiptV2(
@@ -204,8 +214,12 @@ async function validateAppleReceiptV2(
 }> {
   try {
     const jwt = await createAppStoreJWT();
-    const baseUrl =
+    const environment =
       process.env.APPLE_SANDBOX === "true"
+        ? Environment.SANDBOX
+        : Environment.PRODUCTION;
+    const baseUrl =
+      environment === Environment.SANDBOX
         ? "https://api.storekit-sandbox.itunes.apple.com"
         : "https://api.storekit.itunes.apple.com";
 
@@ -237,11 +251,15 @@ async function validateAppleReceiptV2(
           };
         }
         const sandboxData = await sandboxResponse.json();
-        const txInfo = decodeJWSPayload(sandboxData.signedTransactionInfo);
+        const txInfo = await verifyAppleTransaction(
+          sandboxData.signedTransactionInfo,
+          Environment.SANDBOX,
+        );
         if (
           txInfo.productId === productId &&
-          txInfo.expiresDate &&
-          txInfo.expiresDate > Date.now()
+          !txInfo.revocationDate &&
+          ((txInfo.expiresDate && txInfo.expiresDate > Date.now()) ||
+            (isLifetimeProduct(productId) && !txInfo.expiresDate))
         ) {
           return {
             valid: true,
@@ -256,12 +274,18 @@ async function validateAppleReceiptV2(
     }
 
     const data = await response.json();
-    const txInfo = decodeJWSPayload(data.signedTransactionInfo);
+    // A successful HTTPS response alone is not the entitlement. Verify the
+    // Apple-signed transaction before trusting its product or expiry fields.
+    const txInfo = await verifyAppleTransaction(
+      data.signedTransactionInfo,
+      environment,
+    );
 
     if (
       txInfo.productId === productId &&
-      txInfo.expiresDate &&
-      txInfo.expiresDate > Date.now()
+      !txInfo.revocationDate &&
+      ((txInfo.expiresDate && txInfo.expiresDate > Date.now()) ||
+        (isLifetimeProduct(productId) && !txInfo.expiresDate))
     ) {
       console.log("Apple receipt validated via App Store Server API v2");
       return {
@@ -314,7 +338,10 @@ async function validateAppleReceiptWithUrl(
     for (const transaction of allTransactions) {
       if (transaction.product_id === productId) {
         const expiresDate = parseInt(transaction.expires_date_ms || "0");
-        if (expiresDate > Date.now()) {
+        if (
+          expiresDate > Date.now() ||
+          (isLifetimeProduct(productId) && !transaction.cancellation_date_ms)
+        ) {
           return { valid: true, status: 0, expiresDateMs: expiresDate };
         }
       }
@@ -552,9 +579,17 @@ const AI_QUOTAS = {
 function aiQuota(endpoint: keyof typeof AI_QUOTAS) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // Without a database there is nowhere to count — same degraded mode as
-      // the rest of the app. The per-IP rate limiter still applies.
-      if (!db) return next();
+      // Production cost controls fail closed. Development can run without a
+      // database, where the scoped per-IP limiter remains the guardrail.
+      if (!db) {
+        if (process.env.NODE_ENV === "production") {
+          res
+            .status(503)
+            .json({ error: "Coaching is temporarily unavailable." });
+          return;
+        }
+        return next();
+      }
 
       const deviceId = req.header("X-Device-Id");
       const usageKey = deviceId || `ip:${req.ip}`;
@@ -610,10 +645,8 @@ function aiQuota(endpoint: keyof typeof AI_QUOTAS) {
 
       next();
     } catch (error) {
-      // Fail open: the quota is abuse protection, not a feature gate, and a
-      // counter outage must not take down onboarding or coaching.
       console.error("AI quota check error:", error);
-      next();
+      res.status(503).json({ error: "Coaching is temporarily unavailable." });
     }
   };
 }
@@ -625,11 +658,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Rate limit AI endpoints: 30 requests per minute per IP
-  const aiRateLimit = rateLimiter(30, 60 * 1000);
+  const aiRateLimit = rateLimiter("ai", 30, 60 * 1000);
   // General rate limit for subscription/account endpoints: 60 requests per minute per IP
-  const apiRateLimit = rateLimiter(60, 60 * 1000);
+  const apiRateLimit = rateLimiter("api", 60, 60 * 1000);
   // Webhooks and public forms: 120 requests per minute per IP
-  const publicRateLimit = rateLimiter(120, 60 * 1000);
+  const publicRateLimit = rateLimiter("public", 120, 60 * 1000);
 
   app.post(
     "/api/chat",
@@ -660,18 +693,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
           reasoning_effort: "minimal",
           max_completion_tokens: 1024,
           stream: true,
+          stream_options: { include_usage: true },
         });
 
+        // Mobile clients drop connections often (backgrounding, network loss).
+        // Abort the upstream completion so we stop burning tokens on a dead socket.
+        req.on("close", () => {
+          try {
+            stream.controller?.abort();
+          } catch {}
+        });
+
+        let modelUsage: ModelUsage | null = null;
         for await (const chunk of stream) {
+          if (chunk.usage) modelUsage = chunk.usage;
           const content = chunk.choices[0]?.delta?.content || "";
           if (content) {
             res.write(`data: ${JSON.stringify({ content })}\n\n`);
           }
         }
 
+        await recordAiModelUsage("chat", modelUsage);
+
         res.write("data: [DONE]\n\n");
         res.end();
       } catch (error) {
+        // A client disconnect aborts the stream (AbortError) — expected, not a
+        // failure; the socket is already gone so there's nothing to send.
+        if (req.destroyed || res.writableEnded) return;
         console.error("Chat error:", error);
         res.write(
           `data: ${JSON.stringify({ error: "Failed to get AI response" })}\n\n`,
@@ -732,6 +781,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           max_completion_tokens: 4096,
         });
 
+        await recordAiModelUsage("extract", response.usage);
+
         const content = response.choices[0]?.message?.content || "{}";
         const personaData = JSON.parse(content);
 
@@ -750,11 +801,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     aiQuota("reflection"),
     async (req: Request, res: Response) => {
       try {
-        const { messages } = req.body;
+        const { messages, stream } = req.body;
 
         const validationError = validateMessages(messages);
         if (validationError) {
           res.status(400).json({ error: validationError });
+          return;
+        }
+
+        // Real SSE when the client asks for it; the JSON path stays for
+        // older app builds (the client previously simulated streaming by
+        // replaying the full JSON reply character by character).
+        if (stream === true) {
+          res.setHeader("Content-Type", "text/event-stream");
+          res.setHeader("Cache-Control", "no-cache");
+          res.setHeader("Connection", "keep-alive");
+          res.flushHeaders();
+
+          const completion = await getOpenAI().chat.completions.create({
+            model: OPENAI_MODEL,
+            messages,
+            reasoning_effort: "minimal",
+            max_completion_tokens: 2048,
+            stream: true,
+            stream_options: { include_usage: true },
+          });
+
+          // Abort the upstream completion if the mobile client drops mid-stream,
+          // so we don't keep generating (and paying for) tokens on a dead socket.
+          req.on("close", () => {
+            try {
+              completion.controller?.abort();
+            } catch {}
+          });
+
+          let modelUsage: ModelUsage | null = null;
+          for await (const chunk of completion) {
+            if (chunk.usage) modelUsage = chunk.usage;
+            const content = chunk.choices[0]?.delta?.content || "";
+            if (content) {
+              res.write(`data: ${JSON.stringify({ content })}\n\n`);
+            }
+          }
+
+          await recordAiModelUsage("reflection", modelUsage);
+
+          res.write("data: [DONE]\n\n");
+          res.end();
           return;
         }
 
@@ -765,11 +858,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
           max_completion_tokens: 2048,
         });
 
+        await recordAiModelUsage("reflection", response.usage);
+
         const content = response.choices[0]?.message?.content || "";
         res.json({ content });
       } catch (error) {
+        // Client disconnect aborts the stream (AbortError) — expected; the socket
+        // is gone, so don't try to write an error frame to it.
+        if (req.destroyed || res.writableEnded) return;
         console.error("Reflection error:", error);
-        res.status(500).json({ error: "Failed to get AI response" });
+        if (res.headersSent) {
+          res.write(
+            `data: ${JSON.stringify({ error: "Failed to get AI response" })}\n\n`,
+          );
+          res.end();
+        } else {
+          res.status(500).json({ error: "Failed to get AI response" });
+        }
+      }
+    },
+  );
+
+  app.post(
+    "/api/milestone-proposal",
+    requireApiKey,
+    aiRateLimit,
+    aiQuota("reflection"),
+    async (req: Request, res: Response) => {
+      try {
+        const { completedMilestone, personaName } = req.body;
+        if (
+          typeof completedMilestone !== "string" ||
+          completedMilestone.trim().length < 2 ||
+          completedMilestone.length > 200 ||
+          typeof personaName !== "string" ||
+          personaName.trim().length < 2 ||
+          personaName.length > 100
+        ) {
+          res.status(400).json({ error: "Invalid milestone context" });
+          return;
+        }
+
+        const response = await getOpenAI().chat.completions.create({
+          model: OPENAI_MODEL,
+          messages: [
+            {
+              role: "system",
+              content:
+                "Suggest exactly one concrete next behavior milestone for an identity-based habit app. Build gently on the completed milestone, use 3-10 words, avoid numbers unless the completed milestone uses one, and never give medical or mental-health treatment advice. Return JSON with only a title field.",
+            },
+            {
+              role: "user",
+              content: `Identity: ${personaName.trim()}\nCompleted milestone: ${completedMilestone.trim()}`,
+            },
+          ],
+          response_format: { type: "json_object" },
+          reasoning_effort: "minimal",
+          max_completion_tokens: 256,
+        });
+        await recordAiModelUsage("milestone-proposal", response.usage);
+        const parsed = JSON.parse(
+          response.choices[0]?.message?.content || "{}",
+        ) as { title?: unknown };
+        if (typeof parsed.title !== "string") {
+          res.status(502).json({ error: "Invalid coach suggestion" });
+          return;
+        }
+        const title = parsed.title
+          .replace(/[\r\n]+/g, " ")
+          .trim()
+          .slice(0, 100);
+        if (title.length < 3) {
+          res.status(502).json({ error: "Invalid coach suggestion" });
+          return;
+        }
+        res.json({ title });
+      } catch (error) {
+        console.error("Milestone proposal error:", error);
+        res.status(500).json({ error: "Failed to suggest a milestone" });
       }
     },
   );
@@ -838,6 +1004,214 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Error fetching feedback:", error);
         res.status(500).json({ error: "Failed to fetch feedback" });
+      }
+    },
+  );
+
+  // Aggregate product telemetry. The client batches {event, day, count}
+  // increments and flushes opportunistically; the server only ever stores
+  // per-day counters (see deviceEvents in shared/schema.ts). Fire-and-forget
+  // from the client's perspective: always 204 unless the request is malformed,
+  // so a telemetry outage can never surface as a user-visible error.
+  // Fixed allowlist — mirrors the TelemetryEvent union in client/lib/telemetry.ts.
+  // Free-form event names would let a caller with the (extractable) app key mint
+  // unbounded distinct rows; keying rows by (deviceId, day, event) means the only
+  // way to bound table growth is to bound the event and day dimensions here.
+  const TELEMETRY_EVENTS = new Set<string>([
+    "app_open",
+    "onboarding_started",
+    "onboarding_completed",
+    "onboarding_declined_ai",
+    "first_action_logged",
+    "action_logged",
+    "day_complete",
+    "milestone_complete",
+    "coach_session_started",
+    "weekly_review_started",
+    "paywall_viewed",
+    "paywall_purchase_success",
+    "paywall_restore_success",
+    "notification_tap",
+    "notification_mark_all_done",
+    "widget_action_logged",
+    "health_auto_vote",
+    "recap_viewed",
+    "recap_shared",
+    "insights_viewed",
+    "shield_earned",
+    "shield_used",
+    "reward_unlocked",
+    "coach_observation_opened",
+    "micro_note_read",
+    "year_recap_shared",
+    "witness_progress_shared",
+    "icloud_backup_created",
+    "icloud_backup_restored",
+    "client_error",
+  ]);
+  const TELEMETRY_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const TELEMETRY_DEVICE_RE = /^[A-Za-z0-9._-]{8,64}$/;
+  // Reject semantically-bogus days (e.g. 9999-99-99) and anything outside a sane
+  // recent window, so `day` can't be used as an unbounded distinct-row dimension.
+  const isValidTelemetryDay = (day: string): boolean => {
+    if (!TELEMETRY_DAY_RE.test(day)) return false;
+    const [y, m, d] = day.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    if (
+      dt.getUTCFullYear() !== y ||
+      dt.getUTCMonth() !== m - 1 ||
+      dt.getUTCDate() !== d
+    )
+      return false;
+    const ms = dt.getTime();
+    // clean-slate app; no real telemetry predates 2024, allow ~2d future for TZ skew
+    return ms >= Date.UTC(2024, 0, 1) && ms <= Date.now() + 2 * 86_400_000;
+  };
+  app.post(
+    "/api/telemetry",
+    requireApiKey,
+    apiRateLimit,
+    async (req: Request, res: Response) => {
+      const { deviceId, events } = req.body ?? {};
+      if (
+        typeof deviceId !== "string" ||
+        !TELEMETRY_DEVICE_RE.test(deviceId) ||
+        !Array.isArray(events) ||
+        events.length === 0 ||
+        events.length > 50
+      ) {
+        res.status(400).json({ error: "Invalid telemetry payload" });
+        return;
+      }
+      for (const entry of events) {
+        if (
+          !entry ||
+          typeof entry.event !== "string" ||
+          !TELEMETRY_EVENTS.has(entry.event) ||
+          typeof entry.day !== "string" ||
+          !isValidTelemetryDay(entry.day) ||
+          typeof entry.count !== "number" ||
+          !Number.isInteger(entry.count) ||
+          entry.count < 1 ||
+          entry.count > 1000
+        ) {
+          res.status(400).json({ error: "Invalid telemetry event" });
+          return;
+        }
+      }
+
+      if (db) {
+        try {
+          // Merge duplicate (day,event) tuples first: a single INSERT can't hit
+          // the same ON CONFLICT row twice, and it collapses the old per-entry
+          // loop (up to 50 sequential round-trips) into one statement.
+          const merged = new Map<
+            string,
+            { day: string; event: string; count: number }
+          >();
+          for (const e of events) {
+            const key = `${e.day}|${e.event}`;
+            const prev = merged.get(key);
+            if (prev) prev.count = Math.min(prev.count + e.count, 1_000_000);
+            else
+              merged.set(key, { day: e.day, event: e.event, count: e.count });
+          }
+          const rows = Array.from(merged.values()).map((e) => ({
+            deviceId,
+            day: e.day,
+            event: e.event,
+            count: e.count,
+          }));
+          await db
+            .insert(deviceEvents)
+            .values(rows)
+            .onConflictDoUpdate({
+              target: [
+                deviceEvents.deviceId,
+                deviceEvents.day,
+                deviceEvents.event,
+              ],
+              set: {
+                count: sql`${deviceEvents.count} + excluded.count`,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+              },
+            });
+        } catch (error) {
+          // Telemetry is best-effort; never bubble a counter failure to the app.
+          console.error("Telemetry write error:", error);
+        }
+      }
+      res.status(204).end();
+    },
+  );
+
+  // Admin-only aggregate view: per-event daily totals + unique device counts.
+  // Deliberately never returns device ids — operators see funnels, not users.
+  app.get(
+    "/api/telemetry/summary",
+    requireAdminKey,
+    async (req: Request, res: Response) => {
+      try {
+        if (!db) {
+          res.json([]);
+          return;
+        }
+        const since =
+          typeof req.query.since === "string" &&
+          TELEMETRY_DAY_RE.test(req.query.since)
+            ? req.query.since
+            : "0000-00-00";
+        const rows = await db
+          .select({
+            day: deviceEvents.day,
+            event: deviceEvents.event,
+            devices: sql<number>`count(distinct ${deviceEvents.deviceId})`,
+            total: sql<number>`sum(${deviceEvents.count})`,
+          })
+          .from(deviceEvents)
+          .where(sql`${deviceEvents.day} >= ${since}`)
+          .groupBy(deviceEvents.day, deviceEvents.event)
+          .orderBy(deviceEvents.day, deviceEvents.event);
+        res.json(rows);
+      } catch (error) {
+        console.error("Telemetry summary error:", error);
+        res.status(500).json({ error: "Failed to fetch telemetry summary" });
+      }
+    },
+  );
+
+  // Admin-only AI usage totals. Model + token counts let operations apply the
+  // current provider price without storing a prompt, response, or device id.
+  app.get(
+    "/api/telemetry/ai-usage",
+    requireAdminKey,
+    async (req: Request, res: Response) => {
+      try {
+        if (!db) {
+          res.json([]);
+          return;
+        }
+        const since =
+          typeof req.query.since === "string" &&
+          TELEMETRY_DAY_RE.test(req.query.since)
+            ? req.query.since
+            : "0000-00-00";
+        const rows = await db
+          .select({
+            day: aiUsageDaily.day,
+            endpoint: aiUsageDaily.endpoint,
+            model: aiUsageDaily.model,
+            requests: aiUsageDaily.requests,
+            inputTokens: aiUsageDaily.inputTokens,
+            outputTokens: aiUsageDaily.outputTokens,
+          })
+          .from(aiUsageDaily)
+          .where(sql`${aiUsageDaily.day} >= ${since}`)
+          .orderBy(aiUsageDaily.day, aiUsageDaily.endpoint);
+        res.json(rows);
+      } catch (error) {
+        console.error("AI usage summary error:", error);
+        res.status(500).json({ error: "Failed to fetch AI usage summary" });
       }
     },
   );
@@ -972,6 +1346,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .delete(deviceAiUsage)
           .where(eq(deviceAiUsage.deviceId, deviceId));
 
+        // Purge aggregate product telemetry too, so the "all data deleted"
+        // promise stays true now that we keep per-day event counts.
+        await db
+          .delete(deviceEvents)
+          .where(eq(deviceEvents.deviceId, deviceId));
+
         res.json({
           success: true,
           message:
@@ -999,6 +1379,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           res
             .status(400)
             .json({ error: "Missing required fields", valid: false });
+          return;
+        }
+
+        const allowedProducts = new Set(
+          [
+            "com.resolutioncompanion.monthly",
+            "com.resolutioncompanion.annual",
+            LIFETIME_PRODUCT_ID,
+            YEARLY_TEST_PRODUCT_ID,
+            "premium_monthly",
+            "premium_yearly",
+            "premium_lifetime",
+          ].filter(Boolean),
+        );
+        if (!allowedProducts.has(productId)) {
+          res.status(400).json({ error: "Unknown product", valid: false });
           return;
         }
 
@@ -1032,23 +1428,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Fall back to plan-based estimate only if the store didn't provide an expiry
-        if (isValid && !expirationDate) {
-          const isYearly =
-            productId.toLowerCase().includes("yearly") ||
-            productId.toLowerCase().includes("year") ||
-            productId.toLowerCase().includes("annual");
-          expirationDate = isYearly
-            ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-            : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        if (isValid && !expirationDate && !isLifetimeProduct(productId)) {
+          expirationDate =
+            planForProduct(productId) === "yearly"
+              ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+              : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
         }
 
         if (isValid && db) {
-          const plan =
-            productId.toLowerCase().includes("yearly") ||
-            productId.toLowerCase().includes("year") ||
-            productId.toLowerCase().includes("annual")
-              ? "yearly"
-              : "monthly";
+          const plan = planForProduct(productId);
 
           // For Android, store the purchase token so Play webhooks can be matched
           // to this exact subscription. For iOS, key by the ORIGINAL transaction
@@ -1094,12 +1482,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         res.json({
           valid: isValid,
-          plan:
-            productId.toLowerCase().includes("yearly") ||
-            productId.toLowerCase().includes("year") ||
-            productId.toLowerCase().includes("annual")
-              ? "yearly"
-              : "monthly",
+          plan: planForProduct(productId),
           expirationDate: expirationDate?.toISOString() || null,
         });
       } catch (error) {
@@ -1125,8 +1508,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Verify the JWS signature chain against Apple Root CA G3
         let payload: any;
+        let verifiedEnvironment: Environment;
         try {
-          payload = verifyAppleJWS(signedPayload);
+          const verified = await verifyAppleNotification(signedPayload);
+          payload = verified.payload;
+          verifiedEnvironment = verified.environment;
         } catch (verifyError) {
           console.error("Apple webhook: JWS verification failed:", verifyError);
           res.status(403).json({ error: "Invalid signature" });
@@ -1148,7 +1534,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // The nested signedTransactionInfo is also JWS-signed by Apple
-        const txInfo = verifyAppleJWS(payload.data.signedTransactionInfo);
+        const txInfo = await verifyAppleTransaction(
+          payload.data.signedTransactionInfo,
+          verifiedEnvironment,
+        );
         const originalTransactionId =
           txInfo.originalTransactionId || txInfo.transactionId;
         const expiresDate = txInfo.expiresDate

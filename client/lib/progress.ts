@@ -319,8 +319,7 @@ export function computeMilestoneProgress(
  * Counting them from midnight showed every user a lower score each morning
  * than the night before, purely because the day had started.
  *
- * Mirrors storage.calculateMomentumScoreForPersona: day-of-week comes from
- * the local-time date object. Days before an action existed are excluded —
+ * Day-of-week comes from the local-time date object. Days before an action existed are excluded —
  * without that cutoff a mid-month signup starts the month in single digits
  * no matter how perfectly they follow the plan.
  */
@@ -329,10 +328,11 @@ export function computeMomentumScore(
   logs: DailyLog[],
   days: number = 7,
   logIndex: Map<string, DailyLog> = buildLogIndex(logs),
+  now: Date = new Date(),
 ): number {
   if (actions.length === 0) return 0;
 
-  const today = new Date();
+  const today = new Date(now);
   const todayStr = getLocalDateString(today);
   const createdDates = new Map(
     actions.map((a) => [
@@ -398,11 +398,68 @@ export interface WeeklyRecapResult {
 }
 
 /** Local midnight of the Monday starting the week containing `date`. */
-function startOfWeek(date: Date): Date {
+export function startOfWeek(date: Date): Date {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
   return d;
+}
+
+/**
+ * Scheduled/completed counts for the Monday-started week beginning at
+ * `weekStart`, capped at `endCap` when given. Shared by the weekly recap and
+ * the insights panel so the scheduling rules (per-action creation dates,
+ * backfilled-completion exception) can never drift between the two.
+ */
+export function computeWeekStats(
+  actions: ElementalAction[],
+  weekStart: Date,
+  endCap: Date | null,
+  logIndex: Map<string, DailyLog>,
+  actionStartDates: Map<string, string>,
+): WeekStats {
+  let scheduled = 0;
+  let completed = 0;
+  let bestDay: string | null = null;
+  let bestDayCompleted = 0;
+
+  const cursor = new Date(weekStart);
+  for (let i = 0; i < 7; i++) {
+    if (endCap && cursor > endCap) break;
+    const dateStr = getLocalDateString(cursor);
+    const dayOfWeek = cursor.toLocaleDateString("en-US", {
+      weekday: "long",
+    });
+
+    let dayCompleted = 0;
+    for (const action of actions) {
+      if (!action.frequency.includes(dayOfWeek)) continue;
+      const log = logIndex.get(`${action.id}|${dateStr}`);
+      const startDate = actionStartDates.get(action.id);
+      // Backfilled completions count even before the action existed —
+      // a completed log proves the day was trackable
+      if (startDate !== undefined && dateStr < startDate && !log?.status)
+        continue;
+      scheduled++;
+      if (log?.status) {
+        completed++;
+        dayCompleted++;
+      }
+    }
+    if (dayCompleted > bestDayCompleted) {
+      bestDayCompleted = dayCompleted;
+      bestDay = dayOfWeek;
+    }
+
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return {
+    scheduled,
+    completed,
+    bestDay,
+    score: scheduled > 0 ? Math.round((completed / scheduled) * 100) : 0,
+  };
 }
 
 /**
@@ -424,50 +481,8 @@ export function computeWeeklyRecap(
   const todayLocal = new Date(today);
   todayLocal.setHours(0, 0, 0, 0);
 
-  const weekStats = (weekStart: Date, endCap: Date | null): WeekStats => {
-    let scheduled = 0;
-    let completed = 0;
-    let bestDay: string | null = null;
-    let bestDayCompleted = 0;
-
-    const cursor = new Date(weekStart);
-    for (let i = 0; i < 7; i++) {
-      if (endCap && cursor > endCap) break;
-      const dateStr = getLocalDateString(cursor);
-      const dayOfWeek = cursor.toLocaleDateString("en-US", {
-        weekday: "long",
-      });
-
-      let dayCompleted = 0;
-      for (const action of actions) {
-        if (!action.frequency.includes(dayOfWeek)) continue;
-        const log = logIndex.get(`${action.id}|${dateStr}`);
-        const startDate = actionStartDates.get(action.id);
-        // Backfilled completions count even before the action existed —
-        // a completed log proves the day was trackable
-        if (startDate !== undefined && dateStr < startDate && !log?.status)
-          continue;
-        scheduled++;
-        if (log?.status) {
-          completed++;
-          dayCompleted++;
-        }
-      }
-      if (dayCompleted > bestDayCompleted) {
-        bestDayCompleted = dayCompleted;
-        bestDay = dayOfWeek;
-      }
-
-      cursor.setDate(cursor.getDate() + 1);
-    }
-
-    return {
-      scheduled,
-      completed,
-      bestDay,
-      score: scheduled > 0 ? Math.round((completed / scheduled) * 100) : 0,
-    };
-  };
+  const weekStats = (weekStart: Date, endCap: Date | null): WeekStats =>
+    computeWeekStats(actions, weekStart, endCap, logIndex, actionStartDates);
 
   const currentWeekStart = startOfWeek(todayLocal);
   const lastWeekStart = new Date(currentWeekStart);
@@ -565,10 +580,16 @@ export interface StreakResult {
    * shield-outline marker instead of the red "missed" ring.
    */
   shieldedDays: string[];
+  /** Dates on which seven clean scheduled completions banked a shield. */
+  shieldEarnedDays: string[];
+  /** Shield capacity in effect (1 free, 2 premium). */
+  maxShields: number;
+  /** Earned, unspent shields currently in the bank. */
+  shieldsAvailable: number;
 }
 
 const STREAK_LOOKBACK_DAYS = 365;
-const SHIELD_WINDOW_DAYS = 7;
+export const SHIELD_EARN_DAYS = 7;
 
 /**
  * Streak with grace, derived purely from actions + logs (no stored state).
@@ -576,8 +597,11 @@ const SHIELD_WINDOW_DAYS = 7;
  * Rules:
  * - A day counts when every action scheduled that day was completed.
  * - Days with nothing scheduled are free: they bridge a streak, never break it.
- * - Streak shield: one missed scheduled day per rolling 7 is bridged; a second
- *   miss within SHIELD_WINDOW_DAYS of the bridged one resets the run.
+ * - Streak shields are earned, never granted up front: every seven fully
+ *   completed scheduled days banks one, up to `maxShields` (1 free, 2
+ *   premium). A missed scheduled day spends one; without a banked shield the
+ *   active run resets. After a spend, another seven clean completions earns
+ *   it back.
  * - Today is pending until complete: it never breaks a run, and increments it
  *   live once every scheduled action is logged.
  *
@@ -588,9 +612,18 @@ export function computeStreak(
   actions: ElementalAction[],
   logs: DailyLog[],
   logIndex: Map<string, DailyLog> = buildLogIndex(logs),
+  maxShields = 1,
 ): StreakResult {
   if (actions.length === 0) {
-    return { current: 0, longest: 0, shieldUsed: false, shieldedDays: [] };
+    return {
+      current: 0,
+      longest: 0,
+      shieldUsed: false,
+      shieldedDays: [],
+      shieldEarnedDays: [],
+      maxShields,
+      shieldsAvailable: 0,
+    };
   }
 
   const actionStartDates = new Map<string, string>();
@@ -616,14 +649,11 @@ export function computeStreak(
 
   let run = 0;
   let longest = 0;
-  let lastBridgedMiss: Date | null = null;
-  // Misses forgiven by the shield at the time they happened (kept even if a
-  // later second miss reset the run — the bridge was real when it was used)
+  let shieldsAvailable = 0;
+  let cleanDaysTowardShield = 0;
+  let currentRunShielded = false;
   const shieldedDays: string[] = [];
-
-  // Day-count deltas use Math.round to absorb DST's ±1h on local midnights
-  const daysBetween = (from: Date, to: Date) =>
-    Math.round((to.getTime() - from.getTime()) / 86400000);
+  const shieldEarnedDays: string[] = [];
 
   while (cursor <= today) {
     const dateStr = getLocalDateString(cursor);
@@ -648,31 +678,47 @@ export function computeStreak(
     } else if (completed === scheduled) {
       run++;
       if (run > longest) longest = run;
+      if (shieldsAvailable < maxShields) {
+        cleanDaysTowardShield++;
+        if (cleanDaysTowardShield >= SHIELD_EARN_DAYS) {
+          shieldsAvailable++;
+          shieldEarnedDays.push(dateStr);
+          cleanDaysTowardShield = 0;
+          currentRunShielded = false;
+        }
+      } else {
+        // A full bank does not accumulate hidden instant-recharge credit.
+        cleanDaysTowardShield = 0;
+      }
     } else if (dateStr === todayStr) {
       // Today is pending, never broken
     } else if (run > 0) {
-      if (
-        lastBridgedMiss !== null &&
-        daysBetween(lastBridgedMiss, cursor) <= SHIELD_WINDOW_DAYS
-      ) {
-        // Second miss inside the shield window: fresh start
-        run = 0;
-        lastBridgedMiss = null;
-      } else {
-        lastBridgedMiss = new Date(cursor);
+      if (shieldsAvailable > 0) {
+        shieldsAvailable--;
         shieldedDays.push(dateStr);
+        cleanDaysTowardShield = 0;
+        currentRunShielded = true;
+      } else {
+        run = 0;
+        cleanDaysTowardShield = 0;
+        currentRunShielded = false;
       }
     }
 
     cursor.setDate(cursor.getDate() + 1);
   }
 
-  const shieldUsed =
-    run > 0 &&
-    lastBridgedMiss !== null &&
-    daysBetween(lastBridgedMiss, today) <= SHIELD_WINDOW_DAYS;
+  const shieldUsed = run > 0 && currentRunShielded;
 
-  return { current: run, longest, shieldUsed, shieldedDays };
+  return {
+    current: run,
+    longest,
+    shieldUsed,
+    shieldedDays,
+    shieldEarnedDays,
+    maxShields,
+    shieldsAvailable,
+  };
 }
 
 /**
@@ -695,6 +741,7 @@ export function buildProgressSnapshot(
   actions: ElementalAction[],
   logs: DailyLog[],
   benchmarks: Benchmark[],
+  options: { maxShields?: number } = {},
 ): ProgressSnapshot {
   const logIndex = buildLogIndex(logs);
   const milestoneProgress = benchmarks.map((benchmark) =>
@@ -710,7 +757,7 @@ export function buildProgressSnapshot(
       new Date().getDate(),
       logIndex,
     ),
-    streak: computeStreak(actions, logs, logIndex),
+    streak: computeStreak(actions, logs, logIndex, options.maxShields ?? 1),
     lapse: computeLapse(actions, logs, logIndex),
     weeklyRecap: computeWeeklyRecap(actions, logs, new Date(), logIndex),
     milestoneProgress,
