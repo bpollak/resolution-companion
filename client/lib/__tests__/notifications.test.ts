@@ -9,6 +9,7 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
+import * as Device from "expo-device";
 import {
   suggestReminderBucket,
   getResolvedReminderTime,
@@ -18,6 +19,7 @@ import {
   reminderTitle,
   getRemainingReminderActions,
   scheduleDailyReminder,
+  enableDefaultPersonalizedReminders,
   REMINDER_BUCKETS,
   type ReminderHookStats,
 } from "@/lib/notifications";
@@ -243,6 +245,7 @@ describe("reminderBody", () => {
       remainingActions: [
         {
           id: "run",
+          benchmarkId: "benchmark",
           title: "Run for 20 minutes",
           kickstartVersion: "Put on your running shoes",
         },
@@ -255,6 +258,27 @@ describe("reminderBody", () => {
     );
   });
 
+  it("names the user's milestone in the title and every reminder voice", () => {
+    const options = {
+      personaName: "5K-Ready Weekend Runner",
+      milestoneTitles: { benchmark: "Finish my first 5K" },
+      remainingActions: [
+        {
+          id: "run",
+          benchmarkId: "benchmark",
+          title: "Run for 20 minutes",
+          kickstartVersion: "Put on your running shoes",
+        },
+      ],
+    };
+
+    expect(reminderTitle(options)).toBe("One step toward Finish my first 5K");
+    for (const hook of ["momentum", "coach", "calm"] as const) {
+      expect(reminderBody(hook, options)).toContain("Finish my first 5K");
+      expect(reminderBody(hook, options)).toContain("Run for 20 minutes");
+    }
+  });
+
   it("uses the real kickstart version for a gentle comeback", () => {
     expect(
       reminderBody("calm", {
@@ -262,6 +286,7 @@ describe("reminderBody", () => {
         remainingActions: [
           {
             id: "run",
+            benchmarkId: "benchmark",
             title: "Run for 20 minutes",
             kickstartVersion: "Put on your running shoes",
           },
@@ -352,5 +377,43 @@ describe("personalized reminder plan", () => {
       actionIds: ["run"],
     });
     expect(first.trigger).toMatchObject({ type: "date" });
+  });
+});
+
+describe("default personalized reminders", () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+    Object.defineProperty(Device, "isDevice", {
+      configurable: true,
+      value: true,
+    });
+    jest.mocked(Notifications.getPermissionsAsync).mockResolvedValue({
+      status: "granted",
+    } as Notifications.NotificationPermissionsStatus);
+    jest
+      .mocked(Notifications.scheduleNotificationAsync)
+      .mockReset()
+      .mockResolvedValue("default-reminder");
+  });
+
+  it("enables reminders once when no preference exists", async () => {
+    expect(
+      await enableDefaultPersonalizedReminders({ personaName: "Writer" }),
+    ).toBe(true);
+    expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
+
+    expect(
+      await enableDefaultPersonalizedReminders({ personaName: "Writer" }),
+    ).toBe(true);
+    expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves an existing opt-out", async () => {
+    await AsyncStorage.setItem("evolve_notifications_enabled", "false");
+
+    expect(
+      await enableDefaultPersonalizedReminders({ personaName: "Writer" }),
+    ).toBe(false);
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
   });
 });

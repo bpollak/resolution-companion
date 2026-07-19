@@ -37,9 +37,6 @@ import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
 import { computeMomentumScore } from "@/lib/progress";
 import {
-  areNotificationsEnabled,
-  requestNotificationPermissions,
-  scheduleDailyReminder,
   suppressReminderForToday,
   ensureReminderScheduled,
   applySuggestedReminderBucket,
@@ -81,7 +78,6 @@ import {
   shouldOfferSecondPersona,
 } from "@/lib/persona-invitation";
 
-const CONTEXTUAL_NOTIF_ASK_KEY = "today_contextual_notif_ask_done";
 const FIRST_DAY_COMPLETE_KEY = "today_first_day_complete_seen";
 // {count, lastDate} of distinct fully-complete days, for timing the one-time
 // App Store review ask at the third day-complete celebration
@@ -873,6 +869,9 @@ export default function TodayScreen() {
       monthlyConsistency: personaAlignment,
       actions,
       dailyLogs,
+      milestoneTitles: Object.fromEntries(
+        benchmarks.map((item) => [item.id, item.title]),
+      ),
     };
     (async () => {
       await applySuggestedReminderBucket(
@@ -894,65 +893,9 @@ export default function TodayScreen() {
     lapseMissedDays,
     actions,
     dailyLogs,
+    benchmarks,
     persona?.name,
     personaAlignment,
-  ]);
-
-  // Contextual permission ask, once, right after the first day-complete —
-  // the moment the user has something worth protecting
-  useEffect(() => {
-    if (!celebrateDayComplete || Platform.OS === "web") return;
-    let cancelled = false;
-    (async () => {
-      const [asked, enabled] = await Promise.all([
-        AsyncStorage.getItem(CONTEXTUAL_NOTIF_ASK_KEY),
-        areNotificationsEnabled(),
-      ]);
-      if (asked || enabled || cancelled) return;
-      await AsyncStorage.setItem(CONTEXTUAL_NOTIF_ASK_KEY, "true");
-      // Let the celebration fully land before asking — the day-complete
-      // card is the best moment in the app; don't step on it (verified on
-      // simulator: 1.5s still interrupted the burst animation)
-      setTimeout(() => {
-        Alert.alert(
-          "Keep the streak alive?",
-          "Want a nudge tomorrow so the streak holds? One daily reminder, timed to your routine — and only on days you haven't finished.",
-          [
-            { text: "Not now", style: "cancel" },
-            {
-              text: "Remind me",
-              onPress: async () => {
-                const granted = await requestNotificationPermissions();
-                if (granted) {
-                  const reminderContext = {
-                    streakCount: streakCurrent,
-                    missedRun: lapseMissedDays,
-                    personaName: persona?.name,
-                    monthlyConsistency: personaAlignment,
-                    actions,
-                    dailyLogs,
-                  };
-                  await scheduleDailyReminder(reminderContext);
-                  // Today is already complete — stay quiet tonight
-                  await suppressReminderForToday(reminderContext);
-                }
-              },
-            },
-          ],
-        );
-      }, 4000);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    actions,
-    celebrateDayComplete,
-    dailyLogs,
-    lapseMissedDays,
-    persona?.name,
-    personaAlignment,
-    streakCurrent,
   ]);
 
   // One-time App Store review ask at the third day-complete celebration —

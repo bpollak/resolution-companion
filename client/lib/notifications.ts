@@ -8,6 +8,8 @@ import type { DailyLog, ElementalAction } from "@/lib/storage";
 
 const NOTIFICATION_ID_KEY = "evolve_daily_reminder_id";
 const NOTIFICATIONS_ENABLED_KEY = "evolve_notifications_enabled";
+const DEFAULT_REMINDERS_INITIALIZED_KEY =
+  "evolve_default_reminders_initialized";
 // "daily" for the legacy generic fallback or "rolling" for the personalized
 // 14-day on-device schedule
 const REMINDER_MODE_KEY = "evolve_reminder_mode";
@@ -326,8 +328,10 @@ export interface ReminderOptions {
   /** Populated internally for the copy assigned to one scheduled day. */
   remainingActions?: Pick<
     ElementalAction,
-    "id" | "title" | "kickstartVersion"
+    "id" | "benchmarkId" | "title" | "kickstartVersion"
   >[];
+  /** Active milestone titles keyed by benchmark id for goal-specific copy. */
+  milestoneTitles?: Record<string, string>;
 }
 
 function truncateReminderText(value: string, maxLength = 72): string {
@@ -360,8 +364,24 @@ export function getRemainingReminderActions(
 
 export function reminderTitle(options: ReminderOptions): string {
   const count = options.remainingActions?.length ?? 0;
+  const goalTitles = [
+    ...new Set(
+      (options.remainingActions ?? [])
+        .map((action) => options.milestoneTitles?.[action.benchmarkId])
+        .filter((title): title is string => Boolean(title)),
+    ),
+  ];
   if (options.missedRun !== undefined && options.missedRun >= 2) {
     return "A gentle reset";
+  }
+  if (count === 1 && goalTitles.length === 1) {
+    return `One step toward ${truncateReminderText(goalTitles[0], 38)}`;
+  }
+  if (count > 1 && goalTitles.length === 1) {
+    return `${count} steps toward ${truncateReminderText(goalTitles[0], 38)}`;
+  }
+  if (count > 1 && goalTitles.length > 1) {
+    return `${count} steps toward your goals`;
   }
   if (count === 1) return "One action left today";
   if (count > 1) return `${count} actions left today`;
@@ -380,16 +400,28 @@ export function reminderBody(hook: ReminderHook, options: ReminderOptions) {
     remainingActions = [],
   } = options;
   const firstAction = remainingActions[0];
+  const goalTitle = firstAction
+    ? options.milestoneTitles?.[firstAction.benchmarkId]
+    : undefined;
+  const goalLabel = goalTitle
+    ? `“${truncateReminderText(goalTitle, 44)}”`
+    : null;
   const actionLabel = firstAction
     ? `“${truncateReminderText(firstAction.title, 48)}”`
     : null;
   if (missedRun !== undefined && missedRun >= 2) {
     if (firstAction?.kickstartVersion) {
-      return `Your plan can bend: ${truncateReminderText(firstAction.kickstartVersion)} still counts today.`;
+      return `Your ${goalLabel ? `${goalLabel} ` : ""}plan can bend: ${truncateReminderText(firstAction.kickstartVersion)} still counts today.`;
     }
     return "Rough couple of days? Your plan can bend — the 2-minute version still counts.";
   }
   if (hook === "momentum") {
+    if (actionLabel && goalLabel && personaName) {
+      return `${actionLabel} moves ${goalLabel} forward for ${truncateReminderText(personaName, 44)}.`;
+    }
+    if (actionLabel && goalLabel) {
+      return `${actionLabel} moves ${goalLabel} forward today.`;
+    }
     if (actionLabel && personaName) {
       return `${actionLabel} is today's vote for ${personaName}.`;
     }
@@ -405,13 +437,13 @@ export function reminderBody(hook: ReminderHook, options: ReminderOptions) {
   if (hook === "coach") {
     if (actionLabel) {
       const extra = remainingActions.length - 1;
-      return `Coach's nudge: ${actionLabel}${extra > 0 ? ` and ${extra} more are` : " is"} still open.`;
+      return `Coach's nudge${goalLabel ? ` for ${goalLabel}` : ""}: ${actionLabel}${extra > 0 ? ` and ${extra} more are` : " is"} still open.`;
     }
     return "Two minutes with your coach keeps the plan honest — drop in whenever.";
   }
   if (actionLabel) {
     const extra = remainingActions.length - 1;
-    return `${actionLabel}${extra > 0 ? ` + ${extra} more` : ""} ${extra > 0 ? "are" : "is"} still open today.`;
+    return `${goalLabel ? `For ${goalLabel}: ` : ""}${actionLabel}${extra > 0 ? ` + ${extra} more` : ""} ${extra > 0 ? "are" : "is"} still open today.`;
   }
   if (streakCount !== undefined && streakCount >= 2) {
     return `5 minutes to keep a ${streakCount}-day streak alive.`;
@@ -493,6 +525,7 @@ function reminderPlanSignature(
       kickstartVersion: action.kickstartVersion,
       createdAt: action.createdAt,
     })),
+    milestoneTitles: options.milestoneTitles ?? null,
     completed: options.dailyLogs
       ?.filter((log) => log.status)
       .map((log) => `${log.actionId}|${log.logDate.split("T")[0]}`)
@@ -611,6 +644,44 @@ export async function cancelDailyReminder(): Promise<void> {
     await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, "false");
   } catch (error) {
     logger.error("Failed to cancel notification:", error);
+  }
+}
+
+/**
+ * Enables one personalized daily reminder by default the first time a user
+ * has a plan. The operating-system permission prompt remains authoritative;
+ * an existing explicit preference is never overwritten.
+ */
+export async function enableDefaultPersonalizedReminders(
+  options: ReminderOptions = {},
+): Promise<boolean> {
+  if (Platform.OS === "web") return false;
+
+  try {
+    const [initialized, storedPreference] = await Promise.all([
+      AsyncStorage.getItem(DEFAULT_REMINDERS_INITIALIZED_KEY),
+      AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY),
+    ]);
+    if (initialized === "true" || storedPreference !== null) {
+      if (initialized !== "true") {
+        await AsyncStorage.setItem(DEFAULT_REMINDERS_INITIALIZED_KEY, "true");
+      }
+      return storedPreference === "true";
+    }
+
+    // Persist before asking so a denial never turns into repeated prompting.
+    await AsyncStorage.setItem(DEFAULT_REMINDERS_INITIALIZED_KEY, "true");
+    const granted = await requestNotificationPermissions();
+    if (!granted) {
+      await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, "false");
+      return false;
+    }
+
+    await scheduleDailyReminder(options);
+    return areNotificationsEnabled();
+  } catch (error) {
+    logger.error("Failed to enable default personalized reminders:", error);
+    return false;
   }
 }
 

@@ -3,6 +3,7 @@ import { logger } from "@/lib/logger";
 import { storage } from "@/lib/storage";
 import EventSource from "react-native-sse";
 import { normalizeCoachMilestoneProposal } from "@/lib/milestone-proposal";
+import { TYPEWRITER_DELAY_MS } from "@/lib/typewriter";
 
 // The server keys its monthly AI usage quotas on this header; without it,
 // requests fall back to a shared per-IP bucket.
@@ -112,7 +113,6 @@ RULES:
 - Kickstart versions must take under 2 minutes and be genuinely easier than the full action.
 - Write everything in the user's language and vocabulary where possible — the plan should feel like it came from their own words.`;
 
-const STREAM_DELAY_MS = 30;
 const REQUEST_TIMEOUT_MS = 20000;
 const PLAN_EXTRACTION_TIMEOUT_MS = 45000;
 
@@ -161,14 +161,18 @@ export async function sendChatMessageStreaming(
   messages: AIMessage[],
   onChunk: (chunk: string) => void,
 ): Promise<string> {
-  return streamSSERequest("/api/chat", { messages }, onChunk, STREAM_DELAY_MS);
+  return streamSSERequest(
+    "/api/chat",
+    { messages },
+    onChunk,
+    TYPEWRITER_DELAY_MS,
+  );
 }
 
 /**
  * POST an SSE endpoint and stream its `{content}` events. `charDelayMs > 0`
- * replays each chunk character-by-character for a typewriter feel (the
- * onboarding interview); 0 emits chunks as they truly arrive (the coach —
- * perceived responsiveness is coach-quality UX).
+ * replays each chunk character-by-character for the shared onboarding and
+ * Coach typewriter feel; 0 emits chunks exactly as they arrive.
  */
 async function streamSSERequest(
   path: string,
@@ -617,7 +621,7 @@ Be warm and practical. No bullet points or lists in responses.`,
     "/api/reflection",
     { messages: allMessages, stream: true },
     onChunk || (() => {}),
-    STREAM_DELAY_MS,
+    TYPEWRITER_DELAY_MS,
     signal,
   );
 }

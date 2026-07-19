@@ -337,8 +337,18 @@ export default function ProfileScreen() {
       monthlyConsistency: personaAlignment,
       actions,
       dailyLogs,
+      milestoneTitles: Object.fromEntries(
+        benchmarks.map((item) => [item.id, item.title]),
+      ),
     }),
-    [actions, dailyLogs, persona?.name, personaAlignment, streakCount],
+    [
+      actions,
+      benchmarks,
+      dailyLogs,
+      persona?.name,
+      personaAlignment,
+      streakCount,
+    ],
   );
   const subscriptionCopy = useMemo(
     () =>
