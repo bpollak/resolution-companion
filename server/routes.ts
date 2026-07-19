@@ -15,6 +15,10 @@ import { rateLimiter } from "./rate-limit";
 import { requireApiKey, requireAdminKey } from "./auth";
 import { validateMessages } from "./message-validation";
 import {
+  parsePersonaPlan,
+  personaPlanResponseFormat,
+} from "./persona-extraction";
+import {
   Environment,
   SignedDataVerifier,
 } from "@apple/app-store-server-library";
@@ -740,17 +744,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               content: `Here is the conversation:\n\n${conversationText}`,
             },
           ],
-          response_format: { type: "json_object" },
-          // "low" keeps some reasoning for the rule-heavy extraction; budget
-          // raised because reasoning tokens count against it.
-          reasoning_effort: "low",
-          max_completion_tokens: 4096,
+          response_format: personaPlanResponseFormat,
+          reasoning_effort: "minimal",
+          max_completion_tokens: 2048,
         });
 
         await recordAiModelUsage("extract", response.usage);
 
         const content = response.choices[0]?.message?.content || "{}";
-        const personaData = JSON.parse(content);
+        const personaData = parsePersonaPlan(content);
 
         res.json(personaData);
       } catch (error) {
