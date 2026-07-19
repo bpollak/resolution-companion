@@ -1,4 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { chooseYearlyProductId } from "@/lib/pricing";
 import { storage } from "@/lib/storage";
 
@@ -71,5 +73,21 @@ describe("yearly price cohorts", () => {
       { createdAt: "2026-08-02T00:00:00.000Z" },
     ]);
     expect(await chooseYearlyProductId(base, [base], config)).toBe(base);
+  });
+
+  it("keeps the production app on the established annual product", () => {
+    const appConfig = JSON.parse(
+      readFileSync(resolve(__dirname, "../../../app.json"), "utf8"),
+    ) as {
+      expo: {
+        extra?: {
+          yearlyPriceTestProductId?: string;
+          yearlyPriceTestStartsAt?: string;
+        };
+      };
+    };
+
+    expect(appConfig.expo.extra?.yearlyPriceTestProductId).toBeUndefined();
+    expect(appConfig.expo.extra?.yearlyPriceTestStartsAt).toBeUndefined();
   });
 });
