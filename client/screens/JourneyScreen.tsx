@@ -44,6 +44,56 @@ const MONTHS = [
 const GUIDE_DISMISSED_KEY = "progress_next_steps_dismissed";
 const MILESTONE_INFO_DISMISSED_KEY = "journey_milestone_info_dismissed";
 
+function JourneyTool({
+  icon,
+  title,
+  subtitle,
+  onPress,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+}) {
+  const { theme, isDark } = useTheme();
+
+  return (
+    <Pressable
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        onPress();
+      }}
+      hitSlop={8}
+      pressRetentionOffset={16}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}. ${subtitle}`}
+      style={({ pressed }) => [
+        styles.journeyTool,
+        {
+          backgroundColor: isDark
+            ? Colors.dark.backgroundDefault
+            : Colors.light.backgroundDefault,
+          opacity: pressed ? 0.75 : 1,
+          transform: [{ scale: pressed ? 0.98 : 1 }],
+        },
+      ]}
+    >
+      <View style={styles.journeyToolIcon}>
+        <Feather name={icon} size={20} color={theme.accent} />
+      </View>
+      <View style={styles.journeyToolContent}>
+        <ThemedText style={styles.journeyToolTitle}>{title}</ThemedText>
+        <ThemedText
+          style={[styles.journeyToolSubtitle, { color: theme.textSecondary }]}
+        >
+          {subtitle}
+        </ThemedText>
+      </View>
+      <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+    </Pressable>
+  );
+}
+
 interface DayInfo {
   date: Date;
   dateStr: string;
@@ -852,6 +902,34 @@ export default function JourneyScreen() {
               ) : null}
             </View>
 
+            <View style={styles.journeyToolsSection}>
+              <ThemedText style={styles.journeyToolsHeading}>
+                Stories &amp; Support
+              </ThemedText>
+              <JourneyTool
+                icon="award"
+                title="The Year You Became"
+                subtitle={
+                  subscription.isPremium
+                    ? `${new Date().getFullYear()} year-to-date story`
+                    : "Premium annual story"
+                }
+                onPress={() =>
+                  subscription.isPremium
+                    ? navigation.navigate("YearRecap", {
+                        year: new Date().getFullYear(),
+                      })
+                    : navigation.navigate("Subscription")
+                }
+              />
+              <JourneyTool
+                icon="users"
+                title="Someone in Your Corner"
+                subtitle="One trusted witness · you choose every share"
+                onPress={() => navigation.navigate("Witness")}
+              />
+            </View>
+
             {showGuide ? (
               <View
                 style={[
@@ -1381,6 +1459,41 @@ const styles = StyleSheet.create({
   personaDescription: {
     ...Typography.body,
     marginTop: Spacing.md,
+  },
+  journeyToolsSection: {
+    marginBottom: Spacing.xl,
+  },
+  journeyToolsHeading: {
+    ...Typography.headline,
+    marginBottom: Spacing.md,
+  },
+  journeyTool: {
+    minHeight: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+  },
+  journeyToolIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: "rgba(0, 217, 255, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.md,
+  },
+  journeyToolContent: {
+    flex: 1,
+  },
+  journeyToolTitle: {
+    ...Typography.body,
+    fontWeight: "600",
+  },
+  journeyToolSubtitle: {
+    ...Typography.caption,
+    marginTop: 2,
   },
   guideCard: {
     padding: Spacing.lg,

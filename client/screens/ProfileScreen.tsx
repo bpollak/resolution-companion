@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from "react";
 import {
   View,
   ScrollView,
@@ -75,6 +81,8 @@ interface SettingsRowProps {
   destructive?: boolean;
 }
 
+type ProfilePanel = "main" | "reminders" | "privacy" | "about";
+
 function SettingsRow({
   icon,
   title,
@@ -114,6 +122,8 @@ function SettingsRow({
       onPress={handlePress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
+      hitSlop={8}
+      pressRetentionOffset={16}
       accessibilityRole="button"
       accessibilityLabel={subtitle ? `${title}. ${subtitle}` : title}
     >
@@ -173,6 +183,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const navigation = useNavigation<any>();
+  const scrollViewRef = useRef<ScrollView>(null);
   const { theme, isDark } = useTheme();
   const {
     hasOnboarded,
@@ -198,6 +209,51 @@ export default function ProfileScreen() {
   const [reminderTime, setReminderTime] = useState<ResolvedReminderTime | null>(
     null,
   );
+  const [activePanel, setActivePanel] = useState<ProfilePanel>("main");
+
+  useLayoutEffect(() => {
+    const title =
+      activePanel === "reminders"
+        ? "Daily Reminder"
+        : activePanel === "privacy"
+          ? "Privacy & Data"
+          : activePanel === "about"
+            ? "About"
+            : "Profile";
+    const isMain = activePanel === "main";
+
+    navigation.setOptions({
+      title,
+      headerLeft: () => (
+        <Pressable
+          onPress={() =>
+            isMain ? navigation.goBack() : setActivePanel("main")
+          }
+          hitSlop={12}
+          pressRetentionOffset={16}
+          accessibilityRole="button"
+          accessibilityLabel={isMain ? "Close profile" : "Back to profile"}
+          style={({ pressed }) => [
+            styles.headerButton,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
+        >
+          <Feather
+            name={isMain ? "x" : "arrow-left"}
+            size={22}
+            color={theme.text}
+          />
+        </Pressable>
+      ),
+    });
+  }, [activePanel, navigation, theme.text]);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activePanel]);
 
   // Dawn theme: a milestone reward — the Appearance row only exists once
   // it has been earned
@@ -535,6 +591,7 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView
+      ref={scrollViewRef}
       delaysContentTouches={false}
       style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
       contentContainerStyle={{
@@ -545,722 +602,837 @@ export default function ProfileScreen() {
       }}
       scrollIndicatorInsets={{ bottom: insets.bottom }}
     >
-      {hasOnboarded && persona ? (
-        <View
-          style={[
-            styles.profileCard,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundDefault
-                : Colors.light.backgroundDefault,
-            },
-          ]}
-        >
-          <View style={styles.avatarContainer}>
-            <View style={[styles.avatar, { backgroundColor: theme.accent }]}>
-              <Feather name="user" size={32} color={theme.buttonText} />
-            </View>
-          </View>
-          <ThemedText style={styles.personaName}>{persona.name}</ThemedText>
-          {persona.description ? (
-            <ThemedText
-              style={[
-                styles.personaDescription,
-                { color: theme.textSecondary },
-              ]}
-            >
-              {persona.description}
-            </ThemedText>
-          ) : null}
-
-          <View style={styles.statsRow}>
-            {stats.map((stat) => (
-              <View key={stat.label} style={styles.statItem}>
-                <ThemedText style={[styles.statValue, { color: theme.accent }]}>
-                  {stat.value}
-                </ThemedText>
-                <ThemedText
-                  style={[styles.statLabel, { color: theme.textSecondary }]}
-                >
-                  {stat.label}
-                </ThemedText>
-              </View>
-            ))}
-          </View>
-        </View>
-      ) : (
-        <View
-          style={[
-            styles.profileCard,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundDefault
-                : Colors.light.backgroundDefault,
-            },
-          ]}
-        >
-          <View style={styles.avatarContainer}>
+      {activePanel === "main" ? (
+        <>
+          {hasOnboarded && persona ? (
             <View
               style={[
-                styles.avatar,
-                { backgroundColor: theme.backgroundSecondary },
+                styles.profileCard,
+                {
+                  backgroundColor: isDark
+                    ? Colors.dark.backgroundDefault
+                    : Colors.light.backgroundDefault,
+                },
               ]}
             >
-              <Feather name="user" size={32} color={theme.textSecondary} />
-            </View>
-          </View>
-          <ThemedText
-            style={[styles.notOnboarded, { color: theme.textSecondary }]}
-          >
-            Complete onboarding to define your persona
-          </ThemedText>
-          <Pressable
-            onPress={() => navigation.navigate("Onboarding")}
-            accessibilityRole="button"
-            accessibilityLabel="Start journey"
-            style={({ pressed }) => [
-              styles.onboardButton,
-              { backgroundColor: theme.accent },
-              { opacity: pressed ? 0.8 : 1 },
-            ]}
-          >
-            <ThemedText
-              style={[styles.onboardButtonText, { color: theme.buttonText }]}
-            >
-              Start Journey
-            </ThemedText>
-          </Pressable>
-        </View>
-      )}
-
-      {personas.length > 0 ? (
-        <>
-          <View style={styles.sectionHeader}>
-            <ThemedText style={styles.sectionTitle}>My Personas</ThemedText>
-            <Pressable
-              onPress={handleAddNewPersona}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel={
-                canAddPersona()
-                  ? "Add a new persona"
-                  : "Upgrade to Premium to add more personas"
-              }
-              style={({ pressed }) => [
-                styles.addPersonaButton,
-                { opacity: pressed ? 0.7 : 1 },
-              ]}
-            >
-              {!canAddPersona() ? (
-                <Feather name="lock" size={14} color={theme.accent} />
-              ) : (
-                <Feather name="plus" size={18} color={theme.accent} />
-              )}
-              <ThemedText
-                style={[styles.addPersonaText, { color: theme.accent }]}
-              >
-                {canAddPersona() ? "Add" : "PRO"}
-              </ThemedText>
-            </Pressable>
-          </View>
-
-          <View style={styles.personasList}>
-            {personas.map((p) => (
-              <Pressable
-                key={p.id}
-                onPress={() => handleSwitchPersona(p.id)}
-                onLongPress={() => handleDeletePersona(p.id, p.name)}
-                accessibilityRole="button"
-                accessibilityLabel={`${p.name}${
-                  p.id === persona?.id ? ", active persona" : ""
-                }`}
-                accessibilityHint="Switches to this persona. Long press to delete."
-                accessibilityState={{ selected: p.id === persona?.id }}
-                style={({ pressed }) => [
-                  styles.personaItem,
-                  {
-                    backgroundColor: isDark
-                      ? Colors.dark.backgroundDefault
-                      : Colors.light.backgroundDefault,
-                    borderColor:
-                      p.id === persona?.id ? theme.accent : "transparent",
-                    borderWidth: 2,
-                    opacity: pressed ? 0.8 : 1,
-                  },
-                ]}
-              >
+              <View style={styles.avatarContainer}>
                 <View
+                  style={[styles.avatar, { backgroundColor: theme.accent }]}
+                >
+                  <Feather name="user" size={32} color={theme.buttonText} />
+                </View>
+              </View>
+              <ThemedText style={styles.personaName}>{persona.name}</ThemedText>
+              {persona.description ? (
+                <ThemedText
                   style={[
-                    styles.personaItemAvatar,
-                    {
-                      backgroundColor:
-                        p.id === persona?.id
-                          ? theme.accent
-                          : theme.backgroundSecondary,
-                    },
+                    styles.personaDescription,
+                    { color: theme.textSecondary },
                   ]}
                 >
-                  <Feather
-                    name="user"
-                    size={16}
-                    color={
-                      p.id === persona?.id ? "#000000" : theme.textSecondary
-                    }
-                  />
-                </View>
-                <View style={styles.personaItemContent}>
-                  <ThemedText style={styles.personaItemName}>
-                    {p.name}
-                  </ThemedText>
-                  {p.id === persona?.id ? (
-                    <ThemedText
-                      style={[styles.personaItemBadge, { color: theme.accent }]}
-                    >
-                      Active
-                    </ThemedText>
-                  ) : null}
-                </View>
-                {p.id !== persona?.id ? (
-                  <Pressable
-                    onPress={() => handleDeletePersona(p.id, p.name)}
-                    hitSlop={14}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Delete persona ${p.name}`}
-                    style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
-                  >
-                    <Feather name="trash-2" size={18} color={theme.error} />
-                  </Pressable>
-                ) : null}
-              </Pressable>
-            ))}
-          </View>
+                  {persona.description}
+                </ThemedText>
+              ) : null}
 
-          <View style={styles.personaHintContainer}>
-            <View style={styles.personaHintRow}>
-              <Feather name="repeat" size={14} color={theme.textSecondary} />
-              <ThemedText
-                style={[styles.personaHint, { color: theme.textSecondary }]}
-              >
-                Tap to switch
-              </ThemedText>
+              <View style={styles.statsRow}>
+                {stats.map((stat) => (
+                  <View key={stat.label} style={styles.statItem}>
+                    <ThemedText
+                      style={[styles.statValue, { color: theme.accent }]}
+                    >
+                      {stat.value}
+                    </ThemedText>
+                    <ThemedText
+                      style={[styles.statLabel, { color: theme.textSecondary }]}
+                    >
+                      {stat.label}
+                    </ThemedText>
+                  </View>
+                ))}
+              </View>
             </View>
-            <View style={styles.personaHintRow}>
-              <Feather name="trash-2" size={14} color={theme.textSecondary} />
+          ) : (
+            <View
+              style={[
+                styles.profileCard,
+                {
+                  backgroundColor: isDark
+                    ? Colors.dark.backgroundDefault
+                    : Colors.light.backgroundDefault,
+                },
+              ]}
+            >
+              <View style={styles.avatarContainer}>
+                <View
+                  style={[
+                    styles.avatar,
+                    { backgroundColor: theme.backgroundSecondary },
+                  ]}
+                >
+                  <Feather name="user" size={32} color={theme.textSecondary} />
+                </View>
+              </View>
               <ThemedText
-                style={[styles.personaHint, { color: theme.textSecondary }]}
+                style={[styles.notOnboarded, { color: theme.textSecondary }]}
               >
-                Tap trash icon to delete
+                Complete onboarding to define your persona
               </ThemedText>
+              <Pressable
+                onPress={() => navigation.navigate("Onboarding")}
+                accessibilityRole="button"
+                accessibilityLabel="Start journey"
+                style={({ pressed }) => [
+                  styles.onboardButton,
+                  { backgroundColor: theme.accent },
+                  { opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <ThemedText
+                  style={[
+                    styles.onboardButtonText,
+                    { color: theme.buttonText },
+                  ]}
+                >
+                  Start Journey
+                </ThemedText>
+              </Pressable>
             </View>
-          </View>
+          )}
+
+          {personas.length > 0 ? (
+            <>
+              <View style={styles.sectionHeader}>
+                <ThemedText style={styles.sectionTitle}>My Personas</ThemedText>
+                <Pressable
+                  onPress={handleAddNewPersona}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    canAddPersona()
+                      ? "Add a new persona"
+                      : "Upgrade to Premium to add more personas"
+                  }
+                  style={({ pressed }) => [
+                    styles.addPersonaButton,
+                    { opacity: pressed ? 0.7 : 1 },
+                  ]}
+                >
+                  {!canAddPersona() ? (
+                    <Feather name="lock" size={14} color={theme.accent} />
+                  ) : (
+                    <Feather name="plus" size={18} color={theme.accent} />
+                  )}
+                  <ThemedText
+                    style={[styles.addPersonaText, { color: theme.accent }]}
+                  >
+                    {canAddPersona() ? "Add" : "PRO"}
+                  </ThemedText>
+                </Pressable>
+              </View>
+
+              <View style={styles.personasList}>
+                {personas.map((p) => (
+                  <Pressable
+                    key={p.id}
+                    onPress={() => handleSwitchPersona(p.id)}
+                    onLongPress={() => handleDeletePersona(p.id, p.name)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${p.name}${
+                      p.id === persona?.id ? ", active persona" : ""
+                    }`}
+                    accessibilityHint="Switches to this persona. Long press to delete."
+                    accessibilityState={{ selected: p.id === persona?.id }}
+                    style={({ pressed }) => [
+                      styles.personaItem,
+                      {
+                        backgroundColor: isDark
+                          ? Colors.dark.backgroundDefault
+                          : Colors.light.backgroundDefault,
+                        borderColor:
+                          p.id === persona?.id ? theme.accent : "transparent",
+                        borderWidth: 2,
+                        opacity: pressed ? 0.8 : 1,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.personaItemAvatar,
+                        {
+                          backgroundColor:
+                            p.id === persona?.id
+                              ? theme.accent
+                              : theme.backgroundSecondary,
+                        },
+                      ]}
+                    >
+                      <Feather
+                        name="user"
+                        size={16}
+                        color={
+                          p.id === persona?.id ? "#000000" : theme.textSecondary
+                        }
+                      />
+                    </View>
+                    <View style={styles.personaItemContent}>
+                      <ThemedText style={styles.personaItemName}>
+                        {p.name}
+                      </ThemedText>
+                      {p.id === persona?.id ? (
+                        <ThemedText
+                          style={[
+                            styles.personaItemBadge,
+                            { color: theme.accent },
+                          ]}
+                        >
+                          Active
+                        </ThemedText>
+                      ) : null}
+                    </View>
+                    {p.id !== persona?.id ? (
+                      <Pressable
+                        onPress={() => handleDeletePersona(p.id, p.name)}
+                        hitSlop={14}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Delete persona ${p.name}`}
+                        style={({ pressed }) => [
+                          { opacity: pressed ? 0.5 : 1 },
+                        ]}
+                      >
+                        <Feather name="trash-2" size={18} color={theme.error} />
+                      </Pressable>
+                    ) : null}
+                  </Pressable>
+                ))}
+              </View>
+
+              <View style={styles.personaHintContainer}>
+                <View style={styles.personaHintRow}>
+                  <Feather
+                    name="repeat"
+                    size={14}
+                    color={theme.textSecondary}
+                  />
+                  <ThemedText
+                    style={[styles.personaHint, { color: theme.textSecondary }]}
+                  >
+                    Tap to switch
+                  </ThemedText>
+                </View>
+                <View style={styles.personaHintRow}>
+                  <Feather
+                    name="trash-2"
+                    size={14}
+                    color={theme.textSecondary}
+                  />
+                  <ThemedText
+                    style={[styles.personaHint, { color: theme.textSecondary }]}
+                  >
+                    Tap trash icon to delete
+                  </ThemedText>
+                </View>
+              </View>
+            </>
+          ) : null}
+
+          <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
+            Settings
+          </ThemedText>
+
+          <SettingsRow
+            icon={subscription.isPremium ? "check-circle" : "zap"}
+            title={
+              subscription.isPremium ? "Premium Active" : "Upgrade to Premium"
+            }
+            subtitle={
+              subscription.isPremium
+                ? `${subscription.plan === "yearly" ? "Yearly" : subscription.plan === "lifetime" ? "Lifetime" : "Monthly"} plan`
+                : monthlyReflectionCount >= 10
+                  ? "Free check-in limit reached"
+                  : `${10 - monthlyReflectionCount} free check-ins left this month`
+            }
+            onPress={() => navigation.navigate("Subscription")}
+          />
+
+          <SettingsRow
+            icon="bell"
+            title="Daily Reminder"
+            subtitle={
+              Platform.OS === "web"
+                ? "Available on mobile"
+                : notificationsEnabled
+                  ? `On${reminderTime ? ` · ${reminderTime.label}` : ""}`
+                  : "Off"
+            }
+            onPress={() => setActivePanel("reminders")}
+          />
+
+          <SettingsRow
+            icon="shield"
+            title="Privacy & Data"
+            subtitle="AI sharing, iCloud backup, and data controls"
+            onPress={() => setActivePanel("privacy")}
+          />
+
+          <SettingsRow
+            icon="info"
+            title="About"
+            subtitle={`Version ${Constants.expoConfig?.version || "1.0.0"}`}
+            onPress={() => setActivePanel("about")}
+          />
         </>
       ) : null}
 
-      <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
-        Settings
-      </ThemedText>
+      {activePanel === "privacy" ? (
+        <>
+          <View style={styles.detailIntro}>
+            <Feather name="shield" size={28} color={theme.accent} />
+            <ThemedText style={styles.detailTitle}>
+              Your data, your choice
+            </ThemedText>
+            <ThemedText
+              style={[styles.detailBody, { color: theme.textSecondary }]}
+            >
+              Control what leaves this device, protect a private backup, or
+              remove your data.
+            </ThemedText>
+          </View>
 
-      <SettingsRow
-        icon={subscription.isPremium ? "check-circle" : "zap"}
-        title={subscription.isPremium ? "Premium Active" : "Upgrade to Premium"}
-        subtitle={
-          subscription.isPremium
-            ? `${subscription.plan === "yearly" ? "Yearly" : subscription.plan === "lifetime" ? "Lifetime" : "Monthly"} plan`
-            : monthlyReflectionCount >= 10
-              ? "Free check-in limit reached"
-              : `${10 - monthlyReflectionCount} free check-ins left this month`
-        }
-        onPress={() => navigation.navigate("Subscription")}
-      />
+          <SettingsRow
+            icon="cloud"
+            title="Private iCloud Backup"
+            subtitle="Protect local data in your own iCloud"
+            onPress={() => navigation.navigate("DataBackup")}
+          />
+        </>
+      ) : null}
 
-      <SettingsRow
-        icon="award"
-        title="The Year You Became"
-        subtitle={
-          subscription.isPremium
-            ? `${new Date().getFullYear()} year-to-date story`
-            : "Premium annual story"
-        }
-        onPress={() =>
-          subscription.isPremium
-            ? navigation.navigate("YearRecap", {
-                year: new Date().getFullYear(),
-              })
-            : navigation.navigate("Subscription")
-        }
-      />
+      {activePanel === "reminders" ? (
+        <>
+          <View style={styles.detailIntro}>
+            <Feather name="bell" size={28} color={theme.accent} />
+            <ThemedText style={styles.detailTitle}>One gentle nudge</ThemedText>
+            <ThemedText
+              style={[styles.detailBody, { color: theme.textSecondary }]}
+            >
+              Choose the part of your day that works best. The reminder stays
+              quiet after you finish your actions.
+            </ThemedText>
+          </View>
 
-      <SettingsRow
-        icon="users"
-        title="Someone in Your Corner"
-        subtitle="One trusted witness · you choose every share"
-        onPress={() => navigation.navigate("Witness")}
-      />
-
-      <SettingsRow
-        icon="cloud"
-        title="Private iCloud Backup"
-        subtitle="Protect local data in your own iCloud"
-        onPress={() => navigation.navigate("DataBackup")}
-      />
-
-      <View
-        style={[
-          styles.settingsRow,
-          {
-            backgroundColor: isDark
-              ? Colors.dark.backgroundDefault
-              : Colors.light.backgroundDefault,
-          },
-        ]}
-      >
-        <View
-          style={[
-            styles.settingsIcon,
-            { backgroundColor: "rgba(0, 217, 255, 0.1)" },
-          ]}
-        >
-          <Feather name="bell" size={20} color={theme.accent} />
-        </View>
-        <View style={styles.settingsContent}>
-          <ThemedText style={styles.settingsTitle}>Daily Reminders</ThemedText>
-          <ThemedText
-            style={[styles.settingsSubtitle, { color: theme.textSecondary }]}
+          <View
+            style={[
+              styles.settingsRow,
+              {
+                backgroundColor: isDark
+                  ? Colors.dark.backgroundDefault
+                  : Colors.light.backgroundDefault,
+              },
+            ]}
           >
-            {Platform.OS === "web"
-              ? "Available on mobile"
-              : notificationsEnabled && reminderTime
-                ? `Reminder at ${reminderTime.label}${
-                    reminderTime.source === "routine"
-                      ? " — based on your routine"
-                      : ""
-                  } · quiet once your day is done`
-                : notificationsEnabled
-                  ? "On"
-                  : "Off"}
-          </ThemedText>
-        </View>
-        <Switch
-          value={notificationsEnabled}
-          onValueChange={handleToggleNotifications}
-          accessibilityRole="switch"
-          accessibilityLabel="Daily reminders"
-          accessibilityState={{
-            checked: notificationsEnabled,
-            disabled: Platform.OS === "web",
-          }}
-          trackColor={{
-            false: theme.backgroundSecondary,
-            true: theme.accent,
-          }}
-          thumbColor={notificationsEnabled ? "#FFFFFF" : "#FFFFFF"}
-          disabled={Platform.OS === "web"}
-        />
-      </View>
-
-      {notificationsEnabled && Platform.OS !== "web" ? (
-        <View
-          style={[
-            styles.bucketRow,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundDefault
-                : Colors.light.backgroundDefault,
-            },
-          ]}
-        >
-          {(Object.keys(REMINDER_BUCKETS) as ReminderBucket[]).map((bucket) => {
-            const selected = reminderTime?.bucket === bucket;
-            return (
-              <Pressable
-                key={bucket}
-                onPress={() => handleSelectReminderBucket(bucket)}
-                accessibilityRole="radio"
-                accessibilityState={{ selected }}
-                accessibilityLabel={`Remind me in the ${bucket}, at ${REMINDER_BUCKETS[bucket].label}`}
-                style={({ pressed }) => [
-                  styles.bucketOption,
-                  selected && {
-                    backgroundColor: "rgba(0, 217, 255, 0.15)",
-                    borderColor: theme.accent,
-                  },
-                  { opacity: pressed ? 0.7 : 1 },
+            <View
+              style={[
+                styles.settingsIcon,
+                { backgroundColor: "rgba(0, 217, 255, 0.1)" },
+              ]}
+            >
+              <Feather name="bell" size={20} color={theme.accent} />
+            </View>
+            <View style={styles.settingsContent}>
+              <ThemedText style={styles.settingsTitle}>
+                Daily Reminders
+              </ThemedText>
+              <ThemedText
+                style={[
+                  styles.settingsSubtitle,
+                  { color: theme.textSecondary },
                 ]}
               >
-                <ThemedText
-                  style={[
-                    styles.bucketName,
-                    selected && { color: theme.accent },
-                  ]}
-                >
-                  {REMINDER_BUCKETS[bucket].name}
-                </ThemedText>
-                <ThemedText
-                  style={[
-                    styles.bucketTime,
-                    {
-                      color: selected ? theme.accent : theme.textSecondary,
-                    },
-                  ]}
-                >
-                  {REMINDER_BUCKETS[bucket].label}
-                </ThemedText>
-              </Pressable>
-            );
-          })}
-        </View>
-      ) : null}
-
-      <View
-        style={[
-          styles.settingsRow,
-          {
-            backgroundColor: isDark
-              ? Colors.dark.backgroundDefault
-              : Colors.light.backgroundDefault,
-          },
-        ]}
-      >
-        <View
-          style={[
-            styles.settingsIcon,
-            { backgroundColor: "rgba(0, 217, 255, 0.1)" },
-          ]}
-        >
-          <Feather name="message-circle" size={20} color={theme.accent} />
-        </View>
-        <View style={styles.settingsContent}>
-          <ThemedText style={styles.settingsTitle}>AI Data Sharing</ThemedText>
-          <ThemedText
-            style={[styles.settingsSubtitle, { color: theme.textSecondary }]}
-          >
-            {aiConsent
-              ? "On — chat messages are sent to OpenAI"
-              : "Off — AI coaching disabled"}
-          </ThemedText>
-        </View>
-        <Switch
-          value={aiConsent}
-          onValueChange={handleToggleAiConsent}
-          accessibilityRole="switch"
-          accessibilityLabel="AI data sharing"
-          accessibilityState={{ checked: aiConsent }}
-          trackColor={{
-            false: theme.backgroundSecondary,
-            true: theme.accent,
-          }}
-          thumbColor="#FFFFFF"
-        />
-      </View>
-
-      {dawnUnlocked ? (
-        <View
-          style={[
-            styles.settingsRow,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundDefault
-                : Colors.light.backgroundDefault,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.settingsIcon,
-              { backgroundColor: "rgba(255, 184, 0, 0.1)" },
-            ]}
-          >
-            <Feather name="sunrise" size={20} color={theme.warning} />
+                {Platform.OS === "web"
+                  ? "Available on mobile"
+                  : notificationsEnabled && reminderTime
+                    ? `Reminder at ${reminderTime.label}${
+                        reminderTime.source === "routine"
+                          ? " — based on your routine"
+                          : ""
+                      } · quiet once your day is done`
+                    : notificationsEnabled
+                      ? "On"
+                      : "Off"}
+              </ThemedText>
+            </View>
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={handleToggleNotifications}
+              accessibilityRole="switch"
+              accessibilityLabel="Daily reminders"
+              accessibilityState={{
+                checked: notificationsEnabled,
+                disabled: Platform.OS === "web",
+              }}
+              trackColor={{
+                false: theme.backgroundSecondary,
+                true: theme.accent,
+              }}
+              thumbColor={notificationsEnabled ? "#FFFFFF" : "#FFFFFF"}
+              disabled={Platform.OS === "web"}
+            />
           </View>
-          <View style={styles.settingsContent}>
-            <ThemedText style={styles.settingsTitle}>Dawn Theme</ThemedText>
-            <ThemedText
-              style={[styles.settingsSubtitle, { color: theme.textSecondary }]}
+
+          {notificationsEnabled && Platform.OS !== "web" ? (
+            <View
+              style={[
+                styles.bucketRow,
+                {
+                  backgroundColor: isDark
+                    ? Colors.dark.backgroundDefault
+                    : Colors.light.backgroundDefault,
+                },
+              ]}
             >
-              Unlocked by your first milestone
-            </ThemedText>
-          </View>
-          <Switch
-            value={themeMode === "dawn"}
-            accessibilityRole="switch"
-            accessibilityLabel="Toggle Dawn Theme"
-            accessibilityHint="Switches between the Dawn light theme and Midnight dark theme"
-            accessibilityState={{ checked: themeMode === "dawn" }}
-            onValueChange={(value) => {
-              Haptics.selectionAsync();
-              setThemeMode(value ? "dawn" : "midnight");
-            }}
-            trackColor={{
-              false: theme.backgroundSecondary,
-              true: theme.warning,
-            }}
-            thumbColor="#FFFFFF"
-          />
-        </View>
-      ) : null}
-
-      {violetAccentUnlocked ? (
-        <View
-          style={[
-            styles.settingsRow,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundDefault
-                : Colors.light.backgroundDefault,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.settingsIcon,
-              { backgroundColor: "rgba(191, 161, 255, 0.12)" },
-            ]}
-          >
-            <Feather name="droplet" size={20} color="#BFA1FF" />
-          </View>
-          <View style={styles.settingsContent}>
-            <ThemedText style={styles.settingsTitle}>Violet Accent</ThemedText>
-            <ThemedText
-              style={[styles.settingsSubtitle, { color: theme.textSecondary }]}
-            >
-              A softer highlight across the app
-            </ThemedText>
-          </View>
-          <Switch
-            value={accentStyle === "violet"}
-            accessibilityRole="switch"
-            accessibilityLabel="Toggle Violet Accent"
-            accessibilityHint="Changes interactive highlights between cyan and violet"
-            accessibilityState={{ checked: accentStyle === "violet" }}
-            onValueChange={(value) => {
-              Haptics.selectionAsync();
-              setAccentStyle(value ? "violet" : "cyan");
-            }}
-            trackColor={{
-              false: theme.backgroundSecondary,
-              true: "#BFA1FF",
-            }}
-            thumbColor="#FFFFFF"
-          />
-        </View>
-      ) : null}
-
-      {directCoachUnlocked ? (
-        <View
-          style={[
-            styles.settingsRow,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundDefault
-                : Colors.light.backgroundDefault,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.settingsIcon,
-              { backgroundColor: "rgba(0, 217, 255, 0.1)" },
-            ]}
-          >
-            <Feather name="message-circle" size={20} color={theme.accent} />
-          </View>
-          <View style={styles.settingsContent}>
-            <ThemedText style={styles.settingsTitle}>Direct Coach</ThemedText>
-            <ThemedText
-              style={[styles.settingsSubtitle, { color: theme.textSecondary }]}
-            >
-              Concise and candid, still kind
-            </ThemedText>
-          </View>
-          <Switch
-            value={coachTone === "direct"}
-            accessibilityRole="switch"
-            accessibilityLabel="Toggle Direct Coach"
-            accessibilityState={{ checked: coachTone === "direct" }}
-            onValueChange={(value) => {
-              const next: CoachTone = value ? "direct" : "supportive";
-              Haptics.selectionAsync();
-              setCoachToneState(next);
-              setCoachTone(next).catch(() => {});
-            }}
-            trackColor={{
-              false: theme.backgroundSecondary,
-              true: theme.accent,
-            }}
-            thumbColor="#FFFFFF"
-          />
-        </View>
-      ) : null}
-
-      {auroraUnlocked ? (
-        <View
-          style={[
-            styles.settingsRow,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundDefault
-                : Colors.light.backgroundDefault,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.settingsIcon,
-              { backgroundColor: "rgba(155, 107, 255, 0.12)" },
-            ]}
-          >
-            <Feather name="star" size={20} color="#9B6BFF" />
-          </View>
-          <View style={styles.settingsContent}>
-            <ThemedText style={styles.settingsTitle}>
-              Aurora Celebrations
-            </ThemedText>
-            <ThemedText
-              style={[styles.settingsSubtitle, { color: theme.textSecondary }]}
-            >
-              Violet-and-gold milestone moments
-            </ThemedText>
-          </View>
-          <Switch
-            value={celebrationStyle === "aurora"}
-            accessibilityRole="switch"
-            accessibilityLabel="Toggle Aurora Celebrations"
-            accessibilityState={{ checked: celebrationStyle === "aurora" }}
-            onValueChange={(value) => {
-              const next: CelebrationStyle = value ? "aurora" : "classic";
-              Haptics.selectionAsync();
-              setCelebrationStyleState(next);
-              setCelebrationStyle(next).catch(() => {});
-            }}
-            trackColor={{
-              false: theme.backgroundSecondary,
-              true: "#9B6BFF",
-            }}
-            thumbColor="#FFFFFF"
-          />
-        </View>
-      ) : null}
-
-      {auroraIconUnlocked && alternateIconsSupported ? (
-        <View
-          style={[
-            styles.settingsRow,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundDefault
-                : Colors.light.backgroundDefault,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.settingsIcon,
-              { backgroundColor: "rgba(0, 217, 255, 0.1)" },
-            ]}
-          >
-            <Feather name="compass" size={20} color={theme.accent} />
-          </View>
-          <View style={styles.settingsContent}>
-            <ThemedText style={styles.settingsTitle}>
-              Aurora App Icon
-            </ThemedText>
-            <ThemedText
-              style={[styles.settingsSubtitle, { color: theme.textSecondary }]}
-            >
-              Violet-and-cyan Home Screen compass
-            </ThemedText>
-          </View>
-          <Switch
-            value={appIconStyle === "aurora"}
-            accessibilityRole="switch"
-            accessibilityLabel="Toggle Aurora App Icon"
-            accessibilityHint="Changes the Resolution Companion icon on your Home Screen"
-            accessibilityState={{ checked: appIconStyle === "aurora" }}
-            onValueChange={(value) => {
-              const next: AppIconStyle = value ? "aurora" : "default";
-              const previous = appIconStyle;
-              Haptics.selectionAsync();
-              setAppIconStyleState(next);
-              void setAppIconStyle(next).then((success) => {
-                if (!success) {
-                  setAppIconStyleState(previous);
-                  Alert.alert(
-                    "Icon Not Changed",
-                    "Resolution Companion couldn't change its Home Screen icon. Please try again.",
+              {(Object.keys(REMINDER_BUCKETS) as ReminderBucket[]).map(
+                (bucket) => {
+                  const selected = reminderTime?.bucket === bucket;
+                  return (
+                    <Pressable
+                      key={bucket}
+                      onPress={() => handleSelectReminderBucket(bucket)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
+                      accessibilityLabel={`Remind me in the ${bucket}, at ${REMINDER_BUCKETS[bucket].label}`}
+                      style={({ pressed }) => [
+                        styles.bucketOption,
+                        selected && {
+                          backgroundColor: "rgba(0, 217, 255, 0.15)",
+                          borderColor: theme.accent,
+                        },
+                        { opacity: pressed ? 0.7 : 1 },
+                      ]}
+                    >
+                      <ThemedText
+                        style={[
+                          styles.bucketName,
+                          selected && { color: theme.accent },
+                        ]}
+                      >
+                        {REMINDER_BUCKETS[bucket].name}
+                      </ThemedText>
+                      <ThemedText
+                        style={[
+                          styles.bucketTime,
+                          {
+                            color: selected
+                              ? theme.accent
+                              : theme.textSecondary,
+                          },
+                        ]}
+                      >
+                        {REMINDER_BUCKETS[bucket].label}
+                      </ThemedText>
+                    </Pressable>
                   );
-                }
-              });
-            }}
-            trackColor={{
-              false: theme.backgroundSecondary,
-              true: theme.accent,
-            }}
-            thumbColor="#FFFFFF"
+                },
+              )}
+            </View>
+          ) : null}
+        </>
+      ) : null}
+
+      {activePanel === "privacy" ? (
+        <>
+          <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
+            AI & Coaching
+          </ThemedText>
+          <View
+            style={[
+              styles.settingsRow,
+              {
+                backgroundColor: isDark
+                  ? Colors.dark.backgroundDefault
+                  : Colors.light.backgroundDefault,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.settingsIcon,
+                { backgroundColor: "rgba(0, 217, 255, 0.1)" },
+              ]}
+            >
+              <Feather name="message-circle" size={20} color={theme.accent} />
+            </View>
+            <View style={styles.settingsContent}>
+              <ThemedText style={styles.settingsTitle}>
+                AI Data Sharing
+              </ThemedText>
+              <ThemedText
+                style={[
+                  styles.settingsSubtitle,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                {aiConsent
+                  ? "On — chat messages are sent to OpenAI"
+                  : "Off — AI coaching disabled"}
+              </ThemedText>
+            </View>
+            <Switch
+              value={aiConsent}
+              onValueChange={handleToggleAiConsent}
+              accessibilityRole="switch"
+              accessibilityLabel="AI data sharing"
+              accessibilityState={{ checked: aiConsent }}
+              trackColor={{
+                false: theme.backgroundSecondary,
+                true: theme.accent,
+              }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+
+          <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
+            Your Data
+          </ThemedText>
+
+          {hasOnboarded ? (
+            <SettingsRow
+              icon="trash-2"
+              title="Clear Local Data"
+              subtitle="Delete local data and start fresh"
+              onPress={handleClearData}
+              destructive
+            />
+          ) : null}
+
+          <SettingsRow
+            icon="user-minus"
+            title="Delete My Account & Data"
+            subtitle="Remove all data from device and servers"
+            onPress={handleDeleteAccount}
+            destructive
           />
-        </View>
+        </>
       ) : null}
 
-      <SettingsRow
-        icon="info"
-        title="About Resolution Companion"
-        subtitle={`Version ${Constants.expoConfig?.version || "1.0.0"}`}
-        onPress={() => {
-          if (Platform.OS === "web") {
-            window.alert(
-              "Resolution Companion is your AI-powered partner for achieving your resolutions. It helps you define who you want to become and builds personalized daily habits to get you there.",
-            );
-          } else {
-            Alert.alert(
-              "About Resolution Companion",
-              "Resolution Companion is your AI-powered partner for achieving your resolutions. It helps you define who you want to become and builds personalized daily habits to get you there.",
-            );
-          }
-        }}
-      />
+      {activePanel === "about" ? (
+        <>
+          <View style={styles.detailIntro}>
+            <Feather name="compass" size={30} color={theme.accent} />
+            <ThemedText style={styles.detailTitle}>
+              Resolution Companion
+            </ThemedText>
+            <ThemedText style={[styles.detailVersion, { color: theme.accent }]}>
+              Version {Constants.expoConfig?.version || "1.0.0"}
+            </ThemedText>
+            <ThemedText
+              style={[styles.detailBody, { color: theme.textSecondary }]}
+            >
+              An identity-based companion for becoming who you want to be, one
+              small action at a time.
+            </ThemedText>
+          </View>
 
-      <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
-        Legal
-      </ThemedText>
+          {dawnUnlocked ||
+          violetAccentUnlocked ||
+          directCoachUnlocked ||
+          auroraUnlocked ||
+          (auroraIconUnlocked && alternateIconsSupported) ? (
+            <ThemedText
+              style={[styles.sectionTitle, { marginTop: Spacing.xl }]}
+            >
+              Earned Personalization
+            </ThemedText>
+          ) : null}
 
-      <SettingsRow
-        icon="file-text"
-        title="Privacy Policy"
-        subtitle="How we handle your data"
-        onPress={() =>
-          Linking.openURL(new URL("/privacy", getApiUrl()).toString())
-        }
-      />
+          {dawnUnlocked ? (
+            <View
+              style={[
+                styles.settingsRow,
+                {
+                  backgroundColor: isDark
+                    ? Colors.dark.backgroundDefault
+                    : Colors.light.backgroundDefault,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.settingsIcon,
+                  { backgroundColor: "rgba(255, 184, 0, 0.1)" },
+                ]}
+              >
+                <Feather name="sunrise" size={20} color={theme.warning} />
+              </View>
+              <View style={styles.settingsContent}>
+                <ThemedText style={styles.settingsTitle}>Dawn Theme</ThemedText>
+                <ThemedText
+                  style={[
+                    styles.settingsSubtitle,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Unlocked by your first milestone
+                </ThemedText>
+              </View>
+              <Switch
+                value={themeMode === "dawn"}
+                accessibilityRole="switch"
+                accessibilityLabel="Toggle Dawn Theme"
+                accessibilityHint="Switches between the Dawn light theme and Midnight dark theme"
+                accessibilityState={{ checked: themeMode === "dawn" }}
+                onValueChange={(value) => {
+                  Haptics.selectionAsync();
+                  setThemeMode(value ? "dawn" : "midnight");
+                }}
+                trackColor={{
+                  false: theme.backgroundSecondary,
+                  true: theme.warning,
+                }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          ) : null}
 
-      <SettingsRow
-        icon="book-open"
-        title="Terms of Use"
-        subtitle="App usage terms and conditions"
-        onPress={() =>
-          Linking.openURL(new URL("/terms", getApiUrl()).toString())
-        }
-      />
+          {violetAccentUnlocked ? (
+            <View
+              style={[
+                styles.settingsRow,
+                {
+                  backgroundColor: isDark
+                    ? Colors.dark.backgroundDefault
+                    : Colors.light.backgroundDefault,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.settingsIcon,
+                  { backgroundColor: "rgba(191, 161, 255, 0.12)" },
+                ]}
+              >
+                <Feather name="droplet" size={20} color="#BFA1FF" />
+              </View>
+              <View style={styles.settingsContent}>
+                <ThemedText style={styles.settingsTitle}>
+                  Violet Accent
+                </ThemedText>
+                <ThemedText
+                  style={[
+                    styles.settingsSubtitle,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  A softer highlight across the app
+                </ThemedText>
+              </View>
+              <Switch
+                value={accentStyle === "violet"}
+                accessibilityRole="switch"
+                accessibilityLabel="Toggle Violet Accent"
+                accessibilityHint="Changes interactive highlights between cyan and violet"
+                accessibilityState={{ checked: accentStyle === "violet" }}
+                onValueChange={(value) => {
+                  Haptics.selectionAsync();
+                  setAccentStyle(value ? "violet" : "cyan");
+                }}
+                trackColor={{
+                  false: theme.backgroundSecondary,
+                  true: "#BFA1FF",
+                }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          ) : null}
 
-      <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
-        Danger Zone
-      </ThemedText>
+          {directCoachUnlocked ? (
+            <View
+              style={[
+                styles.settingsRow,
+                {
+                  backgroundColor: isDark
+                    ? Colors.dark.backgroundDefault
+                    : Colors.light.backgroundDefault,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.settingsIcon,
+                  { backgroundColor: "rgba(0, 217, 255, 0.1)" },
+                ]}
+              >
+                <Feather name="message-circle" size={20} color={theme.accent} />
+              </View>
+              <View style={styles.settingsContent}>
+                <ThemedText style={styles.settingsTitle}>
+                  Direct Coach
+                </ThemedText>
+                <ThemedText
+                  style={[
+                    styles.settingsSubtitle,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Concise and candid, still kind
+                </ThemedText>
+              </View>
+              <Switch
+                value={coachTone === "direct"}
+                accessibilityRole="switch"
+                accessibilityLabel="Toggle Direct Coach"
+                accessibilityState={{ checked: coachTone === "direct" }}
+                onValueChange={(value) => {
+                  const next: CoachTone = value ? "direct" : "supportive";
+                  Haptics.selectionAsync();
+                  setCoachToneState(next);
+                  setCoachTone(next).catch(() => {});
+                }}
+                trackColor={{
+                  false: theme.backgroundSecondary,
+                  true: theme.accent,
+                }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          ) : null}
 
-      {hasOnboarded ? (
-        <SettingsRow
-          icon="trash-2"
-          title="Clear All Data"
-          subtitle="Delete local data and start fresh"
-          onPress={handleClearData}
-          destructive
-        />
+          {auroraUnlocked ? (
+            <View
+              style={[
+                styles.settingsRow,
+                {
+                  backgroundColor: isDark
+                    ? Colors.dark.backgroundDefault
+                    : Colors.light.backgroundDefault,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.settingsIcon,
+                  { backgroundColor: "rgba(155, 107, 255, 0.12)" },
+                ]}
+              >
+                <Feather name="star" size={20} color="#9B6BFF" />
+              </View>
+              <View style={styles.settingsContent}>
+                <ThemedText style={styles.settingsTitle}>
+                  Aurora Celebrations
+                </ThemedText>
+                <ThemedText
+                  style={[
+                    styles.settingsSubtitle,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Violet-and-gold milestone moments
+                </ThemedText>
+              </View>
+              <Switch
+                value={celebrationStyle === "aurora"}
+                accessibilityRole="switch"
+                accessibilityLabel="Toggle Aurora Celebrations"
+                accessibilityState={{ checked: celebrationStyle === "aurora" }}
+                onValueChange={(value) => {
+                  const next: CelebrationStyle = value ? "aurora" : "classic";
+                  Haptics.selectionAsync();
+                  setCelebrationStyleState(next);
+                  setCelebrationStyle(next).catch(() => {});
+                }}
+                trackColor={{
+                  false: theme.backgroundSecondary,
+                  true: "#9B6BFF",
+                }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          ) : null}
+
+          {auroraIconUnlocked && alternateIconsSupported ? (
+            <View
+              style={[
+                styles.settingsRow,
+                {
+                  backgroundColor: isDark
+                    ? Colors.dark.backgroundDefault
+                    : Colors.light.backgroundDefault,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.settingsIcon,
+                  { backgroundColor: "rgba(0, 217, 255, 0.1)" },
+                ]}
+              >
+                <Feather name="compass" size={20} color={theme.accent} />
+              </View>
+              <View style={styles.settingsContent}>
+                <ThemedText style={styles.settingsTitle}>
+                  Aurora App Icon
+                </ThemedText>
+                <ThemedText
+                  style={[
+                    styles.settingsSubtitle,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Violet-and-cyan Home Screen compass
+                </ThemedText>
+              </View>
+              <Switch
+                value={appIconStyle === "aurora"}
+                accessibilityRole="switch"
+                accessibilityLabel="Toggle Aurora App Icon"
+                accessibilityHint="Changes the Resolution Companion icon on your Home Screen"
+                accessibilityState={{ checked: appIconStyle === "aurora" }}
+                onValueChange={(value) => {
+                  const next: AppIconStyle = value ? "aurora" : "default";
+                  const previous = appIconStyle;
+                  Haptics.selectionAsync();
+                  setAppIconStyleState(next);
+                  void setAppIconStyle(next).then((success) => {
+                    if (!success) {
+                      setAppIconStyleState(previous);
+                      Alert.alert(
+                        "Icon Not Changed",
+                        "Resolution Companion couldn't change its Home Screen icon. Please try again.",
+                      );
+                    }
+                  });
+                }}
+                trackColor={{
+                  false: theme.backgroundSecondary,
+                  true: theme.accent,
+                }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          ) : null}
+
+          <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
+            Legal
+          </ThemedText>
+
+          <SettingsRow
+            icon="file-text"
+            title="Privacy Policy"
+            subtitle="How we handle your data"
+            onPress={() =>
+              Linking.openURL(new URL("/privacy", getApiUrl()).toString())
+            }
+          />
+
+          <SettingsRow
+            icon="book-open"
+            title="Terms of Use"
+            subtitle="App usage terms and conditions"
+            onPress={() =>
+              Linking.openURL(new URL("/terms", getApiUrl()).toString())
+            }
+          />
+        </>
       ) : null}
-
-      <SettingsRow
-        icon="user-minus"
-        title="Delete My Account & Data"
-        subtitle="Remove all data from device and servers"
-        onPress={handleDeleteAccount}
-        destructive
-      />
 
       <AIConsentModal
         visible={showConsentModal}
@@ -1275,6 +1447,30 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerButton: {
+    paddingHorizontal: Spacing.sm,
+  },
+  detailIntro: {
+    alignItems: "center",
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  detailTitle: {
+    ...Typography.title,
+    textAlign: "center",
+  },
+  detailVersion: {
+    ...Typography.small,
+    fontWeight: "600",
+  },
+  detailBody: {
+    ...Typography.body,
+    lineHeight: 23,
+    textAlign: "center",
+    maxWidth: 340,
+  },
   profileCard: {
     padding: Spacing.xl,
     borderRadius: BorderRadius.md,
