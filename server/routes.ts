@@ -9,7 +9,7 @@ import {
   deviceAiUsage,
   aiUsageDaily,
   deviceEvents,
-} from "@shared/schema";
+} from "../shared/schema";
 import { sql, eq } from "drizzle-orm";
 import { rateLimiter } from "./rate-limit";
 import { requireApiKey, requireAdminKey } from "./auth";

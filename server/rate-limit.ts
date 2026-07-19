@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "./db";
-import { rateLimitWindows } from "@shared/schema";
+import { rateLimitWindows } from "../shared/schema";
 
 const localFallback = new Map<string, { count: number; resetTime: number }>();
 
