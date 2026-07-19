@@ -13,6 +13,11 @@ import {
 import { sql, eq } from "drizzle-orm";
 import { rateLimiter } from "./rate-limit";
 import { requireApiKey, requireAdminKey } from "./auth";
+import { validateMessages } from "./message-validation";
+import {
+  parsePersonaPlan,
+  personaPlanResponseFormat,
+} from "./persona-extraction";
 import {
   Environment,
   SignedDataVerifier,
@@ -530,41 +535,6 @@ async function createGoogleJWT(credentials: {
   return `${signatureInput}.${signature}`;
 }
 
-// Guard the OpenAI-backed endpoints against oversized payloads (token burn)
-const MAX_MESSAGES = 50;
-const MAX_MESSAGE_CHARS = 4000;
-const MAX_TOTAL_CHARS = 50000;
-const VALID_ROLES = new Set(["user", "assistant", "system"]);
-
-function validateMessages(messages: unknown): string | null {
-  if (!Array.isArray(messages) || messages.length === 0) {
-    return "messages must be a non-empty array";
-  }
-  if (messages.length > MAX_MESSAGES) {
-    return `messages must contain at most ${MAX_MESSAGES} entries`;
-  }
-  let totalChars = 0;
-  for (const message of messages) {
-    if (
-      typeof message !== "object" ||
-      message === null ||
-      typeof (message as any).content !== "string" ||
-      !VALID_ROLES.has((message as any).role)
-    ) {
-      return "each message must have a valid role and string content";
-    }
-    const length = (message as any).content.length;
-    if (length > MAX_MESSAGE_CHARS) {
-      return `each message must be at most ${MAX_MESSAGE_CHARS} characters`;
-    }
-    totalChars += length;
-  }
-  if (totalChars > MAX_TOTAL_CHARS) {
-    return `messages must total at most ${MAX_TOTAL_CHARS} characters`;
-  }
-  return null;
-}
-
 // --- Server-side monthly AI quota ---
 // The client enforces the advertised free tier (10 check-in SESSIONS/month);
 // these limits count individual API requests (a session is many requests), so
@@ -774,17 +744,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               content: `Here is the conversation:\n\n${conversationText}`,
             },
           ],
-          response_format: { type: "json_object" },
-          // "low" keeps some reasoning for the rule-heavy extraction; budget
-          // raised because reasoning tokens count against it.
-          reasoning_effort: "low",
-          max_completion_tokens: 4096,
+          response_format: personaPlanResponseFormat,
+          reasoning_effort: "minimal",
+          max_completion_tokens: 2048,
         });
 
         await recordAiModelUsage("extract", response.usage);
 
         const content = response.choices[0]?.message?.content || "{}";
-        const personaData = JSON.parse(content);
+        const personaData = parsePersonaPlan(content);
 
         res.json(personaData);
       } catch (error) {
