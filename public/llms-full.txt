@@ -8,6 +8,7 @@ Resolution Companion AI, usually called Resolution Companion, is an identity-bas
 
 - Official website: https://resolutioncompanion.com/
 - Official App Store listing: https://apps.apple.com/us/app/resolution-companion-ai/id6757996708
+- Release notes: https://resolutioncompanion.com/release-notes
 - Support and FAQ: https://resolutioncompanion.com/feedback
 - Privacy policy: https://resolutioncompanion.com/privacy
 - Terms of use: https://resolutioncompanion.com/terms
@@ -62,18 +63,9 @@ A persona-aware AI coaching conversation. The coach uses the active persona's na
 4. Review consistency and milestone progress in Journey.
 5. Reflect with the AI coach and adjust the plan as life changes.
 
-## Version 1.1 — available now
+## Release notes
 
-Version 1.1 was released on the App Store on July 20, 2026. It includes:
-
-- Coach openings that appear immediately and AI replies that stream into the conversation.
-- Personalized daily reminders that can name the user's identity or an unfinished action, skip rest days, and stay quiet after the day is complete.
-- Home and Lock Screen widgets, Siri actions, and optional per-action Apple Health matching for workouts, steps, and mindful minutes.
-- Month in Votes recaps, share-ready progress stories, Premium Journey insights, and earned shields that protect momentum after a miss.
-- Opt-in private iCloud backup and user-initiated celebration sharing with Someone in Your Corner.
-- Clearer verified Premium status, including whether an active subscription is monthly or annual.
-
-The app's price is unchanged. The core app remains free, and the existing monthly and annual Premium subscription prices remain the same.
+Current and historical release notes, including release status and feature details, are maintained at https://resolutioncompanion.com/release-notes. Machine-readable release data is available at https://resolutioncompanion.com/releases.json.
 
 ## Availability and pricing
 

@@ -1,0 +1,61 @@
+[
+  {
+    "version": "1.1",
+    "status": "released",
+    "submittedAt": "2026-07-19",
+    "releasedAt": "2026-07-20",
+    "title": "More ways to keep moving",
+    "summary": "Version 1.1 makes the daily loop faster, more personal, and easier to carry with you while keeping the app's price unchanged.",
+    "appStoreNotes": [
+      "Coach openings now stream smoothly, matching the onboarding conversation.",
+      "Faster, more reliable coaching and plan creation.",
+      "Personalized reminders reflect your goals and unfinished daily actions.",
+      "Clearer Premium subscription status and plan details.",
+      "Performance, accessibility, and usability improvements."
+    ],
+    "highlights": [
+      {
+        "title": "Coaching without the wait",
+        "description": "Coach openings appear immediately and replies stream into the conversation, grounded in your active identity and progress.",
+        "availability": "Ten check-ins each month are free; Premium adds unlimited coaching and memory across sessions."
+      },
+      {
+        "title": "A reminder that knows the next step",
+        "description": "After you allow notifications, one daily reminder can name your goal or unfinished action, skip rest days, and stay quiet once you finish.",
+        "availability": "Choose the time that fits your routine or turn reminders off at any time."
+      },
+      {
+        "title": "Cast votes beyond the app",
+        "description": "Log progress from Home and Lock Screen widgets, Siri, or optional Apple Health matches for workouts, steps, and mindful minutes.",
+        "availability": "Health matching is opt-in per action, and Health data stays on your device."
+      },
+      {
+        "title": "Progress that tells a story",
+        "description": "Month in Votes recaps turn your history into a share-ready story. Premium Journey insights surface patterns and useful next steps.",
+        "availability": "Your personal history is analyzed locally on your device."
+      },
+      {
+        "title": "Grace when life happens",
+        "description": "Seven clean action-days earn a shield that can protect your streak from a miss. Every action can still have a 120-Second Kickstart for busy days.",
+        "availability": "Free holds one earned shield; Premium can hold two."
+      },
+      {
+        "title": "Private and in your control",
+        "description": "Opt in to a private iCloud backup, or celebrate progress with Someone in Your Corner through a share you initiate yourself.",
+        "availability": "No Resolution Companion account is required."
+      }
+    ],
+    "media": {
+      "src": "/assets/website/release-1-1-ai-coach.mp4",
+      "poster": "/assets/website/release-1-1-ai-coach-poster.jpg",
+      "title": "See the adaptive AI Coach in action",
+      "description": "A short demonstration of coaching that remembers the plan, reflects progress, and helps adjust the next step.",
+      "transcript": [
+        "I gave an AI coach my goals for a month. I went in a skeptic.",
+        "It coaches; it does not lecture. A bad week adjusts the plan.",
+        "A coach in your corner follows up on what you said.",
+        "Resolution Companion. Any day can be day one. Free to start on the App Store."
+      ]
+    }
+  }
+]

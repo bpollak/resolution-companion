@@ -10,6 +10,34 @@ const app = express();
 const log = console.log;
 const SITE_URL = "https://resolutioncompanion.com";
 
+type ReleaseStatus = "draft" | "submitted" | "released";
+
+interface ReleaseHighlight {
+  title: string;
+  description: string;
+  availability?: string;
+}
+
+interface ReleaseMedia {
+  src: string;
+  poster: string;
+  title: string;
+  description: string;
+  transcript: string[];
+}
+
+interface Release {
+  version: string;
+  status: ReleaseStatus;
+  submittedAt?: string;
+  releasedAt?: string;
+  title: string;
+  summary: string;
+  appStoreNotes: string[];
+  highlights: ReleaseHighlight[];
+  media?: ReleaseMedia;
+}
+
 // Railway (and most PaaS hosts) terminate TLS at a reverse proxy. Without this,
 // req.ip is the proxy address — which collapses all per-IP rate limiting into a
 // single shared bucket — and req.protocol is always "http".
@@ -128,6 +156,155 @@ function getAppName(): string {
   }
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function releaseAnchor(version: string): string {
+  return `version-${version.replaceAll(".", "-")}`;
+}
+
+function formatReleaseDate(value?: string): string | null {
+  if (!value) return null;
+  const date = new Date(`${value}T12:00:00Z`);
+  if (Number.isNaN(date.valueOf())) return value;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function releaseStatus(release: Release): {
+  label: string;
+  className: string;
+  dateLabel: string | null;
+  dateValue: string | null;
+} {
+  if (release.status === "released") {
+    return {
+      label: "Available",
+      className: "released",
+      dateLabel: formatReleaseDate(release.releasedAt),
+      dateValue: release.releasedAt || null,
+    };
+  }
+  if (release.status === "submitted") {
+    return {
+      label: "Submitted to Apple",
+      className: "submitted",
+      dateLabel: formatReleaseDate(release.submittedAt),
+      dateValue: release.submittedAt || null,
+    };
+  }
+  return {
+    label: "In development",
+    className: "draft",
+    dateLabel: null,
+    dateValue: null,
+  };
+}
+
+function renderReleaseMedia(media: ReleaseMedia, anchor: string): string {
+  const transcriptId = `${anchor}-transcript`;
+  const transcript = media.transcript
+    .map((line) => `<p>${escapeHtml(line)}</p>`)
+    .join("\n");
+
+  return `
+    <section class="release-media" aria-labelledby="${anchor}-media-title">
+      <div class="video-frame">
+        <video controls playsinline preload="metadata" poster="${escapeHtml(media.poster)}" aria-label="${escapeHtml(media.title)}" aria-describedby="${transcriptId}">
+          <source src="${escapeHtml(media.src)}" type="video/mp4" />
+          Your browser does not support video playback. <a href="${escapeHtml(media.src)}">Download the video</a>.
+        </video>
+      </div>
+      <div class="media-copy">
+        <h3 id="${anchor}-media-title">${escapeHtml(media.title)}</h3>
+        <p>${escapeHtml(media.description)}</p>
+        <details id="${transcriptId}">
+          <summary>Read the video transcript</summary>
+          <div class="transcript">${transcript}</div>
+        </details>
+      </div>
+    </section>`;
+}
+
+function renderRelease(release: Release): string {
+  const anchor = releaseAnchor(release.version);
+  const status = releaseStatus(release);
+  const notes = release.appStoreNotes
+    .map((note) => `<li>${escapeHtml(note)}</li>`)
+    .join("\n");
+  const highlights = release.highlights
+    .map(
+      (highlight) => `
+        <li class="highlight">
+          <h4>${escapeHtml(highlight.title)}</h4>
+          <p>${escapeHtml(highlight.description)}</p>
+          ${highlight.availability ? `<p class="availability">${escapeHtml(highlight.availability)}</p>` : ""}
+        </li>`,
+    )
+    .join("\n");
+  const date = status.dateLabel
+    ? `<time datetime="${escapeHtml(status.dateValue || "")}">${escapeHtml(status.dateLabel)}</time>`
+    : "";
+
+  return `
+    <article class="release" id="${anchor}">
+      <header class="release-header">
+        <div class="release-meta">
+          <span class="version-pill">Version ${escapeHtml(release.version)}</span>
+          <span class="status-pill ${status.className}">${escapeHtml(status.label)}</span>
+          ${date}
+        </div>
+        <h2>${escapeHtml(release.title)}</h2>
+        <p class="release-summary">${escapeHtml(release.summary)}</p>
+      </header>
+
+      <div class="release-body">
+        <section class="release-section" aria-labelledby="${anchor}-notes-title">
+          <h3 id="${anchor}-notes-title">What changed</h3>
+          <ul class="app-store-notes">${notes}</ul>
+        </section>
+
+        <section class="release-section" aria-labelledby="${anchor}-details-title">
+          <h3 id="${anchor}-details-title">What you can do now</h3>
+          <ul class="highlight-grid">${highlights}</ul>
+        </section>
+
+        ${release.media ? renderReleaseMedia(release.media, anchor) : ""}
+
+        <div class="release-actions">
+          <a href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708" target="_blank" rel="noopener">View on the App Store</a>
+          <a class="secondary" href="#${anchor}">Link to this release</a>
+        </div>
+      </div>
+    </article>`;
+}
+
+function releaseJsonLd(releases: Release[]): string {
+  const payload = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "Resolution Companion",
+    applicationCategory: "LifestyleApplication",
+    operatingSystem: "iOS",
+    url: `${SITE_URL}/release-notes`,
+    downloadUrl:
+      "https://apps.apple.com/us/app/resolution-companion-ai/id6757996708",
+    softwareVersion: releases[0]?.version,
+    releaseNotes: `${SITE_URL}/release-notes#${releaseAnchor(releases[0]?.version || "latest")}`,
+  };
+  return JSON.stringify(payload).replaceAll("<", "\\u003c");
+}
+
 function serveExpoManifest(platform: string, res: Response) {
   const manifestPath = path.resolve(
     process.cwd(),
@@ -167,6 +344,17 @@ function configureExpoAndLanding(app: express.Application) {
     path.resolve(process.cwd(), "server", "templates", "feedback.html"),
     "utf-8",
   );
+  const releaseNotesTemplate = fs.readFileSync(
+    path.resolve(process.cwd(), "server", "templates", "release-notes.html"),
+    "utf-8",
+  );
+  const releases = JSON.parse(
+    fs.readFileSync(
+      path.resolve(process.cwd(), "public", "releases.json"),
+      "utf-8",
+    ),
+  ) as Release[];
+  const releaseEntries = releases.map(renderRelease).join("\n");
 
   const appName = getAppName();
 
@@ -234,6 +422,15 @@ function configureExpoAndLanding(app: express.Application) {
   app.get("/feedback", (_req: Request, res: Response) => {
     sendHtml(res, feedbackTemplate);
   });
+
+  app.get("/release-notes", (_req: Request, res: Response) => {
+    const html = releaseNotesTemplate
+      .replace(/BASE_URL_PLACEHOLDER/g, SITE_URL)
+      .replace(/RELEASE_JSON_LD_PLACEHOLDER/g, releaseJsonLd(releases))
+      .replace(/RELEASE_ENTRIES_PLACEHOLDER/g, releaseEntries);
+
+    sendHtml(res, html);
+  });
 }
 
 function setupErrorHandler(app: express.Application) {
@@ -280,7 +477,7 @@ function setupErrorHandler(app: express.Application) {
     {
       port,
       host: "0.0.0.0",
-      reusePort: true,
+      reusePort: process.platform !== "darwin",
     },
     () => {
       log(`express server serving on port ${port}`);

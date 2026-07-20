@@ -90,9 +90,16 @@ rate limits).
 
 - [ ] Create EAS env var `EXPO_PUBLIC_API_SECRET` = server `API_SECRET`
       (verify with `eas env:list`). Missing ⇒ all API calls 401 in prod.
+- [ ] Bump `expo.version` in `app.json`, add the matching newest entry to
+      `public/releases.json`, and run `npm run release:check`.
+- [ ] Run `npm run release:notes` and use that exact copy in App Store Connect.
 - [ ] Fill `eas.json` → `submit.production.ios`: `appleId`, `ascAppId`,
       `appleTeamId` (currently empty strings).
 - [ ] `npm run build:ios`, then `npm run submit:ios`.
+- [ ] After a successful upload, commit and push the automatically updated
+      `public/releases.json` so `/release-notes` shows "Submitted to Apple."
+- [ ] After release, run `npm run release:sync`, then commit and push the
+      verified "Available" status.
 
 ### 3. App Store Connect
 

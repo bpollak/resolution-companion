@@ -64,12 +64,28 @@ Variables, visibility "secret" is fine for builds):
 > (onboarding AI, coaching, purchase validation, restore, account deletion)
 > returns 401. Verify with `eas env:list` before building.
 
+Before every iOS build, bump `expo.version` in `app.json` and add the matching
+newest entry to `public/releases.json`. The build scripts run
+`npm run release:check` first and stop if the versions do not match. Use
+`npm run release:notes` to print the exact App Store release notes for the
+current version.
+
 Then:
 
 ```bash
 npm run build:ios       # eas build --platform ios
 npm run submit:ios      # eas submit --platform ios
 ```
+
+A successful iOS upload automatically runs `npm run release:mark-submitted`.
+Commit and push the resulting `public/releases.json` change so the public
+Release Notes page shows that the version is with Apple. After Apple releases
+the version, run `npm run release:sync`; this verifies the live App Store
+version through Apple's Lookup API and marks it available. Commit and push that
+status update as the final release step.
+
+Release history is published at `https://resolutioncompanion.com/release-notes`
+and as structured JSON at `https://resolutioncompanion.com/releases.json`.
 
 Fill in `submit.production.ios` in `eas.json` (appleId, ascAppId, appleTeamId)
 before running submit.
