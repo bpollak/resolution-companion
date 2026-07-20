@@ -1,6 +1,6 @@
 # Resolution Companion: Full Product Brief
 
-Last updated: 2026-07-19
+Last updated: 2026-07-20
 
 ## Official identity
 
@@ -62,9 +62,9 @@ A persona-aware AI coaching conversation. The coach uses the active persona's na
 4. Review consistency and milestone progress in Journey.
 5. Reflect with the AI coach and adjust the plan as life changes.
 
-## Version 1.1 release status
+## Version 1.1 — available now
 
-Version 1.1 was submitted to Apple for review on July 19, 2026. These additions will become available through the App Store after Apple approves and releases the update:
+Version 1.1 was released on the App Store on July 20, 2026. It includes:
 
 - Coach openings that appear immediately and AI replies that stream into the conversation.
 - Personalized daily reminders that can name the user's identity or an unfinished action, skip rest days, and stay quiet after the day is complete.
