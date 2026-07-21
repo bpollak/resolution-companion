@@ -75,11 +75,89 @@ for (const file of collectTsxFiles(clientRoot)) {
   visit(source);
 }
 
+const websiteTemplates = [
+  "landing-page.html",
+  "release-notes.html",
+  "feedback.html",
+  "privacy.html",
+  "terms.html",
+];
+
+for (const templateName of websiteTemplates) {
+  const relativePath = path.join("server", "templates", templateName);
+  const template = fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+
+  if (!/<main\b/i.test(template)) {
+    failures.push(`${relativePath}: missing a main landmark`);
+  }
+  if (!/<nav\b[^>]*aria-label=/i.test(template)) {
+    failures.push(`${relativePath}: primary navigation needs an aria-label`);
+  }
+  if (!/class="skip-link"[^>]*href="#main-content"/i.test(template)) {
+    failures.push(`${relativePath}: missing a skip link to #main-content`);
+  }
+  if (/href="\/#feedback"/i.test(template)) {
+    failures.push(
+      `${relativePath}: links to the nonexistent /#feedback anchor`,
+    );
+  }
+
+  const menuButtons = template.match(/<button\b[^>]*>/gi) || [];
+  for (const button of menuButtons) {
+    if (
+      /class="[^"]*(?:mobile-menu-btn|mobile-nav-close)[^"]*"/i.test(button) &&
+      !/aria-label=/i.test(button)
+    ) {
+      failures.push(`${relativePath}: mobile navigation button needs a label`);
+    }
+    if (
+      /class="[^"]*mobile-menu-btn[^"]*"/i.test(button) &&
+      (!/aria-controls="mobileNav"/i.test(button) ||
+        !/aria-expanded="false"/i.test(button))
+    ) {
+      failures.push(
+        `${relativePath}: mobile menu trigger needs controls and expanded state`,
+      );
+    }
+  }
+
+  if (
+    /class="[^"]*mobile-nav[^"]*"/i.test(template) &&
+    !/<div\b[^>]*class="[^"]*mobile-nav[^"]*"[^>]*aria-hidden="true"/i.test(
+      template,
+    )
+  ) {
+    failures.push(`${relativePath}: mobile navigation needs a hidden state`);
+  }
+}
+
+const landingPage = fs.readFileSync(
+  path.join(repoRoot, "server", "templates", "landing-page.html"),
+  "utf8",
+);
+if (/<(?:ul|li) class="release-(?:grid|item)/i.test(landingPage)) {
+  failures.push(
+    "server/templates/landing-page.html: detailed release highlights must stay on /release-notes",
+  );
+}
+const demoVideo = landingPage.match(
+  /<video\b[^>]*poster="\/assets\/website\/app-demo-vertical-poster\.jpg"[^>]*>/i,
+)?.[0];
+if (
+  !demoVideo ||
+  /\bautoplay\b/i.test(demoVideo) ||
+  !/preload="none"/i.test(demoVideo)
+) {
+  failures.push(
+    "server/templates/landing-page.html: product demo must be user-initiated and preload none",
+  );
+}
+
 if (failures.length > 0) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
 
 console.log(
-  "Accessibility static checks passed: orientation, control names, roles, states, form labels, and modal isolation.",
+  "Accessibility static checks passed: app controls, website landmarks, navigation labels, skip links, and motion-sensitive media.",
 );

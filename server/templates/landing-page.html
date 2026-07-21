@@ -77,13 +77,6 @@
       content="Resolution Companion — It's never too late to restart your resolution."
     />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-      rel="stylesheet"
-    />
-
     <!-- Product, publisher, and website facts for search and answer engines -->
     <script type="application/ld+json">
       {
@@ -142,13 +135,6 @@
               "priceCurrency": "USD",
               "availability": "https://schema.org/InStock",
               "url": "https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
-            },
-            "aggregateRating": {
-              "@type": "AggregateRating",
-              "ratingValue": "5.0",
-              "bestRating": "5",
-              "worstRating": "1",
-              "ratingCount": "3"
             },
             "featureList": [
               "AI-guided Target Persona definition",
@@ -244,9 +230,39 @@
         padding: 0;
       }
 
+      [hidden] {
+        display: none !important;
+      }
+
       html {
         scroll-behavior: smooth;
         overflow-x: clip;
+      }
+
+      a:focus-visible,
+      button:focus-visible,
+      summary:focus-visible,
+      video:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 4px;
+      }
+
+      .skip-link {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 2000;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: var(--accent);
+        color: #001116;
+        font-weight: 800;
+        text-decoration: none;
+        transform: translateY(-160%);
+      }
+
+      .skip-link:focus {
+        transform: translateY(0);
       }
 
       body.menu-open {
@@ -1137,61 +1153,12 @@
         line-height: 1.7;
       }
 
-      .release-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 16px;
-        list-style: none;
+      .release-heading {
+        margin-bottom: 0;
       }
 
-      .release-item {
-        padding: 24px;
-        border: 1px solid var(--border);
-        border-radius: 18px;
-        background: rgba(15, 15, 26, 0.72);
-      }
-
-      .release-item-icon {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 42px;
-        height: 42px;
-        margin-bottom: 16px;
-        border-radius: 12px;
-        background: rgba(0, 217, 255, 0.12);
-        color: var(--accent);
-      }
-
-      .release-item-icon svg {
-        width: 22px;
-        height: 22px;
-      }
-
-      .release-item h3 {
-        margin-bottom: 9px;
-        font-size: 18px;
-        line-height: 1.3;
-      }
-
-      .release-item p {
-        color: var(--text-secondary);
-        font-size: 14px;
-        line-height: 1.6;
-      }
-
-      .release-item .availability {
-        display: block;
-        margin-top: 10px;
-        color: var(--text-muted);
-        font-size: 12px;
-        line-height: 1.5;
-      }
-
-      @media (max-width: 900px) {
-        .release-grid {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
+      .release-heading .btn-secondary {
+        margin-top: 22px;
       }
 
       @media (max-width: 640px) {
@@ -1202,10 +1169,6 @@
 
         .release-heading h2 {
           font-size: 30px;
-        }
-
-        .release-grid {
-          grid-template-columns: 1fr;
         }
       }
 
@@ -1396,204 +1359,6 @@
       .screenshot-card p {
         font-size: 13px;
         color: var(--text-secondary);
-      }
-
-      /* Quotes Section */
-      .quotes {
-        padding: 60px 0;
-      }
-
-      .quotes-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 24px;
-      }
-
-      .quote-card {
-        background: var(--bg-card);
-        backdrop-filter: blur(10px);
-        border: 1px solid var(--border);
-        border-radius: 20px;
-        padding: 32px;
-        position: relative;
-        overflow: hidden;
-      }
-
-      .quote-card::before {
-        content: '"';
-        position: absolute;
-        top: 10px;
-        left: 20px;
-        font-size: 80px;
-        font-weight: 800;
-        opacity: 0.1;
-        line-height: 1;
-      }
-
-      .quote-card:nth-child(1) {
-        border-top: 3px solid var(--accent);
-      }
-      .quote-card:nth-child(2) {
-        border-top: 3px solid var(--accent-secondary);
-      }
-      .quote-card:nth-child(3) {
-        border-top: 3px solid var(--accent-tertiary);
-      }
-
-      .quote-card blockquote {
-        font-size: 17px;
-        font-style: italic;
-        line-height: 1.7;
-        margin-bottom: 20px;
-        color: var(--text-primary);
-        position: relative;
-        z-index: 1;
-      }
-
-      .quote-card cite {
-        font-size: 14px;
-        font-style: normal;
-        font-weight: 600;
-      }
-
-      .quote-card:nth-child(1) cite {
-        color: var(--accent);
-      }
-      .quote-card:nth-child(2) cite {
-        color: var(--accent-secondary);
-      }
-      .quote-card:nth-child(3) cite {
-        color: var(--accent-tertiary);
-      }
-
-      .quote-card .quote-context {
-        font-size: 13px;
-        color: var(--text-secondary);
-        margin-top: 4px;
-      }
-
-      /* Mission Section */
-      .mission {
-        padding: 60px 0;
-      }
-
-      .mission .container {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 80px;
-        align-items: center;
-      }
-
-      .mission-content h2 {
-        font-size: 42px;
-        font-weight: 700;
-        margin-bottom: 24px;
-        letter-spacing: -0.02em;
-      }
-
-      .mission-content h2 .gradient-text {
-        background: linear-gradient(
-          135deg,
-          var(--accent),
-          var(--accent-secondary),
-          var(--accent-tertiary)
-        );
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-      }
-
-      .mission-content p {
-        font-size: 17px;
-        color: var(--text-secondary);
-        line-height: 1.8;
-        margin-bottom: 20px;
-      }
-
-      .mission-list {
-        list-style: none;
-        margin-top: 32px;
-      }
-
-      .mission-list li {
-        display: flex;
-        align-items: flex-start;
-        gap: 12px;
-        margin-bottom: 16px;
-        font-size: 16px;
-      }
-
-      .mission-list li svg {
-        width: 24px;
-        height: 24px;
-        flex-shrink: 0;
-        margin-top: 2px;
-      }
-
-      .mission-list li:nth-child(1) svg {
-        color: var(--accent);
-      }
-      .mission-list li:nth-child(2) svg {
-        color: var(--accent-secondary);
-      }
-      .mission-list li:nth-child(3) svg {
-        color: var(--accent-tertiary);
-      }
-      .mission-list li:nth-child(4) svg {
-        color: var(--accent-green);
-      }
-
-      .mission-visual {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        position: relative;
-      }
-
-      .mission-visual::before {
-        content: "";
-        position: absolute;
-        width: 400px;
-        height: 400px;
-        background: radial-gradient(
-          circle,
-          var(--purple-glow) 0%,
-          transparent 70%
-        );
-        border-radius: 50%;
-        z-index: 0;
-        animation: pulse 4s ease-in-out infinite;
-      }
-
-      @keyframes pulse {
-        0%,
-        100% {
-          transform: scale(1);
-          opacity: 0.6;
-        }
-        50% {
-          transform: scale(1.1);
-          opacity: 0.8;
-        }
-      }
-
-      .mission-phone {
-        width: 320px;
-        height: auto;
-        background: #16161f;
-        padding: 11px;
-        border-radius: 54px;
-        border: 3px solid rgba(139, 92, 246, 0.5);
-        overflow: hidden;
-        box-shadow:
-          0 50px 100px rgba(0, 0, 0, 0.5),
-          0 0 80px var(--purple-glow),
-          0 0 120px rgba(139, 92, 246, 0.3);
-        position: relative;
-        z-index: 1;
-      }
-
-      .mission-phone .phone-screen-image {
-        border-radius: 42px;
       }
 
       /* Support Section */
@@ -1946,12 +1711,12 @@
         }
 
         .hero-content {
-          order: 2;
+          order: 1;
         }
 
         .hero-phones {
-          order: 1;
-          margin-bottom: 40px;
+          order: 2;
+          margin-top: 48px;
         }
 
         .hero-subtitle {
@@ -1962,18 +1727,8 @@
           justify-content: center;
         }
 
-        .features-grid,
-        .quotes-grid {
+        .features-grid {
           grid-template-columns: 1fr;
-        }
-
-        .mission .container {
-          grid-template-columns: 1fr;
-          gap: 40px;
-        }
-
-        .mission-visual {
-          order: -1;
         }
 
         .phone-mockup.side {
@@ -1990,6 +1745,11 @@
       }
 
       @media (max-width: 640px) {
+        .hero {
+          min-height: auto;
+          padding-top: 112px;
+        }
+
         .hero h1 {
           font-size: 36px;
         }
@@ -1999,8 +1759,23 @@
         }
 
         .phone-mockup.featured {
-          width: 240px;
+          width: min(220px, 70vw);
           height: auto;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
         }
       }
 
@@ -2580,99 +2355,6 @@
         line-height: 1.6;
       }
 
-      /* Social Proof Section */
-      .social-proof {
-        padding: 80px 0;
-      }
-
-      .outcomes-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 24px;
-        max-width: 1100px;
-        margin: 0 auto;
-      }
-
-      .outcome-card {
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: 20px;
-        padding: 28px;
-      }
-
-      .outcome-persona {
-        font-size: 16px;
-        font-weight: 700;
-        color: var(--accent);
-        margin-bottom: 20px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid var(--border);
-      }
-
-      .outcome-journey {
-        margin-bottom: 20px;
-      }
-
-      .outcome-before,
-      .outcome-after {
-        margin-bottom: 12px;
-      }
-
-      .outcome-before .label,
-      .outcome-after .label {
-        display: block;
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: var(--text-muted);
-        margin-bottom: 4px;
-      }
-
-      .outcome-before span:last-child {
-        font-size: 14px;
-        color: var(--text-secondary);
-        font-style: italic;
-      }
-
-      .outcome-after span:last-child {
-        font-size: 14px;
-        color: var(--text-primary);
-        font-style: italic;
-      }
-
-      .outcome-result {
-        background: var(--bg-elevated);
-        border-radius: 12px;
-        padding: 16px;
-        text-align: center;
-      }
-
-      .outcome-result .metric {
-        display: block;
-        font-size: 28px;
-        font-weight: 800;
-        background: linear-gradient(
-          135deg,
-          var(--accent),
-          var(--accent-secondary)
-        );
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-      }
-
-      .outcome-result .desc {
-        font-size: 12px;
-        color: var(--text-muted);
-      }
-
-      .outcomes-note {
-        text-align: center;
-        margin-top: 24px;
-        font-size: 13px;
-        color: var(--text-muted);
-        font-style: italic;
-      }
-
       @media (max-width: 900px) {
         .coaching-grid {
           grid-template-columns: 1fr;
@@ -2682,8 +2364,7 @@
           padding: 32px 24px;
         }
 
-        .steps-grid,
-        .outcomes-grid {
+        .steps-grid {
           grid-template-columns: 1fr;
         }
       }
@@ -2759,6 +2440,7 @@
     </style>
   </head>
   <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="gradient-bg"></div>
 
     <!-- SVG Definitions -->
@@ -2772,7 +2454,7 @@
     </svg>
 
     <!-- Navigation -->
-    <nav>
+    <nav aria-label="Primary navigation">
       <div class="container">
         <a href="/" class="logo">
           <div class="logo-icon">
@@ -2786,23 +2468,27 @@
           Resolution Companion
         </a>
         <div class="nav-links">
+          <a href="#how-it-works">How It Works</a>
           <a href="#features">Features</a>
           <a href="#pricing">Pricing</a>
           <a href="/release-notes">Release Notes</a>
           <a href="/feedback">Support</a>
-          <a href="/privacy">Privacy</a>
-          <a href="/terms">Terms</a>
           <a
             href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
             class="nav-cta"
             target="_blank"
             rel="noopener"
-            >Get Started</a
+            >Get the App</a
           >
         </div>
         <button
+          id="mobileMenuButton"
           class="mobile-menu-btn"
-          onclick="document.getElementById('mobileNav').classList.add('open');document.body.classList.add('menu-open')"
+          type="button"
+          aria-label="Open navigation menu"
+          aria-controls="mobileNav"
+          aria-expanded="false"
+          onclick="openMobileMenu()"
         >
           <svg
             viewBox="0 0 24 24"
@@ -2819,10 +2505,19 @@
     </nav>
 
     <!-- Mobile Navigation -->
-    <div class="mobile-nav" id="mobileNav">
+    <div
+      class="mobile-nav"
+      id="mobileNav"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Site navigation"
+      aria-hidden="true"
+    >
       <button
         class="mobile-nav-close"
-        onclick="document.getElementById('mobileNav').classList.remove('open');document.body.classList.remove('menu-open')"
+        type="button"
+        aria-label="Close navigation menu"
+        onclick="closeMobileMenu()"
       >
         <svg
           viewBox="0 0 24 24"
@@ -2834,46 +2529,24 @@
           <line x1="6" y1="6" x2="18" y2="18" />
         </svg>
       </button>
-      <a
-        href="#features"
-        onclick="document.getElementById('mobileNav').classList.remove('open');document.body.classList.remove('menu-open')"
-        >Features</a
-      >
-      <a
-        href="#pricing"
-        onclick="document.getElementById('mobileNav').classList.remove('open');document.body.classList.remove('menu-open')"
-        >Pricing</a
-      >
-      <a
-        href="/release-notes"
-        onclick="document.getElementById('mobileNav').classList.remove('open');document.body.classList.remove('menu-open')"
+      <a href="#how-it-works" onclick="closeMobileMenu(false)">How It Works</a>
+      <a href="#features" onclick="closeMobileMenu(false)">Features</a>
+      <a href="#pricing" onclick="closeMobileMenu(false)">Pricing</a>
+      <a href="/release-notes" onclick="closeMobileMenu(false)"
         >Release Notes</a
       >
-      <a
-        href="/feedback"
-        onclick="document.getElementById('mobileNav').classList.remove('open');document.body.classList.remove('menu-open')"
-        >Support</a
-      >
-      <a
-        href="/privacy"
-        onclick="document.getElementById('mobileNav').classList.remove('open');document.body.classList.remove('menu-open')"
-        >Privacy</a
-      >
-      <a
-        href="/terms"
-        onclick="document.getElementById('mobileNav').classList.remove('open');document.body.classList.remove('menu-open')"
-        >Terms</a
-      >
+      <a href="/feedback" onclick="closeMobileMenu(false)">Support</a>
       <a
         href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
         class="mobile-cta"
         target="_blank"
         rel="noopener"
-        onclick="document.getElementById('mobileNav').classList.remove('open');document.body.classList.remove('menu-open')"
-        >Get Started</a
+        onclick="closeMobileMenu(false)"
+        >Get the App</a
       >
     </div>
 
+    <main id="main-content">
     <!-- Hero Section -->
     <section class="hero">
       <div class="container">
@@ -2899,7 +2572,8 @@
           <p class="hero-subtitle">
             The goal you dropped in February isn't gone. Resolution Companion
             helps you pick it back up — with an AI coach, small daily actions,
-            and a plan built around who you're becoming. Any day can be day one.
+            and a plan built around who you're becoming. Any day can be day
+            one.
           </p>
           <div class="hero-buttons">
             <a
@@ -2921,23 +2595,15 @@
               </svg>
               Download Free
             </a>
-            <a href="#features" class="btn-secondary">See How It Works</a>
+            <a href="#how-it-works" class="btn-secondary">See How It Works</a>
           </div>
           <p class="hero-note">Free forever. No credit card required.</p>
-          <a class="release-link" href="/release-notes#version-1-1">
-            See what&rsquo;s new in Resolution Companion
-            <span aria-hidden="true">→</span>
-          </a>
-          <a
-            class="app-store-proof"
-            href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
-            target="_blank"
-            rel="noopener"
-            aria-label="Rated 5.0 out of 5 from 3 ratings on the App Store"
-          >
-            <span class="app-store-proof-stars" aria-hidden="true">★★★★★</span>
-            <span>5.0 on the App Store · 3 ratings</span>
-          </a>
+          <p class="app-store-proof">
+            <span class="app-store-proof-stars" aria-hidden="true">✓</span>
+            <span
+              >No account required · Your progress stays on your device</span
+            >
+          </p>
         </div>
 
         <div class="hero-phones">
@@ -2949,6 +2615,7 @@
                 alt="Journey screen with monthly consistency ring and calendar"
                 width="640"
                 height="1391"
+                loading="lazy"
                 decoding="async"
               />
             </div>
@@ -2975,6 +2642,7 @@
                 alt="AI Coach screen with monthly check-in"
                 width="640"
                 height="1391"
+                loading="lazy"
                 decoding="async"
               />
             </div>
@@ -2983,7 +2651,7 @@
       </div>
     </section>
 
-    <!-- Version 1.1 Release Highlights -->
+    <!-- A concise update teaser keeps detailed changelog content on /release-notes. -->
     <section
       class="release-highlights"
       id="whats-new"
@@ -2992,157 +2660,20 @@
       <div class="container">
         <div class="release-summary">
           <div class="release-heading">
-            <div class="release-badge">Version 1.1 · Available Now</div>
-            <h2 id="whats-new-title">More ways to keep moving</h2>
-            <p>
-              Version 1.1 is available now on the App Store. It makes the daily
-              loop faster, more personal, and easier to carry with you.
-            </p>
+            <div class="release-badge">
+              Version LATEST_RELEASE_VERSION_PLACEHOLDER · Available Now
+            </div>
+            <h2 id="whats-new-title">LATEST_RELEASE_TITLE_PLACEHOLDER</h2>
+            <p>LATEST_RELEASE_SUMMARY_PLACEHOLDER</p>
+            <a
+              class="btn-secondary"
+              href="/release-notes#LATEST_RELEASE_ANCHOR_PLACEHOLDER"
+            >
+              Read the version LATEST_RELEASE_VERSION_PLACEHOLDER release
+              notes
+              <span aria-hidden="true">→</span>
+            </a>
           </div>
-
-          <ul class="release-grid">
-            <li class="release-item">
-              <div class="release-item-icon" aria-hidden="true">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-                  />
-                  <path d="M8 9h8M8 13h5" />
-                </svg>
-              </div>
-              <h3>Coaching without the wait</h3>
-              <p>
-                Coach openings appear immediately and replies stream into the
-                conversation, grounded in your active identity and progress.
-              </p>
-              <span class="availability"
-                >10 check-ins each month are free; Premium adds unlimited
-                coaching and memory across sessions.</span
-              >
-            </li>
-
-            <li class="release-item">
-              <div class="release-item-icon" aria-hidden="true">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
-                  <path d="M10 21h4" />
-                </svg>
-              </div>
-              <h3>A reminder that knows the next step</h3>
-              <p>
-                After you allow notifications, one daily reminder can name your
-                goal or unfinished action, skip rest days, and stay quiet once
-                you finish.
-              </p>
-              <span class="availability"
-                >Choose the time that fits your routine or turn reminders off at
-                any time.</span
-              >
-            </li>
-
-            <li class="release-item">
-              <div class="release-item-icon" aria-hidden="true">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <rect x="3" y="3" width="18" height="18" rx="4" />
-                  <path d="M8 12l3 3 5-7" />
-                </svg>
-              </div>
-              <h3>Cast votes beyond the app</h3>
-              <p>
-                Log progress from Home and Lock Screen widgets, Siri, or
-                optional Apple Health matches for workouts, steps, and mindful
-                minutes.
-              </p>
-              <span class="availability"
-                >Health matching is opt-in per action, and Health data stays on
-                your device.</span
-              >
-            </li>
-
-            <li class="release-item">
-              <div class="release-item-icon" aria-hidden="true">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="M4 19V9M10 19V5M16 19v-7M22 19V3" />
-                </svg>
-              </div>
-              <h3>Progress that tells a story</h3>
-              <p>
-                Month in Votes recaps turn your history into a share-ready
-                story. Premium Journey insights surface patterns and useful next
-                steps.
-              </p>
-              <span class="availability"
-                >Your personal history is analyzed locally on your device.</span
-              >
-            </li>
-
-            <li class="release-item">
-              <div class="release-item-icon" aria-hidden="true">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                  <path d="M9 12l2 2 4-4" />
-                </svg>
-              </div>
-              <h3>Grace when life happens</h3>
-              <p>
-                Seven clean action-days earn a shield that can protect your
-                streak from a miss. Every action can still have a 120-Second
-                Kickstart for busy days.
-              </p>
-              <span class="availability"
-                >Free holds one earned shield; Premium can hold two.</span
-              >
-            </li>
-
-            <li class="release-item">
-              <div class="release-item-icon" aria-hidden="true">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    d="M20 16.5A4.5 4.5 0 0 0 18 8a6 6 0 0 0-11.7 1.5A4 4 0 0 0 7 17h11"
-                  />
-                  <path d="M12 12v9M9 15l3-3 3 3" />
-                </svg>
-              </div>
-              <h3>Private and in your control</h3>
-              <p>
-                Opt in to a private iCloud backup, or celebrate progress with
-                Someone in Your Corner through a share you initiate yourself.
-              </p>
-              <span class="availability"
-                >No Resolution Companion account is required.</span
-              >
-            </li>
-          </ul>
         </div>
       </div>
     </section>
@@ -3164,11 +2695,9 @@
         </div>
         <div class="video-demo-frame">
           <video
-            autoplay
-            muted
-            loop
+            controls
             playsinline
-            preload="metadata"
+            preload="none"
             poster="/assets/website/app-demo-vertical-poster.jpg"
             width="720"
             height="1280"
@@ -3241,10 +2770,10 @@
             <h3>Your Data Stays on Your Device</h3>
             <p>
               Your plans, actions, and progress live locally on your phone. We
-              never sell your data or track you across apps — our servers store
-              only an anonymous device identifier and your subscription status
-              so purchases can be restored. AI conversations are processed in
-              real time, not stored by us.
+              never sell your data or track you across apps — our servers
+              store only an anonymous device identifier and your subscription
+              status so purchases can be restored. AI conversations are
+              processed in real time, not stored by us.
               <a href="/privacy">Read our full Privacy Policy</a>
             </p>
           </div>
@@ -3259,8 +2788,8 @@
           <div class="section-label">Try It Now</div>
           <h2 class="section-title">Preview Who You Could Become</h2>
           <p class="section-subtitle">
-            Answer 3 quick questions to see a preview of what your personalized
-            growth journey could look like.
+            Answer 3 quick questions to see a preview of what your
+            personalized growth journey could look like.
           </p>
         </div>
 
@@ -3432,12 +2961,12 @@
             </div>
             <h3>Who You're Becoming</h3>
             <p class="feature-problem">
-              Problem: Vague goals like "get healthier" lack direction and fade
-              quickly.
+              Problem: Vague goals like "get healthier" lack direction and
+              fade quickly.
             </p>
             <p class="feature-benefit">
-              Solution: Define a clear identity - "I am a disciplined athlete" -
-              that guides every decision naturally.
+              Solution: Define a clear identity - "I am a disciplined athlete"
+              - that guides every decision naturally.
             </p>
           </div>
 
@@ -3489,12 +3018,12 @@
             </div>
             <h3>Journey Calendar</h3>
             <p class="feature-problem">
-              Problem: Missing one day makes you feel like a failure, destroying
-              motivation.
+              Problem: Missing one day makes you feel like a failure,
+              destroying motivation.
             </p>
             <p class="feature-benefit">
-              Solution: A month-at-a-glance calendar shows overall progress, not
-              just streaks. One missed day doesn't erase your growth.
+              Solution: A month-at-a-glance calendar shows overall progress,
+              not just streaks. One missed day doesn't erase your growth.
             </p>
           </div>
 
@@ -3526,12 +3055,13 @@
             </div>
             <h3>AI Coaching</h3>
             <p class="feature-problem">
-              Problem: You get stuck in the same patterns with no one to provide
-              fresh perspective.
+              Problem: You get stuck in the same patterns with no one to
+              provide fresh perspective.
             </p>
             <p class="feature-benefit">
               Solution: Streaming weekly reviews and deeper monthly check-ins
-              analyze progress, spot patterns you miss, and adapt your strategy.
+              analyze progress, spot patterns you miss, and adapt your
+              strategy.
             </p>
           </div>
 
@@ -3592,10 +3122,10 @@
               Problem: Big goals feel overwhelming with no clear path forward.
             </p>
             <p class="feature-benefit">
-              Solution: Break who you're becoming into 3-5 concrete milestones.
-              Each completed day fills a milestone — and milestones only fill
-              up, never drain. Add an optional target date for a gentle
-              countdown, never a deadline.
+              Solution: Break who you're becoming into 3-5 concrete
+              milestones. Each completed day fills a milestone — and
+              milestones only fill up, never drain. Add an optional target
+              date for a gentle countdown, never a deadline.
             </p>
           </div>
 
@@ -3666,8 +3196,8 @@
                 <h4>Chat-Based Check-ins</h4>
                 <p>
                   Openings appear right away and replies stream into a natural
-                  back-and-forth — ask for guidance, motivation, or help getting
-                  unstuck.
+                  back-and-forth — ask for guidance, motivation, or help
+                  getting unstuck.
                 </p>
               </div>
             </div>
@@ -3690,8 +3220,9 @@
                 <h4>Weekly &amp; Monthly Check-ins</h4>
                 <p>
                   A free 3-minute weekly review — one win, one friction, one
-                  small bend for next week — plus deeper monthly sessions where
-                  your coach analyzes patterns and adjusts your strategy.
+                  small bend for next week — plus deeper monthly sessions
+                  where your coach analyzes patterns and adjusts your
+                  strategy.
                 </p>
               </div>
             </div>
@@ -3711,9 +3242,9 @@
               <div>
                 <h4>Daily Reminders</h4>
                 <p>
-                  One goal-aware nudge, timed to your routine, can name what is
-                  still open, skip rest days, and stay quiet once your day is
-                  complete.
+                  One goal-aware nudge, timed to your routine, can name what
+                  is still open, skip rest days, and stay quiet once your day
+                  is complete.
                 </p>
               </div>
             </div>
@@ -3734,9 +3265,9 @@
               <div>
                 <h4>A Coach That Remembers</h4>
                 <p>
-                  Jot a one-line note when you complete an action and your coach
-                  can quote your own words back. With Premium, it also remembers
-                  your past sessions and follows up on them.
+                  Jot a one-line note when you complete an action and your
+                  coach can quote your own words back. With Premium, it also
+                  remembers your past sessions and follows up on them.
                 </p>
               </div>
             </div>
@@ -3763,13 +3294,13 @@
             <div class="coaching-message">
               <p>
                 You've been at this for three weeks, and your
-                <strong>consistency is at 87%</strong> — every completed action
-                a vote for who you're becoming.
+                <strong>consistency is at 87%</strong> — every completed
+                action a vote for who you're becoming.
               </p>
               <p>
-                I noticed you're strongest on weekday mornings. Consider moving
-                "Read for 20 minutes" to mornings too — it fits the routine
-                you've already built.
+                I noticed you're strongest on weekday mornings. Consider
+                moving "Read for 20 minutes" to mornings too — it fits the
+                routine you've already built.
               </p>
               <p>
                 Your <strong>"Write one page" milestone</strong> is 14 of 21
@@ -3778,9 +3309,9 @@
               </p>
             </div>
             <div class="ai-disclaimer">
-              AI coaching provides motivational and informational guidance only.
-              It is not a substitute for professional advice from qualified
-              healthcare providers, therapists, or counselors.
+              AI coaching provides motivational and informational guidance
+              only. It is not a substitute for professional advice from
+              qualified healthcare providers, therapists, or counselors.
             </div>
           </div>
         </div>
@@ -3839,8 +3370,8 @@
             </div>
             <h3>Track Daily Actions</h3>
             <p>
-              Complete 3-5 small daily actions that reinforce that identity. Use
-              120-second versions when motivation is low.
+              Complete 3-5 small daily actions that reinforce that identity.
+              Use 120-second versions when motivation is low.
             </p>
           </div>
 
@@ -3870,224 +3401,6 @@
       </div>
     </section>
 
-    <!-- Social Proof / Example Outcomes -->
-    <section class="social-proof">
-      <div class="container">
-        <div class="section-header">
-          <div class="section-label">What's Possible</div>
-          <h2 class="section-title">Example Growth Journeys</h2>
-          <p class="section-subtitle">
-            Illustrative examples of how identity-based change creates lasting
-            results.
-          </p>
-        </div>
-
-        <div class="outcomes-grid">
-          <div class="outcome-card">
-            <div class="outcome-persona">The Disciplined Runner</div>
-            <div class="outcome-journey">
-              <div class="outcome-before">
-                <span class="label">Started with:</span>
-                <span
-                  >"I want to run a marathon but can't stick to training."</span
-                >
-              </div>
-              <div class="outcome-after">
-                <span class="label">Became:</span>
-                <span
-                  >"I'm someone who runs every morning. A marathon is just what
-                  runners do."</span
-                >
-              </div>
-            </div>
-            <div class="outcome-result">
-              <span class="metric">87%</span>
-              <span class="desc">consistency after 90 days</span>
-            </div>
-          </div>
-
-          <div class="outcome-card">
-            <div class="outcome-persona">The Mindful Leader</div>
-            <div class="outcome-journey">
-              <div class="outcome-before">
-                <span class="label">Started with:</span>
-                <span
-                  >"I want to be less stressed and more present at work."</span
-                >
-              </div>
-              <div class="outcome-after">
-                <span class="label">Became:</span>
-                <span
-                  >"I'm a calm, focused leader who creates space for deep
-                  thinking."</span
-                >
-              </div>
-            </div>
-            <div class="outcome-result">
-              <span class="metric">92%</span>
-              <span class="desc">consistency after 60 days</span>
-            </div>
-          </div>
-
-          <div class="outcome-card">
-            <div class="outcome-persona">The Creative Writer</div>
-            <div class="outcome-journey">
-              <div class="outcome-before">
-                <span class="label">Started with:</span>
-                <span
-                  >"I've always wanted to write a book but never find
-                  time."</span
-                >
-              </div>
-              <div class="outcome-after">
-                <span class="label">Became:</span>
-                <span
-                  >"I'm a writer. I write every day because that's who I
-                  am."</span
-                >
-              </div>
-            </div>
-            <div class="outcome-result">
-              <span class="metric">78%</span>
-              <span class="desc">consistency after 45 days</span>
-            </div>
-          </div>
-        </div>
-
-        <p class="outcomes-note">
-          These are illustrative examples of how identity-based change works.
-          Individual results vary based on commitment and consistency.
-        </p>
-      </div>
-    </section>
-
-    <!-- Quotes Section -->
-    <section class="quotes">
-      <div class="container">
-        <div class="section-header">
-          <div class="section-label">Inspiration</div>
-          <h2 class="section-title">Wisdom for Your Journey</h2>
-        </div>
-
-        <div class="quotes-grid">
-          <div class="quote-card">
-            <blockquote>
-              "We are what we repeatedly do. Excellence, then, is not an act,
-              but a habit."
-            </blockquote>
-            <cite>Aristotle</cite>
-            <p class="quote-context">Ancient Greek Philosopher</p>
-          </div>
-
-          <div class="quote-card">
-            <blockquote>
-              "Every action you take is a vote for the type of person you wish
-              to become."
-            </blockquote>
-            <cite>James Clear</cite>
-            <p class="quote-context">Author of Atomic Habits</p>
-          </div>
-
-          <div class="quote-card">
-            <blockquote>
-              "The journey of a thousand miles begins with a single step."
-            </blockquote>
-            <cite>Lao Tzu</cite>
-            <p class="quote-context">Chinese Proverb</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Mission Section -->
-    <section class="mission" id="mission">
-      <div class="container">
-        <div class="mission-content">
-          <h2>Our <span class="gradient-text">Story</span></h2>
-          <p>
-            We believe that lasting change comes from within. Instead of chasing
-            goals, we focus on building identity. When you see yourself as a
-            "healthy person" rather than someone "trying to lose weight," your
-            daily choices naturally align with who you're becoming.
-          </p>
-          <p>
-            Resolution Companion was built on this simple truth:
-            <strong
-              >you don't rise to the level of your goals, you fall to the level
-              of your systems.</strong
-            >
-            We help you build systems that work.
-          </p>
-
-          <ul class="mission-list">
-            <li>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-              Identity-first approach to habit building
-            </li>
-            <li>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-              AI that adapts to your unique journey
-            </li>
-            <li>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-              Small actions that compound into big results
-            </li>
-            <li>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-              A calendar and consistency score that keep you motivated
-            </li>
-          </ul>
-        </div>
-
-        <div class="mission-visual">
-          <div class="mission-phone">
-            <div class="phone-screen-image">
-              <img
-                src="/assets/website/screen-today-v2.png"
-                alt="Today screen with a completed day and 100% consistency"
-                width="640"
-                height="1391"
-                loading="lazy"
-                decoding="async"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- Download Section -->
     <section class="download" id="download">
       <div class="container">
@@ -4104,7 +3417,10 @@
           <div class="download-card">
             <h3>Now on the App Store</h3>
             <p
-              style="color: var(--text-secondary, #c8c8d4); margin-bottom: 16px"
+              style="
+                color: var(--text-secondary, #c8c8d4);
+                margin-bottom: 16px;
+              "
             >
               Resolution Companion AI is available free on the App Store for
               iPhone and iPad.
@@ -4230,10 +3546,10 @@
             <summary>Is Resolution Companion free?</summary>
             <p>
               Yes. The core app is free forever &mdash; one active plan, full
-              daily action tracking, the Journey calendar, progress tracking, a
-              free weekly review ritual with your coach, and 10 coaching
-              check-ins each month. Premium ($2.99/month or $24.99/year) unlocks
-              unlimited plans, unlimited coaching check-ins, unlimited
+              daily action tracking, the Journey calendar, progress tracking,
+              a free weekly review ritual with your coach, and 10 coaching
+              check-ins each month. Premium ($2.99/month or $24.99/year)
+              unlocks unlimited plans, unlimited coaching check-ins, unlimited
               milestones, and a coach that remembers your past sessions.
             </p>
           </details>
@@ -4251,11 +3567,12 @@
           <details class="faq-item">
             <summary>Is my data private?</summary>
             <p>
-              Yes. Your plans, actions, and progress are stored locally on your
-              device. Our servers keep only an anonymous device identifier and
-              your subscription status so purchases can be restored. AI
-              conversations are processed in real time and are not stored by us.
-              See our <a href="/privacy">Privacy Policy</a> for details.
+              Yes. Your plans, actions, and progress are stored locally on
+              your device. Our servers keep only an anonymous device
+              identifier and your subscription status so purchases can be
+              restored. AI conversations are processed in real time and are
+              not stored by us. See our
+              <a href="/privacy">Privacy Policy</a> for details.
             </p>
           </details>
           <details class="faq-item">
@@ -4263,9 +3580,9 @@
               Is the AI coach a substitute for therapy or medical advice?
             </summary>
             <p>
-              No. The AI coach provides motivational and informational guidance
-              only. It is not a substitute for professional advice from
-              qualified healthcare providers, therapists, or counselors.
+              No. The AI coach provides motivational and informational
+              guidance only. It is not a substitute for professional advice
+              from qualified healthcare providers, therapists, or counselors.
             </p>
           </details>
           <details class="faq-item">
@@ -4279,15 +3596,16 @@
             <summary>How do I cancel my subscription?</summary>
             <p>
               Subscriptions are billed and managed by Apple. Open Settings on
-              your iPhone or iPad, tap your name, then Subscriptions, and cancel
-              there. To avoid renewal, cancel at least 24 hours before the
-              renewal date &mdash; you keep Premium until the end of the paid
-              period.
+              your iPhone or iPad, tap your name, then Subscriptions, and
+              cancel there. To avoid renewal, cancel at least 24 hours before
+              the renewal date &mdash; you keep Premium until the end of the
+              paid period.
             </p>
           </details>
         </div>
       </div>
     </section>
+    </main>
     <!-- Footer -->
     <footer>
       <div class="container">
@@ -4322,6 +3640,32 @@
     </footer>
 
     <script>
+      const mobileMenu = document.getElementById("mobileNav");
+      const mobileMenuButton = document.getElementById("mobileMenuButton");
+      const mobileMenuClose = mobileMenu.querySelector(".mobile-nav-close");
+
+      function openMobileMenu() {
+        mobileMenu.classList.add("open");
+        mobileMenu.setAttribute("aria-hidden", "false");
+        mobileMenuButton.setAttribute("aria-expanded", "true");
+        document.body.classList.add("menu-open");
+        mobileMenuClose.focus();
+      }
+
+      function closeMobileMenu(restoreFocus = true) {
+        mobileMenu.classList.remove("open");
+        mobileMenu.setAttribute("aria-hidden", "true");
+        mobileMenuButton.setAttribute("aria-expanded", "false");
+        document.body.classList.remove("menu-open");
+        if (restoreFocus) mobileMenuButton.focus();
+      }
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && mobileMenu.classList.contains("open")) {
+          closeMobileMenu();
+        }
+      });
+
       // Smooth scroll for navigation
       document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
         anchor.addEventListener("click", function (e) {

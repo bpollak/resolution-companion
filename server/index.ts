@@ -10,6 +10,18 @@ const app = express();
 const log = console.log;
 const SITE_URL = "https://resolutioncompanion.com";
 
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=()",
+  );
+  res.setHeader("X-Frame-Options", "DENY");
+  next();
+});
+
 type ReleaseStatus = "draft" | "submitted" | "released";
 
 interface ReleaseHighlight {
@@ -355,6 +367,8 @@ function configureExpoAndLanding(app: express.Application) {
     ),
   ) as Release[];
   const releaseEntries = releases.map(renderRelease).join("\n");
+  const latestReleased =
+    releases.find((release) => release.status === "released") || releases[0];
 
   const appName = getAppName();
 
@@ -406,7 +420,26 @@ function configureExpoAndLanding(app: express.Application) {
   app.get("/", (_req: Request, res: Response) => {
     const html = landingPageTemplate
       .replace(/BASE_URL_PLACEHOLDER/g, SITE_URL)
-      .replace(/APP_NAME_PLACEHOLDER/g, appName);
+      .replace(/APP_NAME_PLACEHOLDER/g, appName)
+      .replace(
+        /LATEST_RELEASE_VERSION_PLACEHOLDER/g,
+        escapeHtml(latestReleased?.version || "latest"),
+      )
+      .replace(
+        /LATEST_RELEASE_TITLE_PLACEHOLDER/g,
+        escapeHtml(latestReleased?.title || "See what is new"),
+      )
+      .replace(
+        /LATEST_RELEASE_SUMMARY_PLACEHOLDER/g,
+        escapeHtml(
+          latestReleased?.summary ||
+            "Read the latest Resolution Companion product updates.",
+        ),
+      )
+      .replace(
+        /LATEST_RELEASE_ANCHOR_PLACEHOLDER/g,
+        releaseAnchor(latestReleased?.version || "latest"),
+      );
 
     sendHtml(res, html);
   });

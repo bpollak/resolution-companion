@@ -40,12 +40,7 @@
       property="og:image"
       content="https://resolutioncompanion.com/assets/website/app-logo.png"
     />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-      rel="stylesheet"
-    />
+    <script src="/assets/website/site-navigation.js" defer></script>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -691,12 +686,53 @@
           gap: 16px;
         }
       }
+      a:focus-visible,
+      button:focus-visible,
+      input:focus-visible,
+      select:focus-visible,
+      textarea:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 4px;
+      }
+
+      .skip-link {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 2000;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: var(--accent);
+        color: #001116;
+        font-weight: 800;
+        text-decoration: none;
+        transform: translateY(-160%);
+      }
+
+      .skip-link:focus {
+        transform: translateY(0);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
     </style>
   </head>
   <body>
+    <a class="skip-link" href="#main-content">Skip to support</a>
     <div class="gradient-bg"></div>
 
-    <nav>
+    <nav aria-label="Primary navigation">
       <div class="container">
         <a href="/" class="logo">
           <div class="logo-icon">
@@ -712,10 +748,21 @@
           <a href="/feedback" class="active">Support</a>
           <a href="/privacy">Privacy</a>
           <a href="/terms">Terms</a>
-          <a href="/#download" class="nav-cta">Get Started</a>
+          <a
+            href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
+            class="nav-cta"
+            target="_blank"
+            rel="noopener"
+            >Get the App</a
+          >
         </div>
         <button
+          id="mobileMenuButton"
           class="mobile-menu-btn"
+          type="button"
+          aria-label="Open navigation menu"
+          aria-controls="mobileNav"
+          aria-expanded="false"
           onclick="document.getElementById('mobileNav').classList.add('open')"
         >
           <svg
@@ -732,9 +779,18 @@
       </div>
     </nav>
 
-    <div class="mobile-nav" id="mobileNav">
+    <div
+      class="mobile-nav"
+      id="mobileNav"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Site navigation"
+      aria-hidden="true"
+    >
       <button
         class="mobile-nav-close"
+        type="button"
+        aria-label="Close navigation menu"
         onclick="document.getElementById('mobileNav').classList.remove('open')"
       >
         <svg
@@ -768,14 +824,16 @@
         >Terms</a
       >
       <a
-        href="/#download"
+        href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
         class="mobile-cta"
+        target="_blank"
+        rel="noopener"
         onclick="document.getElementById('mobileNav').classList.remove('open')"
-        >Get Started</a
+        >Get the App</a
       >
     </div>
 
-    <main class="main-content">
+    <main class="main-content" id="main-content">
       <div class="page-header">
         <h1>Support & Feedback</h1>
         <p>
@@ -927,11 +985,17 @@
             id="botcheck"
             style="display: none"
             tabindex="-1"
+            aria-hidden="true"
             autocomplete="off"
           />
 
           <button type="submit" class="form-submit">Send Feedback</button>
-          <div class="form-message" id="formMessage"></div>
+          <div
+            class="form-message"
+            id="formMessage"
+            role="status"
+            aria-live="polite"
+          ></div>
         </form>
       </div>
     </main>

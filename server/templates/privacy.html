@@ -34,12 +34,7 @@
       property="og:image"
       content="https://resolutioncompanion.com/assets/website/app-logo.png"
     />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-      rel="stylesheet"
-    />
+    <script src="/assets/website/site-navigation.js" defer></script>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -430,11 +425,49 @@
           display: block;
         }
       }
+      a:focus-visible,
+      button:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 4px;
+      }
+
+      .skip-link {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 2000;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: var(--accent);
+        color: #001116;
+        font-weight: 800;
+        text-decoration: none;
+        transform: translateY(-160%);
+      }
+
+      .skip-link:focus {
+        transform: translateY(0);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
     </style>
   </head>
   <body>
+    <a class="skip-link" href="#main-content">Skip to privacy policy</a>
     <div class="gradient-bg"></div>
-    <nav>
+    <nav aria-label="Primary navigation">
       <div class="container">
         <a href="/" class="logo">
           <div class="logo-icon">
@@ -450,10 +483,21 @@
           <a href="/feedback">Support</a>
           <a href="/privacy" class="active">Privacy</a>
           <a href="/terms">Terms</a>
-          <a href="/#download" class="nav-cta">Get Started</a>
+          <a
+            href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
+            class="nav-cta"
+            target="_blank"
+            rel="noopener"
+            >Get the App</a
+          >
         </div>
         <button
+          id="mobileMenuButton"
           class="mobile-menu-btn"
+          type="button"
+          aria-label="Open navigation menu"
+          aria-controls="mobileNav"
+          aria-expanded="false"
           onclick="document.getElementById('mobileNav').classList.add('open')"
         >
           <svg
@@ -470,9 +514,18 @@
       </div>
     </nav>
 
-    <div class="mobile-nav" id="mobileNav">
+    <div
+      class="mobile-nav"
+      id="mobileNav"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Site navigation"
+      aria-hidden="true"
+    >
       <button
         class="mobile-nav-close"
+        type="button"
+        aria-label="Close navigation menu"
         onclick="document.getElementById('mobileNav').classList.remove('open')"
       >
         <svg
@@ -507,15 +560,18 @@
         >Terms</a
       >
       <a
-        href="/#download"
+        href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
         class="mobile-cta"
+        target="_blank"
+        rel="noopener"
         onclick="document.getElementById('mobileNav').classList.remove('open')"
-        >Get Started</a
+        >Get the App</a
       >
     </div>
 
     <div class="page-content">
       <div class="container">
+        <main id="main-content">
         <header>
           <h1>Privacy Policy</h1>
           <p class="last-updated">Last Updated: July 2026</p>
@@ -532,13 +588,13 @@
           <div class="highlight-box">
             <h3>The Short Version</h3>
             <p style="margin-bottom: 0">
-              Your personal growth data stays on your device. We don't sell your
-              data, track you across apps, or use third-party analytics or ad
-              trackers. On our own servers we store only the minimum: an
+              Your personal growth data stays on your device. We don't sell
+              your data, track you across apps, or use third-party analytics
+              or ad trackers. On our own servers we store only the minimum: an
               anonymous device identifier, your subscription status, and
               privacy-respecting usage counts (how often features are used, by
-              day — never what you write or do). AI conversations are processed
-              by OpenAI (see details below).
+              day — never what you write or do). AI conversations are
+              processed by OpenAI (see details below).
             </p>
           </div>
         </section>
@@ -547,14 +603,15 @@
           <h2>Information We Don't Collect</h2>
           <ul>
             <li>
-              <strong>No Account Required:</strong> Use the app without creating
-              an account or providing personal information.
+              <strong>No Account Required:</strong> Use the app without
+              creating an account or providing personal information.
             </li>
             <li>
               <strong>No Third-Party Analytics or Ad Tracking:</strong> We do
               not use third-party analytics SDKs, advertising trackers, or
-              cross-app tracking of any kind. The only usage data we keep is our
-              own privacy-respecting, aggregate feature counts, described below.
+              cross-app tracking of any kind. The only usage data we keep is
+              our own privacy-respecting, aggregate feature counts, described
+              below.
             </li>
             <li>
               <strong>No Data Selling:</strong> We never sell or rent your
@@ -566,14 +623,15 @@
         <section>
           <h2>Information We Do Store</h2>
           <p>
-            To make premium subscriptions work, we store a small amount of data
-            on our servers:
+            To make premium subscriptions work, we store a small amount of
+            data on our servers:
           </p>
           <ul>
             <li>
-              <strong>Anonymous Device Identifier:</strong> A randomly generated
-              identifier created on your device. It is not your advertising ID
-              and is not linked to your name, email, or identity.
+              <strong>Anonymous Device Identifier:</strong> A randomly
+              generated identifier created on your device. It is not your
+              advertising ID and is not linked to your name, email, or
+              identity.
             </li>
             <li>
               <strong>Subscription Status:</strong> Your subscription plan,
@@ -584,16 +642,16 @@
               <strong>Aggregate Usage Counts:</strong> To understand which
               features are useful and where the app can be improved, we keep
               per-day counts of anonymous events (for example, "a plan was
-              created," "the coach was opened," or the app caught an error), tied only to the same
-              anonymous device identifier above. We never record what you write,
-              your goals, your messages, or any content — only how many times a
-              feature was used on a given day.
+              created," "the coach was opened," or the app caught an error),
+              tied only to the same anonymous device identifier above. We
+              never record what you write, your goals, your messages, or any
+              content — only how many times a feature was used on a given day.
             </li>
             <li>
-              <strong>Aggregate AI Operations:</strong> We total AI request and
-              token counts by day, feature, and model so we can monitor cost.
-              These totals contain no device identifier, prompt, response, or
-              other user content.
+              <strong>Aggregate AI Operations:</strong> We total AI request
+              and token counts by day, feature, and model so we can monitor
+              cost. These totals contain no device identifier, prompt,
+              response, or other user content.
             </li>
             <li>
               <strong>Feedback Submissions:</strong> If you contact us through
@@ -602,8 +660,8 @@
             </li>
           </ul>
           <p>
-            You can delete the device identifier and subscription records at any
-            time from the app via
+            You can delete the device identifier and subscription records at
+            any time from the app via
             <strong>Profile &gt; Delete My Account &amp; Data</strong>, or by
             contacting us at the email address below.
           </p>
@@ -651,19 +709,19 @@
           <div class="highlight-box">
             <h3>Private iCloud Backup</h3>
             <p>
-              If you opt in, the app copies your local product data to your own
-              private Apple iCloud key-value store. Resolution Companion does
-              not receive or read that backup. Subscription information, the
-              anonymous device identifier, and aggregate telemetry are excluded.
-              You can turn backup off, create a new backup, or explicitly
-              confirm a restore from Profile at any time.
+              If you opt in, the app copies your local product data to your
+              own private Apple iCloud key-value store. Resolution Companion
+              does not receive or read that backup. Subscription information,
+              the anonymous device identifier, and aggregate telemetry are
+              excluded. You can turn backup off, create a new backup, or
+              explicitly confirm a restore from Profile at any time.
             </p>
           </div>
           <p>
             Recap and witness sharing is never automatic. The app prepares an
-            image or message locally, and you decide whether to share it, which
-            app receives it, and who receives it. Resolution Companion has no
-            social feed, shared account, or contact list.
+            image or message locally, and you decide whether to share it,
+            which app receives it, and who receives it. Resolution Companion
+            has no social feed, shared account, or contact list.
           </p>
         </section>
 
@@ -680,13 +738,13 @@
             <h3>What You Should Know About OpenAI</h3>
             <ul style="margin-bottom: 0">
               <li>
-                <strong>Not Used for Training:</strong> OpenAI does not use API
-                data to train or improve their models.
+                <strong>Not Used for Training:</strong> OpenAI does not use
+                API data to train or improve their models.
               </li>
               <li>
                 <strong>Temporary Retention:</strong> OpenAI retains API data
-                for up to 30 days for abuse monitoring, then permanently deletes
-                it.
+                for up to 30 days for abuse monitoring, then permanently
+                deletes it.
               </li>
               <li>
                 <strong>No Human Review:</strong> Your conversations are not
@@ -718,7 +776,8 @@
         <section>
           <h2>Subscription & Payments</h2>
           <p>
-            If you choose a subscription or one-time Lifetime Premium purchase:
+            If you choose a subscription or one-time Lifetime Premium
+            purchase:
           </p>
           <ul>
             <li>
@@ -726,8 +785,8 @@
             </li>
             <li>We never see, access, or store your payment information.</li>
             <li>
-              Subscription management and restoration of eligible purchases are
-              handled by Apple.
+              Subscription management and restoration of eligible purchases
+              are handled by Apple.
             </li>
           </ul>
         </section>
@@ -735,9 +794,9 @@
         <section>
           <h2>Hosting & Infrastructure</h2>
           <p>
-            Resolution Companion's backend services are hosted on trusted cloud
-            infrastructure that employs industry-standard security measures,
-            including:
+            Resolution Companion's backend services are hosted on trusted
+            cloud infrastructure that employs industry-standard security
+            measures, including:
           </p>
           <ul>
             <li>Encrypted data transmission (HTTPS/TLS)</li>
@@ -749,18 +808,18 @@
         <section>
           <h2>Children's Privacy</h2>
           <p>
-            Resolution Companion is not intended for children under 13 years of
-            age. We do not knowingly collect personal information from children
-            under 13.
+            Resolution Companion is not intended for children under 13 years
+            of age. We do not knowingly collect personal information from
+            children under 13.
           </p>
         </section>
 
         <section>
           <h2>Changes to This Policy</h2>
           <p>
-            We may update this Privacy Policy from time to time. We will notify
-            you of any changes by posting the new Privacy Policy on this page
-            and updating the "Last Updated" date.
+            We may update this Privacy Policy from time to time. We will
+            notify you of any changes by posting the new Privacy Policy on
+            this page and updating the "Last Updated" date.
           </p>
         </section>
 
@@ -768,19 +827,19 @@
           <h2>Contact Us</h2>
           <p>
             Resolution Companion is operated by Brett Pollak. If you have any
-            questions about this Privacy Policy, our privacy practices, or want
-            your data deleted, contact us at
+            questions about this Privacy Policy, our privacy practices, or
+            want your data deleted, contact us at
             <a href="mailto:brettcpollak@gmail.com">brettcpollak@gmail.com</a>
             or through our <a href="/feedback">support page</a>.
           </p>
         </section>
-
+        </main>
         <footer>
           <div class="footer-links">
             <a href="/">Home</a>
             <a href="/#features">Features</a>
-            <a href="/#mission">Our Story</a>
-            <a href="/#feedback">Contact</a>
+            <a href="/release-notes">Release Notes</a>
+            <a href="/feedback">Support</a>
             <a href="/privacy">Privacy Policy</a>
             <a href="/terms">Terms of Use</a>
             <a
