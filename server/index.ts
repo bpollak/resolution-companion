@@ -9,6 +9,58 @@ import * as path from "path";
 const app = express();
 const log = console.log;
 const SITE_URL = "https://resolutioncompanion.com";
+const APP_STORE_LOOKUP_URL =
+  "https://itunes.apple.com/lookup?id=6757996708&country=us";
+
+interface AppStoreRating {
+  value: number;
+  count: number;
+}
+
+// Last verified on 2026-07-21. This keeps the published rating visible if
+// Apple's lookup service is temporarily unavailable during a server restart.
+let appStoreRating: AppStoreRating = { value: 5, count: 3 };
+
+async function refreshAppStoreRating() {
+  try {
+    const response = await fetch(APP_STORE_LOOKUP_URL, {
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!response.ok) {
+      throw new Error(`Apple lookup returned ${response.status}`);
+    }
+
+    const payload = (await response.json()) as {
+      results?: {
+        averageUserRating?: number;
+        userRatingCount?: number;
+      }[];
+    };
+    const result = payload.results?.[0];
+    const value = result?.averageUserRating;
+    const count = result?.userRatingCount;
+
+    if (
+      typeof value !== "number" ||
+      value < 1 ||
+      value > 5 ||
+      typeof count !== "number" ||
+      count < 1
+    ) {
+      throw new Error("Apple lookup did not include a valid public rating");
+    }
+
+    appStoreRating = { value, count };
+    log(
+      `App Store rating refreshed: ${value.toFixed(1)} from ${count} ratings`,
+    );
+  } catch (error) {
+    console.warn(
+      "Unable to refresh App Store rating; using the last verified value:",
+      error,
+    );
+  }
+}
 
 app.disable("x-powered-by");
 app.use((_req, res, next) => {
@@ -418,9 +470,21 @@ function configureExpoAndLanding(app: express.Application) {
   };
 
   app.get("/", (_req: Request, res: Response) => {
+    const ratingCountLabel = `${appStoreRating.count.toLocaleString("en-US")} ${
+      appStoreRating.count === 1 ? "rating" : "ratings"
+    }`;
     const html = landingPageTemplate
       .replace(/BASE_URL_PLACEHOLDER/g, SITE_URL)
       .replace(/APP_NAME_PLACEHOLDER/g, appName)
+      .replace(
+        /APP_STORE_RATING_VALUE_PLACEHOLDER/g,
+        appStoreRating.value.toFixed(1),
+      )
+      .replace(
+        /APP_STORE_RATING_COUNT_PLACEHOLDER/g,
+        appStoreRating.count.toString(),
+      )
+      .replace(/APP_STORE_RATING_COUNT_LABEL_PLACEHOLDER/g, ratingCountLabel)
       .replace(
         /LATEST_RELEASE_VERSION_PLACEHOLDER/g,
         escapeHtml(latestReleased?.version || "latest"),
@@ -497,6 +561,12 @@ function setupErrorHandler(app: express.Application) {
   setupCors(app);
   setupBodyParsing(app);
   setupRequestLogging(app);
+  await refreshAppStoreRating();
+  const appStoreRatingRefresh = setInterval(
+    refreshAppStoreRating,
+    6 * 60 * 60 * 1_000,
+  );
+  appStoreRatingRefresh.unref();
   configureExpoAndLanding(app);
 
   await ensureSchema();

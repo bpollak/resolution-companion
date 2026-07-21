@@ -136,6 +136,13 @@
               "availability": "https://schema.org/InStock",
               "url": "https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
             },
+            "aggregateRating": {
+              "@type": "AggregateRating",
+              "ratingValue": "APP_STORE_RATING_VALUE_PLACEHOLDER",
+              "ratingCount": "APP_STORE_RATING_COUNT_PLACEHOLDER",
+              "bestRating": "5",
+              "worstRating": "1"
+            },
             "featureList": [
               "AI-guided Target Persona definition",
               "Daily Elemental Action tracking",
@@ -626,11 +633,19 @@
         text-decoration: underline;
       }
 
+      .hero-proof {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 18px;
+        margin-top: 14px;
+      }
+
       .app-store-proof {
         display: inline-flex;
         align-items: center;
         gap: 10px;
-        margin-top: 18px;
+        min-height: 44px;
         color: var(--text-secondary);
         font-size: 14px;
         font-weight: 600;
@@ -645,6 +660,10 @@
       .app-store-proof-stars {
         color: #fbbf24;
         letter-spacing: 1px;
+      }
+
+      .app-store-proof--privacy {
+        margin: 0;
       }
 
       /* Hero Phones Display */
@@ -1727,6 +1746,10 @@
           justify-content: center;
         }
 
+        .hero-proof {
+          justify-content: center;
+        }
+
         .features-grid {
           grid-template-columns: 1fr;
         }
@@ -2598,12 +2621,29 @@
             <a href="#how-it-works" class="btn-secondary">See How It Works</a>
           </div>
           <p class="hero-note">Free forever. No credit card required.</p>
-          <p class="app-store-proof">
-            <span class="app-store-proof-stars" aria-hidden="true">✓</span>
-            <span
-              >No account required · Your progress stays on your device</span
+          <div class="hero-proof">
+            <a
+              class="app-store-proof"
+              href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
+              target="_blank"
+              rel="noopener"
+              aria-label="Rated APP_STORE_RATING_VALUE_PLACEHOLDER out of 5 from APP_STORE_RATING_COUNT_LABEL_PLACEHOLDER on the App Store"
             >
-          </p>
+              <span class="app-store-proof-stars" aria-hidden="true"
+                >★★★★★</span
+              >
+              <span
+                >APP_STORE_RATING_VALUE_PLACEHOLDER on the App Store ·
+                APP_STORE_RATING_COUNT_LABEL_PLACEHOLDER</span
+              >
+            </a>
+            <p class="app-store-proof app-store-proof--privacy">
+              <span class="app-store-proof-stars" aria-hidden="true">✓</span>
+              <span
+                >No account required · Your progress stays on your device</span
+              >
+            </p>
+          </div>
         </div>
 
         <div class="hero-phones">
