@@ -68,6 +68,7 @@ import {
   supportsAlternateAppIcons,
   type AppIconStyle,
 } from "@/lib/app-icon";
+import { platformCapabilities } from "@/lib/platform-capabilities";
 
 const springConfig = {
   damping: 15,
@@ -564,7 +565,7 @@ export default function ProfileScreen() {
   const handleDeleteAccount = () => {
     showAlert(
       "Delete All My Data",
-      "This will permanently delete ALL your data on this device, in your private iCloud backup, and on our servers (including subscription records). This cannot be undone.",
+      `This will permanently delete ALL your data on this device${platformCapabilities.supportsPrivateCloudBackup ? ", in your private iCloud backup," : ","} and on our servers (including subscription records). This cannot be undone.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -915,7 +916,11 @@ export default function ProfileScreen() {
           <SettingsRow
             icon="shield"
             title="Privacy & Data"
-            subtitle="AI sharing, iCloud backup, and data controls"
+            subtitle={
+              platformCapabilities.supportsPrivateCloudBackup
+                ? "AI sharing, iCloud backup, and data controls"
+                : "AI sharing and data controls"
+            }
             onPress={() => setActivePanel("privacy")}
           />
 
@@ -938,17 +943,20 @@ export default function ProfileScreen() {
             <ThemedText
               style={[styles.detailBody, { color: theme.textSecondary }]}
             >
-              Control what leaves this device, protect a private backup, or
-              remove your data.
+              {platformCapabilities.supportsPrivateCloudBackup
+                ? "Control what leaves this device, protect a private backup, or remove your data."
+                : "Control what leaves this device or remove your data."}
             </ThemedText>
           </View>
 
-          <SettingsRow
-            icon="cloud"
-            title="Private iCloud Backup"
-            subtitle="Protect local data in your own iCloud"
-            onPress={() => navigation.navigate("DataBackup")}
-          />
+          {platformCapabilities.supportsPrivateCloudBackup ? (
+            <SettingsRow
+              icon="cloud"
+              title="Private iCloud Backup"
+              subtitle="Protect local data in your own iCloud"
+              onPress={() => navigation.navigate("DataBackup")}
+            />
+          ) : null}
         </>
       ) : null}
 

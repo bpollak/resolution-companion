@@ -5,6 +5,7 @@ import OpenAI from "openai";
 import { db } from "./db";
 import {
   websiteFeedback,
+  aiContentReports,
   deviceSubscriptions,
   deviceAiUsage,
   aiUsageDaily,
@@ -22,6 +23,11 @@ import {
   Environment,
   SignedDataVerifier,
 } from "@apple/app-store-server-library";
+import {
+  validateGoogleSubscription,
+  verifyGooglePubSubPush,
+  type GoogleSubscriptionValidation,
+} from "./google-play";
 
 // Lazily construct the OpenAI client so a missing API key degrades the AI
 // endpoints instead of crashing the whole server (website, webhooks, legal pages).
@@ -443,96 +449,27 @@ async function validateAppleReceipt(
 
 async function validateGoogleReceipt(
   receipt: string,
-  productId: string,
-): Promise<{ valid: boolean; expiresDate: Date | null }> {
+  _productId?: string,
+): Promise<GoogleSubscriptionValidation> {
   try {
-    const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-    if (!serviceAccountKey) {
-      console.error(
-        "GOOGLE_SERVICE_ACCOUNT_KEY is not configured — cannot validate receipt",
-      );
-      return { valid: false, expiresDate: null };
-    }
-
-    const credentials = JSON.parse(serviceAccountKey);
-    const packageName =
-      process.env.ANDROID_PACKAGE_NAME || "com.resolutioncompanion.app";
-
-    const tokenResponse = await fetch(`https://oauth2.googleapis.com/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        assertion: await createGoogleJWT(credentials),
-      }),
-    });
-
-    const tokenData = await tokenResponse.json();
-    const accessToken = tokenData.access_token;
-
-    let receiptData;
+    let purchaseToken = receipt;
     try {
-      receiptData = JSON.parse(receipt);
-    } catch {
-      receiptData = { purchaseToken: receipt };
-    }
-
-    const verifyUrl = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/purchases/subscriptions/${productId}/tokens/${receiptData.purchaseToken}`;
-
-    const response = await fetch(verifyUrl, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    const data = await response.json();
-
-    if (data.expiryTimeMillis && parseInt(data.expiryTimeMillis) > Date.now()) {
-      return {
-        valid: true,
-        expiresDate: new Date(parseInt(data.expiryTimeMillis)),
-      };
-    }
-
-    if (data.paymentState === 1) {
-      // Payment received but no expiry data — fall back to plan-based estimate
-      return { valid: true, expiresDate: null };
-    }
-
-    return { valid: false, expiresDate: null };
+      purchaseToken = JSON.parse(receipt).purchaseToken || receipt;
+    } catch {}
+    return await validateGoogleSubscription(purchaseToken);
   } catch (error) {
-    // Fail closed — do not grant access when validation cannot be confirmed
     console.error("Google receipt validation error:", error);
-    return { valid: false, expiresDate: null };
+    return {
+      valid: false,
+      plan: null,
+      productId: null,
+      basePlanId: null,
+      expiresDate: null,
+      orderId: null,
+      acknowledgementPending: false,
+      subscriptionState: null,
+    };
   }
-}
-
-async function createGoogleJWT(credentials: {
-  client_email: string;
-  private_key: string;
-}): Promise<string> {
-  const header = { alg: "RS256", typ: "JWT" };
-  const now = Math.floor(Date.now() / 1000);
-  const payload = {
-    iss: credentials.client_email,
-    scope: "https://www.googleapis.com/auth/androidpublisher",
-    aud: "https://oauth2.googleapis.com/token",
-    iat: now,
-    exp: now + 3600,
-  };
-
-  const base64Header = Buffer.from(JSON.stringify(header)).toString(
-    "base64url",
-  );
-  const base64Payload = Buffer.from(JSON.stringify(payload)).toString(
-    "base64url",
-  );
-  const signatureInput = `${base64Header}.${base64Payload}`;
-
-  const crypto = await import("crypto");
-  const sign = crypto.createSign("RSA-SHA256");
-  sign.update(signatureInput);
-  const signature = sign.sign(credentials.private_key, "base64url");
-
-  return `${signatureInput}.${signature}`;
 }
 
 // --- Server-side monthly AI quota ---
@@ -955,6 +892,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
   );
 
+  app.post(
+    "/api/ai-content-reports",
+    requireApiKey,
+    apiRateLimit,
+    async (req: Request, res: Response) => {
+      try {
+        const { deviceId, surface, message } = req.body ?? {};
+        if (
+          typeof deviceId !== "string" ||
+          !/^[A-Za-z0-9._-]{8,64}$/.test(deviceId) ||
+          (surface !== "coach" && surface !== "onboarding") ||
+          typeof message !== "string" ||
+          message.trim().length === 0 ||
+          message.length > 4000
+        ) {
+          res.status(400).json({ error: "Invalid AI content report" });
+          return;
+        }
+        if (!db) {
+          res
+            .status(503)
+            .json({ error: "Reporting is temporarily unavailable" });
+          return;
+        }
+        await db.insert(aiContentReports).values({
+          deviceId,
+          surface,
+          message: message.trim(),
+          messageHash: crypto
+            .createHash("sha256")
+            .update(message.trim())
+            .digest("hex"),
+        });
+        res.status(201).json({ success: true });
+      } catch (error) {
+        console.error("AI content report error:", error);
+        res.status(500).json({ error: "Failed to save report" });
+      }
+    },
+  );
+
   // Admin-only: feedback entries contain names and email addresses.
   // The regular API key ships in the app bundle, so this uses a separate
   // operator-only secret and 404s when it isn't configured.
@@ -972,6 +950,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Error fetching feedback:", error);
         res.status(500).json({ error: "Failed to fetch feedback" });
+      }
+    },
+  );
+
+  app.get(
+    "/api/ai-content-reports",
+    requireAdminKey,
+    async (_req: Request, res: Response) => {
+      try {
+        if (!db) {
+          res.json([]);
+          return;
+        }
+        const reports = await db
+          .select()
+          .from(aiContentReports)
+          .orderBy(sql`${aiContentReports.createdAt} DESC`);
+        res.json(reports);
+      } catch (error) {
+        console.error("AI content report retrieval error:", error);
+        res.status(500).json({ error: "Failed to retrieve reports" });
       }
     },
   );
@@ -1356,6 +1355,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "com.resolutioncompanion.annual",
             LIFETIME_PRODUCT_ID,
             YEARLY_TEST_PRODUCT_ID,
+            "premium",
             "premium_monthly",
             "premium_yearly",
             "premium_lifetime",
@@ -1379,6 +1379,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let isValid = false;
         let expirationDate: Date | null = null;
         let originalTransactionId: string | null = null;
+        let verifiedPlan: "monthly" | "yearly" | "lifetime" =
+          planForProduct(productId);
+        let googleOrderId: string | null = null;
 
         if (platform === "ios") {
           const result = await validateAppleReceipt(
@@ -1393,19 +1396,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const result = await validateGoogleReceipt(receipt, productId);
           isValid = result.valid;
           expirationDate = result.expiresDate;
+          googleOrderId = result.orderId;
+          if (result.plan) verifiedPlan = result.plan;
         }
 
-        // Fall back to plan-based estimate only if the store didn't provide an expiry
-        if (isValid && !expirationDate && !isLifetimeProduct(productId)) {
+        // Apple's lifetime product has no expiry; legacy Apple validation can
+        // omit subscription expiry. Play v2 must always supply an exact expiry.
+        if (
+          platform === "ios" &&
+          isValid &&
+          !expirationDate &&
+          !isLifetimeProduct(productId)
+        ) {
           expirationDate =
-            planForProduct(productId) === "yearly"
+            verifiedPlan === "yearly"
               ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
               : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
         }
 
         if (isValid && db) {
-          const plan = planForProduct(productId);
-
           // For Android, store the purchase token so Play webhooks can be matched
           // to this exact subscription. For iOS, key by the ORIGINAL transaction
           // ID: App Store Server Notifications identify subscriptions by
@@ -1423,8 +1432,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           const subscriptionData = {
             providerCustomerId,
-            providerTransactionId: `iap_${platform === "ios" ? appleId : transactionId}`,
-            plan: plan,
+            providerTransactionId: `iap_${
+              platform === "ios"
+                ? appleId
+                : googleOrderId ||
+                  providerCustomerId.replace("iap_android_", "")
+            }`,
+            plan: verifiedPlan,
             status: "active" as const,
             currentPeriodEnd: expirationDate,
             updatedAt: new Date(),
@@ -1450,7 +1464,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         res.json({
           valid: isValid,
-          plan: planForProduct(productId),
+          plan: verifiedPlan,
           expirationDate: expirationDate?.toISOString() || null,
         });
       } catch (error) {
@@ -1628,141 +1642,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // --- Google Real-time Developer Notifications ---
   // Configure via Google Cloud Pub/Sub push subscription pointing to this endpoint.
   // Set up in Google Play Console > Monetization > Monetization setup > Real-time developer notifications.
-  app.post(
-    "/api/webhooks/google",
-    publicRateLimit,
-    async (req: Request, res: Response) => {
+  app.post("/api/webhooks/google", async (req: Request, res: Response) => {
+    try {
+      let authenticated = false;
       try {
-        const { message } = req.body;
-        if (!message?.data) {
-          res.status(400).json({ error: "Missing message data" });
-          return;
-        }
+        authenticated = await verifyGooglePubSubPush(req.get("authorization"));
+      } catch (error) {
+        console.error("Google webhook authentication unavailable:", error);
+        res.status(503).json({ error: "Webhook authentication unavailable" });
+        return;
+      }
+      if (!authenticated) {
+        res.status(401).json({ error: "Invalid Pub/Sub identity" });
+        return;
+      }
 
-        // Decode the base64-encoded Pub/Sub message
-        const decoded = JSON.parse(
-          Buffer.from(message.data, "base64").toString("utf-8"),
+      const { message } = req.body;
+      if (!message?.data) {
+        res.status(400).json({ error: "Missing message data" });
+        return;
+      }
+
+      // Decode the base64-encoded Pub/Sub message
+      const decoded = JSON.parse(
+        Buffer.from(message.data, "base64").toString("utf-8"),
+      );
+      if (
+        decoded.packageName &&
+        decoded.packageName !==
+          (process.env.ANDROID_PACKAGE_NAME || "com.resolutioncompanion.app")
+      ) {
+        res.status(400).json({ error: "Unexpected package name" });
+        return;
+      }
+      if (decoded.testNotification) {
+        res.status(200).json({ ok: true, test: true });
+        return;
+      }
+
+      const subscriptionNotification = decoded.subscriptionNotification;
+
+      if (!subscriptionNotification) {
+        console.log("Google webhook: no subscriptionNotification in message");
+        res.status(200).json({ ok: true });
+        return;
+      }
+
+      const { notificationType, purchaseToken, subscriptionId } =
+        subscriptionNotification;
+      console.log(
+        `Google S2S notification: type=${notificationType} subscription=${subscriptionId}`,
+      );
+
+      if (!db) {
+        res.status(503).json({ error: "Database unavailable" });
+        return;
+      }
+
+      const validation = await validateGoogleReceipt(
+        JSON.stringify({ purchaseToken }),
+        subscriptionId,
+      );
+      const results = await db
+        .select()
+        .from(deviceSubscriptions)
+        .where(
+          eq(
+            deviceSubscriptions.providerCustomerId,
+            `iap_android_${purchaseToken}`,
+          ),
         );
-        const subscriptionNotification = decoded.subscriptionNotification;
 
-        if (!subscriptionNotification) {
-          console.log("Google webhook: no subscriptionNotification in message");
-          res.status(200).json({ ok: true });
-          return;
-        }
-
-        const { notificationType, purchaseToken, subscriptionId } =
-          subscriptionNotification;
-        console.log(
-          `Google S2S notification: type=${notificationType} subscription=${subscriptionId}`,
-        );
-
-        if (!db) {
-          console.log("Google webhook: no database available");
-          res.status(200).json({ ok: true });
-          return;
-        }
-
-        // Google notification types:
-        // 1=RECOVERED, 2=RENEWED, 3=CANCELED, 4=PURCHASED, 5=ON_HOLD,
-        // 6=IN_GRACE_PERIOD, 7=RESTARTED, 12=REVOKED, 13=EXPIRED
-
-        // Match the exact subscription this notification concerns via the stored
-        // purchase token — never act on an arbitrary record.
-        const results = await db
-          .select()
-          .from(deviceSubscriptions)
+      if (results.length === 0) {
+        console.log("Google webhook: no matching subscription found");
+      } else {
+        await db
+          .update(deviceSubscriptions)
+          .set({
+            plan: validation.plan ?? results[0].plan,
+            status: validation.valid ? "active" : "inactive",
+            currentPeriodEnd: validation.expiresDate,
+            providerTransactionId: validation.orderId
+              ? `iap_${validation.orderId}`
+              : results[0].providerTransactionId,
+            updatedAt: new Date(),
+          })
           .where(
             eq(
               deviceSubscriptions.providerCustomerId,
               `iap_android_${purchaseToken}`,
             ),
           );
-
-        // For Google, we need to re-verify with the Play API to get current status
-        if (results.length > 0) {
-          const sub = results[0];
-
-          switch (notificationType) {
-            case 2: // RENEWED
-            case 7: // RESTARTED
-              const renewResult = await validateGoogleReceipt(
-                JSON.stringify({ purchaseToken }),
-                subscriptionId,
-              );
-              if (renewResult.valid) {
-                await db
-                  .update(deviceSubscriptions)
-                  .set({
-                    status: "active",
-                    currentPeriodEnd: renewResult.expiresDate,
-                    updatedAt: new Date(),
-                  })
-                  .where(eq(deviceSubscriptions.id, sub.id));
-                console.log(
-                  `Google webhook: renewed subscription for device ${sub.deviceId}`,
-                );
-              }
-              break;
-
-            case 3: // CANCELED (auto-renew off — access continues until expiry)
-            case 12: // REVOKED
-            case 13: // EXPIRED
-              // Never trust the unauthenticated Pub/Sub payload to revoke access:
-              // re-verify the actual subscription state with the Play API first.
-              // This also keeps CANCELED subscriptions active until they expire.
-              const cancelResult = await validateGoogleReceipt(
-                JSON.stringify({ purchaseToken }),
-                subscriptionId,
-              );
-              if (cancelResult.valid) {
-                await db
-                  .update(deviceSubscriptions)
-                  .set({
-                    status: "active",
-                    currentPeriodEnd: cancelResult.expiresDate,
-                    updatedAt: new Date(),
-                  })
-                  .where(eq(deviceSubscriptions.id, sub.id));
-                console.log(
-                  `Google webhook: type=${notificationType} but Play API reports active until ${cancelResult.expiresDate?.toISOString()} — keeping access for device ${sub.deviceId}`,
-                );
-              } else {
-                await db
-                  .update(deviceSubscriptions)
-                  .set({
-                    status: "inactive",
-                    updatedAt: new Date(),
-                  })
-                  .where(eq(deviceSubscriptions.id, sub.id));
-                console.log(
-                  `Google webhook: deactivated subscription for device ${sub.deviceId}`,
-                );
-              }
-              break;
-
-            case 5: // ON_HOLD
-            case 6: // IN_GRACE_PERIOD
-              console.log(
-                `Google webhook: subscription on hold/grace for device ${sub.deviceId}`,
-              );
-              break;
-
-            default:
-              console.log(`Google webhook: unhandled type ${notificationType}`);
-          }
-        } else {
-          console.log("Google webhook: no matching subscription found");
-        }
-
-        // Always acknowledge the Pub/Sub message
-        res.status(200).json({ ok: true });
-      } catch (error) {
-        console.error("Google webhook error:", error);
-        res.status(200).json({ ok: true });
+        console.log(
+          `Google webhook: type=${notificationType} state=${validation.subscriptionState} updated=${results.length}`,
+        );
       }
-    },
-  );
+
+      res.status(200).json({ ok: true });
+    } catch (error) {
+      console.error("Google webhook error:", error);
+      res.status(500).json({ error: "Webhook processing failed" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

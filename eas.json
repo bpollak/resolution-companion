@@ -14,7 +14,8 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "resolutioncompanion.com"
+        "EXPO_PUBLIC_DOMAIN": "resolutioncompanion.com",
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "arm64-v8a"
       },
       "ios": {
         "simulator": false
@@ -48,6 +49,16 @@
     }
   },
   "submit": {
+    "internal": {
+      "android": {
+        "track": "internal"
+      }
+    },
+    "closed": {
+      "android": {
+        "track": "alpha"
+      }
+    },
     "production": {
       "ios": {
         "appleId": "brettcpollak@gmail.com",
@@ -55,7 +66,6 @@
         "appleTeamId": "ZA8AJG27JX"
       },
       "android": {
-        "serviceAccountKeyPath": "./google-service-account.json",
         "track": "production"
       }
     }

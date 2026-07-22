@@ -602,7 +602,11 @@ export default function ReflectScreen() {
 
   const renderMessage = useCallback(
     ({ item }: { item: ChatMessage }) => (
-      <ChatBubble message={item.content} isUser={item.role === "user"} />
+      <ChatBubble
+        message={item.content}
+        isUser={item.role === "user"}
+        reportSurface="coach"
+      />
     ),
     [],
   );
@@ -1234,10 +1238,11 @@ export default function ReflectScreen() {
             key={message.id}
             message={message.content}
             isUser={message.role === "user"}
+            reportSurface="coach"
           />
         ))}
         {isStreaming && streamingText ? (
-          <ChatBubble message={streamingText} isUser={false} />
+          <ChatBubble message={streamingText} isUser={false} isTyping />
         ) : isLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="small" color={theme.accent} />

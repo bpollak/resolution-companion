@@ -16,6 +16,8 @@ module.exports = defineConfig([
       "build/**",
       "attached_assets/**",
       "appstore-screenshots/**",
+      // Finder conflict copies are not part of the Jest or application source set.
+      "**/*.test 2.ts",
       // Standalone Remotion project with its own deps and toolchain
       "marketing/**",
     ],

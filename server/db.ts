@@ -27,6 +27,14 @@ CREATE TABLE IF NOT EXISTS "website_feedback" (
   "message" text NOT NULL,
   "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+CREATE TABLE IF NOT EXISTS "ai_content_reports" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "device_id" text NOT NULL,
+  "surface" text NOT NULL,
+  "message" text NOT NULL,
+  "message_hash" text NOT NULL,
+  "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
 CREATE TABLE IF NOT EXISTS "device_subscriptions" (
   "id" serial PRIMARY KEY NOT NULL,
   "device_id" text NOT NULL,
@@ -47,6 +55,8 @@ CREATE TABLE IF NOT EXISTS "device_ai_usage" (
   "count" integer DEFAULT 0 NOT NULL,
   "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+CREATE INDEX IF NOT EXISTS "device_subscriptions_provider_customer_idx"
+  ON "device_subscriptions" USING btree ("provider_customer_id");
 CREATE UNIQUE INDEX IF NOT EXISTS "device_ai_usage_key"
   ON "device_ai_usage" USING btree ("device_id","month","endpoint");
 CREATE TABLE IF NOT EXISTS "ai_usage_daily" (

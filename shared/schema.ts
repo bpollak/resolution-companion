@@ -4,6 +4,7 @@ import {
   text,
   serial,
   integer,
+  index,
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -24,25 +25,44 @@ export const websiteFeedback = pgTable("website_feedback", {
     .notNull(),
 });
 
-export const deviceSubscriptions = pgTable("device_subscriptions", {
+export const aiContentReports = pgTable("ai_content_reports", {
   id: serial("id").primaryKey(),
-  deviceId: text("device_id").notNull().unique(),
-  // IAP provider references: for iOS this holds `iap_ios_<originalTransactionId>`
-  // (stable across renewals, matching App Store Server Notifications); for
-  // Android it holds `iap_android_<purchaseToken>` so Play webhooks can be
-  // matched to the exact subscription they concern.
-  providerCustomerId: text("provider_customer_id"),
-  providerTransactionId: text("provider_transaction_id"),
-  plan: text("plan").default("free").notNull(),
-  status: text("status").default("inactive").notNull(),
-  currentPeriodEnd: timestamp("current_period_end"),
+  deviceId: text("device_id").notNull(),
+  surface: text("surface").notNull(),
+  message: text("message").notNull(),
+  messageHash: text("message_hash").notNull(),
   createdAt: timestamp("created_at")
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
-  updatedAt: timestamp("updated_at")
-    .default(sql`CURRENT_TIMESTAMP`)
-    .notNull(),
 });
+
+export const deviceSubscriptions = pgTable(
+  "device_subscriptions",
+  {
+    id: serial("id").primaryKey(),
+    deviceId: text("device_id").notNull().unique(),
+    // IAP provider references: for iOS this holds `iap_ios_<originalTransactionId>`
+    // (stable across renewals, matching App Store Server Notifications); for
+    // Android it holds `iap_android_<purchaseToken>` so Play webhooks can update
+    // every device that restored the same store entitlement.
+    providerCustomerId: text("provider_customer_id"),
+    providerTransactionId: text("provider_transaction_id"),
+    plan: text("plan").default("free").notNull(),
+    status: text("status").default("inactive").notNull(),
+    currentPeriodEnd: timestamp("current_period_end"),
+    createdAt: timestamp("created_at")
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  },
+  (table) => [
+    index("device_subscriptions_provider_customer_idx").on(
+      table.providerCustomerId,
+    ),
+  ],
+);
 
 // Server-side monthly usage counters for the OpenAI-backed endpoints. The
 // client-side free-tier limit is advisory only — the API key ships in the app

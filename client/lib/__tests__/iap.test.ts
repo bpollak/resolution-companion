@@ -27,6 +27,7 @@ jest.mock("@/lib/pricing", () => ({
 
 function product(offer?: IAPProduct["introductoryOffer"]): IAPProduct {
   return {
+    plan: "yearly",
     productId: "com.resolutioncompanion.annual",
     title: "Annual",
     description: "",

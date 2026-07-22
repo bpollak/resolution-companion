@@ -164,6 +164,24 @@ function check() {
   );
 }
 
+function checkAndroid() {
+  const { releases, version } = validateAll();
+  const appJson = loadJson(appJsonPath);
+  const versionCode = appJson?.expo?.android?.versionCode;
+  const packageName = appJson?.expo?.android?.package;
+  if (!Number.isInteger(versionCode) || versionCode < 1) {
+    throw new Error("app.json must define a positive android.versionCode.");
+  }
+  if (packageName !== "com.resolutioncompanion.app") {
+    throw new Error(
+      "Android package must remain com.resolutioncompanion.app after the first Play upload.",
+    );
+  }
+  console.log(
+    `Android release ready: ${version} (${versionCode}); ${releases[0].appStoreNotes.length} shared release notes.`,
+  );
+}
+
 function notes() {
   const { releases } = validateAll();
   console.log(releases[0].appStoreNotes.map((note) => `• ${note}`).join("\n"));
@@ -224,12 +242,13 @@ const command = process.argv[2] || "check";
 
 try {
   if (command === "check") check();
+  else if (command === "check-android") checkAndroid();
   else if (command === "notes") notes();
   else if (command === "mark-submitted") markSubmitted();
   else if (command === "sync") await sync();
   else {
     throw new Error(
-      `Unknown command ${command}. Use check, notes, mark-submitted, or sync.`,
+      `Unknown command ${command}. Use check, check-android, notes, mark-submitted, or sync.`,
     );
   }
 } catch (error) {

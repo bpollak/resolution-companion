@@ -337,9 +337,9 @@ export default function SubscriptionScreen() {
           iapService.setPurchaseListener(
             async (purchase: IAPPurchase) => {
               try {
-                const plan = iapService.getPlanFromProductId(
-                  purchase.productId,
-                );
+                const plan =
+                  purchase.plan ??
+                  iapService.getPlanFromProductId(purchase.productId);
                 const newSubscription = {
                   isPremium: true,
                   plan: plan,
@@ -448,16 +448,6 @@ export default function SubscriptionScreen() {
     }
   };
 
-  const getIAPProductId = (plan: PlanType): string | null => {
-    if (plan === "lifetime") {
-      return PRODUCT_IDS.LIFETIME || null;
-    }
-    if (plan === "yearly") {
-      return yearlyProductId || PRODUCT_IDS.YEARLY || null;
-    }
-    return PRODUCT_IDS.MONTHLY || null;
-  };
-
   const handleSubscribe = async () => {
     if (!initializationComplete) {
       Alert.alert(
@@ -489,8 +479,8 @@ export default function SubscriptionScreen() {
         return;
       }
 
-      const productId = getIAPProductId(selectedPlan);
-      if (!productId) {
+      const product = iapProducts.find((item) => item.plan === selectedPlan);
+      if (!product) {
         setIsLoading(false);
         Alert.alert(
           "Product Unavailable",
@@ -505,8 +495,8 @@ export default function SubscriptionScreen() {
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await iapService.purchaseProduct(
-        productId,
-        introEligibleProductIds.has(productId),
+        product,
+        introEligibleProductIds.has(product.productId),
       );
     } catch (error: any) {
       logger.error("Purchase failed:", error);
@@ -630,15 +620,13 @@ export default function SubscriptionScreen() {
     }
   };
 
-  const monthlyProduct = iapProducts.find(
-    (p) => p.productId === PRODUCT_IDS.MONTHLY,
-  );
+  const monthlyProduct = iapProducts.find((p) => p.plan === "monthly");
   const yearlyProduct = iapProducts.find(
-    (p) => p.productId === yearlyProductId,
+    (p) =>
+      p.plan === "yearly" &&
+      (Platform.OS === "android" || p.productId === yearlyProductId),
   );
-  const lifetimeProduct = iapProducts.find(
-    (p) => p.productId === PRODUCT_IDS.LIFETIME,
-  );
+  const lifetimeProduct = iapProducts.find((p) => p.plan === "lifetime");
   // Only offer purchase once real store pricing has loaded — never show
   // placeholder prices on the paywall.
   const storeReady = useNativeIAP && !!monthlyProduct && !!yearlyProduct;

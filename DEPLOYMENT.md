@@ -8,22 +8,24 @@ production and passes App Store review.
 Deploy the Express server (Dockerfile in repo root) and point
 `resolutioncompanion.com` at it. Required environment variables:
 
-| Variable                          | Required           | Purpose                                                                                                                                                                            |
-| --------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NODE_ENV`                        | yes (`production`) | Enables fail-closed API auth                                                                                                                                                       |
-| `DATABASE_URL`                    | yes                | PostgreSQL connection (subscriptions, feedback)                                                                                                                                    |
-| `API_SECRET`                      | yes                | Shared key for app↔server auth. Must match `EXPO_PUBLIC_API_SECRET` in EAS. In production, protected endpoints return 503 until this is set.                                      |
-| `AI_INTEGRATIONS_OPENAI_API_KEY`  | yes                | OpenAI key for chat/onboarding/reflection                                                                                                                                          |
-| `AI_INTEGRATIONS_OPENAI_BASE_URL` | no                 | Optional OpenAI-compatible base URL                                                                                                                                                |
-| `APPLE_ISSUER_ID`                 | yes (iOS)          | App Store Connect > Users and Access > Integrations > In-App Purchase keys                                                                                                         |
-| `APPLE_KEY_ID`                    | yes (iOS)          | Key ID of the In-App Purchase key                                                                                                                                                  |
-| `APPLE_PRIVATE_KEY`               | yes (iOS)          | Contents of the .p8 key (newlines may be escaped as `\n`)                                                                                                                          |
-| `APPLE_SHARED_SECRET`             | no                 | Only used by the legacy verifyReceipt fallback                                                                                                                                     |
-| `APPLE_SANDBOX`                   | no                 | Set `true` to force the StoreKit sandbox endpoint                                                                                                                                  |
-| `GOOGLE_SERVICE_ACCOUNT_KEY`      | yes (Android)      | JSON service-account key with Play Android Publisher access                                                                                                                        |
-| `ANDROID_PACKAGE_NAME`            | no                 | Defaults to `com.resolutioncompanion.app`                                                                                                                                          |
-| `ALLOWED_ORIGINS`                 | no                 | Comma-separated CORS allowlist. Unset = no cross-origin browser access (the native app and same-origin website don't need CORS).                                                   |
-| `ADMIN_API_SECRET`                | no                 | Operator-only key for `GET /api/feedback` (sent as `X-Admin-Key`). The endpoint returns 404 until this is set. Do NOT reuse `API_SECRET` — that value ships inside the app bundle. |
+| Variable                                   | Required           | Purpose                                                                                                                                                                            |
+| ------------------------------------------ | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                                 | yes (`production`) | Enables fail-closed API auth                                                                                                                                                       |
+| `DATABASE_URL`                             | yes                | PostgreSQL connection (subscriptions, feedback)                                                                                                                                    |
+| `API_SECRET`                               | yes                | Shared key for app↔server auth. Must match `EXPO_PUBLIC_API_SECRET` in EAS. In production, protected endpoints return 503 until this is set.                                      |
+| `AI_INTEGRATIONS_OPENAI_API_KEY`           | yes                | OpenAI key for chat/onboarding/reflection                                                                                                                                          |
+| `AI_INTEGRATIONS_OPENAI_BASE_URL`          | no                 | Optional OpenAI-compatible base URL                                                                                                                                                |
+| `APPLE_ISSUER_ID`                          | yes (iOS)          | App Store Connect > Users and Access > Integrations > In-App Purchase keys                                                                                                         |
+| `APPLE_KEY_ID`                             | yes (iOS)          | Key ID of the In-App Purchase key                                                                                                                                                  |
+| `APPLE_PRIVATE_KEY`                        | yes (iOS)          | Contents of the .p8 key (newlines may be escaped as `\n`)                                                                                                                          |
+| `APPLE_SHARED_SECRET`                      | no                 | Only used by the legacy verifyReceipt fallback                                                                                                                                     |
+| `APPLE_SANDBOX`                            | no                 | Set `true` to force the StoreKit sandbox endpoint                                                                                                                                  |
+| `GOOGLE_SERVICE_ACCOUNT_KEY`               | yes (Android)      | JSON service-account key with Play Android Publisher access                                                                                                                        |
+| `ANDROID_PACKAGE_NAME`                     | no                 | Defaults to `com.resolutioncompanion.app`                                                                                                                                          |
+| `GOOGLE_PUBSUB_PUSH_AUDIENCE`              | yes (Android)      | Exact HTTPS audience configured on the authenticated Pub/Sub push subscription; use `https://resolutioncompanion.com/api/webhooks/google`                                          |
+| `GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL` | yes (Android)      | Service-account email whose Google-signed OIDC token is accepted by the Play RTDN webhook                                                                                          |
+| `ALLOWED_ORIGINS`                          | no                 | Comma-separated CORS allowlist. Unset = no cross-origin browser access (the native app and same-origin website don't need CORS).                                                   |
+| `ADMIN_API_SECRET`                         | no                 | Operator-only key for `GET /api/feedback` (sent as `X-Admin-Key`). The endpoint returns 404 until this is set. Do NOT reuse `API_SECRET` — that value ships inside the app bundle. |
 
 > **Important (StoreKit 2):** the app now uses `react-native-iap` v14, which
 > returns JWS transactions instead of legacy receipts. iOS receipt validation
@@ -114,13 +116,62 @@ before running submit.
 6. Review notes: mention that no account/login is required, and that premium
    can be tested with a sandbox Apple account.
 
-## 4. Google Play (when ready)
+## 4. Google Play
 
-1. Subscriptions: `premium_monthly`, `premium_yearly`.
-2. Real-time developer notifications: Cloud Pub/Sub push to
-   `https://resolutioncompanion.com/api/webhooks/google`.
-3. Data safety form: device identifier (app functionality), AI chat content
-   processed by OpenAI.
+1. Create the free app as “Resolution Companion AI” with package
+   `com.resolutioncompanion.app`, enable Play App Signing, and never change the
+   package after the first upload.
+2. Create one subscription product, `premium`, with two active auto-renewing
+   base plans and no introductory offers:
+   - `monthly`: one month, US reference price $2.99.
+   - `yearly`: one year, US reference price $24.99.
+     Match the live iOS country availability and let Play generate localized
+     prices.
+3. Give the Railway runtime service account only the Android Publisher access
+   needed to read and acknowledge purchases. Set its full JSON as
+   `GOOGLE_SERVICE_ACCOUNT_KEY`; do not reuse or commit the EAS submission key.
+4. Configure Real-time Developer Notifications:
+   - Play topic → Google Cloud Pub/Sub.
+   - Push endpoint:
+     `https://resolutioncompanion.com/api/webhooks/google`.
+   - Enable authenticated push with a dedicated service account.
+   - Set the push audience and email in
+     `GOOGLE_PUBSUB_PUSH_AUDIENCE` and
+     `GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL`.
+5. Upload the separate EAS submission service account through
+   `eas credentials --platform android`; no JSON credential belongs in the
+   repository.
+6. Complete Play App Content: Data Safety, privacy policy, content rating,
+   adult/general target audience, no ads, no login needed for app access, and
+   the generative-AI declaration. Data Safety must include the anonymous
+   device identifier, subscription state, OpenAI-processed chat content, and
+   user-initiated AI safety reports.
+7. A new personal Play account must run a closed test with at least 12 testers
+   continuously opted in for 14 days, then apply for production access.
+
+### Android build and release
+
+Install Android Studio, JDK 17, Android SDK/API 36, platform-tools, and a
+Play-enabled emulator image. Then:
+
+```bash
+npm run build:local:android:preview # build/android-preview.apk for QA
+npm run build:local:android         # build/android-local.aab for Play
+```
+
+Google requires the first AAB to be uploaded manually in Play Console. Upload
+the exact validated `build/android-local.aab` to Internal testing. After that,
+the API-backed flows are:
+
+```bash
+npm run submit:android:internal
+npm run submit:android:closed
+npm run submit:android
+```
+
+Increment `expo.android.versionCode` for every uploaded AAB. The production
+profile also uses EAS remote auto-increment, so sync the remote value before a
+local build when previous Android builds exist.
 
 ## 5. Pre-submission smoke test (TestFlight)
 

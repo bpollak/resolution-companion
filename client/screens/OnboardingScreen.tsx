@@ -570,7 +570,11 @@ export default function OnboardingScreen() {
   };
 
   const renderMessage = ({ item }: { item: ChatMessage }) => (
-    <ChatBubble message={item.content} isUser={item.role === "user"} />
+    <ChatBubble
+      message={item.content}
+      isUser={item.role === "user"}
+      reportSurface="onboarding"
+    />
   );
 
   const handleNextPage = () => {
@@ -854,7 +858,7 @@ export default function OnboardingScreen() {
         keyboardShouldPersistTaps="handled"
         ListFooterComponent={
           isStreaming && streamingText ? (
-            <ChatBubble message={streamingText} isUser={false} />
+            <ChatBubble message={streamingText} isUser={false} isTyping />
           ) : isLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="small" color={theme.accent} />

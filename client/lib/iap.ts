@@ -37,12 +37,12 @@ async function loadIAPModule(): Promise<boolean> {
 export const PRODUCT_IDS = {
   MONTHLY: Platform.select({
     ios: "com.resolutioncompanion.monthly",
-    android: "premium_monthly",
+    android: "premium",
     default: "premium_monthly",
   }),
   YEARLY: Platform.select({
     ios: "com.resolutioncompanion.annual",
-    android: "premium_yearly",
+    android: "premium",
     default: "premium_yearly",
   }),
   // Lifetime is an App Store non-consumable. Do not surface an Android SKU
@@ -51,7 +51,10 @@ export const PRODUCT_IDS = {
     Platform.OS === "ios" ? "com.resolutioncompanion.lifetime" : undefined,
 };
 
+export type PlanKey = "monthly" | "yearly" | "lifetime";
+
 export interface IAPProduct {
+  plan: PlanKey;
   productId: string;
   title: string;
   description: string;
@@ -60,6 +63,8 @@ export interface IAPProduct {
   priceCurrencyCode: string;
   subscriptionPeriod?: string;
   subscriptionGroupId?: string;
+  basePlanId?: string;
+  offerToken?: string;
   introductoryOffer?: {
     paymentMode: "free-trial" | "pay-as-you-go" | "pay-up-front" | "unknown";
     periodUnit: "day" | "week" | "month" | "year" | "unknown";
@@ -69,6 +74,7 @@ export interface IAPProduct {
 }
 
 export interface IAPPurchase {
+  plan?: PlanKey;
   productId: string;
   transactionId: string;
   transactionReceipt: string;
@@ -102,6 +108,7 @@ class IAPService {
   private products: IAPProduct[] = [];
   private moduleLoaded = false;
   private listenerSubscriptions: { remove: () => void }[] = [];
+  private pendingPurchasePlan: PlanKey | null = null;
 
   async isAvailable(): Promise<boolean> {
     if (Platform.OS === "web") {
@@ -188,7 +195,10 @@ class IAPService {
         PRODUCT_IDS.YEARLY,
         PRODUCT_IDS.LIFETIME,
         yearlyTestProductId,
-      ].filter(Boolean) as string[];
+      ].filter(
+        (sku, index, all): sku is string =>
+          Boolean(sku) && all.indexOf(sku) === index,
+      );
 
       logger.log("Fetching IAP products:", skus);
 
@@ -214,7 +224,30 @@ class IAPService {
 
       logger.log("IAP products fetched successfully:", results.length);
 
-      this.products = results.map((product) => {
+      const normalizedProducts: IAPProduct[] = [];
+      for (const product of results) {
+        if (product.platform === "android" && product.type === "subs") {
+          for (const offer of product.subscriptionOffers) {
+            if (!offer.basePlanIdAndroid || !offer.offerTokenAndroid) continue;
+            const basePlanId = offer.basePlanIdAndroid;
+            const plan: PlanKey = basePlanId.toLowerCase().includes("year")
+              ? "yearly"
+              : "monthly";
+            normalizedProducts.push({
+              plan,
+              productId: product.id,
+              title: product.title,
+              description: product.description,
+              price: offer.displayPrice,
+              priceAmountMicros: Math.round((offer.price ?? 0) * 1_000_000),
+              priceCurrencyCode: offer.currency ?? product.currency,
+              subscriptionPeriod: plan === "yearly" ? "year" : "month",
+              basePlanId,
+              offerToken: offer.offerTokenAndroid,
+            });
+          }
+          continue;
+        }
         const offers = product.subscriptionOffers ?? [];
         const intro = offers.find(
           (offer) =>
@@ -224,7 +257,15 @@ class IAPService {
           "subscriptionInfoIOS" in product
             ? product.subscriptionInfoIOS
             : undefined;
-        return {
+        const plan: PlanKey =
+          product.id === PRODUCT_IDS.LIFETIME
+            ? "lifetime"
+            : product.id.toLowerCase().includes("year") ||
+                product.id.toLowerCase().includes("annual")
+              ? "yearly"
+              : "monthly";
+        normalizedProducts.push({
+          plan,
           productId: product.id,
           title: product.title,
           description: product.description,
@@ -248,8 +289,9 @@ class IAPService {
                 displayPrice: intro.displayPrice,
               }
             : undefined,
-        };
-      });
+        });
+      }
+      this.products = normalizedProducts;
 
       return this.products;
     } catch (error: any) {
@@ -307,6 +349,7 @@ class IAPService {
           }
 
           const iapPurchase: IAPPurchase = {
+            plan: this.pendingPurchasePlan ?? undefined,
             productId: purchase.productId,
             transactionId: purchase.transactionId || purchase.id,
             // Unified token: JWS representation on iOS, purchase token on Android
@@ -316,6 +359,7 @@ class IAPService {
 
           const validation = await this.validateReceipt(iapPurchase);
           if (validation.valid) {
+            iapPurchase.plan = validation.plan ?? iapPurchase.plan;
             iapPurchase.expirationDate = validation.expirationDate;
             // Finish only after the server has verified the transaction and
             // access can be delivered. Failed validation remains recoverable
@@ -351,7 +395,7 @@ class IAPService {
   }
 
   async purchaseProduct(
-    productId: string,
+    product: IAPProduct,
     introductoryOfferEligibility = false,
   ): Promise<void> {
     const available = await this.isAvailable();
@@ -370,20 +414,29 @@ class IAPService {
       }
 
       // Result is delivered via purchaseUpdatedListener / purchaseErrorListener
-      if (productId === PRODUCT_IDS.LIFETIME) {
+      this.pendingPurchasePlan = product.plan;
+      if (product.plan === "lifetime") {
         await IAP.requestPurchase({
           type: "in-app",
           request: {
-            apple: { sku: productId },
-            google: { skus: [productId] },
+            apple: { sku: product.productId },
+            google: { skus: [product.productId] },
           },
         });
       } else {
         await IAP.requestPurchase({
           type: "subs",
           request: {
-            apple: { sku: productId, introductoryOfferEligibility },
-            google: { skus: [productId] },
+            apple: {
+              sku: product.productId,
+              introductoryOfferEligibility,
+            },
+            google: {
+              skus: [product.productId],
+              subscriptionOffers: product.offerToken
+                ? [{ sku: product.productId, offerToken: product.offerToken }]
+                : [],
+            },
           },
         });
       }
@@ -491,6 +544,7 @@ class IAPService {
 
         const validation = await this.validateReceipt(iapPurchase);
         if (validation.valid) {
+          iapPurchase.plan = validation.plan ?? iapPurchase.plan;
           iapPurchase.expirationDate = validation.expirationDate;
           purchases.push(iapPurchase);
         }
@@ -510,6 +564,7 @@ class IAPService {
 
   private async validateReceipt(purchase: IAPPurchase): Promise<{
     valid: boolean;
+    plan: PlanKey | null;
     expirationDate: string | null;
     verificationCompleted: boolean;
   }> {
@@ -541,6 +596,7 @@ class IAPService {
         logger.error("Receipt validation server error:", response.status);
         return {
           valid: false,
+          plan: null,
           expirationDate: null,
           verificationCompleted: false,
         };
@@ -548,6 +604,12 @@ class IAPService {
       const data = await response.json();
       return {
         valid: data.valid === true,
+        plan:
+          data.plan === "monthly" ||
+          data.plan === "yearly" ||
+          data.plan === "lifetime"
+            ? data.plan
+            : null,
         expirationDate: data.expirationDate || null,
         verificationCompleted: true,
       };
@@ -555,6 +617,7 @@ class IAPService {
       logger.error("Receipt validation error:", error);
       return {
         valid: false,
+        plan: null,
         expirationDate: null,
         verificationCompleted: false,
       };
@@ -563,7 +626,7 @@ class IAPService {
     }
   }
 
-  getPlanFromProductId(productId: string): "monthly" | "yearly" | "lifetime" {
+  getPlanFromProductId(productId: string): PlanKey {
     if (
       productId === PRODUCT_IDS.LIFETIME ||
       productId.toLowerCase().includes("lifetime")

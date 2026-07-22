@@ -1,22 +1,59 @@
-import React from "react";
-import { View, StyleSheet } from "react-native";
+import React, { useState } from "react";
+import { Alert, Pressable, View, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
+import { reportAIContent, type AIReportSurface } from "@/lib/ai-reporting";
 
 interface ChatBubbleProps {
   message: string;
   isUser: boolean;
   isTyping?: boolean;
+  reportSurface?: AIReportSurface;
 }
 
 export const ChatBubble = React.memo(function ChatBubble({
   message,
   isUser,
   isTyping,
+  reportSurface,
 }: ChatBubbleProps) {
   const { theme, isDark } = useTheme();
+  const [reportState, setReportState] = useState<
+    "idle" | "submitting" | "reported"
+  >("idle");
+
+  const confirmReport = () => {
+    Alert.alert(
+      "Report AI Response?",
+      "Send this response to Resolution Companion for safety review. Your report includes the response text and an anonymous device identifier.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Report",
+          onPress: async () => {
+            setReportState("submitting");
+            try {
+              await reportAIContent(message, reportSurface!);
+              setReportState("reported");
+              Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Success,
+              );
+              Alert.alert("Reported", "Thank you. We’ll review this response.");
+            } catch {
+              setReportState("idle");
+              Alert.alert(
+                "Couldn’t Send Report",
+                "Please check your connection and try again.",
+              );
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <View
@@ -24,9 +61,7 @@ export const ChatBubble = React.memo(function ChatBubble({
         styles.container,
         isUser ? styles.userContainer : styles.aiContainer,
       ]}
-      accessible={true}
-      accessibilityRole="text"
-      accessibilityLabel={`${isUser ? "You" : "AI coach"}: ${message}${isTyping ? " (typing)" : ""}`}
+      accessible={false}
     >
       {!isUser ? (
         <View style={styles.avatarContainer}>
@@ -52,6 +87,9 @@ export const ChatBubble = React.memo(function ChatBubble({
         ]}
       >
         <ThemedText
+          accessible={true}
+          accessibilityRole="text"
+          accessibilityLabel={`${isUser ? "You" : "AI coach"}: ${message}${isTyping ? " (typing)" : ""}`}
           style={[
             styles.text,
             { color: isUser ? theme.buttonText : theme.text },
@@ -59,6 +97,39 @@ export const ChatBubble = React.memo(function ChatBubble({
         >
           {isTyping ? `${message}...` : message}
         </ThemedText>
+        {!isUser && !isTyping && reportSurface ? (
+          <Pressable
+            onPress={confirmReport}
+            disabled={reportState !== "idle"}
+            hitSlop={12}
+            pressRetentionOffset={12}
+            accessibilityRole="button"
+            accessibilityLabel={
+              reportState === "reported"
+                ? "AI response reported"
+                : "Report this AI response"
+            }
+            style={({ pressed }) => [
+              styles.reportButton,
+              { opacity: pressed ? 0.55 : reportState === "idle" ? 0.8 : 0.5 },
+            ]}
+          >
+            <Feather
+              name={reportState === "reported" ? "check" : "flag"}
+              size={13}
+              color={theme.textSecondary}
+            />
+            <ThemedText
+              style={[styles.reportText, { color: theme.textSecondary }]}
+            >
+              {reportState === "submitting"
+                ? "Reporting…"
+                : reportState === "reported"
+                  ? "Reported"
+                  : "Report"}
+            </ThemedText>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -97,5 +168,16 @@ const styles = StyleSheet.create({
   },
   text: {
     ...Typography.body,
+  },
+  reportButton: {
+    alignSelf: "flex-end",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+    minHeight: 24,
+  },
+  reportText: {
+    ...Typography.caption,
   },
 });
