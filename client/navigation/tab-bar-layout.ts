@@ -1,5 +1,15 @@
 export const IOS_TAB_BAR_HEIGHT = 88;
 export const ANDROID_TAB_BAR_CONTENT_HEIGHT = 70;
+export const ANDROID_MIN_SYSTEM_NAVIGATION_INSET = 48;
+
+export function getAndroidTabBarBottomClearance(bottomInset: number): number {
+  // Some Samsung three-button configurations report a zero safe-area inset
+  // while edge-to-edge mode still lets the system controls cover app content.
+  return Math.max(
+    ANDROID_MIN_SYSTEM_NAVIGATION_INSET,
+    Math.max(0, bottomInset),
+  );
+}
 
 export function getMainTabBarHeight(
   platform: string,
@@ -7,11 +17,11 @@ export function getMainTabBarHeight(
 ): number {
   if (platform === "ios") return IOS_TAB_BAR_HEIGHT;
 
-  // React Navigation applies the safe-area inset as padding inside a custom
-  // tab-bar height. Android therefore needs that inset added to the fixed
-  // content height or three-button navigation can cover the tab controls.
   if (platform === "android") {
-    return ANDROID_TAB_BAR_CONTENT_HEIGHT + Math.max(0, bottomInset);
+    return (
+      ANDROID_TAB_BAR_CONTENT_HEIGHT +
+      getAndroidTabBarBottomClearance(bottomInset)
+    );
   }
 
   return ANDROID_TAB_BAR_CONTENT_HEIGHT;

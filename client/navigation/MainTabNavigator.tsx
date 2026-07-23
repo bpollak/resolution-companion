@@ -20,7 +20,10 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { ThemedText } from "@/components/ThemedText";
-import { getMainTabBarHeight } from "@/navigation/tab-bar-layout";
+import {
+  getAndroidTabBarBottomClearance,
+  getMainTabBarHeight,
+} from "@/navigation/tab-bar-layout";
 
 import TodayScreen from "@/screens/TodayScreen";
 import JourneyScreen from "@/screens/JourneyScreen";
@@ -273,6 +276,11 @@ export default function MainTabNavigator() {
         elevation: 0,
         height: getMainTabBarHeight(Platform.OS, insets.bottom),
         paddingTop: Spacing.sm,
+        ...(Platform.OS === "android"
+          ? {
+              paddingBottom: getAndroidTabBarBottomClearance(insets.bottom),
+            }
+          : {}),
       },
       tabBarItemStyle: {
         paddingTop: Spacing.xs,

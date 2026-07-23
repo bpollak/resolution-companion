@@ -1,19 +1,27 @@
 import {
+  ANDROID_MIN_SYSTEM_NAVIGATION_INSET,
   ANDROID_TAB_BAR_CONTENT_HEIGHT,
+  getAndroidTabBarBottomClearance,
   getMainTabBarHeight,
   IOS_TAB_BAR_HEIGHT,
 } from "../../navigation/tab-bar-layout";
 
 describe("main tab bar safe-area layout", () => {
-  test("keeps the existing Android height when there is no system inset", () => {
+  test("reserves three-button navigation space when Android reports no inset", () => {
     expect(getMainTabBarHeight("android", 0)).toBe(
-      ANDROID_TAB_BAR_CONTENT_HEIGHT,
+      ANDROID_TAB_BAR_CONTENT_HEIGHT + ANDROID_MIN_SYSTEM_NAVIGATION_INSET,
     );
   });
 
-  test("adds Android system navigation space below the tab controls", () => {
-    expect(getMainTabBarHeight("android", 48)).toBe(
-      ANDROID_TAB_BAR_CONTENT_HEIGHT + 48,
+  test("keeps the Android minimum when the reported inset is too small", () => {
+    expect(getAndroidTabBarBottomClearance(24)).toBe(
+      ANDROID_MIN_SYSTEM_NAVIGATION_INSET,
+    );
+  });
+
+  test("uses a larger reported Android system navigation inset", () => {
+    expect(getMainTabBarHeight("android", 60)).toBe(
+      ANDROID_TAB_BAR_CONTENT_HEIGHT + 60,
     );
   });
 
@@ -21,9 +29,9 @@ describe("main tab bar safe-area layout", () => {
     expect(getMainTabBarHeight("ios", 34)).toBe(IOS_TAB_BAR_HEIGHT);
   });
 
-  test("does not reduce the Android content height for an invalid inset", () => {
+  test("uses the Android fallback for an invalid inset", () => {
     expect(getMainTabBarHeight("android", -1)).toBe(
-      ANDROID_TAB_BAR_CONTENT_HEIGHT,
+      ANDROID_TAB_BAR_CONTENT_HEIGHT + ANDROID_MIN_SYSTEM_NAVIGATION_INSET,
     );
   });
 });
