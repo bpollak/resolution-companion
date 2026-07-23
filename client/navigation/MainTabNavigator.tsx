@@ -15,10 +15,12 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { ThemedText } from "@/components/ThemedText";
+import { getMainTabBarHeight } from "@/navigation/tab-bar-layout";
 
 import TodayScreen from "@/screens/TodayScreen";
 import JourneyScreen from "@/screens/JourneyScreen";
@@ -205,6 +207,7 @@ const MONTHS = [
 export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
   const { actions, dailyLogs, persona } = useApp();
+  const insets = useSafeAreaInsets();
 
   // "Wednesday, July 8" — pinned under the Today title so the day stays
   // visible after the screen's own date header scrolls away. Formatted
@@ -268,7 +271,7 @@ export default function MainTabNavigator() {
         }),
         borderTopWidth: 0,
         elevation: 0,
-        height: Platform.select({ ios: 88, android: 70 }),
+        height: getMainTabBarHeight(Platform.OS, insets.bottom),
         paddingTop: Spacing.sm,
       },
       tabBarItemStyle: {
@@ -326,7 +329,7 @@ export default function MainTabNavigator() {
         fontWeight: "600" as const,
       },
     }),
-    [isDark, theme],
+    [insets.bottom, isDark, theme],
   );
 
   return (
