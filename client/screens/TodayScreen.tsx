@@ -48,6 +48,7 @@ import { CircularProgress } from "@/components/CircularProgress";
 import { ActionCard, CompletedActionRow } from "@/components/ActionCard";
 import { StatChip } from "@/components/StatChip";
 import { DayCompleteCard } from "@/components/DayCompleteCard";
+import { getMainTabHeaderClearance } from "@/navigation/tab-bar-layout";
 import {
   WeeklyRecapCard,
   BeatLastWeekCard,
@@ -305,6 +306,7 @@ function AnimatedStartButton({ onPress }: { onPress: () => void }) {
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
+  const headerClearance = getMainTabHeaderClearance(Platform.OS, headerHeight);
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<any>();
   const { theme, isDark } = useTheme();
@@ -951,7 +953,7 @@ export default function TodayScreen() {
         contentContainerStyle={[
           styles.emptyContainer,
           {
-            paddingTop: headerHeight + Spacing.xl,
+            paddingTop: headerClearance + Spacing.xl,
             paddingBottom: tabBarHeight + Spacing.xl,
           },
         ]}
@@ -984,7 +986,7 @@ export default function TodayScreen() {
         style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
         decelerationRate="fast"
         contentContainerStyle={{
-          paddingTop: headerHeight + Spacing.xl,
+          paddingTop: headerClearance + Spacing.xl,
           paddingBottom: tabBarHeight + Spacing.xl,
           paddingHorizontal: Spacing.lg,
         }}
@@ -1263,7 +1265,7 @@ export default function TodayScreen() {
         visible={toastVisible}
         onHide={() => setToastVisible(false)}
         type="success"
-        topOffset={headerHeight + Spacing.md}
+        topOffset={headerClearance + Spacing.md}
       />
     </>
   );

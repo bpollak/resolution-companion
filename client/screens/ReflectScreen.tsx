@@ -45,6 +45,7 @@ import { track } from "@/lib/telemetry";
 import { getTodaysMicroNote } from "@/lib/micro-notes";
 import { getCoachTone, type CoachTone } from "@/lib/rewards";
 import { buildCoachActionContext, buildCoachOpening } from "@/lib/coach";
+import { getMainTabHeaderClearance } from "@/navigation/tab-bar-layout";
 import {
   startTextTypewriter,
   type TypewriterController,
@@ -65,6 +66,7 @@ interface ChatMessage {
 export default function ReflectScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
+  const headerClearance = getMainTabHeaderClearance(Platform.OS, headerHeight);
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -700,7 +702,7 @@ export default function ReflectScreen() {
           styles.container,
           {
             backgroundColor: theme.backgroundRoot,
-            paddingTop: headerHeight + Spacing.xl,
+            paddingTop: headerClearance + Spacing.xl,
             paddingBottom: tabBarHeight + Spacing.xl,
           },
         ]}
@@ -763,7 +765,7 @@ export default function ReflectScreen() {
           <View
             style={[
               styles.chatHeader,
-              { paddingTop: headerHeight + Spacing.sm },
+              { paddingTop: headerClearance + Spacing.sm },
             ]}
           >
             <Pressable
@@ -824,7 +826,7 @@ export default function ReflectScreen() {
         decelerationRate="fast"
         style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
         contentContainerStyle={{
-          paddingTop: headerHeight + Spacing.xl,
+          paddingTop: headerClearance + Spacing.xl,
           paddingBottom: tabBarHeight + Spacing.xl,
           paddingHorizontal: Spacing.lg,
         }}
@@ -1184,7 +1186,10 @@ export default function ReflectScreen() {
       keyboardVerticalOffset={0}
     >
       <View
-        style={[styles.chatHeader, { paddingTop: headerHeight + Spacing.sm }]}
+        style={[
+          styles.chatHeader,
+          { paddingTop: headerClearance + Spacing.sm },
+        ]}
       >
         <Pressable
           onPress={handleCloseSession}

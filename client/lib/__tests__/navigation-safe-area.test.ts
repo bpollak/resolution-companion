@@ -2,11 +2,24 @@ import {
   ANDROID_MIN_SYSTEM_NAVIGATION_INSET,
   ANDROID_TAB_BAR_CONTENT_HEIGHT,
   getAndroidTabBarBottomClearance,
+  getMainTabHeaderClearance,
   getMainTabBarHeight,
   IOS_TAB_BAR_HEIGHT,
 } from "../../navigation/tab-bar-layout";
 
-describe("main tab bar safe-area layout", () => {
+describe("main tab safe-area layout", () => {
+  test("reserves the floating header height on iOS", () => {
+    expect(getMainTabHeaderClearance("ios", 88)).toBe(88);
+  });
+
+  test("does not double-count the opaque Android header", () => {
+    expect(getMainTabHeaderClearance("android", 88)).toBe(0);
+  });
+
+  test("guards against an invalid iOS header height", () => {
+    expect(getMainTabHeaderClearance("ios", -1)).toBe(0);
+  });
+
   test("reserves three-button navigation space when Android reports no inset", () => {
     expect(getMainTabBarHeight("android", 0)).toBe(
       ANDROID_TAB_BAR_CONTENT_HEIGHT + ANDROID_MIN_SYSTEM_NAVIGATION_INSET,

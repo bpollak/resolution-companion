@@ -24,6 +24,7 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { StatChip } from "@/components/StatChip";
 import { Toast } from "@/components/Toast";
 import { InsightsPanel } from "@/components/InsightsPanel";
+import { getMainTabHeaderClearance } from "@/navigation/tab-bar-layout";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -549,6 +550,7 @@ const MilestoneRow = React.memo(function MilestoneRow({
 export default function JourneyScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
+  const headerClearance = getMainTabHeaderClearance(Platform.OS, headerHeight);
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<any>();
   const { theme, isDark } = useTheme();
@@ -828,7 +830,7 @@ export default function JourneyScreen() {
           styles.container,
           {
             backgroundColor: theme.backgroundRoot,
-            paddingTop: headerHeight + Spacing.xl,
+            paddingTop: headerClearance + Spacing.xl,
             paddingBottom: tabBarHeight + Spacing.xl,
           },
         ]}
@@ -855,7 +857,7 @@ export default function JourneyScreen() {
         style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
         decelerationRate="fast"
         contentContainerStyle={{
-          paddingTop: headerHeight + Spacing.xl,
+          paddingTop: headerClearance + Spacing.xl,
           paddingBottom: tabBarHeight + Spacing.xl,
           paddingHorizontal: Spacing.lg,
         }}
@@ -1404,7 +1406,7 @@ export default function JourneyScreen() {
         visible={toastVisible}
         onHide={() => setToastVisible(false)}
         type={toastType}
-        topOffset={headerHeight + Spacing.md}
+        topOffset={headerClearance + Spacing.md}
       />
     </>
   );
