@@ -1,6 +1,10 @@
 import {
+  ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT,
+  ANDROID_MAX_MAIN_TAB_STATUS_BAR_INSET,
   ANDROID_MIN_SYSTEM_NAVIGATION_INSET,
   ANDROID_TAB_BAR_CONTENT_HEIGHT,
+  getAndroidMainTabHeaderHeight,
+  getAndroidMainTabStatusBarHeight,
   getAndroidTabBarBottomClearance,
   getMainTabHeaderClearance,
   getMainTabBarHeight,
@@ -18,6 +22,30 @@ describe("main tab safe-area layout", () => {
 
   test("guards against an invalid iOS header height", () => {
     expect(getMainTabHeaderClearance("ios", -1)).toBe(0);
+  });
+
+  test("uses the reported Android status-bar inset when it is reasonable", () => {
+    expect(getAndroidMainTabStatusBarHeight(24)).toBe(24);
+    expect(getAndroidMainTabHeaderHeight(24)).toBe(
+      ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT + 24,
+    );
+  });
+
+  test("caps an oversized Android status-bar inset", () => {
+    expect(getAndroidMainTabStatusBarHeight(96)).toBe(
+      ANDROID_MAX_MAIN_TAB_STATUS_BAR_INSET,
+    );
+    expect(getAndroidMainTabHeaderHeight(96)).toBe(
+      ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT +
+        ANDROID_MAX_MAIN_TAB_STATUS_BAR_INSET,
+    );
+  });
+
+  test("guards against an invalid Android status-bar inset", () => {
+    expect(getAndroidMainTabStatusBarHeight(-1)).toBe(0);
+    expect(getAndroidMainTabHeaderHeight(-1)).toBe(
+      ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT,
+    );
   });
 
   test("reserves three-button navigation space when Android reports no inset", () => {

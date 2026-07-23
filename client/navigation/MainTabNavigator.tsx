@@ -21,6 +21,8 @@ import { Spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { ThemedText } from "@/components/ThemedText";
 import {
+  getAndroidMainTabHeaderHeight,
+  getAndroidMainTabStatusBarHeight,
   getAndroidTabBarBottomClearance,
   getMainTabBarHeight,
 } from "@/navigation/tab-bar-layout";
@@ -308,12 +310,19 @@ export default function MainTabNavigator() {
         ) : null,
       headerShown: true,
       headerTransparent: Platform.OS === "ios",
+      headerStatusBarHeight:
+        Platform.OS === "android"
+          ? getAndroidMainTabStatusBarHeight(insets.top)
+          : undefined,
       headerStyle: {
         backgroundColor: Platform.select({
           ios: "transparent",
           android: theme.backgroundRoot,
           default: theme.backgroundRoot,
         }),
+        ...(Platform.OS === "android"
+          ? { height: getAndroidMainTabHeaderHeight(insets.top) }
+          : {}),
       },
       headerBackground: () =>
         Platform.OS === "ios" ? (
@@ -337,7 +346,7 @@ export default function MainTabNavigator() {
         fontWeight: "600" as const,
       },
     }),
-    [insets.bottom, isDark, theme],
+    [insets.bottom, insets.top, isDark, theme],
   );
 
   return (
