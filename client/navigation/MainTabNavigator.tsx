@@ -6,6 +6,7 @@ import * as Haptics from "expo-haptics";
 import {
   Platform,
   Pressable,
+  StatusBar,
   StyleSheet,
   useWindowDimensions,
   View,
@@ -312,7 +313,10 @@ export default function MainTabNavigator() {
       headerTransparent: Platform.OS === "ios",
       headerStatusBarHeight:
         Platform.OS === "android"
-          ? getAndroidMainTabStatusBarHeight(insets.top)
+          ? getAndroidMainTabStatusBarHeight(
+              insets.top,
+              StatusBar.currentHeight,
+            )
           : undefined,
       headerStyle: {
         backgroundColor: Platform.select({
@@ -321,7 +325,12 @@ export default function MainTabNavigator() {
           default: theme.backgroundRoot,
         }),
         ...(Platform.OS === "android"
-          ? { height: getAndroidMainTabHeaderHeight(insets.top) }
+          ? {
+              height: getAndroidMainTabHeaderHeight(
+                insets.top,
+                StatusBar.currentHeight,
+              ),
+            }
           : {}),
       },
       headerBackground: () =>

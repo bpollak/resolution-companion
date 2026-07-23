@@ -1,6 +1,7 @@
 import {
   ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT,
-  ANDROID_MAX_MAIN_TAB_STATUS_BAR_INSET,
+  ANDROID_MAX_MAIN_TAB_STATUS_BAR_FALLBACK,
+  ANDROID_MAX_MAIN_TAB_STATUS_BAR_HEIGHT,
   ANDROID_MIN_SYSTEM_NAVIGATION_INSET,
   ANDROID_TAB_BAR_CONTENT_HEIGHT,
   getAndroidMainTabHeaderHeight,
@@ -24,26 +25,37 @@ describe("main tab safe-area layout", () => {
     expect(getMainTabHeaderClearance("ios", -1)).toBe(0);
   });
 
-  test("uses the reported Android status-bar inset when it is reasonable", () => {
-    expect(getAndroidMainTabStatusBarHeight(24)).toBe(24);
-    expect(getAndroidMainTabHeaderHeight(24)).toBe(
+  test("prefers Android's measured system status-bar height", () => {
+    expect(getAndroidMainTabStatusBarHeight(96, 24)).toBe(24);
+    expect(getAndroidMainTabHeaderHeight(96, 24)).toBe(
       ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT + 24,
     );
   });
 
-  test("caps an oversized Android status-bar inset", () => {
-    expect(getAndroidMainTabStatusBarHeight(96)).toBe(
-      ANDROID_MAX_MAIN_TAB_STATUS_BAR_INSET,
+  test("caps an oversized measured Android status-bar height", () => {
+    expect(getAndroidMainTabStatusBarHeight(96, 72)).toBe(
+      ANDROID_MAX_MAIN_TAB_STATUS_BAR_HEIGHT,
     );
-    expect(getAndroidMainTabHeaderHeight(96)).toBe(
+    expect(getAndroidMainTabHeaderHeight(96, 72)).toBe(
       ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT +
-        ANDROID_MAX_MAIN_TAB_STATUS_BAR_INSET,
+        ANDROID_MAX_MAIN_TAB_STATUS_BAR_HEIGHT,
     );
   });
 
-  test("guards against an invalid Android status-bar inset", () => {
-    expect(getAndroidMainTabStatusBarHeight(-1)).toBe(0);
-    expect(getAndroidMainTabHeaderHeight(-1)).toBe(
+  test("uses a tighter safe-area fallback when the native height is absent", () => {
+    expect(getAndroidMainTabStatusBarHeight(96)).toBe(
+      ANDROID_MAX_MAIN_TAB_STATUS_BAR_FALLBACK,
+    );
+    expect(getAndroidMainTabHeaderHeight(96)).toBe(
+      ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT +
+        ANDROID_MAX_MAIN_TAB_STATUS_BAR_FALLBACK,
+    );
+  });
+
+  test("guards against invalid Android status-bar measurements", () => {
+    expect(getAndroidMainTabStatusBarHeight(-1, -1)).toBe(0);
+    expect(getAndroidMainTabStatusBarHeight(Number.NaN, Number.NaN)).toBe(0);
+    expect(getAndroidMainTabHeaderHeight(-1, -1)).toBe(
       ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT,
     );
   });

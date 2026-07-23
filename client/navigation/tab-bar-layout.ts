@@ -2,19 +2,43 @@ export const IOS_TAB_BAR_HEIGHT = 88;
 export const ANDROID_TAB_BAR_CONTENT_HEIGHT = 70;
 export const ANDROID_MIN_SYSTEM_NAVIGATION_INSET = 48;
 export const ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT = 56;
-export const ANDROID_MAX_MAIN_TAB_STATUS_BAR_INSET = 48;
+export const ANDROID_MAX_MAIN_TAB_STATUS_BAR_HEIGHT = 48;
+export const ANDROID_MAX_MAIN_TAB_STATUS_BAR_FALLBACK = 32;
 
-export function getAndroidMainTabStatusBarHeight(topInset: number): number {
-  // A few Samsung edge-to-edge configurations report a top safe-area inset
-  // much taller than the visible status bar. Keep enough room for cutouts
-  // without letting that value turn the tab header into a large blank band.
-  return Math.min(ANDROID_MAX_MAIN_TAB_STATUS_BAR_INSET, Math.max(0, topInset));
+function clampAndroidStatusBarHeight(height: number, maximum: number): number {
+  return Number.isFinite(height) ? Math.min(maximum, Math.max(0, height)) : 0;
 }
 
-export function getAndroidMainTabHeaderHeight(topInset: number): number {
+export function getAndroidMainTabStatusBarHeight(
+  topInset: number,
+  nativeStatusBarHeight?: number,
+): number {
+  // Samsung edge-to-edge layouts can report a safe-area inset much taller
+  // than the visible status bar. Prefer Android's measured system-bar height;
+  // the smaller inset cap is only a fallback when that native value is absent.
+  if (
+    nativeStatusBarHeight !== undefined &&
+    Number.isFinite(nativeStatusBarHeight)
+  ) {
+    return clampAndroidStatusBarHeight(
+      nativeStatusBarHeight,
+      ANDROID_MAX_MAIN_TAB_STATUS_BAR_HEIGHT,
+    );
+  }
+
+  return clampAndroidStatusBarHeight(
+    topInset,
+    ANDROID_MAX_MAIN_TAB_STATUS_BAR_FALLBACK,
+  );
+}
+
+export function getAndroidMainTabHeaderHeight(
+  topInset: number,
+  nativeStatusBarHeight?: number,
+): number {
   return (
     ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT +
-    getAndroidMainTabStatusBarHeight(topInset)
+    getAndroidMainTabStatusBarHeight(topInset, nativeStatusBarHeight)
   );
 }
 
