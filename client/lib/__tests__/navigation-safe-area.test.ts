@@ -1,6 +1,5 @@
 import {
   ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT,
-  ANDROID_MAX_MAIN_TAB_STATUS_BAR_FALLBACK,
   ANDROID_MAX_MAIN_TAB_STATUS_BAR_HEIGHT,
   ANDROID_MIN_SYSTEM_NAVIGATION_INSET,
   ANDROID_TAB_BAR_CONTENT_HEIGHT,
@@ -8,6 +7,7 @@ import {
   getAndroidMainTabStatusBarHeight,
   getAndroidTabBarBottomClearance,
   getMainTabHeaderClearance,
+  getMainTabHeaderTitleAlignment,
   getMainTabBarHeight,
   IOS_TAB_BAR_HEIGHT,
 } from "../../navigation/tab-bar-layout";
@@ -25,30 +25,30 @@ describe("main tab safe-area layout", () => {
     expect(getMainTabHeaderClearance("ios", -1)).toBe(0);
   });
 
-  test("prefers Android's measured system status-bar height", () => {
+  test("uses a normal measured Android status-bar height", () => {
     expect(getAndroidMainTabStatusBarHeight(96, 24)).toBe(24);
     expect(getAndroidMainTabHeaderHeight(96, 24)).toBe(
       ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT + 24,
     );
   });
 
-  test("caps an oversized measured Android status-bar height", () => {
-    expect(getAndroidMainTabStatusBarHeight(96, 72)).toBe(
+  test("caps oversized Android status-bar measurements at 24 dp", () => {
+    expect(getAndroidMainTabStatusBarHeight(96, 48)).toBe(
       ANDROID_MAX_MAIN_TAB_STATUS_BAR_HEIGHT,
     );
-    expect(getAndroidMainTabHeaderHeight(96, 72)).toBe(
+    expect(getAndroidMainTabHeaderHeight(96, 48)).toBe(
       ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT +
         ANDROID_MAX_MAIN_TAB_STATUS_BAR_HEIGHT,
     );
   });
 
-  test("uses a tighter safe-area fallback when the native height is absent", () => {
+  test("applies the same cap when only the safe-area inset is available", () => {
     expect(getAndroidMainTabStatusBarHeight(96)).toBe(
-      ANDROID_MAX_MAIN_TAB_STATUS_BAR_FALLBACK,
+      ANDROID_MAX_MAIN_TAB_STATUS_BAR_HEIGHT,
     );
     expect(getAndroidMainTabHeaderHeight(96)).toBe(
       ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT +
-        ANDROID_MAX_MAIN_TAB_STATUS_BAR_FALLBACK,
+        ANDROID_MAX_MAIN_TAB_STATUS_BAR_HEIGHT,
     );
   });
 
@@ -58,6 +58,11 @@ describe("main tab safe-area layout", () => {
     expect(getAndroidMainTabHeaderHeight(-1, -1)).toBe(
       ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT,
     );
+  });
+
+  test("left-aligns Android tab headers without changing iOS", () => {
+    expect(getMainTabHeaderTitleAlignment("android")).toBe("left");
+    expect(getMainTabHeaderTitleAlignment("ios")).toBe("center");
   });
 
   test("reserves three-button navigation space when Android reports no inset", () => {

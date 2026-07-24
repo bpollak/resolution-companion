@@ -26,6 +26,7 @@ import {
   getAndroidMainTabStatusBarHeight,
   getAndroidTabBarBottomClearance,
   getMainTabBarHeight,
+  getMainTabHeaderTitleAlignment,
 } from "@/navigation/tab-bar-layout";
 
 import TodayScreen from "@/screens/TodayScreen";
@@ -146,9 +147,13 @@ function HeaderTitle({
   const { theme } = useTheme();
   const { fontScale } = useWindowDimensions();
   const showSubtitle = !!subtitle && fontScale <= 1.4;
+  const titleAlignment = getMainTabHeaderTitleAlignment(Platform.OS);
   return (
     <View
-      style={headerTitleStyles.container}
+      style={[
+        headerTitleStyles.container,
+        titleAlignment === "left" && headerTitleStyles.containerLeft,
+      ]}
       accessible
       accessibilityRole="header"
       accessibilityLabel={[title, subtitle].filter(Boolean).join(", ")}
@@ -172,6 +177,9 @@ const headerTitleStyles = StyleSheet.create({
   container: {
     alignItems: "center",
     justifyContent: "center",
+  },
+  containerLeft: {
+    alignItems: "flex-start",
   },
   title: {
     fontSize: 17,
@@ -311,6 +319,7 @@ export default function MainTabNavigator() {
         ) : null,
       headerShown: true,
       headerTransparent: Platform.OS === "ios",
+      headerTitleAlign: getMainTabHeaderTitleAlignment(Platform.OS),
       headerStatusBarHeight:
         Platform.OS === "android"
           ? getAndroidMainTabStatusBarHeight(
