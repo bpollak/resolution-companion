@@ -1,6 +1,7 @@
 import React from "react";
-import { Pressable } from "react-native";
+import { Platform, Pressable } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
 import OnboardingScreen from "@/screens/OnboardingScreen";
@@ -15,6 +16,7 @@ import DataBackupScreen from "@/screens/DataBackupScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
+import { getMainTabRootTopOffset } from "@/navigation/tab-bar-layout";
 
 export type RootStackParamList = {
   Main: undefined;
@@ -34,13 +36,26 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function RootStackNavigator() {
   const screenOptions = useScreenOptions();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Stack.Navigator screenOptions={screenOptions}>
       <Stack.Screen
         name="Main"
         component={MainTabNavigator}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          // The Android native stack already reserves its top safe area, and
+          // the nested tab navigator otherwise receives that space a second
+          // time. Pull only Main back by the live inset; iOS stays untouched.
+          contentStyle:
+            Platform.OS === "android"
+              ? {
+                  backgroundColor: theme.backgroundRoot,
+                  marginTop: getMainTabRootTopOffset(Platform.OS, insets.top),
+                }
+              : undefined,
+        }}
       />
       <Stack.Screen
         name="Onboarding"

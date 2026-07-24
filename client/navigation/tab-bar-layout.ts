@@ -2,39 +2,21 @@ export const IOS_TAB_BAR_HEIGHT = 88;
 export const ANDROID_TAB_BAR_CONTENT_HEIGHT = 70;
 export const ANDROID_MIN_SYSTEM_NAVIGATION_INSET = 48;
 export const ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT = 56;
-export const ANDROID_MAX_MAIN_TAB_STATUS_BAR_HEIGHT = 24;
 
-function clampAndroidStatusBarHeight(height: number, maximum: number): number {
-  return Number.isFinite(height) ? Math.min(maximum, Math.max(0, height)) : 0;
+export function getAndroidMainTabHeaderHeight(): number {
+  // The Android root view already owns the live system-bar inset. The tab
+  // navigator only needs to size its toolbar.
+  return ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT;
 }
 
-export function getAndroidMainTabStatusBarHeight(
+export function getMainTabRootTopOffset(
+  platform: string,
   topInset: number,
-  nativeStatusBarHeight?: number,
 ): number {
-  // Samsung edge-to-edge layouts can report both safe-area and native
-  // status-bar measurements much taller than the visible system bar. Android
-  // density-independent units keep this cap consistent across resolutions.
-  const measuredHeight =
-    nativeStatusBarHeight !== undefined &&
-    Number.isFinite(nativeStatusBarHeight)
-      ? nativeStatusBarHeight
-      : topInset;
-
-  return clampAndroidStatusBarHeight(
-    measuredHeight,
-    ANDROID_MAX_MAIN_TAB_STATUS_BAR_HEIGHT,
-  );
-}
-
-export function getAndroidMainTabHeaderHeight(
-  topInset: number,
-  nativeStatusBarHeight?: number,
-): number {
-  return (
-    ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT +
-    getAndroidMainTabStatusBarHeight(topInset, nativeStatusBarHeight)
-  );
+  if (platform !== "android" || !Number.isFinite(topInset) || topInset <= 0) {
+    return 0;
+  }
+  return -topInset;
 }
 
 export function getMainTabHeaderClearance(

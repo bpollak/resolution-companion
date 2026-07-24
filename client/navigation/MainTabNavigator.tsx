@@ -6,7 +6,6 @@ import * as Haptics from "expo-haptics";
 import {
   Platform,
   Pressable,
-  StatusBar,
   StyleSheet,
   useWindowDimensions,
   View,
@@ -23,7 +22,6 @@ import { useApp } from "@/context/AppContext";
 import { ThemedText } from "@/components/ThemedText";
 import {
   getAndroidMainTabHeaderHeight,
-  getAndroidMainTabStatusBarHeight,
   getAndroidTabBarBottomClearance,
   getMainTabBarHeight,
   getMainTabHeaderTitleAlignment,
@@ -320,13 +318,9 @@ export default function MainTabNavigator() {
       headerShown: true,
       headerTransparent: Platform.OS === "ios",
       headerTitleAlign: getMainTabHeaderTitleAlignment(Platform.OS),
-      headerStatusBarHeight:
-        Platform.OS === "android"
-          ? getAndroidMainTabStatusBarHeight(
-              insets.top,
-              StatusBar.currentHeight,
-            )
-          : undefined,
+      // Android's edge-to-edge root already starts below the live system-bar
+      // inset. Adding it again here creates the oversized Samsung top gap.
+      headerStatusBarHeight: Platform.OS === "android" ? 0 : undefined,
       headerStyle: {
         backgroundColor: Platform.select({
           ios: "transparent",
@@ -335,10 +329,7 @@ export default function MainTabNavigator() {
         }),
         ...(Platform.OS === "android"
           ? {
-              height: getAndroidMainTabHeaderHeight(
-                insets.top,
-                StatusBar.currentHeight,
-              ),
+              height: getAndroidMainTabHeaderHeight(),
             }
           : {}),
       },
@@ -364,7 +355,7 @@ export default function MainTabNavigator() {
         fontWeight: "600" as const,
       },
     }),
-    [insets.bottom, insets.top, isDark, theme],
+    [insets.bottom, isDark, theme],
   );
 
   return (

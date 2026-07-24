@@ -1,14 +1,13 @@
 import {
   ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT,
-  ANDROID_MAX_MAIN_TAB_STATUS_BAR_HEIGHT,
   ANDROID_MIN_SYSTEM_NAVIGATION_INSET,
   ANDROID_TAB_BAR_CONTENT_HEIGHT,
   getAndroidMainTabHeaderHeight,
-  getAndroidMainTabStatusBarHeight,
   getAndroidTabBarBottomClearance,
   getMainTabHeaderClearance,
   getMainTabHeaderTitleAlignment,
   getMainTabBarHeight,
+  getMainTabRootTopOffset,
   IOS_TAB_BAR_HEIGHT,
 } from "../../navigation/tab-bar-layout";
 
@@ -25,37 +24,8 @@ describe("main tab safe-area layout", () => {
     expect(getMainTabHeaderClearance("ios", -1)).toBe(0);
   });
 
-  test("uses a normal measured Android status-bar height", () => {
-    expect(getAndroidMainTabStatusBarHeight(96, 24)).toBe(24);
-    expect(getAndroidMainTabHeaderHeight(96, 24)).toBe(
-      ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT + 24,
-    );
-  });
-
-  test("caps oversized Android status-bar measurements at 24 dp", () => {
-    expect(getAndroidMainTabStatusBarHeight(96, 48)).toBe(
-      ANDROID_MAX_MAIN_TAB_STATUS_BAR_HEIGHT,
-    );
-    expect(getAndroidMainTabHeaderHeight(96, 48)).toBe(
-      ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT +
-        ANDROID_MAX_MAIN_TAB_STATUS_BAR_HEIGHT,
-    );
-  });
-
-  test("applies the same cap when only the safe-area inset is available", () => {
-    expect(getAndroidMainTabStatusBarHeight(96)).toBe(
-      ANDROID_MAX_MAIN_TAB_STATUS_BAR_HEIGHT,
-    );
-    expect(getAndroidMainTabHeaderHeight(96)).toBe(
-      ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT +
-        ANDROID_MAX_MAIN_TAB_STATUS_BAR_HEIGHT,
-    );
-  });
-
-  test("guards against invalid Android status-bar measurements", () => {
-    expect(getAndroidMainTabStatusBarHeight(-1, -1)).toBe(0);
-    expect(getAndroidMainTabStatusBarHeight(Number.NaN, Number.NaN)).toBe(0);
-    expect(getAndroidMainTabHeaderHeight(-1, -1)).toBe(
+  test("does not duplicate Android's system-bar inset in the tab header", () => {
+    expect(getAndroidMainTabHeaderHeight()).toBe(
       ANDROID_MAIN_TAB_HEADER_TOOLBAR_HEIGHT,
     );
   });
@@ -63,6 +33,13 @@ describe("main tab safe-area layout", () => {
   test("left-aligns Android tab headers without changing iOS", () => {
     expect(getMainTabHeaderTitleAlignment("android")).toBe("left");
     expect(getMainTabHeaderTitleAlignment("ios")).toBe("center");
+  });
+
+  test("subtracts the live top inset only from Android's nested tabs", () => {
+    expect(getMainTabRootTopOffset("android", 48)).toBe(-48);
+    expect(getMainTabRootTopOffset("ios", 48)).toBe(0);
+    expect(getMainTabRootTopOffset("android", -1)).toBe(0);
+    expect(getMainTabRootTopOffset("android", Number.NaN)).toBe(0);
   });
 
   test("reserves three-button navigation space when Android reports no inset", () => {
