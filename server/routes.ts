@@ -28,6 +28,11 @@ import {
   verifyGooglePubSubPush,
   type GoogleSubscriptionValidation,
 } from "./google-play";
+import {
+  normalizePlanTuneUpResponse,
+  validatePlanTuneUpRequest,
+  type PlanTuneUpRequest,
+} from "../shared/plan-tune-up";
 
 // Lazily construct the OpenAI client so a missing API key degrades the AI
 // endpoints instead of crashing the whole server (website, webhooks, legal pages).
@@ -73,7 +78,12 @@ type ModelUsage = {
 };
 
 async function recordAiModelUsage(
-  endpoint: "chat" | "extract" | "reflection" | "milestone-proposal",
+  endpoint:
+    | "chat"
+    | "extract"
+    | "reflection"
+    | "milestone-proposal"
+    | "plan-tune-up",
   usage: ModelUsage | null | undefined,
 ): Promise<void> {
   if (!db) return;
@@ -481,6 +491,7 @@ const AI_QUOTAS = {
   chat: { free: 150, premium: 1500 },
   reflection: { free: 150, premium: 1500 },
   extract: { free: 20, premium: 200 },
+  "plan-tune-up": { free: 30, premium: 300 },
 } as const;
 
 function aiQuota(endpoint: keyof typeof AI_QUOTAS) {
@@ -846,6 +857,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.post(
+    "/api/plan-tune-up",
+    requireApiKey,
+    aiRateLimit,
+    aiQuota("plan-tune-up"),
+    async (req: Request, res: Response) => {
+      const validationError = validatePlanTuneUpRequest(req.body);
+      if (validationError) {
+        res.status(400).json({ error: validationError });
+        return;
+      }
+      const request = req.body as PlanTuneUpRequest;
+      if (request.evidence.scheduled < 7) {
+        res.status(400).json({
+          error:
+            "Plan Tune-Up needs at least seven scheduled action-days first.",
+        });
+        return;
+      }
+
+      try {
+        const response = await getOpenAI().chat.completions.create({
+          model: OPENAI_MODEL,
+          messages: [
+            {
+              role: "system",
+              content: `You tune one identity-based daily action using only bounded aggregate behavior evidence.
+
+Return JSON with exactly:
+{
+  "summary": "One short, supportive explanation grounded in the aggregate evidence",
+  "changes": {
+    "frequency": ["optional exact weekday names"],
+    "anchorLink": "optional revised cue",
+    "kickstartVersion": "optional under-two-minute fallback"
+  }
+}
+
+Rules:
+- Propose one or two meaningful changes, never all fields by default.
+- You may change only frequency, anchorLink, or kickstartVersion.
+- Keep at least one scheduled weekday and use exact weekday names.
+- Preserve the user's intent and vocabulary.
+- Treat factor counts as associations, never causes.
+- Do not diagnose, prescribe treatment, or infer facts not present.
+- Do not ask for more data and do not include markdown.`,
+            },
+            {
+              role: "user",
+              content: JSON.stringify({
+                action: request.action,
+                trailing28DayAggregate: request.evidence,
+              }),
+            },
+          ],
+          response_format: { type: "json_object" },
+          reasoning_effort: "minimal",
+          max_completion_tokens: 700,
+        });
+        await recordAiModelUsage("plan-tune-up", response.usage);
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(
+            response.choices[0]?.message?.content || "{}",
+          ) as unknown;
+        } catch {
+          res.status(502).json({
+            error:
+              "Coach returned an invalid proposal. Your plan was not changed.",
+          });
+          return;
+        }
+        try {
+          res.json(normalizePlanTuneUpResponse(parsed, request.action));
+        } catch (error) {
+          res.status(502).json({
+            error:
+              error instanceof Error
+                ? `${error.message} Your plan was not changed.`
+                : "Coach returned an invalid proposal. Your plan was not changed.",
+          });
+        }
+      } catch (error) {
+        console.error("Plan Tune-Up error:", error);
+        res.status(500).json({
+          error:
+            "Plan Tune-Up is temporarily unavailable. Your plan was not changed.",
+        });
+      }
+    },
+  );
+
+  app.post(
     "/api/feedback",
     publicRateLimit,
     async (req: Request, res: Response) => {
@@ -1009,6 +1112,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "shield_used",
     "reward_unlocked",
     "coach_observation_opened",
+    "daily_context_saved",
+    "story_archive_opened",
+    "evidence_timeline_opened",
+    "context_pattern_viewed",
+    "plan_tune_up_requested",
+    "plan_tune_up_applied",
     "micro_note_read",
     "year_recap_shared",
     "witness_progress_shared",

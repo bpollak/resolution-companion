@@ -13,6 +13,9 @@ import MonthRecapScreen from "@/screens/MonthRecapScreen";
 import YearRecapScreen from "@/screens/YearRecapScreen";
 import WitnessScreen from "@/screens/WitnessScreen";
 import DataBackupScreen from "@/screens/DataBackupScreen";
+import StoryArchiveScreen from "@/screens/StoryArchiveScreen";
+import EvidenceTimelineScreen from "@/screens/EvidenceTimelineScreen";
+import PlanTuneUpScreen from "@/screens/PlanTuneUpScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
@@ -29,6 +32,9 @@ export type RootStackParamList = {
   YearRecap: { year: number };
   Witness: undefined;
   DataBackup: undefined;
+  StoryArchive: undefined;
+  EvidenceTimeline: undefined;
+  PlanTuneUp: { actionId?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -110,6 +116,21 @@ export default function RootStackNavigator() {
       <Stack.Screen
         name="DataBackup"
         component={DataBackupScreen}
+        options={{ headerShown: false, presentation: "modal" }}
+      />
+      <Stack.Screen
+        name="StoryArchive"
+        component={StoryArchiveScreen}
+        options={{ headerShown: false, presentation: "modal" }}
+      />
+      <Stack.Screen
+        name="EvidenceTimeline"
+        component={EvidenceTimelineScreen}
+        options={{ headerShown: false, presentation: "modal" }}
+      />
+      <Stack.Screen
+        name="PlanTuneUp"
+        component={PlanTuneUpScreen}
         options={{ headerShown: false, presentation: "modal" }}
       />
       <Stack.Screen

@@ -106,7 +106,7 @@ export const ActionCard = React.memo(function ActionCard({
   }));
 
   return (
-    <View
+    <Animated.View
       style={[
         styles.container,
         {
@@ -114,108 +114,101 @@ export const ActionCard = React.memo(function ActionCard({
             ? Colors.dark.backgroundDefault
             : Colors.light.backgroundDefault,
         },
+        isCompleted ? glowStyle : undefined,
       ]}
     >
-      {benchmarkTitle ? (
-        <ThemedText style={[styles.benchmark, { color: theme.accent }]}>
-          {benchmarkTitle}
-        </ThemedText>
-      ) : null}
-
-      <ThemedText style={styles.title}>{action.title}</ThemedText>
-
-      <View style={styles.kickstartContainer}>
-        <Feather
-          name="zap"
-          size={16}
-          color={theme.warning}
-          style={styles.zapIcon}
-        />
-        <View style={styles.kickstartContent}>
-          <ThemedText style={[styles.kickstartLabel, { color: theme.warning }]}>
-            Too busy? Just:
-          </ThemedText>
-          <ThemedText style={styles.kickstart}>
-            {action.kickstartVersion}
-          </ThemedText>
+      <View style={styles.voteHeader}>
+        <View style={styles.voteCopy}>
+          {benchmarkTitle ? (
+            <ThemedText style={[styles.benchmark, { color: theme.accent }]}>
+              {benchmarkTitle}
+            </ThemedText>
+          ) : null}
+          <ThemedText style={styles.title}>{action.title}</ThemedText>
         </View>
+        <Pressable
+          onPress={handlePress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          hitSlop={8}
+          pressRetentionOffset={20}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: isCompleted }}
+          accessibilityLabel={
+            isCompleted
+              ? `${action.title} completed. Tap to undo`
+              : `Cast today's vote for ${action.title}`
+          }
+        >
+          <Animated.View
+            style={[
+              styles.voteButton,
+              {
+                backgroundColor: isCompleted
+                  ? theme.success
+                  : isDark
+                    ? Colors.dark.backgroundTertiary
+                    : Colors.light.backgroundTertiary,
+                borderColor: isCompleted ? "transparent" : theme.accent,
+              },
+              buttonAnimatedStyle,
+            ]}
+          >
+            <Animated.View style={checkAnimatedStyle}>
+              <Feather
+                name={isCompleted ? "check" : "circle"}
+                size={18}
+                color={isCompleted ? theme.buttonText : theme.accent}
+              />
+            </Animated.View>
+            <ThemedText
+              style={[
+                styles.voteButtonText,
+                { color: isCompleted ? theme.buttonText : theme.accent },
+              ]}
+            >
+              {isCompleted ? "Cast" : "Vote"}
+            </ThemedText>
+          </Animated.View>
+        </Pressable>
       </View>
 
       {action.anchorLink ? (
-        <View
-          style={[
-            styles.anchorContainer,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundSecondary
-                : Colors.light.backgroundSecondary,
-            },
-          ]}
-        >
-          <Feather
-            name="link"
-            size={14}
-            color={theme.accent}
-            style={styles.anchorIcon}
-          />
-          <View style={styles.anchorContent}>
-            <ThemedText style={[styles.anchorLabel, { color: theme.accent }]}>
-              When:
-            </ThemedText>
-            <ThemedText style={[styles.anchor, { color: theme.textSecondary }]}>
-              {action.anchorLink}
-            </ThemedText>
-          </View>
+        <View style={styles.detailRow}>
+          <Feather name="link" size={13} color={theme.accent} />
+          <ThemedText
+            style={[styles.detailText, { color: theme.textSecondary }]}
+            numberOfLines={2}
+          >
+            {action.anchorLink}
+          </ThemedText>
         </View>
       ) : null}
 
-      <Pressable
-        onPress={handlePress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        hitSlop={8}
-        pressRetentionOffset={20}
-        accessibilityRole="button"
-        accessibilityState={{ selected: isCompleted }}
-        accessibilityLabel={
-          isCompleted
-            ? `${action.title} completed. Tap to undo`
-            : `Mark ${action.title} complete`
-        }
+      <View
+        style={[
+          styles.kickstartRow,
+          {
+            backgroundColor: isDark
+              ? Colors.dark.backgroundSecondary
+              : Colors.light.backgroundSecondary,
+          },
+        ]}
       >
-        <Animated.View
-          style={[
-            styles.toggleButton,
-            {
-              backgroundColor: isCompleted
-                ? theme.success
-                : isDark
-                  ? Colors.dark.backgroundTertiary
-                  : Colors.light.backgroundTertiary,
-              borderColor: isCompleted ? "transparent" : theme.accent,
-            },
-            buttonAnimatedStyle,
-            isCompleted ? glowStyle : undefined,
-          ]}
+        <Feather name="zap" size={13} color={theme.warning} />
+        <ThemedText
+          style={[styles.kickstartText, { color: theme.textSecondary }]}
+          numberOfLines={2}
         >
-          <Animated.View style={checkAnimatedStyle}>
-            <Feather
-              name={isCompleted ? "check" : "circle"}
-              size={24}
-              color={isCompleted ? theme.buttonText : theme.accent}
-            />
-          </Animated.View>
           <ThemedText
-            style={[
-              styles.toggleText,
-              { color: isCompleted ? theme.buttonText : theme.accent },
-            ]}
+            style={[styles.kickstartPrefix, { color: theme.warning }]}
           >
-            {isCompleted ? "Completed" : "Mark Complete"}
+            2-minute version:{" "}
           </ThemedText>
-        </Animated.View>
-      </Pressable>
-    </View>
+          {action.kickstartVersion}
+        </ThemedText>
+      </View>
+    </Animated.View>
   );
 });
 
@@ -357,8 +350,61 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
 const styles = StyleSheet.create({
   container: {
     borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  voteHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  voteCopy: {
+    flex: 1,
+  },
+  voteButton: {
+    minWidth: 70,
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    borderWidth: 1.5,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md,
+  },
+  voteButtonText: {
+    ...Typography.small,
+    fontWeight: "700",
+  },
+  detailRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
+  },
+  detailText: {
+    ...Typography.small,
+    lineHeight: 18,
+    flex: 1,
+  },
+  kickstartRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  kickstartText: {
+    ...Typography.small,
+    lineHeight: 18,
+    flex: 1,
+  },
+  kickstartPrefix: {
+    ...Typography.small,
+    fontWeight: "700",
   },
   compactRow: {
     flexDirection: "row",
@@ -412,69 +458,11 @@ const styles = StyleSheet.create({
   benchmark: {
     ...Typography.caption,
     fontWeight: "600",
-    marginBottom: Spacing.xs,
+    marginBottom: 2,
     textTransform: "uppercase",
     letterSpacing: 1,
   },
   title: {
     ...Typography.headline,
-    marginBottom: Spacing.sm,
-  },
-  kickstartContainer: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: Spacing.sm,
-  },
-  zapIcon: {
-    marginRight: Spacing.xs,
-    marginTop: 2,
-  },
-  kickstartContent: {
-    flex: 1,
-  },
-  kickstartLabel: {
-    ...Typography.caption,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  kickstart: {
-    ...Typography.kickstart,
-    lineHeight: 27,
-  },
-  anchorContainer: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.lg,
-  },
-  anchorIcon: {
-    marginRight: Spacing.sm,
-    marginTop: 2,
-  },
-  anchorContent: {
-    flex: 1,
-  },
-  anchorLabel: {
-    ...Typography.caption,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  anchor: {
-    ...Typography.small,
-    lineHeight: 20,
-  },
-  toggleButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1.5,
-    gap: Spacing.sm,
-  },
-  toggleText: {
-    ...Typography.body,
-    fontWeight: "600",
   },
 });

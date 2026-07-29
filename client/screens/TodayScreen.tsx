@@ -59,6 +59,7 @@ import { CoachObservationCard } from "@/components/CoachObservationCard";
 import { WitnessCelebrationCard } from "@/components/WitnessCelebrationCard";
 import { YearRecapCard } from "@/components/YearRecapCard";
 import { SecondPersonaInviteCard } from "@/components/SecondPersonaInviteCard";
+import { DailyContextCard } from "@/components/DailyContextCard";
 import { Toast } from "@/components/Toast";
 import { logger } from "@/lib/logger";
 import {
@@ -317,11 +318,14 @@ export default function TodayScreen() {
     benchmarks,
     actions,
     dailyLogs,
+    dailyContexts,
     personaAlignment,
     progressSnapshot,
     subscription,
     toggleDailyLog,
     setDailyLogNote,
+    upsertDailyContext,
+    deleteDailyContext,
     canAddPersona,
   } = useApp();
 
@@ -346,6 +350,10 @@ export default function TodayScreen() {
   }, [actions, personaBenchmarkIds, dayOfWeek]);
 
   const todayDateStr = getLocalDateString(today);
+  const todayContext = useMemo(
+    () => dailyContexts.find((entry) => entry.logDate === todayDateStr),
+    [dailyContexts, todayDateStr],
+  );
 
   const benchmarkById = useMemo(
     () => new Map(benchmarks.map((benchmark) => [benchmark.id, benchmark])),
@@ -1146,11 +1154,16 @@ export default function TodayScreen() {
             </View>
 
             <View style={styles.dateContainer}>
-              <ThemedText
-                style={[styles.dateText, { color: theme.textSecondary }]}
-              >
-                {dateString}
-              </ThemedText>
+              <View style={styles.votesHeading}>
+                <ThemedText style={styles.votesTitle}>
+                  Today&apos;s Votes
+                </ThemedText>
+                <ThemedText
+                  style={[styles.dateText, { color: theme.textSecondary }]}
+                >
+                  {dateString}
+                </ThemedText>
+              </View>
               <View style={styles.actionCount}>
                 <ThemedText
                   style={[
@@ -1158,8 +1171,7 @@ export default function TodayScreen() {
                     { color: theme.textSecondary },
                   ]}
                 >
-                  {todayActions.length} action
-                  {todayActions.length !== 1 ? "s" : ""} today
+                  {completedTodayCount}/{todayActions.length} cast
                 </ThemedText>
               </View>
             </View>
@@ -1233,31 +1245,43 @@ export default function TodayScreen() {
           </>
         }
         ListFooterComponent={
-          !dayComplete &&
-          todayActions.length > 0 &&
-          tomorrowActions.length > 0 ? (
-            <Pressable
-              onPress={() => {
-                navigation.navigate("JourneyTab" as never);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`View ${tomorrowActions.length} ${tomorrowActions.length === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
-              style={({ pressed }) => [
-                styles.tomorrowLink,
-                styles.tomorrowLinkCentered,
-                { opacity: pressed ? 0.7 : 1 },
-              ]}
-            >
-              <Feather name="calendar" size={16} color={theme.accent} />
-              <ThemedText
-                style={[styles.tomorrowLinkText, { color: theme.accent }]}
+          <View>
+            <DailyContextCard
+              logDate={todayDateStr}
+              entry={todayContext}
+              onSave={upsertDailyContext}
+              onDelete={
+                todayContext
+                  ? () => deleteDailyContext(todayDateStr)
+                  : undefined
+              }
+            />
+            {!dayComplete &&
+            todayActions.length > 0 &&
+            tomorrowActions.length > 0 ? (
+              <Pressable
+                onPress={() => {
+                  navigation.navigate("JourneyTab" as never);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${tomorrowActions.length} ${tomorrowActions.length === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
+                style={({ pressed }) => [
+                  styles.tomorrowLink,
+                  styles.tomorrowLinkCentered,
+                  { opacity: pressed ? 0.7 : 1 },
+                ]}
               >
-                {tomorrowActions.length} action
-                {tomorrowActions.length !== 1 ? "s" : ""} tomorrow
-              </ThemedText>
-              <Feather name="chevron-right" size={16} color={theme.accent} />
-            </Pressable>
-          ) : null
+                <Feather name="calendar" size={16} color={theme.accent} />
+                <ThemedText
+                  style={[styles.tomorrowLinkText, { color: theme.accent }]}
+                >
+                  {tomorrowActions.length} action
+                  {tomorrowActions.length !== 1 ? "s" : ""} tomorrow
+                </ThemedText>
+                <Feather name="chevron-right" size={16} color={theme.accent} />
+              </Pressable>
+            ) : null}
+          </View>
         }
       />
       <Toast
@@ -1345,11 +1369,18 @@ const styles = StyleSheet.create({
   dateContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-end",
     marginBottom: Spacing.lg,
   },
-  dateText: {
+  votesHeading: {
+    flex: 1,
+  },
+  votesTitle: {
     ...Typography.headline,
+  },
+  dateText: {
+    ...Typography.caption,
+    marginTop: 3,
   },
   actionCount: {},
   actionCountText: {

@@ -21,8 +21,8 @@ yarn-error.*
 .env*.local
 *.tsbuildinfo
 app-example/
-ios/
-android/
+/ios/
+/android/
 server_dist/
 static-build/
 attached_assets/

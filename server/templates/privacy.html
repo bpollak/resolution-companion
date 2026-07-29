@@ -593,8 +593,9 @@
               or ad trackers. On our own servers we store only the minimum: an
               anonymous device identifier, your subscription status, and
               privacy-respecting usage counts (how often features are used, by
-              day — never what you write or do). AI conversations are
-              processed by OpenAI (see details below).
+              day — never what you write or do). AI conversations and
+              explicitly requested Plan Tune-Ups are processed by OpenAI (see
+              details below).
             </p>
           </div>
         </section>
@@ -703,7 +704,14 @@
               Your plan — the identity you're working toward and your goals
             </li>
             <li>All milestones and daily actions you create</li>
-            <li>Your daily logs and progress history</li>
+            <li>Your daily logs, optional notes, and progress history</li>
+            <li>
+              Your optional Daily Context factors and context note text
+            </li>
+            <li>
+              Your Story Archive, Evidence Timeline, and saved Plan Tune-Up
+              adjustment history
+            </li>
             <li>Momentum chains and alignment metrics</li>
             <li>App settings and preferences</li>
           </ul>
@@ -735,11 +743,31 @@
         <section>
           <h2>AI Features & OpenAI</h2>
           <p>
-            Our AI coaching and onboarding features are powered by
+            Our AI coaching, onboarding, and Plan Tune-Up features are powered by
             <strong>OpenAI's GPT models</strong> (currently GPT-5 mini), a
-            third-party AI service. When you use these features, your
-            conversation messages are sent to OpenAI for processing.
+            third-party AI service. When you use conversational AI features,
+            your conversation messages are sent to OpenAI for processing.
           </p>
+          <p>
+            When you explicitly request a Plan Tune-Up, the app sends the
+            current settings for the action you selected and bounded aggregate
+            counts from the trailing 28 days. Those counts summarize scheduled,
+            completed, full, and kickstart action-days by weekday, plus how
+            often optional context factors were marked as helping or hindering
+            on scheduled days.
+          </p>
+          <div class="highlight-box">
+            <h3>Plan Tune-Up Privacy Boundary</h3>
+            <p style="margin-bottom: 0">
+              Daily log notes, Daily Context note text, local record
+              identifiers, and individual event dates are never included in a
+              Plan Tune-Up request. The app asks for your AI consent first,
+              shows every proposed schedule, anchor, or kickstart change before
+              applying it, and leaves your plan unchanged if you cancel or the
+              request fails. Resolution Companion does not store the request or
+              proposal on its servers.
+            </p>
+          </div>
 
           <div class="highlight-box">
             <h3>What You Should Know About OpenAI</h3>
