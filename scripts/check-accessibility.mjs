@@ -35,6 +35,21 @@ function attributeNames(node) {
   );
 }
 
+function hasEnabledAccessibleAttribute(node) {
+  const attribute = node.attributes.properties.find(
+    (item) => ts.isJsxAttribute(item) && item.name.text === "accessible",
+  );
+  if (!attribute || !ts.isJsxAttribute(attribute)) return false;
+  if (!attribute.initializer) return true;
+  if (
+    ts.isJsxExpression(attribute.initializer) &&
+    attribute.initializer.expression?.kind === ts.SyntaxKind.FalseKeyword
+  ) {
+    return false;
+  }
+  return true;
+}
+
 const requirements = {
   Pressable: ["accessibilityRole", "accessibilityLabel"],
   AnimatedPressable: ["accessibilityRole", "accessibilityLabel"],
@@ -65,6 +80,42 @@ for (const file of collectTsxFiles(clientRoot)) {
           );
           failures.push(
             `${path.relative(repoRoot, file)}:${line + 1}: ${name} missing ${missing.join(", ")}`,
+          );
+        }
+      }
+      if (
+        name === "View" &&
+        ts.isJsxOpeningElement(node) &&
+        hasEnabledAccessibleAttribute(node)
+      ) {
+        const interactiveNames = new Set([
+          "Pressable",
+          "AnimatedPressable",
+          "TextInput",
+          "Switch",
+        ]);
+        let nestedInteractive;
+        function findNestedInteractive(child) {
+          if (nestedInteractive) return;
+          if (
+            (ts.isJsxOpeningElement(child) ||
+              ts.isJsxSelfClosingElement(child)) &&
+            interactiveNames.has(elementName(child))
+          ) {
+            nestedInteractive = elementName(child);
+            return;
+          }
+          ts.forEachChild(child, findNestedInteractive);
+        }
+        for (const child of node.parent.children) {
+          findNestedInteractive(child);
+        }
+        if (nestedInteractive) {
+          const { line } = source.getLineAndCharacterOfPosition(
+            node.getStart(),
+          );
+          failures.push(
+            `${path.relative(repoRoot, file)}:${line + 1}: accessible View contains ${nestedInteractive}; iOS hides interactive descendants from VoiceOver`,
           );
         }
       }
