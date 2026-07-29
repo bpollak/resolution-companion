@@ -374,24 +374,28 @@ export default function PlanTuneUpScreen() {
 
             {phase === "loading" ? (
               <View
-                accessible
-                accessibilityRole="progressbar"
-                accessibilityLabel="Coach is preparing a Plan Tune-Up"
                 style={[
                   styles.card,
                   styles.loadingCard,
                   { backgroundColor: cardBackground },
                 ]}
               >
-                <ActivityIndicator color={theme.accent} />
-                <ThemedText style={styles.loadingTitle}>
-                  Looking for one useful bend…
-                </ThemedText>
-                <ThemedText
-                  style={[styles.body, { color: theme.textSecondary }]}
+                <View
+                  accessible
+                  accessibilityRole="progressbar"
+                  accessibilityLabel="Coach is preparing a Plan Tune-Up"
+                  style={styles.statusGroup}
                 >
-                  Nothing changes unless you confirm the preview.
-                </ThemedText>
+                  <ActivityIndicator color={theme.accent} />
+                  <ThemedText style={styles.loadingTitle}>
+                    Looking for one useful bend…
+                  </ThemedText>
+                  <ThemedText
+                    style={[styles.body, { color: theme.textSecondary }]}
+                  >
+                    Nothing changes unless you confirm the preview.
+                  </ThemedText>
+                </View>
                 <Pressable
                   onPress={cancelRequest}
                   accessibilityRole="button"
@@ -531,8 +535,6 @@ export default function PlanTuneUpScreen() {
 
             {phase === "complete" ? (
               <View
-                accessible
-                accessibilityRole="alert"
                 style={[
                   styles.completeCard,
                   {
@@ -541,14 +543,25 @@ export default function PlanTuneUpScreen() {
                   },
                 ]}
               >
-                <Feather name="check-circle" size={28} color={theme.success} />
-                <ThemedText style={styles.cardTitle}>Plan updated</ThemedText>
-                <ThemedText
-                  style={[styles.body, { color: theme.textSecondary }]}
+                <View
+                  accessible
+                  accessibilityRole="alert"
+                  accessibilityLabel="Plan updated. The before-and-after adjustment is saved in your Evidence Timeline."
+                  style={styles.statusGroup}
                 >
-                  The before-and-after adjustment is saved in your Evidence
-                  Timeline.
-                </ThemedText>
+                  <Feather
+                    name="check-circle"
+                    size={28}
+                    color={theme.success}
+                  />
+                  <ThemedText style={styles.cardTitle}>Plan updated</ThemedText>
+                  <ThemedText
+                    style={[styles.body, { color: theme.textSecondary }]}
+                  >
+                    The before-and-after adjustment is saved in your Evidence
+                    Timeline.
+                  </ThemedText>
+                </View>
                 <Pressable
                   onPress={close}
                   accessibilityRole="button"
@@ -762,6 +775,10 @@ const styles = StyleSheet.create({
   },
   loadingCard: {
     alignItems: "center",
+  },
+  statusGroup: {
+    alignItems: "center",
+    gap: Spacing.md,
   },
   loadingTitle: {
     ...Typography.headline,
