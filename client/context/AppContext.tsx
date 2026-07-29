@@ -17,9 +17,13 @@ import {
   Benchmark,
   ElementalAction,
   DailyLog,
+  DailyContextEntry,
+  DailyContextInput,
+  PlanAdjustment,
   Reflection,
   Subscription,
 } from "@/lib/storage";
+import type { PlanTuneUpResponse } from "@shared/plan-tune-up";
 import {
   buildProgressSnapshot,
   computeLapse,
@@ -38,6 +42,7 @@ import {
 import * as Notifications from "expo-notifications";
 import { logger } from "@/lib/logger";
 import { track, flushTelemetry } from "@/lib/telemetry";
+import { inferBenchmarkCompletedAt } from "@/lib/evidence";
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { syncWidgetData, consumePendingVotes } from "@/lib/widget";
 import { unlockRewardsForMilestoneCount, Reward } from "@/lib/rewards";
@@ -62,6 +67,8 @@ interface AppContextType {
   benchmarks: Benchmark[];
   actions: ElementalAction[];
   dailyLogs: DailyLog[];
+  dailyContexts: DailyContextEntry[];
+  planAdjustments: PlanAdjustment[];
   reflections: Reflection[];
   momentumScore: number;
   personaAlignment: number;
@@ -111,6 +118,12 @@ interface AppContextType {
     date: string,
     note: string,
   ) => Promise<void>;
+  upsertDailyContext: (input: DailyContextInput) => Promise<DailyContextEntry>;
+  deleteDailyContext: (logDate: string) => Promise<void>;
+  applyPlanTuneUp: (
+    actionId: string,
+    proposal: PlanTuneUpResponse,
+  ) => Promise<PlanAdjustment>;
   addReflection: (
     reflection: Omit<Reflection, "id" | "createdAt">,
   ) => Promise<Reflection>;
@@ -138,6 +151,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [benchmarks, setBenchmarksState] = useState<Benchmark[]>([]);
   const [actions, setActionsState] = useState<ElementalAction[]>([]);
   const [dailyLogs, setDailyLogsState] = useState<DailyLog[]>([]);
+  const [dailyContexts, setDailyContextsState] = useState<DailyContextEntry[]>(
+    [],
+  );
+  const [planAdjustments, setPlanAdjustmentsState] = useState<PlanAdjustment[]>(
+    [],
+  );
   const [reflections, setReflectionsState] = useState<Reflection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -182,6 +201,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         benchmarksData,
         actionsData,
         logsData,
+        dailyContextsData,
+        planAdjustmentsData,
         reflectionsData,
         subscriptionData,
         reflectionCountData,
@@ -193,6 +214,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         storage.getBenchmarks(),
         storage.getElementalActions(),
         storage.getDailyLogs(),
+        storage.getDailyContexts(),
+        storage.getPlanAdjustments(),
         storage.getReflections(),
         storage.getSubscription(),
         storage.getMonthlyReflectionCount(),
@@ -223,10 +246,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setBenchmarksState(personaBenchmarks);
         setActionsState(personaActions);
         setDailyLogsState(personaLogs);
+        setDailyContextsState(
+          dailyContextsData.filter(
+            (entry) => entry.personaId === personaData.id,
+          ),
+        );
+        setPlanAdjustmentsState(
+          planAdjustmentsData.filter(
+            (entry) => entry.personaId === personaData.id,
+          ),
+        );
       } else {
         setBenchmarksState([]);
         setActionsState([]);
         setDailyLogsState([]);
+        setDailyContextsState([]);
+        setPlanAdjustmentsState([]);
       }
       setReflectionsState(reflectionsData);
     } catch (error) {
@@ -351,6 +386,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     benchmarks,
     actions,
     dailyLogs,
+    dailyContexts,
+    planAdjustments,
     reflections,
     aiConsent,
   ]);
@@ -419,6 +456,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setBenchmarksState([]);
       setActionsState([]);
       setDailyLogsState([]);
+      setDailyContextsState([]);
+      setPlanAdjustmentsState([]);
       await storage.deletePersona(id);
       await refreshData();
     },
@@ -468,6 +507,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDailyLogsState((prev) =>
       prev.filter((l) => !actionIdsToDelete.includes(l.actionId)),
     );
+    setPlanAdjustmentsState((previous) =>
+      previous.filter(
+        (adjustment) => !actionIdsToDelete.includes(adjustment.actionId),
+      ),
+    );
   }, []);
 
   const addAction = useCallback(
@@ -497,6 +541,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await storage.deleteElementalAction(id);
     setActionsState((prev) => prev.filter((a) => a.id !== id));
     setDailyLogsState((prev) => prev.filter((l) => l.actionId !== id));
+    setPlanAdjustmentsState((previous) =>
+      previous.filter((adjustment) => adjustment.actionId !== id),
+    );
   }, []);
 
   const setActions = useCallback(async (actionsData: ElementalAction[]) => {
@@ -590,6 +637,57 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [refreshData],
   );
 
+  const upsertDailyContext = useCallback(
+    async (input: DailyContextInput) => {
+      if (!persona) {
+        throw new Error("Choose an active identity before adding context.");
+      }
+      const entry = await storage.upsertDailyContext(persona.id, input);
+      setDailyContextsState((previous) => {
+        const existing = previous.some((item) => item.id === entry.id);
+        return existing
+          ? previous.map((item) => (item.id === entry.id ? entry : item))
+          : [...previous, entry];
+      });
+      track("daily_context_saved");
+      return entry;
+    },
+    [persona],
+  );
+
+  const deleteDailyContext = useCallback(
+    async (logDate: string) => {
+      if (!persona) return;
+      await storage.deleteDailyContext(persona.id, logDate);
+      setDailyContextsState((previous) =>
+        previous.filter((entry) => entry.logDate !== logDate),
+      );
+    },
+    [persona],
+  );
+
+  const applyPlanTuneUp = useCallback(
+    async (actionId: string, proposal: PlanTuneUpResponse) => {
+      if (!persona) {
+        throw new Error("Choose an active identity before tuning a plan.");
+      }
+      const result = await storage.applyPlanTuneUp(
+        persona.id,
+        actionId,
+        proposal,
+      );
+      setActionsState((previous) =>
+        previous.map((action) =>
+          action.id === result.action.id ? result.action : action,
+        ),
+      );
+      setPlanAdjustmentsState((previous) => [...previous, result.adjustment]);
+      track("plan_tune_up_applied");
+      return result.adjustment;
+    },
+    [persona],
+  );
+
   const addReflection = useCallback(
     async (reflection: Omit<Reflection, "id" | "createdAt">) => {
       const newReflection = await storage.addReflection(reflection);
@@ -608,6 +706,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setBenchmarksState([]);
     setActionsState([]);
     setDailyLogsState([]);
+    setDailyContextsState([]);
+    setPlanAdjustmentsState([]);
     setReflectionsState([]);
     setSubscriptionState({
       isPremium: false,
@@ -635,7 +735,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isLoading) return;
     for (const benchmark of benchmarks) {
-      if (benchmark.status === "completed") continue;
+      if (benchmark.status === "completed") {
+        if (
+          !benchmark.completedAt &&
+          !milestoneFlipsInFlight.current.has(benchmark.id)
+        ) {
+          const inferred = inferBenchmarkCompletedAt(
+            benchmark,
+            actions,
+            dailyLogs,
+          );
+          if (inferred) {
+            milestoneFlipsInFlight.current.add(benchmark.id);
+            updateBenchmark(benchmark.id, { completedAt: inferred }).catch(
+              (error) => {
+                milestoneFlipsInFlight.current.delete(benchmark.id);
+                logger.error(
+                  "Failed to infer milestone completion date:",
+                  error,
+                );
+              },
+            );
+          }
+        }
+        continue;
+      }
       const completed =
         progressSnapshot.milestoneProgressByBenchmarkId.get(benchmark.id)
           ?.completed ?? false;
@@ -645,8 +769,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       milestoneFlipsInFlight.current.add(benchmark.id);
       track("milestone_complete");
       (async () => {
+        const completedAt =
+          inferBenchmarkCompletedAt(benchmark, actions, dailyLogs) ??
+          new Date().toISOString();
         const updated = await updateBenchmark(benchmark.id, {
           status: "completed",
+          completedAt,
         });
         // Dedup FIRST: if this milestone was already celebrated, bail before
         // unlocking/persisting a reward — otherwise an edge-triggered re-flip
@@ -682,7 +810,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         logger.error("Failed to mark milestone completed:", error);
       });
     }
-  }, [isLoading, benchmarks, progressSnapshot, updateBenchmark]);
+  }, [
+    isLoading,
+    benchmarks,
+    actions,
+    dailyLogs,
+    progressSnapshot,
+    updateBenchmark,
+  ]);
 
   const dismissMilestoneCelebration = useCallback(() => {
     setMilestoneCelebration(null);
@@ -1008,6 +1143,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       benchmarks,
       actions,
       dailyLogs,
+      dailyContexts,
+      planAdjustments,
       reflections,
       momentumScore,
       personaAlignment,
@@ -1036,6 +1173,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setActions,
       toggleDailyLog,
       setDailyLogNote,
+      upsertDailyContext,
+      deleteDailyContext,
+      applyPlanTuneUp,
       addReflection,
       refreshData,
       verifySubscription,
@@ -1052,6 +1192,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       benchmarks,
       actions,
       dailyLogs,
+      dailyContexts,
+      planAdjustments,
       reflections,
       momentumScore,
       personaAlignment,
@@ -1080,6 +1222,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setActions,
       toggleDailyLog,
       setDailyLogNote,
+      upsertDailyContext,
+      deleteDailyContext,
+      applyPlanTuneUp,
       addReflection,
       refreshData,
       verifySubscription,

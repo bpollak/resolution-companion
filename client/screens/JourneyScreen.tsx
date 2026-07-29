@@ -24,7 +24,9 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { StatChip } from "@/components/StatChip";
 import { Toast } from "@/components/Toast";
 import { InsightsPanel } from "@/components/InsightsPanel";
+import { DailyContextCard } from "@/components/DailyContextCard";
 import { getMainTabHeaderClearance } from "@/navigation/tab-bar-layout";
+import { isWithinDailyContextBackfill } from "@/lib/daily-context";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -560,9 +562,12 @@ export default function JourneyScreen() {
     benchmarks,
     actions,
     dailyLogs,
+    dailyContexts,
     personaAlignment,
     progressSnapshot,
     toggleDailyLog,
+    upsertDailyContext,
+    deleteDailyContext,
     canAddBenchmark,
     subscription,
     aiConsent,
@@ -575,6 +580,18 @@ export default function JourneyScreen() {
   const [toastType, setToastType] = useState<"success" | "info" | "warning">(
     "info",
   );
+  const selectedDateKey = selectedDate
+    ? getLocalDateString(selectedDate)
+    : null;
+  const selectedDailyContext = selectedDateKey
+    ? dailyContexts.find((entry) => entry.logDate === selectedDateKey)
+    : undefined;
+  const canEditSelectedContext =
+    selectedDateKey !== null &&
+    isWithinDailyContextBackfill(
+      selectedDateKey,
+      getLocalDateString(new Date()),
+    );
 
   const showToast = (
     message: string,
@@ -908,6 +925,18 @@ export default function JourneyScreen() {
               <ThemedText style={styles.journeyToolsHeading}>
                 Stories &amp; Support
               </ThemedText>
+              <JourneyTool
+                icon="book-open"
+                title="Story Archive"
+                subtitle="Every Month in Votes · newest first"
+                onPress={() => navigation.navigate("StoryArchive")}
+              />
+              <JourneyTool
+                icon="clock"
+                title="Evidence Timeline"
+                subtitle="Context, notes, milestones, comebacks, and tune-ups"
+                onPress={() => navigation.navigate("EvidenceTimeline")}
+              />
               <JourneyTool
                 icon="award"
                 title="The Year You Became"
@@ -1259,15 +1288,34 @@ export default function JourneyScreen() {
             </View>
 
             {selectedDate ? (
-              <SelectedDateDetails
-                date={selectedDate}
-                actions={personaActions}
-                logIndex={progressSnapshot.logIndex}
-                benchmarkById={benchmarkById}
-                isDark={isDark}
-                theme={theme}
-                onToggleAction={handleToggleAction}
-              />
+              <>
+                <SelectedDateDetails
+                  date={selectedDate}
+                  actions={personaActions}
+                  logIndex={progressSnapshot.logIndex}
+                  benchmarkById={benchmarkById}
+                  isDark={isDark}
+                  theme={theme}
+                  onToggleAction={handleToggleAction}
+                />
+                {canEditSelectedContext || selectedDailyContext ? (
+                  <DailyContextCard
+                    logDate={selectedDateKey!}
+                    entry={selectedDailyContext}
+                    editable={canEditSelectedContext}
+                    title={`What shaped ${selectedDate.toLocaleDateString(
+                      "en-US",
+                      { month: "short", day: "numeric" },
+                    )}?`}
+                    onSave={upsertDailyContext}
+                    onDelete={
+                      canEditSelectedContext && selectedDailyContext
+                        ? () => deleteDailyContext(selectedDateKey!)
+                        : undefined
+                    }
+                  />
+                ) : null}
+              </>
             ) : null}
 
             <View style={styles.streakStatsRow}>
@@ -1342,9 +1390,9 @@ export default function JourneyScreen() {
             <InsightsPanel
               actions={personaActions}
               dailyLogs={dailyLogs}
+              dailyContexts={dailyContexts}
               personaName={persona?.name ?? "Future You"}
-              isPremium={subscription.isPremium}
-              onUpgrade={() => navigation.navigate("Subscription")}
+              onTuneUp={() => navigation.navigate("PlanTuneUp")}
             />
             {!subscription.isPremium ? (
               <Pressable

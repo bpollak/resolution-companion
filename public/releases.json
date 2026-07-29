@@ -1,5 +1,45 @@
 [
   {
+    "version": "1.2",
+    "status": "draft",
+    "title": "Your evidence, your way",
+    "summary": "Version 1.2 turns everyday votes into a private personal story and adds an optional, confirmation-first way to tune a plan without sending notes or event history.",
+    "appStoreNotes": [
+      "A clearer Today’s Votes board and optional Daily Context make the daily loop faster and more useful.",
+      "Story Archive keeps every Month in Votes, while Evidence Timeline gathers meaningful notes, milestones, comebacks, and plan changes.",
+      "What Helps You Show Up finds careful on-device associations after enough context-tagged days.",
+      "Plan Tune-Up can review bounded 28-day aggregate counts, preview a small adjustment, and applies nothing until you confirm.",
+      "Daily notes, context note text, IDs, and individual event dates are never sent in a Plan Tune-Up."
+    ],
+    "highlights": [
+      {
+        "title": "Today’s votes, at a glance",
+        "description": "Scheduled actions now form a compact voting board with the anchor and two-minute version still close at hand.",
+        "availability": "The daily loop and optional Daily Context are free. Context is saved locally and can be backfilled for the prior seven days."
+      },
+      {
+        "title": "A story that stays yours",
+        "description": "Story Archive preserves every Month in Votes. Evidence Timeline gathers context, action notes, milestones, comebacks, monthly stories, and confirmed plan adjustments without turning routine completions into a social feed.",
+        "availability": "Both personal-history views are free and built from data stored on your device."
+      },
+      {
+        "title": "Patterns with patience",
+        "description": "What Helps You Show Up compares context-tagged scheduled days and describes up to three useful associations without claiming cause.",
+        "availability": "Patterns are computed on device only after at least 14 tagged scheduled days and enough comparison evidence."
+      },
+      {
+        "title": "A plan that can bend",
+        "description": "Plan Tune-Up asks Coach for a small schedule, anchor, or kickstart adjustment based on a bounded trailing 28-day aggregate.",
+        "availability": "You see a field-by-field preview first. Cancel, timeout, or invalid output leaves the current plan unchanged."
+      },
+      {
+        "title": "A clear AI privacy boundary",
+        "description": "Tune-Up requests exclude daily notes, context note text, local IDs, and individual event dates. The app shares only current action settings and aggregate counts after AI consent.",
+        "availability": "The privacy disclosure appears before the first AI request and can be turned off later in Profile."
+      }
+    ]
+  },
+  {
     "version": "1.1",
     "status": "released",
     "submittedAt": "2026-07-19",

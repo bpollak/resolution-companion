@@ -118,6 +118,11 @@
   },
   "jest": {
     "preset": "jest-expo",
+    "roots": [
+      "<rootDir>/client",
+      "<rootDir>/server",
+      "<rootDir>/shared"
+    ],
     "testMatch": [
       "**/__tests__/**/*.test.ts"
     ],

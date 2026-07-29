@@ -912,6 +912,49 @@ export default function ReflectScreen() {
           ) : null}
         </View>
 
+        {actions.length > 0 ? (
+          <>
+            <ThemedText style={styles.sectionTitle}>Adaptive Plan</ThemedText>
+            <Pressable
+              onPress={() => navigation.navigate("PlanTuneUp")}
+              accessibilityRole="button"
+              accessibilityLabel="Open Plan Tune-Up. Review 28 days of aggregate evidence and preview a small plan adjustment."
+              style={({ pressed }) => [
+                styles.weeklyReviewCard,
+                {
+                  backgroundColor: isDark
+                    ? Colors.dark.backgroundDefault
+                    : Colors.light.backgroundDefault,
+                  opacity: pressed ? 0.75 : 1,
+                },
+              ]}
+            >
+              <View style={styles.weeklyReviewIcon}>
+                <Feather name="refresh-cw" size={20} color={theme.accent} />
+              </View>
+              <View style={styles.heroCtaContent}>
+                <ThemedText style={styles.weeklyReviewTitle}>
+                  Plan Tune-Up
+                </ThemedText>
+                <ThemedText
+                  style={[
+                    styles.weeklyReviewSubtitle,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Review a private 28-day aggregate, preview one bend, then
+                  decide
+                </ThemedText>
+              </View>
+              <Feather
+                name="chevron-right"
+                size={20}
+                color={theme.textSecondary}
+              />
+            </Pressable>
+          </>
+        ) : null}
+
         <ThemedText style={styles.sectionTitle}>Weekly Review</ThemedText>
 
         <Pressable

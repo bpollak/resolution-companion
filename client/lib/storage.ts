@@ -2,6 +2,18 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
 import { logger } from "@/lib/logger";
 import { computeMomentumScore } from "@/lib/progress";
+import {
+  normalizeDailyContextInput,
+  type DailyContextEntry,
+  type DailyContextInput,
+} from "@/lib/daily-context";
+import type { PlanTuneUpResponse } from "@shared/plan-tune-up";
+
+export type {
+  DailyContextEntry,
+  DailyContextFactor,
+  DailyContextInput,
+} from "@/lib/daily-context";
 
 const STORAGE_KEYS = {
   HAS_ONBOARDED: "hasOnboarded",
@@ -11,6 +23,8 @@ const STORAGE_KEYS = {
   BENCHMARKS: "benchmarks",
   ELEMENTAL_ACTIONS: "elementalActions",
   DAILY_LOGS: "dailyLogs",
+  DAILY_CONTEXTS: "dailyContexts",
+  PLAN_ADJUSTMENTS: "planAdjustments",
   REFLECTIONS: "reflections",
   ONBOARDING_MESSAGES: "onboardingMessages",
   SUBSCRIPTION: "subscription",
@@ -34,6 +48,8 @@ export interface Benchmark {
   targetDate: string | null;
   status: "active" | "completed";
   createdAt: string;
+  /** First time this fill-only milestone reached its completion threshold. */
+  completedAt?: string;
 }
 
 export interface ElementalAction {
@@ -64,6 +80,19 @@ export interface DailyLog {
   completionSource?: "manual" | "widget" | "siri" | "notification" | "health";
   /** Whether the full action or its under-2-minute floor was completed. */
   completionKind?: "full" | "kickstart";
+}
+
+export interface PlanAdjustment {
+  id: string;
+  personaId: string;
+  actionId: string;
+  appliedAt: string;
+  summary: string;
+  before: Pick<
+    ElementalAction,
+    "frequency" | "anchorLink" | "kickstartVersion"
+  >;
+  after: Pick<ElementalAction, "frequency" | "anchorLink" | "kickstartVersion">;
 }
 
 export interface Reflection {
@@ -217,6 +246,14 @@ export const storage = {
     const logs = await this.getDailyLogs();
     const filteredLogs = logs.filter((l) => !actionIds.includes(l.actionId));
     await this.setDailyLogs(filteredLogs);
+    const dailyContexts = await this.getDailyContexts();
+    await this.setDailyContexts(
+      dailyContexts.filter((entry) => entry.personaId !== id),
+    );
+    const planAdjustments = await this.getPlanAdjustments();
+    await this.setPlanAdjustments(
+      planAdjustments.filter((entry) => entry.personaId !== id),
+    );
     const activeId = await this.getActivePersonaId();
     if (activeId === id && filtered.length > 0) {
       await this.setActivePersonaId(filtered[0].id);
@@ -328,6 +365,12 @@ export const storage = {
       (l) => !actionIdsToDelete.includes(l.actionId),
     );
     await this.setDailyLogs(filteredLogs);
+    const planAdjustments = await this.getPlanAdjustments();
+    await this.setPlanAdjustments(
+      planAdjustments.filter(
+        (adjustment) => !actionIdsToDelete.includes(adjustment.actionId),
+      ),
+    );
   },
 
   async getElementalActions(): Promise<ElementalAction[]> {
@@ -377,6 +420,10 @@ export const storage = {
     const dailyLogs = await this.getDailyLogs();
     const filteredLogs = dailyLogs.filter((l) => l.actionId !== id);
     await this.setDailyLogs(filteredLogs);
+    const planAdjustments = await this.getPlanAdjustments();
+    await this.setPlanAdjustments(
+      planAdjustments.filter((adjustment) => adjustment.actionId !== id),
+    );
   },
 
   async getDailyLogs(): Promise<DailyLog[]> {
@@ -466,6 +513,145 @@ export const storage = {
           log.actionId === actionId && log.logDate.split("T")[0] === dateStr,
       ) || null
     );
+  },
+
+  async getDailyContexts(): Promise<DailyContextEntry[]> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.DAILY_CONTEXTS);
+    return safeParse<DailyContextEntry[]>(value, []);
+  },
+
+  async setDailyContexts(entries: DailyContextEntry[]): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.DAILY_CONTEXTS,
+      JSON.stringify(entries),
+    );
+  },
+
+  _dailyContextWriteQueue: Promise.resolve() as Promise<void>,
+
+  upsertDailyContext(
+    personaId: string,
+    input: DailyContextInput,
+    now: Date = new Date(),
+  ): Promise<DailyContextEntry> {
+    const write = this._dailyContextWriteQueue.then(async () => {
+      const normalized = normalizeDailyContextInput(input);
+      const entries = await this.getDailyContexts();
+      const index = entries.findIndex(
+        (entry) =>
+          entry.personaId === personaId && entry.logDate === normalized.logDate,
+      );
+      const timestamp = now.toISOString();
+      const entry: DailyContextEntry =
+        index >= 0
+          ? {
+              ...entries[index],
+              ...normalized,
+              updatedAt: timestamp,
+            }
+          : {
+              ...normalized,
+              id: generateId(),
+              personaId,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            };
+      if (index >= 0) entries[index] = entry;
+      else entries.push(entry);
+      await this.setDailyContexts(entries);
+      return entry;
+    });
+    this._dailyContextWriteQueue = write.then(
+      () => undefined,
+      (error) => {
+        logger.error("Failed to persist daily context:", error);
+      },
+    );
+    return write;
+  },
+
+  deleteDailyContext(personaId: string, logDate: string): Promise<void> {
+    const write = this._dailyContextWriteQueue.then(async () => {
+      const entries = await this.getDailyContexts();
+      await this.setDailyContexts(
+        entries.filter(
+          (entry) => entry.personaId !== personaId || entry.logDate !== logDate,
+        ),
+      );
+    });
+    this._dailyContextWriteQueue = write.catch((error) => {
+      logger.error("Failed to delete daily context:", error);
+    });
+    return write;
+  },
+
+  async getPlanAdjustments(): Promise<PlanAdjustment[]> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.PLAN_ADJUSTMENTS);
+    return safeParse<PlanAdjustment[]>(value, []);
+  },
+
+  async setPlanAdjustments(adjustments: PlanAdjustment[]): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.PLAN_ADJUSTMENTS,
+      JSON.stringify(adjustments),
+    );
+  },
+
+  _planTuneUpWriteQueue: Promise.resolve() as Promise<void>,
+
+  applyPlanTuneUp(
+    personaId: string,
+    actionId: string,
+    proposal: PlanTuneUpResponse,
+    now: Date = new Date(),
+  ): Promise<{ action: ElementalAction; adjustment: PlanAdjustment }> {
+    const write = this._planTuneUpWriteQueue.then(async () => {
+      const actions = await this.getElementalActions();
+      const index = actions.findIndex((action) => action.id === actionId);
+      if (index < 0) throw new Error("The action no longer exists.");
+      const current = actions[index];
+      const before: PlanAdjustment["before"] = {
+        frequency: [...current.frequency],
+        anchorLink: current.anchorLink,
+        kickstartVersion: current.kickstartVersion,
+      };
+      const after: PlanAdjustment["after"] = {
+        frequency: proposal.changes.frequency
+          ? [...proposal.changes.frequency]
+          : [...before.frequency],
+        anchorLink: proposal.changes.anchorLink ?? before.anchorLink,
+        kickstartVersion:
+          proposal.changes.kickstartVersion ?? before.kickstartVersion,
+      };
+      if (JSON.stringify(before) === JSON.stringify(after)) {
+        throw new Error("The proposal does not change this action.");
+      }
+      const action: ElementalAction = { ...current, ...after };
+      actions[index] = action;
+      const adjustments = await this.getPlanAdjustments();
+      const adjustment: PlanAdjustment = {
+        id: generateId(),
+        personaId,
+        actionId,
+        appliedAt: now.toISOString(),
+        summary: proposal.summary.trim().slice(0, 400),
+        before,
+        after,
+      };
+      adjustments.push(adjustment);
+      await AsyncStorage.multiSet([
+        [STORAGE_KEYS.ELEMENTAL_ACTIONS, JSON.stringify(actions)],
+        [STORAGE_KEYS.PLAN_ADJUSTMENTS, JSON.stringify(adjustments)],
+      ]);
+      return { action, adjustment };
+    });
+    this._planTuneUpWriteQueue = write.then(
+      () => undefined,
+      (error) => {
+        logger.error("Failed to apply Plan Tune-Up:", error);
+      },
+    );
+    return write;
   },
 
   async getReflections(): Promise<Reflection[]> {
