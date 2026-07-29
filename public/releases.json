@@ -1,7 +1,7 @@
 [
   {
     "version": "1.2",
-    "status": "draft",
+    "status": "submitted",
     "title": "Your evidence, your way",
     "summary": "Version 1.2 turns everyday votes into a private personal story and adds an optional, confirmation-first way to tune a plan without sending notes or event history.",
     "appStoreNotes": [
@@ -37,7 +37,8 @@
         "description": "Tune-Up requests exclude daily notes, context note text, local IDs, and individual event dates. The app shares only current action settings and aggregate counts after AI consent.",
         "availability": "The privacy disclosure appears before the first AI request and can be turned off later in Profile."
       }
-    ]
+    ],
+    "submittedAt": "2026-07-29"
   },
   {
     "version": "1.1",
