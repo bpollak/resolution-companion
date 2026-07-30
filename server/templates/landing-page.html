@@ -674,6 +674,7 @@
         justify-content: center;
         align-items: center;
         gap: 16px;
+        perspective: 1200px;
       }
 
       .phone-mockup {
@@ -702,12 +703,12 @@
       }
 
       .phone-mockup.side {
-        transform: translateY(24px) scale(0.96);
+        transform: translateY(24px) rotateY(10deg) scale(0.96);
         opacity: 0.76;
       }
 
       .phone-mockup.side.right {
-        transform: translateY(24px) scale(0.96);
+        transform: translateY(24px) rotateY(-10deg) scale(0.96);
       }
 
       /* Phone notch removed - real screenshots have their own UI */
