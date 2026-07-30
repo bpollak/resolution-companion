@@ -93,9 +93,10 @@ version is locked, use the smallest permitted metadata refresh:
 - Website hero correction: commit `20be5de` is live. The hero now uses the
   simulator captures as the device silhouettes, without duplicate padded
   frames; the narrow simulator gutter is cropped and all three above-the-fold
-  images load eagerly. Commit `71f6a51` gives the two side phones a visible
-  14-degree inward perspective plus opposing 4-degree tilt while keeping the
-  center upright, and removes the center phone's pale border artifact.
+  images load eagerly. Commit `aea70ea` turns the two side phones 22 degrees
+  around their vertical axes, pivoted from their inner edges, so they face the
+  center without any sideways roll. The center remains upright and its pale
+  border artifact stays removed.
 - Website gallery correction: commit `315a1c5` is live. A shared image frame
   now crops the simulator gutter and follows the rounded app silhouette for all
   four feature cards. Desktop and 390-pixel mobile checks show no pale corner
