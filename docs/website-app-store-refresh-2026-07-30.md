@@ -90,8 +90,9 @@ version is locked, use the smallest permitted metadata refresh:
   order.
 - App Store metadata: current description, promotional text, keywords, What’s
   New copy, and review notes saved.
-- iOS build: Version 1.3.1 build 75 compiled locally and uploaded successfully;
-  Apple processing is pending.
-- Remaining App Store steps: select build 75 after processing, add Version
-  1.3.1 for review, answer any final export-compliance prompt, and submit with
-  automatic release enabled.
+- iOS build: Version 1.3.1 build 75 compiled locally, uploaded, processed, and
+  attached successfully.
+- App Review: Version 1.3.1 build 75 was submitted July 30 and is Waiting for
+  Review. Automatic release and immediate rollout are enabled.
+- Remaining App Store step: wait for Apple review, then verify the public
+  product page after release.
