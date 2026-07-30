@@ -53,7 +53,7 @@ Before deployment:
 After deployment:
 
 1. Confirm `/api/health` returns healthy.
-2. Confirm the home page says Version 1.3 and “A simpler daily loop.”
+2. Confirm the home page says Version 1.3 and “One Clear Daily Loop.”
 3. Confirm the refreshed Today, Journey, Milestones, Coach, and Day complete
    images load.
 4. Check the home page at desktop and mobile widths.
@@ -80,8 +80,41 @@ version is locked, use the smallest permitted metadata refresh:
 ## Current status
 
 - Fresh simulator captures: complete.
-- Website copy and image updates: complete locally.
-- Local website validation: complete.
-- Website production deployment: pending.
-- App Store Connect screenshot update: pending inspection of Apple’s permitted
-  workflow.
+- Website copy and image updates: committed and pushed to GitHub `main`.
+- Website validation and GitHub CI: complete and passing.
+- Website production deployment: live at `https://resolutioncompanion.com/`.
+  Railway missed the pushes made during its July 30 build incident, so commit
+  `7fa5c0c` safely retriggered the current `main` source after Railway marked
+  the incident resolved.
+- Website production verification: `/api/health` is healthy, `/releases.json`
+  and `/release-notes` show Version 1.3 as released, all five versioned
+  screenshot assets return HTTP 200, and desktop plus 390 by 844 mobile checks
+  found no horizontal overflow or broken images.
+- Website hero correction: commit `20be5de` is live. The hero now uses the
+  simulator captures as the device silhouettes, without duplicate padded
+  frames; the narrow simulator gutter is cropped and all three above-the-fold
+  images load eagerly. Commit `aea70ea` introduced inner-edge pivots for the
+  two side phones so they face the center without any sideways roll. The
+  follow-up hero perspective adjustment turns the complete screen-and-chassis
+  assemblies 30 degrees around their vertical axes, using a closer perspective
+  so the screens visibly remain flush with the device angle. The center remains
+  upright and its pale border artifact stays removed.
+- Website phone chassis: commit `0cc6b1d` is live. All three hero phones now
+  use a restrained graphite bezel with edge highlights, inset shading, and a
+  small offset body shadow so they read as physical devices without bringing
+  back the earlier white or double-frame artifacts.
+- Website gallery correction: commit `315a1c5` is live. A shared image frame
+  now crops the simulator gutter and follows the rounded app silhouette for all
+  four feature cards. Desktop and 390-pixel mobile checks show no pale corner
+  crescents, distorted screenshots, broken images, or horizontal overflow.
+- App Store Connect: Version 1.3.1 created because live Version 1.3 is locked.
+- App Store screenshots: six current 6.9-inch images uploaded in the intended
+  order.
+- App Store metadata: current description, promotional text, keywords, What’s
+  New copy, and review notes saved.
+- iOS build: Version 1.3.1 build 75 compiled locally, uploaded, processed, and
+  attached successfully.
+- App Review: Version 1.3.1 build 75 was submitted July 30 and is Waiting for
+  Review. Automatic release and immediate rollout are enabled.
+- Remaining App Store step: wait for Apple review, then verify the public
+  product page and screenshot order after release.

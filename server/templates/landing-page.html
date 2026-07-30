@@ -674,7 +674,7 @@
         justify-content: center;
         align-items: center;
         gap: 16px;
-        perspective: 760px;
+        perspective: 620px;
       }
 
       .phone-mockup {
@@ -717,13 +717,14 @@
       }
 
       .phone-mockup.side {
-        transform: translateY(24px) rotateY(22deg) scale(0.96);
+        transform: translateY(24px) rotateY(30deg) scale(0.96);
         transform-origin: right center;
+        transform-style: preserve-3d;
         opacity: 0.76;
       }
 
       .phone-mockup.side.right {
-        transform: translateY(24px) rotateY(-22deg) scale(0.96);
+        transform: translateY(24px) rotateY(-30deg) scale(0.96);
         transform-origin: left center;
       }
 
@@ -748,6 +749,7 @@
         overflow: hidden;
         border-radius: 44px;
         background: #000;
+        backface-visibility: hidden;
       }
 
       .phone-mockup.featured .phone-screen-image {
