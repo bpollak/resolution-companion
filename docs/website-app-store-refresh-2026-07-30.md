@@ -92,8 +92,9 @@ version is locked, use the smallest permitted metadata refresh:
   found no horizontal overflow or broken images.
 - Website hero correction: commit `20be5de` is live. The hero now uses the
   simulator captures as the device silhouettes, without duplicate padded
-  frames or perspective tilt; the narrow simulator gutter is cropped and all
-  three above-the-fold images load eagerly.
+  frames; the narrow simulator gutter is cropped and all three above-the-fold
+  images load eagerly. Commit `48e4288` restores the intentional 10-degree
+  inward perspective on the two side phones while keeping the center upright.
 - Website gallery correction: commit `315a1c5` is live. A shared image frame
   now crops the simulator gutter and follows the rounded app silhouette for all
   four feature cards. Desktop and 390-pixel mobile checks show no pale corner
