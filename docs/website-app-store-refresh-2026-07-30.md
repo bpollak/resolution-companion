@@ -107,6 +107,10 @@ version is locked, use the smallest permitted metadata refresh:
   now crops the simulator gutter and follows the rounded app silhouette for all
   four feature cards. Desktop and 390-pixel mobile checks show no pale corner
   crescents, distorted screenshots, broken images, or horizontal overflow.
+- Website gallery presentation: the dark rounded panels behind the four
+  experience screenshots were removed so they cannot be mistaken for part of
+  the phone bodies. The phones now sit directly on the section gradient with a
+  restrained device shadow and hairline highlight.
 - App Store Connect: Version 1.3.1 created because live Version 1.3 is locked.
 - App Store screenshots: six current 6.9-inch images uploaded in the intended
   order.
