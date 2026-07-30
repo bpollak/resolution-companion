@@ -1,11 +1,10 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { View, FlatList, StyleSheet, Pressable, Platform } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 import { useTheme } from "@/hooks/useTheme";
@@ -19,11 +18,8 @@ import {
 import type { Benchmark, DailyLog, ElementalAction } from "@/lib/storage";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
-import { CircularProgress } from "@/components/CircularProgress";
 import { ProgressBar } from "@/components/ProgressBar";
-import { StatChip } from "@/components/StatChip";
 import { Toast } from "@/components/Toast";
-import { InsightsPanel } from "@/components/InsightsPanel";
 import { DailyContextCard } from "@/components/DailyContextCard";
 import { getMainTabHeaderClearance } from "@/navigation/tab-bar-layout";
 import { isWithinDailyContextBackfill } from "@/lib/daily-context";
@@ -43,9 +39,6 @@ const MONTHS = [
   "November",
   "December",
 ];
-
-const GUIDE_DISMISSED_KEY = "progress_next_steps_dismissed";
-const MILESTONE_INFO_DISMISSED_KEY = "journey_milestone_info_dismissed";
 
 function JourneyTool({
   icon,
@@ -104,7 +97,6 @@ interface DayInfo {
   isToday: boolean;
   completedCount: number;
   totalCount: number;
-  hasStreak: boolean;
 }
 
 interface SelectedDateDetailsProps {
@@ -561,16 +553,12 @@ export default function JourneyScreen() {
     persona,
     benchmarks,
     actions,
-    dailyLogs,
     dailyContexts,
-    personaAlignment,
     progressSnapshot,
     toggleDailyLog,
     upsertDailyContext,
     deleteDailyContext,
     canAddBenchmark,
-    subscription,
-    aiConsent,
   } = useApp();
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -650,12 +638,6 @@ export default function JourneyScreen() {
     [personaBenchmarks],
   );
 
-  const streak = progressSnapshot.streak;
-  const shieldedDaySet = useMemo(
-    () => new Set(streak.shieldedDays),
-    [streak.shieldedDays],
-  );
-
   // Fill-only milestone consistency targets (N of 21 scheduled days done)
   const milestoneProgress = progressSnapshot.milestoneProgress;
 
@@ -673,37 +655,6 @@ export default function JourneyScreen() {
   useEffect(() => {
     setExpandedBenchmarks(new Set(benchmarkIdsKey.split(",").filter(Boolean)));
   }, [benchmarkIdsKey]);
-
-  const [showGuide, setShowGuide] = useState(false);
-  const [showMilestoneInfo, setShowMilestoneInfo] = useState(false);
-
-  useEffect(() => {
-    Promise.all([
-      AsyncStorage.getItem(GUIDE_DISMISSED_KEY),
-      AsyncStorage.getItem(MILESTONE_INFO_DISMISSED_KEY),
-    ]).then(([guideDismissed, infoDismissed]) => {
-      if (!guideDismissed) {
-        // New users learn the fill-only model inside the guide itself
-        setShowGuide(true);
-      } else if (!infoDismissed) {
-        // Existing users get the one-time semantics-change note instead
-        setShowMilestoneInfo(true);
-      }
-    });
-  }, []);
-
-  const dismissGuide = () => {
-    setShowGuide(false);
-    // The guide already explains fill-only milestones — don't show the
-    // change note right after
-    AsyncStorage.setItem(GUIDE_DISMISSED_KEY, "true");
-    AsyncStorage.setItem(MILESTONE_INFO_DISMISSED_KEY, "true");
-  };
-
-  const dismissMilestoneInfo = () => {
-    setShowMilestoneInfo(false);
-    AsyncStorage.setItem(MILESTONE_INFO_DISMISSED_KEY, "true");
-  };
 
   const toggleExpand = useCallback((benchmarkId: string) => {
     setExpandedBenchmarks((prev) => {
@@ -757,7 +708,6 @@ export default function JourneyScreen() {
         isToday: false,
         completedCount: 0,
         totalCount: 0,
-        hasStreak: false,
       });
     }
 
@@ -769,16 +719,6 @@ export default function JourneyScreen() {
         total: 0,
         completed: 0,
       };
-      const prev = statsByDate.get(
-        getLocalDateString(new Date(year, month, day - 1)),
-      ) ?? { total: 0, completed: 0 };
-
-      const hasStreak =
-        prev.total > 0 &&
-        prev.completed === prev.total &&
-        total > 0 &&
-        completed === total;
-
       days.push({
         date,
         dateStr: getLocalDateString(date),
@@ -786,7 +726,6 @@ export default function JourneyScreen() {
         isToday: date.getTime() === today.getTime(),
         completedCount: completed,
         totalCount: total,
-        hasStreak,
       });
     }
 
@@ -800,7 +739,6 @@ export default function JourneyScreen() {
         isToday: false,
         completedCount: 0,
         totalCount: 0,
-        hasStreak: false,
       });
     }
 
@@ -922,163 +860,17 @@ export default function JourneyScreen() {
             </View>
 
             <View style={styles.journeyToolsSection}>
-              <ThemedText style={styles.journeyToolsHeading}>
-                Stories &amp; Support
-              </ThemedText>
               <JourneyTool
                 icon="book-open"
-                title="Story Archive"
-                subtitle="Every Month in Votes · newest first"
-                onPress={() => navigation.navigate("StoryArchive")}
-              />
-              <JourneyTool
-                icon="clock"
-                title="Evidence Timeline"
-                subtitle="Context, notes, milestones, comebacks, and tune-ups"
+                title="Your Story"
+                subtitle="Notes, milestones, comebacks, and monthly chapters"
                 onPress={() => navigation.navigate("EvidenceTimeline")}
               />
-              <JourneyTool
-                icon="award"
-                title="The Year You Became"
-                subtitle={
-                  subscription.isPremium
-                    ? `${new Date().getFullYear()} year-to-date story`
-                    : "Premium annual story"
-                }
-                onPress={() =>
-                  subscription.isPremium
-                    ? navigation.navigate("YearRecap", {
-                        year: new Date().getFullYear(),
-                      })
-                    : navigation.navigate("Subscription")
-                }
-              />
-              <JourneyTool
-                icon="users"
-                title="Someone in Your Corner"
-                subtitle="One trusted witness · you choose every share"
-                onPress={() => navigation.navigate("Witness")}
-              />
             </View>
 
-            {showGuide ? (
-              <View
-                style={[
-                  styles.guideCard,
-                  {
-                    backgroundColor: isDark
-                      ? Colors.dark.backgroundDefault
-                      : Colors.light.backgroundDefault,
-                  },
-                ]}
-              >
-                <View style={styles.guideHeader}>
-                  <Feather name="compass" size={18} color={theme.accent} />
-                  <ThemedText style={styles.guideTitle}>Next Steps</ThemedText>
-                  <Pressable
-                    onPress={dismissGuide}
-                    hitSlop={12}
-                    pressRetentionOffset={16}
-                    accessibilityRole="button"
-                    accessibilityLabel="Dismiss next steps"
-                    style={({ pressed }) => [
-                      styles.guideClose,
-                      { opacity: pressed ? 0.5 : 1 },
-                    ]}
-                  >
-                    <Feather name="x" size={18} color={theme.textSecondary} />
-                  </Pressable>
-                </View>
-                <ThemedText
-                  style={[styles.guideText, { color: theme.textSecondary }]}
-                >
-                  1. {aiConsent ? "Your AI coach" : "Your starter plan"} created
-                  the milestones below — steps on the way to becoming who you
-                  chose. Tap Edit to adjust one or change which days it repeats.
-                  {"\n"}
-                  2. Each milestone comes with one small daily action on its
-                  scheduled days.{"\n"}
-                  3. Check off your actions in the Today tab — each completed
-                  day fills a milestone. Milestones only fill up, they never go
-                  backwards.
-                </ThemedText>
-                <Pressable
-                  onPress={() => navigation.navigate("TodayTab")}
-                  accessibilityRole="button"
-                  accessibilityLabel="Go to Today tab"
-                  style={({ pressed }) => [
-                    styles.guideCta,
-                    { backgroundColor: theme.accent },
-                    { opacity: pressed ? 0.8 : 1 },
-                  ]}
-                >
-                  <ThemedText
-                    style={[styles.guideCtaText, { color: theme.buttonText }]}
-                  >
-                    Log today&rsquo;s actions
-                  </ThemedText>
-                  <Feather
-                    name="arrow-right"
-                    size={16}
-                    color={theme.buttonText}
-                  />
-                </Pressable>
-              </View>
-            ) : null}
-
-            {showMilestoneInfo ? (
-              <View
-                style={[
-                  styles.guideCard,
-                  {
-                    backgroundColor: isDark
-                      ? Colors.dark.backgroundDefault
-                      : Colors.light.backgroundDefault,
-                  },
-                ]}
-              >
-                <View style={styles.guideHeader}>
-                  <Feather name="trending-up" size={18} color={theme.accent} />
-                  <ThemedText style={styles.guideTitle}>
-                    Milestones now fill up
-                  </ThemedText>
-                  <Pressable
-                    onPress={dismissMilestoneInfo}
-                    hitSlop={12}
-                    pressRetentionOffset={16}
-                    accessibilityRole="button"
-                    accessibilityLabel="Dismiss milestone update note"
-                    style={({ pressed }) => [
-                      styles.guideClose,
-                      { opacity: pressed ? 0.5 : 1 },
-                    ]}
-                  >
-                    <Feather name="x" size={18} color={theme.textSecondary} />
-                  </Pressable>
-                </View>
-                <ThemedText
-                  style={[styles.guideText, { color: theme.textSecondary }]}
-                >
-                  Each milestone now completes after 21 days of doing its action
-                  on schedule. Progress only fills up — it never goes backwards.
-                </ThemedText>
-              </View>
-            ) : null}
-
-            <View style={styles.alignmentSection}>
-              <CircularProgress
-                progress={personaAlignment}
-                size={140}
-                label={`${new Date().toLocaleDateString("en-US", { month: "long" })} Consistency`}
-              />
-              <ThemedText
-                style={[styles.alignmentHint, { color: theme.textSecondary }]}
-              >
-                % of scheduled actions completed so far this month — fresh start
-                on the 1st
-              </ThemedText>
-            </View>
-
+            <ThemedText style={styles.calendarSectionTitle}>
+              Calendar
+            </ThemedText>
             <View style={styles.monthHeader}>
               <Pressable
                 onPress={prevMonth}
@@ -1137,15 +929,8 @@ export default function JourneyScreen() {
                 const isAfterPersonaCreated = personaCreatedDate
                   ? dayInfo.date >= personaCreatedDate
                   : true;
-                // Shield-bridged misses show a shield outline, not the red ring
-                const isShielded =
-                  shieldedDaySet.has(dayInfo.dateStr) &&
-                  !isComplete &&
-                  !isPartial;
                 const isMissed =
-                  !isShielded &&
                   // Today is pending until it's over — never painted missed
-                  // (mirrors the streak rule "today never breaks a run")
                   !dayInfo.isToday &&
                   dayInfo.totalCount > 0 &&
                   dayInfo.completedCount === 0 &&
@@ -1163,7 +948,7 @@ export default function JourneyScreen() {
                 const statusLabel =
                   dayInfo.totalCount === 0
                     ? "no actions scheduled"
-                    : `${dayInfo.completedCount} of ${dayInfo.totalCount} action${dayInfo.totalCount === 1 ? "" : "s"} completed${isShielded ? ", streak protected by shield" : ""}`;
+                    : `${dayInfo.completedCount} of ${dayInfo.totalCount} action${dayInfo.totalCount === 1 ? "" : "s"} completed`;
 
                 return (
                   <Pressable
@@ -1179,7 +964,7 @@ export default function JourneyScreen() {
                     style={({ pressed }) => [
                       styles.dayCell,
                       // Selection reads as a cell highlight, separate from the
-                      // status rings on the day marker (today/missed/shielded)
+                      // completion status on the day marker
                       isSelected && styles.dayCellSelected,
                       { opacity: pressed ? 0.5 : 1 },
                     ]}
@@ -1188,14 +973,6 @@ export default function JourneyScreen() {
                     accessibilityLabel={`${dayInfo.isToday ? "Today, " : ""}${dateLabel}, ${statusLabel}`}
                     accessibilityHint="Shows this day's actions below the calendar"
                   >
-                    {dayInfo.hasStreak ? (
-                      <View
-                        style={[
-                          styles.streakLine,
-                          { backgroundColor: theme.accent },
-                        ]}
-                      />
-                    ) : null}
                     <View
                       style={[
                         styles.dayMarker,
@@ -1203,11 +980,6 @@ export default function JourneyScreen() {
                         dayInfo.isToday && { borderColor: theme.accent },
                         isComplete && { backgroundColor: theme.success },
                         isPartial && { backgroundColor: theme.warning },
-                        isShielded && {
-                          backgroundColor: "transparent",
-                          borderWidth: 2,
-                          borderColor: theme.accent,
-                        },
                         isMissed && {
                           backgroundColor: "transparent",
                           borderWidth: 2,
@@ -1224,15 +996,6 @@ export default function JourneyScreen() {
                       >
                         {dayInfo.date.getDate()}
                       </ThemedText>
-                      {isShielded ? (
-                        <View style={styles.shieldBadge}>
-                          <Feather
-                            name="shield"
-                            size={12}
-                            color={theme.accent}
-                          />
-                        </View>
-                      ) : null}
                     </View>
                   </Pressable>
                 );
@@ -1277,14 +1040,6 @@ export default function JourneyScreen() {
                   Missed
                 </ThemedText>
               </View>
-              <View style={styles.legendItem}>
-                <Feather name="shield" size={12} color={theme.accent} />
-                <ThemedText
-                  style={[styles.legendText, { color: theme.textSecondary }]}
-                >
-                  Shielded
-                </ThemedText>
-              </View>
             </View>
 
             {selectedDate ? (
@@ -1318,41 +1073,6 @@ export default function JourneyScreen() {
               </>
             ) : null}
 
-            <View style={styles.streakStatsRow}>
-              <StatChip
-                icon={
-                  streak.shieldUsed ? (
-                    <Feather
-                      name="shield"
-                      size={14}
-                      color={theme.textSecondary}
-                    />
-                  ) : (
-                    <MaterialCommunityIcons
-                      name="fire"
-                      size={16}
-                      color={
-                        streak.current > 0 ? theme.warning : theme.textSecondary
-                      }
-                    />
-                  )
-                }
-                text={
-                  streak.shieldUsed
-                    ? "Streak protected"
-                    : `${streak.current}-day streak`
-                }
-              />
-              <StatChip
-                icon={<Feather name="award" size={14} color={theme.accent} />}
-                text={`Best: ${streak.longest} ${streak.longest === 1 ? "day" : "days"}`}
-              />
-              <StatChip
-                icon={<Feather name="shield" size={14} color={theme.accent} />}
-                text={`${streak.shieldsAvailable}/${subscription.isPremium ? 2 : 1} shield${subscription.isPremium ? "s" : ""} ready`}
-              />
-            </View>
-
             <View style={styles.sectionHeader}>
               <ThemedText style={styles.sectionTitle}>Milestones</ThemedText>
               <Pressable
@@ -1383,69 +1103,6 @@ export default function JourneyScreen() {
                 </ThemedText>
               </Pressable>
             </View>
-          </>
-        }
-        ListFooterComponent={
-          <>
-            <InsightsPanel
-              actions={personaActions}
-              dailyLogs={dailyLogs}
-              dailyContexts={dailyContexts}
-              personaName={persona?.name ?? "Future You"}
-              onTuneUp={() => navigation.navigate("PlanTuneUp")}
-            />
-            {!subscription.isPremium ? (
-              <Pressable
-                onPress={() => navigation.navigate("Subscription")}
-                accessibilityRole="button"
-                accessibilityLabel="Go further with Premium. Unlimited milestones, plans and coaching. See plans."
-                style={({ pressed }) => [
-                  styles.premiumCard,
-                  {
-                    backgroundColor: isDark
-                      ? Colors.dark.backgroundDefault
-                      : Colors.light.backgroundDefault,
-                    borderColor: theme.accent,
-                    opacity: pressed ? 0.9 : 1,
-                    transform: [{ scale: pressed ? 0.98 : 1 }],
-                  },
-                ]}
-              >
-                <View style={styles.premiumIconRing}>
-                  <View style={styles.premiumIconCore}>
-                    <Feather name="zap" size={20} color={theme.accent} />
-                  </View>
-                  <View style={[styles.premiumDot, styles.premiumDotTop]} />
-                  <View style={[styles.premiumDot, styles.premiumDotRight]} />
-                  <View style={[styles.premiumDot, styles.premiumDotBottom]} />
-                </View>
-                <View style={styles.premiumContent}>
-                  <ThemedText style={styles.premiumTitle}>
-                    Go further with Premium
-                  </ThemedText>
-                  <ThemedText
-                    style={[
-                      styles.premiumSubtitle,
-                      { color: theme.textSecondary },
-                    ]}
-                  >
-                    Unlimited milestones, plans &amp; coaching
-                  </ThemedText>
-                </View>
-                <View style={styles.premiumCta}>
-                  <ThemedText
-                    style={[styles.premiumCtaText, { color: theme.accent }]}
-                  >
-                    See plans
-                  </ThemedText>
-                  <Feather
-                    name="chevron-right"
-                    size={16}
-                    color={theme.accent}
-                  />
-                </View>
-              </Pressable>
-            ) : null}
           </>
         }
       />
@@ -1513,10 +1170,6 @@ const styles = StyleSheet.create({
   journeyToolsSection: {
     marginBottom: Spacing.xl,
   },
-  journeyToolsHeading: {
-    ...Typography.headline,
-    marginBottom: Spacing.md,
-  },
   journeyTool: {
     minHeight: 72,
     flexDirection: "row",
@@ -1545,54 +1198,9 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     marginTop: 2,
   },
-  guideCard: {
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.xl,
-    borderWidth: 1,
-    borderColor: "rgba(0, 217, 255, 0.3)",
-  },
-  guideHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  guideTitle: {
-    ...Typography.body,
-    fontWeight: "600",
-    flex: 1,
-  },
-  guideClose: {
-    padding: Spacing.xs,
-  },
-  guideText: {
-    ...Typography.small,
-    lineHeight: 20,
+  calendarSectionTitle: {
+    ...Typography.headline,
     marginBottom: Spacing.md,
-  },
-  guideCta: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.xs,
-    backgroundColor: Colors.dark.accent,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.full,
-  },
-  guideCtaText: {
-    ...Typography.body,
-    fontWeight: "600",
-    color: "#000000",
-  },
-  alignmentSection: {
-    alignItems: "center",
-    marginBottom: Spacing["2xl"],
-  },
-  alignmentHint: {
-    ...Typography.caption,
-    textAlign: "center",
-    marginTop: Spacing.sm,
   },
   monthHeader: {
     flexDirection: "row",
@@ -1637,13 +1245,6 @@ const styles = StyleSheet.create({
   todayMarker: {
     borderWidth: 2,
   },
-  streakLine: {
-    position: "absolute",
-    left: 0,
-    right: "50%",
-    height: 2,
-    top: "50%",
-  },
   dayMarker: {
     width: 32,
     height: 32,
@@ -1654,11 +1255,6 @@ const styles = StyleSheet.create({
   dayText: {
     ...Typography.small,
     fontWeight: "500",
-  },
-  shieldBadge: {
-    position: "absolute",
-    top: -6,
-    right: -6,
   },
   legendContainer: {
     flexDirection: "row",
@@ -1736,13 +1332,6 @@ const styles = StyleSheet.create({
   selectedDateSourceText: {
     ...Typography.caption,
     fontWeight: "600",
-  },
-  streakStatsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    marginBottom: Spacing["2xl"],
   },
   sectionHeader: {
     flexDirection: "row",
@@ -1899,86 +1488,5 @@ const styles = StyleSheet.create({
     // as one clipped line; an explicit width forces wrap on the first pass
     width: "100%",
     flexShrink: 1,
-  },
-  frequencyTags: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.xs,
-    marginTop: Spacing.xs,
-  },
-  frequencyTag: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.xs,
-  },
-  frequencyTagText: {
-    ...Typography.caption,
-    fontWeight: "500",
-  },
-  premiumCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: "rgba(0, 217, 255, 0.35)",
-    marginTop: Spacing.xl,
-  },
-  premiumIconRing: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1.5,
-    borderColor: "rgba(0, 217, 255, 0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  premiumIconCore: {
-    width: 34,
-    height: 34,
-    borderRadius: BorderRadius.full,
-    backgroundColor: "rgba(0, 217, 255, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  premiumDot: {
-    position: "absolute",
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-  },
-  premiumDotTop: {
-    top: -3,
-    backgroundColor: Colors.dark.accent,
-  },
-  premiumDotRight: {
-    right: -3,
-    backgroundColor: "#9B6BFF",
-  },
-  premiumDotBottom: {
-    bottom: -3,
-    backgroundColor: "#FF6B9D",
-  },
-  premiumContent: {
-    flex: 1,
-    gap: 2,
-  },
-  premiumTitle: {
-    ...Typography.body,
-    fontWeight: "600",
-  },
-  premiumSubtitle: {
-    ...Typography.small,
-    lineHeight: 20,
-  },
-  premiumCta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-  },
-  premiumCtaText: {
-    ...Typography.small,
-    fontWeight: "600",
   },
 });

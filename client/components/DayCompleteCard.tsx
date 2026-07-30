@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { View, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import Animated, {
   useAnimatedStyle,
@@ -71,28 +71,16 @@ export function BurstDot({
 }
 
 interface DayCompleteCardProps {
-  streak: number;
   personaName: string;
-  momentum: number;
-  momentumDelta: number;
-  tomorrowCount: number;
-  tomorrowFirstTitle?: string;
   isFirstEver: boolean;
   /** True only when the last action was just checked off (animates the card). */
   celebrate: boolean;
-  onTomorrowPress: () => void;
 }
 
 export function DayCompleteCard({
-  streak,
   personaName,
-  momentum,
-  momentumDelta,
-  tomorrowCount,
-  tomorrowFirstTitle,
   isFirstEver,
   celebrate,
-  onTomorrowPress,
 }: DayCompleteCardProps) {
   const { theme, isDark } = useTheme();
   const opacity = useSharedValue(celebrate ? 0 : 1);
@@ -141,54 +129,13 @@ export function DayCompleteCard({
 
       <ThemedText style={styles.title}>Day complete.</ThemedText>
       <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
-        That&rsquo;s {streak} {streak === 1 ? "day" : "days"} of becoming{" "}
-        {personaName}.
+        Every action today was a vote for {personaName}.
       </ThemedText>
       {isFirstEver ? (
         <ThemedText style={[styles.firstEver, { color: theme.accent }]}>
           This is how it starts.
         </ThemedText>
       ) : null}
-
-      <View style={styles.momentumRow}>
-        <Feather name="zap" size={16} color={theme.warning} />
-        <ThemedText style={styles.momentumText}>
-          {new Date().toLocaleDateString("en-US", { month: "long" })}{" "}
-          consistency: {momentum}%
-        </ThemedText>
-        {momentumDelta > 0 ? (
-          <ThemedText style={[styles.momentumDelta, { color: theme.success }]}>
-            +{momentumDelta} today
-          </ThemedText>
-        ) : null}
-      </View>
-
-      {tomorrowCount > 0 ? (
-        <Pressable
-          onPress={onTomorrowPress}
-          accessibilityRole="button"
-          accessibilityLabel={`View tomorrow's ${tomorrowCount} ${tomorrowCount === 1 ? "action" : "actions"} in the calendar`}
-          style={({ pressed }) => [
-            styles.tomorrowRow,
-            { opacity: pressed ? 0.7 : 1 },
-          ]}
-        >
-          <ThemedText
-            style={[styles.tomorrowText, { color: theme.textSecondary }]}
-            numberOfLines={1}
-          >
-            Tomorrow: {tomorrowCount} action{tomorrowCount === 1 ? "" : "s"}
-            {tomorrowFirstTitle ? ` · ${tomorrowFirstTitle}` : ""}
-          </ThemedText>
-          <Feather name="chevron-right" size={16} color={theme.accent} />
-        </Pressable>
-      ) : (
-        <ThemedText
-          style={[styles.tomorrowText, { color: theme.textSecondary }]}
-        >
-          Tomorrow: rest day. You&rsquo;ve earned it.
-        </ThemedText>
-      )}
     </Animated.View>
   );
 }
@@ -233,35 +180,5 @@ const styles = StyleSheet.create({
     ...Typography.small,
     fontWeight: "600",
     marginTop: Spacing.sm,
-  },
-  momentumRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    flexWrap: "wrap",
-    gap: Spacing.xs,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.lg,
-    paddingHorizontal: Spacing.sm,
-  },
-  momentumText: {
-    ...Typography.body,
-    fontWeight: "600",
-  },
-  momentumDelta: {
-    ...Typography.small,
-    fontWeight: "600",
-  },
-  tomorrowRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    maxWidth: "100%",
-  },
-  tomorrowText: {
-    ...Typography.small,
-    fontWeight: "500",
   },
 });

@@ -8,16 +8,21 @@ name: Profile simplification regression
 - assertVisible: Profile
 - scrollUntilVisible:
     element:
-      text: Daily Reminder.*
+      text: About.*
     direction: DOWN
 - assertVisible: Daily Reminder.*
+- assertVisible: Trusted Witness.*
 - assertVisible: Privacy & Data.*
 - assertVisible: About.*
 - assertNotVisible: The Year You Became.*
 - assertNotVisible: Someone in Your Corner.*
 - takeScreenshot: profile-simplification-main
+- tapOn: Trusted Witness.*
+- assertVisible: Someone in Your Corner
+- tapOn:
+    text: Close witness settings
 - tapOn: Daily Reminder.*
-- assertVisible: One gentle nudge
+- assertVisible: One useful nudge
 - tapOn:
     text: Back to profile
 - scrollUntilVisible:
@@ -44,7 +49,7 @@ name: Profile simplification regression
     direction: DOWN
 - tapOn: About.*
 - assertVisible: Resolution Companion
-- assertVisible: Version 1.0.11
+- assertVisible: Version 1.3
 - scrollUntilVisible:
     element:
       text: Privacy Policy.*
@@ -55,11 +60,8 @@ name: Profile simplification regression
 - tapOn:
     text: Close profile
 - tapOn:
-    point: 50%,95%
-- scrollUntilVisible:
-    element:
-      text: Stories & Support
-    direction: DOWN
-- assertVisible: The Year You Became.*
-- assertVisible: Someone in Your Corner.*
+    text: Journey, tab.*
+- assertVisible: Your Story.*
+- assertNotVisible: The Year You Became.*
+- assertNotVisible: Someone in Your Corner.*
 - takeScreenshot: profile-simplification-journey

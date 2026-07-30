@@ -42,7 +42,6 @@ import { logger } from "@/lib/logger";
 import { createTextStreamBuffer, TextStreamBuffer } from "@/lib/stream-buffer";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { track } from "@/lib/telemetry";
-import { getTodaysMicroNote } from "@/lib/micro-notes";
 import { getCoachTone, type CoachTone } from "@/lib/rewards";
 import { buildCoachActionContext, buildCoachOpening } from "@/lib/coach";
 import { getMainTabHeaderClearance } from "@/navigation/tab-bar-layout";
@@ -150,13 +149,6 @@ export default function ReflectScreen() {
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       ),
     [reflections],
-  );
-
-  // Identity-science micro-note drip: daily for premium, weekly for free
-  const [noteExpanded, setNoteExpanded] = useState(false);
-  const microNote = useMemo(
-    () => getTodaysMicroNote(subscription.isPremium),
-    [subscription.isPremium],
   );
 
   // Free users get to experience memory exactly once before the gate —
@@ -833,94 +825,118 @@ export default function ReflectScreen() {
         scrollIndicatorInsets={{ bottom: insets.bottom }}
       >
         <View style={styles.header}>
-          <ThemedText style={styles.title}>AI Coaching</ThemedText>
+          <ThemedText style={styles.title}>
+            What do you need help with?
+          </ThemedText>
           <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
-            Get personalized coaching to review your progress and receive
-            guidance.
+            Talk through what is working, what feels hard, or what you want to
+            change.
           </ThemedText>
         </View>
 
-        <View style={styles.scoreCard}>
-          <ThemedText style={[styles.scoreLabel, { color: theme.accent }]}>
-            Current Momentum
-          </ThemedText>
-          <ThemedText style={styles.scoreValue}>{momentumScore}%</ThemedText>
-          <ThemedText
-            style={[styles.scoreHint, { color: theme.textSecondary }]}
+        <Pressable
+          onPress={() => startReflection("monthly")}
+          accessibilityRole="button"
+          accessibilityLabel={
+            canUseReflection()
+              ? "Start a conversation with Coach"
+              : "Free conversation limit reached. See Premium options."
+          }
+          style={({ pressed }) => [
+            styles.conversationCard,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+              borderColor: canUseReflection() ? theme.accent : theme.border,
+            },
+            { opacity: pressed ? 0.78 : 1 },
+          ]}
+        >
+          <View
+            style={[
+              styles.conversationIcon,
+              {
+                backgroundColor: canUseReflection()
+                  ? "rgba(0, 217, 255, 0.12)"
+                  : isDark
+                    ? Colors.dark.backgroundTertiary
+                    : Colors.light.backgroundTertiary,
+              },
+            ]}
           >
-            {momentumScore >= 80
-              ? "Excellent! You're building strong habits."
-              : momentumScore >= 50
-                ? "Good progress! Let's keep the momentum going."
-                : "Every step counts. Let's find ways to reduce friction."}
-          </ThemedText>
-          <ThemedText
-            style={[styles.scoreExplain, { color: theme.textSecondary }]}
-          >
-            Your completion rate for scheduled actions over the past 7 days
-          </ThemedText>
-        </View>
-
-        <View style={styles.sessionsCard}>
-          <View style={styles.sessionsInfo}>
-            <ThemedText style={styles.sessionsLabel}>
-              {subscription.isPremium
-                ? "Unlimited Check-ins"
-                : "Free Check-ins"}
+            <Feather
+              name={canUseReflection() ? "message-circle" : "lock"}
+              size={24}
+              color={canUseReflection() ? theme.accent : theme.textSecondary}
+            />
+          </View>
+          <View style={styles.conversationCopy}>
+            <ThemedText style={styles.conversationTitle}>
+              {canUseReflection() ? "Start a conversation" : "Limit reached"}
             </ThemedText>
             <ThemedText
               style={[
-                styles.sessionsCount,
+                styles.conversationSubtitle,
+                { color: theme.textSecondary },
+              ]}
+            >
+              {canUseReflection()
+                ? "Your coach starts with the evidence you have already recorded."
+                : "Premium keeps the conversation open without a monthly cap."}
+            </ThemedText>
+            <ThemedText
+              style={[
+                styles.conversationAllowance,
                 {
                   color:
-                    monthlyReflectionCount >= 10 && !subscription.isPremium
+                    !subscription.isPremium && monthlyReflectionCount >= 10
                       ? theme.error
                       : theme.accent,
                 },
               ]}
             >
               {subscription.isPremium
-                ? "Unlimited"
-                : `${10 - monthlyReflectionCount} of 10`}
-            </ThemedText>
-            <ThemedText
-              style={[styles.sessionsHint, { color: theme.textSecondary }]}
-            >
-              {subscription.isPremium
-                ? "Premium members get unlimited coaching"
-                : "Included free — resets at the start of each month"}
+                ? "Unlimited conversations"
+                : `${Math.max(0, 10 - monthlyReflectionCount)} free this month`}
             </ThemedText>
           </View>
-          {!subscription.isPremium && monthlyReflectionCount >= 7 ? (
-            <Pressable
-              onPress={() => navigation.navigate("Subscription")}
-              accessibilityRole="button"
-              accessibilityLabel="Upgrade to Premium for unlimited check-ins"
-              style={({ pressed }) => [
-                styles.upgradeLink,
-                { borderColor: theme.accent },
-                { opacity: pressed ? 0.7 : 1 },
-              ]}
-            >
-              <Feather name="zap" size={16} color={theme.accent} />
-              <ThemedText
-                style={[styles.upgradeLinkText, { color: theme.accent }]}
-              >
-                Upgrade to Premium
-              </ThemedText>
-            </Pressable>
-          ) : null}
-        </View>
+          <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+        </Pressable>
 
-        {actions.length > 0 ? (
-          <>
-            <ThemedText style={styles.sectionTitle}>Adaptive Plan</ThemedText>
+        <View style={styles.suggestionRow}>
+          <Pressable
+            onPress={() => startReflection("weekly")}
+            accessibilityRole="button"
+            accessibilityLabel="Review my week with Coach"
+            style={({ pressed }) => [
+              styles.suggestionCard,
+              {
+                backgroundColor: isDark
+                  ? Colors.dark.backgroundDefault
+                  : Colors.light.backgroundDefault,
+                opacity: pressed ? 0.75 : 1,
+              },
+            ]}
+          >
+            <Feather name="rotate-ccw" size={20} color={theme.accent} />
+            <ThemedText style={styles.suggestionTitle}>
+              Review my week
+            </ThemedText>
+            <ThemedText
+              style={[styles.suggestionHint, { color: theme.textSecondary }]}
+            >
+              Free
+            </ThemedText>
+          </Pressable>
+
+          {actions.length > 0 ? (
             <Pressable
               onPress={() => navigation.navigate("PlanTuneUp")}
               accessibilityRole="button"
-              accessibilityLabel="Open Plan Tune-Up. Review 28 days of aggregate evidence and preview a small plan adjustment."
+              accessibilityLabel="Adjust my plan with Coach"
               style={({ pressed }) => [
-                styles.weeklyReviewCard,
+                styles.suggestionCard,
                 {
                   backgroundColor: isDark
                     ? Colors.dark.backgroundDefault
@@ -929,237 +945,32 @@ export default function ReflectScreen() {
                 },
               ]}
             >
-              <View style={styles.weeklyReviewIcon}>
-                <Feather name="refresh-cw" size={20} color={theme.accent} />
-              </View>
-              <View style={styles.heroCtaContent}>
-                <ThemedText style={styles.weeklyReviewTitle}>
-                  Plan Tune-Up
-                </ThemedText>
-                <ThemedText
-                  style={[
-                    styles.weeklyReviewSubtitle,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  Review a private 28-day aggregate, preview one bend, then
-                  decide
-                </ThemedText>
-              </View>
-              <Feather
-                name="chevron-right"
-                size={20}
-                color={theme.textSecondary}
-              />
+              <Feather name="refresh-cw" size={20} color={theme.accent} />
+              <ThemedText style={styles.suggestionTitle}>
+                Adjust my plan
+              </ThemedText>
+              <ThemedText
+                style={[styles.suggestionHint, { color: theme.textSecondary }]}
+              >
+                Preview first
+              </ThemedText>
             </Pressable>
-          </>
-        ) : null}
-
-        <ThemedText style={styles.sectionTitle}>Weekly Review</ThemedText>
-
-        <Pressable
-          onPress={() => startReflection("weekly")}
-          accessibilityRole="button"
-          accessibilityLabel="Start your free 3-minute weekly review"
-          style={({ pressed }) => [
-            styles.weeklyReviewCard,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundDefault
-                : Colors.light.backgroundDefault,
-            },
-            pressed && styles.heroCtaPressed,
-          ]}
-        >
-          <View style={styles.weeklyReviewIcon}>
-            <Feather name="rotate-ccw" size={20} color={theme.accent} />
-          </View>
-          <View style={styles.heroCtaContent}>
-            <ThemedText style={styles.weeklyReviewTitle}>
-              3-minute weekly review
-            </ThemedText>
-            <ThemedText
-              style={[
-                styles.weeklyReviewSubtitle,
-                { color: theme.textSecondary },
-              ]}
-            >
-              One win, one friction, one small bend &mdash; free, never uses a
-              check-in
-            </ThemedText>
-          </View>
-          <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-        </Pressable>
-
-        <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
-          {subscription.isPremium ? "Today's read" : "This week's read"}
-        </ThemedText>
-
-        <Pressable
-          onPress={() => {
-            if (!noteExpanded) track("micro_note_read");
-            setNoteExpanded((v) => !v);
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={`60-second read: ${microNote.title}. ${noteExpanded ? "Collapse" : "Expand"}.`}
-          style={({ pressed }) => [
-            styles.microNoteCard,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundDefault
-                : Colors.light.backgroundDefault,
-              opacity: pressed ? 0.85 : 1,
-            },
-          ]}
-        >
-          <View style={styles.microNoteHeader}>
-            <Feather name="book-open" size={16} color={theme.accent} />
-            <ThemedText style={styles.microNoteTitle}>
-              {microNote.title}
-            </ThemedText>
-            <Feather
-              name={noteExpanded ? "chevron-up" : "chevron-down"}
-              size={18}
-              color={theme.textSecondary}
-            />
-          </View>
-          {noteExpanded ? (
-            <>
-              <ThemedText
-                style={[styles.microNoteBody, { color: theme.textSecondary }]}
-              >
-                {microNote.body}
-              </ThemedText>
-              {!subscription.isPremium ? (
-                <ThemedText
-                  style={[styles.microNoteHint, { color: theme.textSecondary }]}
-                >
-                  A new read every week — daily with Premium.
-                </ThemedText>
-              ) : null}
-            </>
           ) : null}
-        </Pressable>
-
-        <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
-          Monthly Check-in
-        </ThemedText>
-
-        {canUseReflection() ? (
-          <Pressable
-            onPress={() => startReflection("monthly")}
-            accessibilityRole="button"
-            accessibilityLabel={`Your coach is ready for your ${new Date().toLocaleDateString("en-US", { month: "long" })} check-in. Start the conversation.`}
-            style={({ pressed }) => [
-              styles.coachInvite,
-              {
-                backgroundColor: isDark
-                  ? Colors.dark.backgroundDefault
-                  : Colors.light.backgroundDefault,
-              },
-              pressed && styles.heroCtaPressed,
-            ]}
-          >
-            <View style={styles.coachInviteRow}>
-              <View style={styles.coachInviteAvatar}>
-                <Feather name="compass" size={22} color={theme.accent} />
-              </View>
-              <View
-                style={[
-                  styles.coachInviteBubble,
-                  {
-                    backgroundColor: isDark
-                      ? Colors.dark.backgroundSecondary
-                      : Colors.light.backgroundSecondary,
-                  },
-                ]}
-              >
-                <ThemedText style={styles.coachInviteText}>
-                  Ready to look at{" "}
-                  {new Date().toLocaleDateString("en-US", { month: "long" })}{" "}
-                  together? Let&rsquo;s see what&rsquo;s working.
-                </ThemedText>
-              </View>
-            </View>
-            <View
-              style={[
-                styles.coachInviteButton,
-                { backgroundColor: theme.accent },
-              ]}
-            >
-              <ThemedText
-                style={[
-                  styles.coachInviteButtonText,
-                  { color: theme.buttonText },
-                ]}
-              >
-                Start check-in
-              </ThemedText>
-              <Feather name="arrow-right" size={18} color={theme.buttonText} />
-            </View>
-          </Pressable>
-        ) : (
-          <Pressable
-            onPress={() => startReflection("monthly")}
-            accessibilityRole="button"
-            accessibilityLabel="Monthly check-in limit reached. Upgrade to Premium for unlimited coaching"
-            style={({ pressed }) => [
-              styles.heroCtaLocked,
-              {
-                backgroundColor: isDark
-                  ? Colors.dark.backgroundDefault
-                  : Colors.light.backgroundDefault,
-                borderColor: theme.border,
-              },
-              pressed && styles.heroCtaPressed,
-            ]}
-          >
-            <View
-              style={[
-                styles.heroCtaLockedIcon,
-                {
-                  backgroundColor: isDark
-                    ? Colors.dark.backgroundTertiary
-                    : Colors.light.backgroundTertiary,
-                },
-              ]}
-            >
-              <Feather name="lock" size={24} color={theme.textSecondary} />
-            </View>
-            <View style={styles.heroCtaContent}>
-              <ThemedText style={styles.heroCtaLockedTitle}>
-                Limit reached
-              </ThemedText>
-              <ThemedText
-                style={[
-                  styles.heroCtaLockedSubtitle,
-                  { color: theme.textSecondary },
-                ]}
-              >
-                Premium removes the cap &mdash; unlimited check-ins
-              </ThemedText>
-            </View>
-            <Feather
-              name="chevron-right"
-              size={20}
-              color={theme.textSecondary}
-            />
-          </Pressable>
-        )}
+        </View>
 
         {sortedReflections.length > 0 ? (
           <>
             <ThemedText
               style={[styles.sectionTitle, { marginTop: Spacing.xl }]}
             >
-              Past Sessions
+              Past conversations
             </ThemedText>
-            {sortedReflections.slice(0, 5).map((reflection) => (
+            {sortedReflections.slice(0, 3).map((reflection) => (
               <Pressable
                 key={reflection.id}
                 onPress={() => setViewingPastSession(reflection.id)}
                 accessibilityRole="button"
-                accessibilityLabel={`Open check-in from ${formatDate(reflection.createdAt)}, momentum ${reflection.momentumScore} percent`}
+                accessibilityLabel={`Open conversation from ${formatDate(reflection.createdAt)}`}
                 style={({ pressed }) => [
                   styles.pastSessionCard,
                   {
@@ -1181,7 +992,7 @@ export default function ReflectScreen() {
                 <View style={styles.pastSessionContent}>
                   <ThemedText style={styles.pastSessionDate}>
                     {formatDate(reflection.createdAt)}
-                    {reflection.periodType === "weekly" ? " · Weekly" : ""}
+                    {reflection.periodType === "weekly" ? " · Week review" : ""}
                   </ThemedText>
                   <ThemedText
                     style={[
@@ -1191,16 +1002,6 @@ export default function ReflectScreen() {
                     numberOfLines={1}
                   >
                     {reflection.aiFeedback.slice(0, 60)}...
-                  </ThemedText>
-                </View>
-                <View style={styles.pastSessionMomentum}>
-                  <ThemedText
-                    style={[
-                      styles.pastSessionMomentumValue,
-                      { color: theme.accent },
-                    ]}
-                  >
-                    {reflection.momentumScore}%
                   </ThemedText>
                 </View>
                 <Feather
@@ -1395,229 +1196,62 @@ const styles = StyleSheet.create({
   subtitle: {
     ...Typography.body,
   },
-  scoreCard: {
-    alignItems: "center",
-    padding: Spacing["2xl"],
-    marginBottom: Spacing["2xl"],
-  },
-  scoreLabel: {
-    ...Typography.caption,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: Spacing.xs,
-  },
-  scoreValue: {
-    fontSize: 64,
-    fontWeight: "700",
-    marginBottom: Spacing.sm,
-  },
-  scoreHint: {
-    ...Typography.body,
-    textAlign: "center",
-  },
-  scoreExplain: {
-    ...Typography.caption,
-    textAlign: "center",
-    marginTop: Spacing.sm,
-  },
-  sessionsCard: {
-    backgroundColor: "rgba(0, 217, 255, 0.08)",
-    borderRadius: BorderRadius.md,
-    padding: Spacing.xl,
-    marginBottom: Spacing["2xl"],
-    alignItems: "center",
-  },
-  microNoteCard: {
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    borderWidth: 1,
-    borderColor: "rgba(0, 217, 255, 0.2)",
-  },
-  microNoteHeader: {
+  conversationCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
-  },
-  microNoteTitle: {
-    ...Typography.body,
-    fontWeight: "600",
-    flex: 1,
-  },
-  microNoteBody: {
-    ...Typography.small,
-    lineHeight: 20,
-    marginTop: Spacing.md,
-  },
-  microNoteHint: {
-    ...Typography.caption,
-    fontStyle: "italic",
-    marginTop: Spacing.md,
-  },
-  sessionsInfo: {
-    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.xl,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
     marginBottom: Spacing.md,
   },
-  sessionsLabel: {
-    ...Typography.caption,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: Spacing.sm,
+  conversationIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.full,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  sessionsCount: {
-    fontSize: 32,
-    fontWeight: "700",
+  conversationCopy: {
+    flex: 1,
+  },
+  conversationTitle: {
+    ...Typography.headline,
     marginBottom: Spacing.xs,
   },
-  sessionsHint: {
+  conversationSubtitle: {
     ...Typography.small,
-    textAlign: "center",
+    lineHeight: 20,
   },
-  upgradeLink: {
+  conversationAllowance: {
+    ...Typography.caption,
+    fontWeight: "600",
+    marginTop: Spacing.sm,
+  },
+  suggestionRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    borderColor: Colors.dark.accent,
+    gap: Spacing.sm,
+    marginBottom: Spacing.xl,
   },
-  upgradeLinkText: {
+  suggestionCard: {
+    flex: 1,
+    minHeight: 112,
+    justifyContent: "space-between",
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+  },
+  suggestionTitle: {
     ...Typography.body,
     fontWeight: "600",
+    marginTop: Spacing.md,
+  },
+  suggestionHint: {
+    ...Typography.caption,
+    marginTop: Spacing.xs,
   },
   sectionTitle: {
     ...Typography.headline,
     marginBottom: Spacing.md,
-  },
-  heroCta: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.dark.accent,
-    padding: Spacing.xl,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.md,
-  },
-  coachInvite: {
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: "rgba(0, 217, 255, 0.25)",
-    marginBottom: Spacing.md,
-    gap: Spacing.md,
-  },
-  coachInviteRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: Spacing.sm,
-  },
-  coachInviteAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.full,
-    backgroundColor: "rgba(0, 217, 255, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  coachInviteBubble: {
-    flex: 1,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    borderBottomLeftRadius: Spacing.xs,
-  },
-  coachInviteText: {
-    ...Typography.body,
-    lineHeight: 24,
-  },
-  coachInviteButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.xs,
-    backgroundColor: Colors.dark.accent,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.full,
-  },
-  coachInviteButtonText: {
-    ...Typography.body,
-    fontWeight: "600",
-    color: "#000000",
-  },
-  heroCtaPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.98 }],
-  },
-  weeklyReviewCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-  },
-  weeklyReviewIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.full,
-    backgroundColor: "rgba(0, 217, 255, 0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.md,
-  },
-  weeklyReviewTitle: {
-    ...Typography.body,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  weeklyReviewSubtitle: {
-    ...Typography.caption,
-  },
-  heroCtaIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.full,
-    backgroundColor: "rgba(0, 0, 0, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.lg,
-  },
-  heroCtaContent: {
-    flex: 1,
-    marginRight: Spacing.md,
-  },
-  heroCtaTitle: {
-    ...Typography.headline,
-    color: "#000000",
-    marginBottom: Spacing.xs,
-  },
-  heroCtaSubtitle: {
-    ...Typography.small,
-    lineHeight: 20,
-    color: "rgba(0, 0, 0, 0.7)",
-  },
-  heroCtaLocked: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.xl,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    marginBottom: Spacing.md,
-  },
-  heroCtaLockedIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.lg,
-  },
-  heroCtaLockedTitle: {
-    ...Typography.headline,
-    marginBottom: Spacing.xs,
-  },
-  heroCtaLockedSubtitle: {
-    ...Typography.small,
-    lineHeight: 20,
   },
   cardPressed: {
     transform: [{ scale: 0.98 }],
@@ -1648,9 +1282,6 @@ const styles = StyleSheet.create({
   },
   pastSessionPreview: {
     ...Typography.small,
-  },
-  pastSessionMomentum: {
-    marginRight: Spacing.sm,
   },
   pastSessionMomentumValue: {
     ...Typography.body,

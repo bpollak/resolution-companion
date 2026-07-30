@@ -13,14 +13,13 @@ import {
   ScrollView,
   Alert,
   Platform,
-  Share,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as StoreReview from "expo-store-review";
 import Animated, {
@@ -35,7 +34,6 @@ import Animated, {
 
 import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
-import { computeMomentumScore } from "@/lib/progress";
 import {
   suppressReminderForToday,
   ensureReminderScheduled,
@@ -46,39 +44,11 @@ import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { CircularProgress } from "@/components/CircularProgress";
 import { ActionCard, CompletedActionRow } from "@/components/ActionCard";
-import { StatChip } from "@/components/StatChip";
 import { DayCompleteCard } from "@/components/DayCompleteCard";
 import { getMainTabHeaderClearance } from "@/navigation/tab-bar-layout";
-import {
-  WeeklyRecapCard,
-  BeatLastWeekCard,
-} from "@/components/WeeklyRecapCard";
-import { LapseRecoveryCard } from "@/components/LapseRecoveryCard";
-import { MonthRecapCard } from "@/components/MonthRecapCard";
-import { CoachObservationCard } from "@/components/CoachObservationCard";
-import { WitnessCelebrationCard } from "@/components/WitnessCelebrationCard";
-import { YearRecapCard } from "@/components/YearRecapCard";
-import { SecondPersonaInviteCard } from "@/components/SecondPersonaInviteCard";
-import { DailyContextCard } from "@/components/DailyContextCard";
 import { Toast } from "@/components/Toast";
 import { logger } from "@/lib/logger";
-import {
-  buildMonthRecap,
-  buildYearRecap,
-  getPreviousMonthKey,
-} from "@/lib/recap";
-import { computeCoachObservation } from "@/lib/insights";
 import { track } from "@/lib/telemetry";
-import {
-  buildWitnessCelebration,
-  getWitnessSettings,
-  type WitnessSettings,
-} from "@/lib/witness";
-import {
-  getMonthKey,
-  SECOND_PERSONA_INVITE_SEEN_KEY,
-  shouldOfferSecondPersona,
-} from "@/lib/persona-invitation";
 
 const FIRST_DAY_COMPLETE_KEY = "today_first_day_complete_seen";
 // {count, lastDate} of distinct fully-complete days, for timing the one-time
@@ -86,24 +56,6 @@ const FIRST_DAY_COMPLETE_KEY = "today_first_day_complete_seen";
 const REVIEW_COMPLETE_DAYS_KEY = "today_review_complete_days";
 const REVIEW_REQUESTED_KEY = "today_review_requested";
 const REVIEW_ASK_AFTER_DAYS = 3;
-// Monday of the last-recapped week — the recap card shows once per week
-const WEEKLY_RECAP_SEEN_KEY = "today_weekly_recap_seen_week";
-const WEEKLY_NUDGE_SEEN_KEY = "today_weekly_nudge_seen_week";
-// Date of the most recent fully-missed day the lapse card was dismissed
-// for — the card only returns when a new missed day occurs
-const LAPSE_DISMISSED_KEY = "today_lapse_card_dismissed_for";
-// "YYYY-MM" of the last month whose Month-in-Votes entry card was seen —
-// the card shows during the first week of each new month, once
-const MONTH_RECAP_SEEN_KEY = "today_month_recap_seen_month";
-const MONTH_RECAP_WINDOW_DAYS = 7;
-// Last observed shield state, for surfacing spend/recharge moments exactly
-// once per transition (earned forgiveness should be seen, not silent)
-const SHIELD_STATE_KEY = "today_shield_state";
-// Id of the last coach observation shown — one proactive observation per
-// pattern per week, dismissed forever once seen
-const COACH_OBSERVATION_SEEN_KEY = "today_coach_observation_seen";
-const WITNESS_CELEBRATION_SEEN_KEY = "today_witness_celebration_seen_week";
-const YEAR_RECAP_SEEN_KEY = "today_year_recap_seen_year";
 
 function getLocalDateString(date: Date): string {
   const year = date.getFullYear();
@@ -314,19 +266,13 @@ export default function TodayScreen() {
   const {
     hasOnboarded,
     persona,
-    personas,
     benchmarks,
     actions,
     dailyLogs,
-    dailyContexts,
     personaAlignment,
     progressSnapshot,
-    subscription,
     toggleDailyLog,
     setDailyLogNote,
-    upsertDailyContext,
-    deleteDailyContext,
-    canAddPersona,
   } = useApp();
 
   const today = new Date();
@@ -350,10 +296,6 @@ export default function TodayScreen() {
   }, [actions, personaBenchmarkIds, dayOfWeek]);
 
   const todayDateStr = getLocalDateString(today);
-  const todayContext = useMemo(
-    () => dailyContexts.find((entry) => entry.logDate === todayDateStr),
-    [dailyContexts, todayDateStr],
-  );
 
   const benchmarkById = useMemo(
     () => new Map(benchmarks.map((benchmark) => [benchmark.id, benchmark])),
@@ -389,22 +331,6 @@ export default function TodayScreen() {
   const streakCurrent = streak.current;
 
   const lapse = progressSnapshot.lapse;
-  const weeklyRecap = progressSnapshot.weeklyRecap;
-
-  // Monthly Consistency as of last night (today's logs removed): the
-  // difference is what today's check-offs have earned. Month-to-date window
-  // matches personaAlignment in AppContext — ONE long-arc metric everywhere.
-  const consistencyBeforeToday = useMemo(() => {
-    const logsExcludingToday = dailyLogs.filter(
-      (log) => log.logDate.split("T")[0] !== todayDateStr,
-    );
-    return computeMomentumScore(
-      actions,
-      logsExcludingToday,
-      new Date().getDate(),
-    );
-  }, [actions, dailyLogs, todayDateStr]);
-  const momentumDelta = personaAlignment - consistencyBeforeToday;
 
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -413,243 +339,20 @@ export default function TodayScreen() {
   const [celebrateDayComplete, setCelebrateDayComplete] = useState(false);
   const [isFirstDayComplete, setIsFirstDayComplete] = useState(false);
 
-  // Weekly recap / nudge / lapse-card dismissal state loads from AsyncStorage
-  // once; nothing renders until it has, so cards never flash-then-vanish
-  const [recapPrefsLoaded, setRecapPrefsLoaded] = useState(false);
-  const [recapSeenWeek, setRecapSeenWeek] = useState<string | null>(null);
-  const [nudgeSeenWeek, setNudgeSeenWeek] = useState<string | null>(null);
-  const [lapseDismissedFor, setLapseDismissedFor] = useState<string | null>(
-    null,
-  );
-
-  const [monthRecapSeen, setMonthRecapSeen] = useState<string | null>(null);
-  const [observationSeen, setObservationSeen] = useState<string | null>(null);
-  const [witnessSettings, setWitnessSettings] =
-    useState<WitnessSettings | null>(null);
-  const [witnessSeenWeek, setWitnessSeenWeek] = useState<string | null>(null);
-  const [yearRecapSeen, setYearRecapSeen] = useState<string | null>(null);
-  const [secondPersonaInviteSeen, setSecondPersonaInviteSeen] = useState<
-    string | null
-  >(null);
-
-  useEffect(() => {
-    Promise.all([
-      AsyncStorage.getItem(WEEKLY_RECAP_SEEN_KEY),
-      AsyncStorage.getItem(WEEKLY_NUDGE_SEEN_KEY),
-      AsyncStorage.getItem(LAPSE_DISMISSED_KEY),
-      AsyncStorage.getItem(MONTH_RECAP_SEEN_KEY),
-      AsyncStorage.getItem(COACH_OBSERVATION_SEEN_KEY),
-      getWitnessSettings(),
-      AsyncStorage.getItem(WITNESS_CELEBRATION_SEEN_KEY),
-      AsyncStorage.getItem(YEAR_RECAP_SEEN_KEY),
-      AsyncStorage.getItem(SECOND_PERSONA_INVITE_SEEN_KEY),
-    ]).then(
-      ([
-        recapSeen,
-        nudgeSeen,
-        lapseSeen,
-        monthSeen,
-        obsSeen,
-        witness,
-        witnessSeen,
-        yearSeen,
-        secondPersonaSeen,
-      ]) => {
-        setRecapSeenWeek(recapSeen);
-        setNudgeSeenWeek(nudgeSeen);
-        setLapseDismissedFor(lapseSeen);
-        setMonthRecapSeen(monthSeen);
-        setObservationSeen(obsSeen);
-        setWitnessSettings(witness);
-        setWitnessSeenWeek(witnessSeen);
-        setYearRecapSeen(yearSeen);
-        setSecondPersonaInviteSeen(secondPersonaSeen);
-        setRecapPrefsLoaded(true);
-      },
-    );
-  }, []);
-
-  const dismissWeeklyRecap = () => {
-    setRecapSeenWeek(weeklyRecap.weekKey);
-    AsyncStorage.setItem(WEEKLY_RECAP_SEEN_KEY, weeklyRecap.weekKey);
-  };
-
-  const dismissBeatLastWeek = () => {
-    setNudgeSeenWeek(weeklyRecap.weekKey);
-    AsyncStorage.setItem(WEEKLY_NUDGE_SEEN_KEY, weeklyRecap.weekKey);
-  };
-
-  const dismissLapseCard = () => {
-    if (!lapse.lastMissedDate) return;
-    setLapseDismissedFor(lapse.lastMissedDate);
-    AsyncStorage.setItem(LAPSE_DISMISSED_KEY, lapse.lastMissedDate);
-  };
-
-  // "Month in Votes" closing ceremony for the month that just ended: shown
-  // during the first week of a new month, once, and only when last month had
-  // any votes to tell a story about. Takes precedence over the weekly card
-  // (the 1st is often a Monday — the weekly card returns after this one).
-  const prevMonthKey = getPreviousMonthKey(today);
-  const monthRecap = useMemo(
-    () =>
-      buildMonthRecap(
-        actions,
-        dailyLogs,
-        persona,
-        prevMonthKey,
-        new Date(),
-        subscription.isPremium ? 2 : 1,
-      ),
-    [actions, dailyLogs, persona, prevMonthKey, subscription.isPremium],
-  );
-  const showMonthRecapCard =
-    recapPrefsLoaded &&
-    today.getDate() <= MONTH_RECAP_WINDOW_DAYS &&
-    monthRecap.votesCast > 0 &&
-    monthRecapSeen !== prevMonthKey;
-
-  const dismissMonthRecap = () => {
-    setMonthRecapSeen(prevMonthKey);
-    AsyncStorage.setItem(MONTH_RECAP_SEEN_KEY, prevMonthKey);
-  };
-
-  const showWeeklyRecap =
-    recapPrefsLoaded &&
-    !showMonthRecapCard &&
-    weeklyRecap.lastWeek.scheduled > 0 &&
-    recapSeenWeek !== weeklyRecap.weekKey;
-
-  const annualYear =
-    today.getMonth() === 0 ? today.getFullYear() - 1 : today.getFullYear();
-  const yearRecap = useMemo(
-    () =>
-      buildYearRecap(actions, dailyLogs, persona, annualYear, new Date(), 2),
-    [actions, dailyLogs, persona, annualYear],
-  );
-  const showYearRecap =
-    recapPrefsLoaded &&
-    subscription.isPremium &&
-    (today.getMonth() === 11 || today.getMonth() === 0) &&
-    yearRecap.votesCast > 0 &&
-    yearRecapSeen !== String(annualYear);
-  const dismissYearRecap = () => {
-    setYearRecapSeen(String(annualYear));
-    AsyncStorage.setItem(YEAR_RECAP_SEEN_KEY, String(annualYear));
-  };
-
-  // The coach's one proactive weekly observation — locally computed, shown
-  // once per pattern per week, and never stacked on top of a recap card
-  const coachObservation = useMemo(
-    () => computeCoachObservation(actions, dailyLogs, persona?.name ?? "you"),
-    [actions, dailyLogs, persona?.name],
-  );
-  const showCoachObservation =
-    recapPrefsLoaded &&
-    !showMonthRecapCard &&
-    !showWeeklyRecap &&
-    coachObservation !== null &&
-    observationSeen !== coachObservation.id;
-
-  const showWitnessCelebration =
-    recapPrefsLoaded &&
-    !showMonthRecapCard &&
-    !showWeeklyRecap &&
-    witnessSettings?.enabled === true &&
-    weeklyRecap.lastWeek.completed > 0 &&
-    witnessSeenWeek !== weeklyRecap.weekKey;
-
-  const showSecondPersonaInvite =
-    recapPrefsLoaded &&
-    !showMonthRecapCard &&
-    !showWeeklyRecap &&
-    !showWitnessCelebration &&
-    !showCoachObservation &&
-    shouldOfferSecondPersona(
-      personas,
-      persona,
-      actions,
-      dailyLogs,
-      secondPersonaInviteSeen,
-      today,
-    );
-
-  const dismissSecondPersonaInvite = () => {
-    const month = getMonthKey(today);
-    setSecondPersonaInviteSeen(month);
-    AsyncStorage.setItem(SECOND_PERSONA_INVITE_SEEN_KEY, month);
-  };
-
-  const exploreSecondPersona = () => {
-    dismissSecondPersonaInvite();
-    if (canAddPersona()) navigation.navigate("Onboarding");
-    else navigation.navigate("Subscription");
-  };
-
-  const dismissWitnessCelebration = () => {
-    setWitnessSeenWeek(weeklyRecap.weekKey);
-    AsyncStorage.setItem(WITNESS_CELEBRATION_SEEN_KEY, weeklyRecap.weekKey);
-  };
-
-  const shareWitnessCelebration = () => {
-    if (!witnessSettings) return;
-    const message = buildWitnessCelebration(
-      witnessSettings.name,
-      persona,
-      weeklyRecap.lastWeek.completed,
-      weeklyRecap.lastWeek.score,
-    );
-    Share.share({ message })
-      .then(() => {
-        track("witness_progress_shared");
-        dismissWitnessCelebration();
-      })
-      .catch((error) => logger.warn("Witness share failed:", error));
-  };
-
-  const dismissCoachObservation = () => {
-    if (!coachObservation) return;
-    setObservationSeen(coachObservation.id);
-    AsyncStorage.setItem(COACH_OBSERVATION_SEEN_KEY, coachObservation.id);
-  };
-
-  // Sunday goal-gradient nudge: this week is exactly one log away from
-  // beating last week, and there is still something loggable today
-  const showBeatLastWeekNudge =
-    recapPrefsLoaded &&
-    !showWeeklyRecap &&
-    today.getDay() === 0 &&
-    !dayComplete &&
-    scheduledTodayCount > completedTodayCount &&
-    weeklyRecap.lastWeek.completed > 0 &&
-    weeklyRecap.currentWeekCompleted === weeklyRecap.lastWeek.completed &&
-    nudgeSeenWeek !== weeklyRecap.weekKey;
-
-  const showLapseCard =
-    recapPrefsLoaded &&
-    lapse.missedDays >= 2 &&
-    !dayComplete &&
-    lapse.lastMissedDate !== null &&
-    lapse.lastMissedDate !== lapseDismissedFor;
-
   // Latest per-render data for the stable handleToggle callback — widening
   // its deps would re-render every memoized ActionCard on each toggle
   const latestRef = useRef({
     todayActions,
     dailyLogs,
-    actions,
     personaName: persona?.name ?? "",
-    personaAlignment,
   });
   useEffect(() => {
     latestRef.current = {
       todayActions,
       dailyLogs,
-      actions,
       personaName: persona?.name ?? "",
-      personaAlignment,
     };
   });
-  const toastVariantRef = useRef(0);
 
   // Stable reference so memoized ActionCards skip re-rendering on each toggle
   const handleToggle = useCallback(
@@ -661,9 +364,7 @@ export default function TodayScreen() {
         const {
           todayActions: currentActions,
           dailyLogs: currentLogs,
-          actions: allActions,
           personaName,
-          personaAlignment: currentAlignment,
         } = latestRef.current;
         // The ref may not hold the post-toggle state yet — upsert the log
         const newLogs = currentLogs.some((l) => l.id === log.id)
@@ -689,18 +390,11 @@ export default function TodayScreen() {
           return;
         }
 
-        // Identity-framed toast variants (variable reward, rotating).
-        // Delta uses the month-to-date window so the number matches the
-        // Monthly Consistency chip and Progress ring.
-        const monthWindow = new Date().getDate();
-        const delta =
-          computeMomentumScore(allActions, newLogs, monthWindow) -
-          currentAlignment;
-        const variants = [`A vote for ${personaName} ✓`];
-        if (delta > 0) variants.push(`Consistency +${delta}%`);
-        variants.push(`${remaining} to go — ring's filling up`);
-        setToastMessage(variants[toastVariantRef.current % variants.length]);
-        toastVariantRef.current += 1;
+        setToastMessage(
+          remaining === 1
+            ? `A vote for ${personaName} ✓ · one left today`
+            : `A vote for ${personaName} ✓`,
+        );
         setToastVisible(true);
       } catch (error) {
         logger.error("Failed to toggle action:", error);
@@ -708,18 +402,6 @@ export default function TodayScreen() {
     },
     [toggleDailyLog, todayDateStr],
   );
-
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowDayOfWeek = tomorrow.toLocaleDateString("en-US", {
-    weekday: "long",
-  });
-
-  const tomorrowActions = useMemo(() => {
-    return actions
-      .filter((action) => personaBenchmarkIds.includes(action.benchmarkId))
-      .filter((action) => action.frequency.includes(tomorrowDayOfWeek));
-  }, [actions, personaBenchmarkIds, tomorrowDayOfWeek]);
 
   const todayRows = useMemo(
     () => [
@@ -796,64 +478,6 @@ export default function TodayScreen() {
       ),
     [handleToggle, handleNotePress],
   );
-
-  // Shield spend/recharge moments: the shield mechanic already worked
-  // silently — make the earned-forgiveness loop visible. A spend gets a
-  // dignified toast ("that's what it was for"); the recharge after the
-  // rolling window passes is the earn moment.
-  const latestShieldedDay = streak.shieldedDays.at(-1) ?? null;
-  const latestShieldEarnedDay = streak.shieldEarnedDays.at(-1) ?? null;
-  const streakCurrentForShield = streak.current;
-  useEffect(() => {
-    if (!hasOnboarded) return;
-    (async () => {
-      let previous: {
-        latestShieldedDay?: string | null;
-        latestShieldEarnedDay?: string | null;
-      } | null = null;
-      try {
-        const raw = await AsyncStorage.getItem(SHIELD_STATE_KEY);
-        previous = raw ? JSON.parse(raw) : null;
-      } catch {
-        previous = null;
-      }
-      const hasVersionedState =
-        previous !== null &&
-        ("latestShieldedDay" in previous ||
-          "latestShieldEarnedDay" in previous);
-      if (hasVersionedState) {
-        if (
-          latestShieldedDay &&
-          latestShieldedDay !== previous?.latestShieldedDay
-        ) {
-          track("shield_used");
-          setToastMessage(
-            "Your shield covered a missed day — streak intact. That's what it was for. 🛡",
-          );
-          setToastVisible(true);
-        } else if (
-          latestShieldEarnedDay &&
-          latestShieldEarnedDay !== previous?.latestShieldEarnedDay &&
-          streakCurrentForShield > 0
-        ) {
-          track("shield_earned");
-          setToastMessage(
-            "Seven clean action-days earned you a shield. Grace, banked. 🛡",
-          );
-          setToastVisible(true);
-        }
-      }
-      await AsyncStorage.setItem(
-        SHIELD_STATE_KEY,
-        JSON.stringify({ latestShieldedDay, latestShieldEarnedDay }),
-      );
-    })().catch((error) => logger.error("Failed to track shield state:", error));
-  }, [
-    hasOnboarded,
-    latestShieldEarnedDay,
-    latestShieldedDay,
-    streakCurrentForShield,
-  ]);
 
   // First-ever completion gets a one-time extra line on the celebration card
   useEffect(() => {
@@ -1013,68 +637,6 @@ export default function TodayScreen() {
               <ThemedText style={styles.personaName}>{persona.name}</ThemedText>
             </View>
 
-            {showMonthRecapCard ? (
-              <MonthRecapCard
-                recap={monthRecap}
-                onOpen={() => {
-                  dismissMonthRecap();
-                  navigation.navigate("MonthRecap", {
-                    monthKey: prevMonthKey,
-                  });
-                }}
-                onDismiss={dismissMonthRecap}
-              />
-            ) : showYearRecap ? (
-              <YearRecapCard
-                recap={yearRecap}
-                onOpen={() => {
-                  dismissYearRecap();
-                  navigation.navigate("YearRecap", { year: annualYear });
-                }}
-                onDismiss={dismissYearRecap}
-              />
-            ) : showWeeklyRecap ? (
-              <WeeklyRecapCard
-                recap={weeklyRecap}
-                streak={streak}
-                personaName={persona.name}
-                onDismiss={dismissWeeklyRecap}
-                onStartReview={() => {
-                  navigation.navigate(
-                    "ReflectTab" as never,
-                    { startWeekly: Date.now() } as never,
-                  );
-                }}
-              />
-            ) : showWitnessCelebration && witnessSettings ? (
-              <WitnessCelebrationCard
-                witnessName={witnessSettings.name}
-                onShare={shareWitnessCelebration}
-                onDismiss={dismissWitnessCelebration}
-              />
-            ) : showCoachObservation && coachObservation ? (
-              <CoachObservationCard
-                observation={coachObservation}
-                onOpenCoach={() => {
-                  track("coach_observation_opened");
-                  dismissCoachObservation();
-                  navigation.navigate("ReflectTab" as never);
-                }}
-                onDismiss={dismissCoachObservation}
-              />
-            ) : showSecondPersonaInvite ? (
-              <SecondPersonaInviteCard
-                personaName={persona.name}
-                onExplore={exploreSecondPersona}
-                onDismiss={dismissSecondPersonaInvite}
-              />
-            ) : showBeatLastWeekNudge ? (
-              <BeatLastWeekCard
-                lastWeekCompleted={weeklyRecap.lastWeek.completed}
-                onDismiss={dismissBeatLastWeek}
-              />
-            ) : null}
-
             <View style={styles.alignmentContainer}>
               <CircularProgress
                 progress={
@@ -1090,67 +652,6 @@ export default function TodayScreen() {
                     : `${completedTodayCount}/${scheduledTodayCount}`
                 }
               />
-              <View style={styles.chipRow}>
-                <StatChip
-                  icon={
-                    streak.shieldUsed ? (
-                      <Feather
-                        name="shield"
-                        size={14}
-                        color={theme.textSecondary}
-                      />
-                    ) : (
-                      <MaterialCommunityIcons
-                        name="fire"
-                        size={16}
-                        color={
-                          streak.current > 0
-                            ? theme.warning
-                            : theme.textSecondary
-                        }
-                      />
-                    )
-                  }
-                  text={
-                    streak.shieldUsed
-                      ? "Streak protected"
-                      : `${streak.current}-day streak`
-                  }
-                  detailIcon={
-                    // Make the grace shield legible BEFORE it's needed: a
-                    // quiet "armed" marker once there's a streak worth keeping.
-                    streak.shieldsAvailable > 0 ? (
-                      <Feather
-                        name="shield"
-                        size={12}
-                        color={theme.textSecondary}
-                      />
-                    ) : undefined
-                  }
-                  detail={
-                    streak.shieldsAvailable > 0
-                      ? `${streak.shieldsAvailable}/${streak.maxShields} ready`
-                      : undefined
-                  }
-                  accessibilityLabel={
-                    streak.shieldUsed
-                      ? `Streak protected by your shield, ${streak.shieldsAvailable} of ${streak.maxShields} shields ready`
-                      : `${streak.current}-day streak, ${streak.shieldsAvailable} of ${streak.maxShields} earned shields ready`
-                  }
-                />
-                <StatChip
-                  icon={<Feather name="zap" size={14} color={theme.accent} />}
-                  text={`${today.toLocaleDateString("en-US", { month: "long" })} · ${personaAlignment}%`}
-                  detail={
-                    momentumDelta > 0
-                      ? `▲${momentumDelta}`
-                      : momentumDelta < 0
-                        ? `▼${Math.abs(momentumDelta)}`
-                        : undefined
-                  }
-                  detailColor={momentumDelta > 0 ? theme.success : theme.error}
-                />
-              </View>
             </View>
 
             <View style={styles.dateContainer}>
@@ -1176,28 +677,11 @@ export default function TodayScreen() {
               </View>
             </View>
 
-            {showLapseCard ? (
-              <LapseRecoveryCard
-                onCoachPress={() => {
-                  navigation.navigate("ReflectTab" as never);
-                }}
-                onDismiss={dismissLapseCard}
-              />
-            ) : null}
-
             {dayComplete ? (
               <DayCompleteCard
-                streak={streak.current}
                 personaName={persona.name}
-                momentum={personaAlignment}
-                momentumDelta={momentumDelta}
-                tomorrowCount={tomorrowActions.length}
-                tomorrowFirstTitle={tomorrowActions[0]?.title}
                 isFirstEver={isFirstDayComplete}
                 celebrate={celebrateDayComplete}
-                onTomorrowPress={() => {
-                  navigation.navigate("JourneyTab" as never);
-                }}
               />
             ) : todayActions.length === 0 ? (
               <View
@@ -1214,74 +698,9 @@ export default function TodayScreen() {
                 <ThemedText style={styles.noActionsText}>
                   No actions scheduled for today. Rest and recharge!
                 </ThemedText>
-                {tomorrowActions.length > 0 ? (
-                  <Pressable
-                    onPress={() => {
-                      navigation.navigate("JourneyTab" as never);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`View ${tomorrowActions.length} ${tomorrowActions.length === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
-                    style={({ pressed }) => [
-                      styles.tomorrowLink,
-                      { opacity: pressed ? 0.7 : 1 },
-                    ]}
-                  >
-                    <Feather name="calendar" size={16} color={theme.accent} />
-                    <ThemedText
-                      style={[styles.tomorrowLinkText, { color: theme.accent }]}
-                    >
-                      {tomorrowActions.length} action
-                      {tomorrowActions.length !== 1 ? "s" : ""} tomorrow
-                    </ThemedText>
-                    <Feather
-                      name="chevron-right"
-                      size={16}
-                      color={theme.accent}
-                    />
-                  </Pressable>
-                ) : null}
               </View>
             ) : null}
           </>
-        }
-        ListFooterComponent={
-          <View>
-            <DailyContextCard
-              logDate={todayDateStr}
-              entry={todayContext}
-              onSave={upsertDailyContext}
-              onDelete={
-                todayContext
-                  ? () => deleteDailyContext(todayDateStr)
-                  : undefined
-              }
-            />
-            {!dayComplete &&
-            todayActions.length > 0 &&
-            tomorrowActions.length > 0 ? (
-              <Pressable
-                onPress={() => {
-                  navigation.navigate("JourneyTab" as never);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`View ${tomorrowActions.length} ${tomorrowActions.length === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
-                style={({ pressed }) => [
-                  styles.tomorrowLink,
-                  styles.tomorrowLinkCentered,
-                  { opacity: pressed ? 0.7 : 1 },
-                ]}
-              >
-                <Feather name="calendar" size={16} color={theme.accent} />
-                <ThemedText
-                  style={[styles.tomorrowLinkText, { color: theme.accent }]}
-                >
-                  {tomorrowActions.length} action
-                  {tomorrowActions.length !== 1 ? "s" : ""} tomorrow
-                </ThemedText>
-                <Feather name="chevron-right" size={16} color={theme.accent} />
-              </Pressable>
-            ) : null}
-          </View>
         }
       />
       <Toast
@@ -1305,18 +724,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: Spacing.xl,
-  },
-  emptyIcon: {
-    marginBottom: Spacing["2xl"],
-  },
-  phoenixIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.full,
-    backgroundColor: "rgba(0, 217, 255, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing["2xl"],
   },
   emptyTitle: {
     ...Typography.title,
@@ -1358,14 +765,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing["3xl"],
   },
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    marginTop: Spacing.lg,
-    paddingHorizontal: Spacing.lg,
-  },
   dateContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1395,21 +794,5 @@ const styles = StyleSheet.create({
   noActionsText: {
     ...Typography.body,
     textAlign: "center",
-  },
-  tomorrowLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-    marginTop: Spacing.md,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-  },
-  tomorrowLinkCentered: {
-    alignSelf: "center",
-    marginTop: Spacing.sm,
-  },
-  tomorrowLinkText: {
-    ...Typography.small,
-    fontWeight: "600",
   },
 });

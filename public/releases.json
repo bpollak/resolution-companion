@@ -1,5 +1,24 @@
 [
   {
+    "version": "1.3.1",
+    "status": "submitted",
+    "title": "A clearer App Store preview",
+    "summary": "Version 1.3.1 refreshes the App Store presentation so it accurately shows the simpler Today, Journey, and Coach experience already introduced in Version 1.3.",
+    "appStoreNotes": [
+      "Updated App Store screenshots now show the focused Today loop, the Day complete moment, Your Story and milestones in Journey, and the simpler Coach home.",
+      "The App Store description now explains the current identity-first experience in clearer language.",
+      "The in-app experience is unchanged from Version 1.3."
+    ],
+    "highlights": [
+      {
+        "title": "The current experience, accurately shown",
+        "description": "The App Store presentation now matches the simplified daily loop already available in Version 1.3.",
+        "availability": "There are no feature or pricing changes in this metadata refresh."
+      }
+    ],
+    "submittedAt": "2026-07-30"
+  },
+  {
     "version": "1.3",
     "status": "released",
     "title": "A simpler daily loop",

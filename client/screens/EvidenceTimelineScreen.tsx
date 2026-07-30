@@ -85,11 +85,11 @@ export default function EvidenceTimelineScreen() {
     >
       <View style={styles.header}>
         <View style={styles.headerCopy}>
-          <ThemedText style={styles.eyebrow}>Proof of becoming</ThemedText>
-          <ThemedText style={styles.title}>Evidence Timeline</ThemedText>
+          <ThemedText style={styles.eyebrow}>Your journey</ThemedText>
+          <ThemedText style={styles.title}>Your Story</ThemedText>
           <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
-            Notes, context, milestones, comebacks, and stories. Routine votes
-            stay in the calendar instead of becoming a feed.
+            The moments that show who you are becoming, including notes,
+            milestones, comebacks, and monthly chapters.
           </ThemedText>
         </View>
         <Pressable
@@ -97,7 +97,7 @@ export default function EvidenceTimelineScreen() {
           hitSlop={12}
           pressRetentionOffset={16}
           accessibilityRole="button"
-          accessibilityLabel="Close Evidence Timeline"
+          accessibilityLabel="Close Your Story"
           style={({ pressed }) => [
             styles.closeButton,
             {
@@ -201,7 +201,7 @@ export default function EvidenceTimelineScreen() {
             <ThemedText
               style={[styles.emptyText, { color: theme.textSecondary }]}
             >
-              Your notes, milestones, and returns will build this timeline.
+              Your notes, milestones, and returns will build your story.
             </ThemedText>
           </View>
         }

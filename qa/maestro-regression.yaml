@@ -1,9 +1,9 @@
 appId: com.resolutioncompanion.app
 ---
 # Fresh-install regression: onboarding (no-AI starter path) → Today daily
-# loop → Journey → Coach (micro-note, weekly review) → paywall.
-# Historical Journey/Coach behavior is covered after seeding by the focused
-# engagement and Coach flows; a new plan must not pretend history exists.
+# loop → simplified Journey → simplified Coach → paywall.
+# Historical behavior is covered after seeding by focused engagement flows;
+# a new plan must not pretend history exists.
 # Selectors use .* suffixes: RN Pressables concatenate child text + icons
 # into labels like "Start Your Journey, " and Maestro full-matches regexes.
 
@@ -49,13 +49,13 @@ appId: com.resolutioncompanion.app
     timeout: 20000
 - takeScreenshot: 03-today-fresh
 - tapOn:
-    text: "Mark Complete one action toward your goal complete.*"
+    text: "Cast today's vote for Complete one action toward your goal.*"
     optional: true
 - tapOn:
-    text: "Mark Practice mindful breathing complete.*"
+    text: "Cast today's vote for Practice mindful breathing.*"
     optional: true
 - tapOn:
-    text: "Mark Move your body intentionally complete.*"
+    text: "Cast today's vote for Move your body intentionally.*"
     optional: true
 - takeScreenshot: 04-today-actions-done
 # Completing the last scheduled action triggers the day-complete +
@@ -70,33 +70,32 @@ appId: com.resolutioncompanion.app
     text: "Not now.*"
     optional: true
 
-# --- Journey: fresh-plan identity and support surface ---
+# --- Journey: one story destination + calendar + milestones ---
 - tapOn: "Journey, tab.*"
 - extendedWaitUntil:
-    # A same-day Sunday starter plan has no scheduled history yet, so the
-    # consistency module is intentionally absent. This stable section still
-    # proves the Journey surface mounted and became interactive.
-    visible: "Stories & Support.*"
+    visible: "Your Story.*"
     timeout: 10000
+- assertVisible: "Calendar"
 - takeScreenshot: 05-journey-top
-
-# --- Coach lobby: momentum, weekly review, micro-note drip ---
-- tapOn: "Coach, tab.*"
 - scrollUntilVisible:
     element:
-      text: ".*3-minute weekly review.*"
+      text: "Milestones"
     direction: DOWN
     timeout: 30000
     centerElement: true
     visibilityPercentage: 40
+- assertVisible: "Milestones"
+- takeScreenshot: 06-journey-milestones
+
+# --- Coach lobby: one conversation entry + two compact suggestions ---
+- tapOn: "Coach, tab.*"
+- extendedWaitUntil:
+    visible: "What do you need help with?"
+    timeout: 10000
+- assertVisible: "Start a conversation.*"
+- assertVisible: "Review my week.*"
+- assertVisible: "Adjust my plan.*"
 - takeScreenshot: 08-coach-lobby
-- scrollUntilVisible:
-    element:
-      text: "60-second read.*"
-    direction: DOWN
-    timeout: 30000
-- tapOn: "60-second read.*"
-- takeScreenshot: 09-coach-micro-note
 
 # --- Paywall (via stable Profile entry on every fresh plan) ---
 - tapOn: "Today, tab.*"
@@ -125,5 +124,5 @@ appId: com.resolutioncompanion.app
 # Run with: JAVA_HOME=/opt/homebrew/opt/openjdk@17 PATH="$JAVA_HOME/bin:$PATH:$HOME/.maestro/bin" \
 #   DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer maestro test qa/maestro-regression.yaml
 # (build + install first: npm run build:local:sim → tar -xzf → xcrun simctl install)
-# Full pass verified 2026-07-17 on iPhone 16 Pro / iOS 18.0 against the
-# ground-up-sprint build (widget extension embedded, HealthKit linked).
+# Full pass verified 2026-07-29 on iPhone 17 Pro / iOS 26.5 against the
+# core-loop simplification build.

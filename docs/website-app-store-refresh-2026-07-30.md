@@ -80,8 +80,18 @@ version is locked, use the smallest permitted metadata refresh:
 ## Current status
 
 - Fresh simulator captures: complete.
-- Website copy and image updates: complete locally.
-- Local website validation: complete.
-- Website production deployment: pending.
-- App Store Connect screenshot update: pending inspection of Apple’s permitted
-  workflow.
+- Website copy and image updates: committed and pushed to GitHub `main`.
+- Website validation and GitHub CI: complete and passing.
+- Website production deployment: queued at Railway during its July 30 platform
+  incident affecting builds and deployments; verify the live cutover when the
+  incident clears.
+- App Store Connect: Version 1.3.1 created because live Version 1.3 is locked.
+- App Store screenshots: six current 6.9-inch images uploaded in the intended
+  order.
+- App Store metadata: current description, promotional text, keywords, What’s
+  New copy, and review notes saved.
+- iOS build: Version 1.3.1 build 75 compiled locally and uploaded successfully;
+  Apple processing is pending.
+- Remaining App Store steps: select build 75 after processing, add Version
+  1.3.1 for review, answer any final export-compliance prompt, and submit with
+  automatic release enabled.

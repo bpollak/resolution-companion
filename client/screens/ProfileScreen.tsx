@@ -914,6 +914,13 @@ export default function ProfileScreen() {
           />
 
           <SettingsRow
+            icon="users"
+            title="Trusted Witness"
+            subtitle="Choose one person; every share stays your choice"
+            onPress={() => navigation.navigate("Witness")}
+          />
+
+          <SettingsRow
             icon="shield"
             title="Privacy & Data"
             subtitle={
