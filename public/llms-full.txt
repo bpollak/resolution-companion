@@ -1,6 +1,6 @@
 # Resolution Companion: Full Product Brief
 
-Last updated: 2026-07-20
+Last updated: 2026-07-30
 
 ## Official identity
 
@@ -15,7 +15,7 @@ Resolution Companion AI, usually called Resolution Companion, is an identity-bas
 
 ## What the app does
 
-Resolution Companion helps users build sustainable habits by focusing on identity rather than a single outcome or an unbroken streak. A user begins with a short AI-guided conversation about who they want to become. The app turns that direction into a structured plan with milestones and small daily actions. The user then tracks those actions, reviews consistency in a Journey calendar, and uses an AI coach for reflection and practical adjustments.
+Resolution Companion helps users build sustainable habits by focusing on identity rather than a single outcome or an unbroken streak. A user begins with a short AI-guided conversation about who they want to become. The app turns that direction into a structured plan with milestones and small daily actions. The user then follows one focused daily loop, preserves the evidence in Your Story, and uses an AI coach for reflection and practical adjustments.
 
 The central idea is: become who you are becoming, rather than merely chasing a number. Each completed action is evidence for the identity a user is developing. A missed day does not erase earlier progress.
 
@@ -39,29 +39,29 @@ A roughly two-minute version of an action for a low-energy or busy day. It prese
 
 ### Consistency
 
-Progress is shown through a calendar and consistency score rather than an all-or-nothing streak. The design emphasizes progress over perfection.
+Progress is preserved as evidence rather than reduced to an all-or-nothing streak. Today shows a simple completion ring for the current day. Journey keeps the calendar, notes, milestones, comebacks, and monthly chapters together in Your Story.
 
 ## Main app experience
 
 ### Today
 
-The daily action list. Users complete actions, use a Kickstart version when needed, and see their progress for the day.
+The focused daily loop. Users see the identity they are building, one completion ring, and the actions scheduled for today. A single completion moment appears when the day is done.
 
 ### Journey
 
-The progress view. It includes a month-at-a-glance consistency calendar, milestones, and progress toward the active persona.
+The personal evidence view. Your Story brings notes, milestones, comebacks, and monthly chapters together while keeping the calendar and milestone plan nearby.
 
 ### Coach
 
-A persona-aware AI coaching conversation. The coach uses the active persona's name and description as context so guidance stays connected to who the user is trying to become. Coaching can help users reflect, notice patterns, recover from lapses, and adjust actions.
+A persona-aware AI coaching destination with one open conversation plus quick paths to review the week or adjust the plan. Plan Tune-Up previews any proposed schedule, anchor, or Kickstart change before the user confirms it.
 
 ## How it works
 
 1. Define who you are becoming in a short AI-guided conversation.
 2. Review the milestones and daily actions created for that persona.
 3. Complete small actions on their scheduled days, using a 120-Second Kickstart when needed.
-4. Review consistency and milestone progress in Journey.
-5. Reflect with the AI coach and adjust the plan as life changes.
+4. Review notes, calendar evidence, milestones, comebacks, and monthly chapters in Your Story.
+5. Talk with Coach, review the week, or preview a small plan adjustment as life changes.
 
 ## Release notes
 
@@ -112,7 +112,7 @@ It includes daily habit tracking, but its organizing principle is a Target Perso
 
 ### What happens after a missed day?
 
-Earlier progress remains visible. The calendar and consistency model are intended to help the user resume without treating a single lapse as failure.
+Earlier progress remains visible in Your Story. The calendar, notes, comebacks, milestones, and monthly chapters are intended to help the user resume without treating a single lapse as failure.
 
 ### Can a user edit the generated plan?
 
