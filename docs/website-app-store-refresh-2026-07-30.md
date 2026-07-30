@@ -97,6 +97,10 @@ version is locked, use the smallest permitted metadata refresh:
   around their vertical axes, pivoted from their inner edges, so they face the
   center without any sideways roll. The center remains upright and its pale
   border artifact stays removed.
+- Website phone chassis: commit `0cc6b1d` is live. All three hero phones now
+  use a restrained graphite bezel with edge highlights, inset shading, and a
+  small offset body shadow so they read as physical devices without bringing
+  back the earlier white or double-frame artifacts.
 - Website gallery correction: commit `315a1c5` is live. A shared image frame
   now crops the simulator gutter and follows the rounded app silhouette for all
   four feature cards. Desktop and 390-pixel mobile checks show no pale corner
