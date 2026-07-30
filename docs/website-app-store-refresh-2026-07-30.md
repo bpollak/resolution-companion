@@ -94,6 +94,10 @@ version is locked, use the smallest permitted metadata refresh:
   simulator captures as the device silhouettes, without duplicate padded
   frames or perspective tilt; the narrow simulator gutter is cropped and all
   three above-the-fold images load eagerly.
+- Website gallery correction: commit `315a1c5` is live. A shared image frame
+  now crops the simulator gutter and follows the rounded app silhouette for all
+  four feature cards. Desktop and 390-pixel mobile checks show no pale corner
+  crescents, distorted screenshots, broken images, or horizontal overflow.
 - App Store Connect: Version 1.3.1 created because live Version 1.3 is locked.
 - App Store screenshots: six current 6.9-inch images uploaded in the intended
   order.
