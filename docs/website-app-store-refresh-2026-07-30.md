@@ -17,10 +17,10 @@ Version 1.3 interface that is already live:
 
 Website images:
 
-- `public/assets/website/screen-today-v2.png`
-- `public/assets/website/screen-journey-v2.png`
+- `public/assets/website/screen-today-v3.png`
+- `public/assets/website/screen-journey-v3.png`
 - `public/assets/website/screen-milestones-v3.png`
-- `public/assets/website/screen-coach-v2.png`
+- `public/assets/website/screen-coach-v3.png`
 - `public/assets/website/screen-day-complete-v3.png`
 - `public/assets/website/screen-welcome-v2.png`
 
