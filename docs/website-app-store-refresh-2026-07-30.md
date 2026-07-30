@@ -53,7 +53,7 @@ Before deployment:
 After deployment:
 
 1. Confirm `/api/health` returns healthy.
-2. Confirm the home page says Version 1.3 and “A simpler daily loop.”
+2. Confirm the home page says Version 1.3 and “One Clear Daily Loop.”
 3. Confirm the refreshed Today, Journey, Milestones, Coach, and Day complete
    images load.
 4. Check the home page at desktop and mobile widths.
@@ -82,9 +82,14 @@ version is locked, use the smallest permitted metadata refresh:
 - Fresh simulator captures: complete.
 - Website copy and image updates: committed and pushed to GitHub `main`.
 - Website validation and GitHub CI: complete and passing.
-- Website production deployment: queued at Railway during its July 30 platform
-  incident affecting builds and deployments; verify the live cutover when the
-  incident clears.
+- Website production deployment: live at `https://resolutioncompanion.com/`.
+  Railway missed the pushes made during its July 30 build incident, so commit
+  `7fa5c0c` safely retriggered the current `main` source after Railway marked
+  the incident resolved.
+- Website production verification: `/api/health` is healthy, `/releases.json`
+  and `/release-notes` show Version 1.3 as released, all five versioned
+  screenshot assets return HTTP 200, and desktop plus 390 by 844 mobile checks
+  found no horizontal overflow or broken images.
 - App Store Connect: Version 1.3.1 created because live Version 1.3 is locked.
 - App Store screenshots: six current 6.9-inch images uploaded in the intended
   order.
@@ -95,4 +100,4 @@ version is locked, use the smallest permitted metadata refresh:
 - App Review: Version 1.3.1 build 75 was submitted July 30 and is Waiting for
   Review. Automatic release and immediate rollout are enabled.
 - Remaining App Store step: wait for Apple review, then verify the public
-  product page after release.
+  product page and screenshot order after release.
