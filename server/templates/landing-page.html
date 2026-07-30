@@ -1341,14 +1341,22 @@
         overflow: hidden;
       }
 
+      .screenshot-image-frame {
+        width: 100%;
+        /* Crop the simulator desktop gutter and follow the app silhouette. */
+        aspect-ratio: 610 / 1391;
+        overflow: hidden;
+        border-radius: 52px;
+        background: #000;
+        margin-bottom: 18px;
+      }
+
       .screenshot-card img {
         display: block;
         width: 100%;
-        height: auto;
-        aspect-ratio: 640 / 1391;
+        height: 100%;
         object-fit: cover;
-        border-radius: 18px;
-        margin-bottom: 18px;
+        object-position: center;
       }
 
       .screenshot-card h4 {
@@ -1368,6 +1376,10 @@
         .screenshots-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
+
+        .screenshot-image-frame {
+          border-radius: 72px;
+        }
       }
 
       @media (max-width: 560px) {
@@ -1384,8 +1396,8 @@
           padding: 8px 8px 16px;
         }
 
-        .screenshot-card img {
-          border-radius: 14px;
+        .screenshot-image-frame {
+          border-radius: 40px;
           margin-bottom: 14px;
         }
 
@@ -2755,56 +2767,64 @@
         </div>
         <div class="screenshots-grid">
           <figure class="screenshot-card">
-            <img
-              src="/assets/website/screen-today-v3.png"
-              alt="Today screen showing the active identity, daily completion ring, and two actions"
-              width="640"
-              height="1391"
-              loading="lazy"
-              decoding="async"
-            />
+            <div class="screenshot-image-frame">
+              <img
+                src="/assets/website/screen-today-v3.png"
+                alt="Today screen showing the active identity, daily completion ring, and two actions"
+                width="640"
+                height="1391"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
             <figcaption>
               <h4>Today, without the noise</h4>
               <p>Your identity, today’s progress, and the next actions.</p>
             </figcaption>
           </figure>
           <figure class="screenshot-card">
-            <img
-              src="/assets/website/screen-day-complete-v3.png"
-              alt="Today screen showing two completed actions and a Day complete message"
-              width="640"
-              height="1391"
-              loading="lazy"
-              decoding="async"
-            />
+            <div class="screenshot-image-frame">
+              <img
+                src="/assets/website/screen-day-complete-v3.png"
+                alt="Today screen showing two completed actions and a Day complete message"
+                width="640"
+                height="1391"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
             <figcaption>
               <h4>One completion moment</h4>
               <p>A calm finish once every scheduled action is done.</p>
             </figcaption>
           </figure>
           <figure class="screenshot-card">
-            <img
-              src="/assets/website/screen-milestones-v3.png"
-              alt="Journey screen showing calendar details, daily context, and a milestone"
-              width="640"
-              height="1391"
-              loading="lazy"
-              decoding="async"
-            />
+            <div class="screenshot-image-frame">
+              <img
+                src="/assets/website/screen-milestones-v3.png"
+                alt="Journey screen showing calendar details, daily context, and a milestone"
+                width="640"
+                height="1391"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
             <figcaption>
               <h4>Your Story in one place</h4>
               <p>Notes, milestones, comebacks, and monthly chapters.</p>
             </figcaption>
           </figure>
           <figure class="screenshot-card">
-            <img
-              src="/assets/website/screen-coach-v3.png"
-              alt="Coach screen showing Start a conversation, Review my week, and Adjust my plan"
-              width="640"
-              height="1391"
-              loading="lazy"
-              decoding="async"
-            />
+            <div class="screenshot-image-frame">
+              <img
+                src="/assets/website/screen-coach-v3.png"
+                alt="Coach screen showing Start a conversation, Review my week, and Adjust my plan"
+                width="640"
+                height="1391"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
             <figcaption>
               <h4>Ask for what you need</h4>
               <p>Talk openly, review the week, or preview a plan change.</p>
