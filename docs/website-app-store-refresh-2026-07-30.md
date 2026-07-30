@@ -93,10 +93,12 @@ version is locked, use the smallest permitted metadata refresh:
 - Website hero correction: commit `20be5de` is live. The hero now uses the
   simulator captures as the device silhouettes, without duplicate padded
   frames; the narrow simulator gutter is cropped and all three above-the-fold
-  images load eagerly. Commit `aea70ea` turns the two side phones 22 degrees
-  around their vertical axes, pivoted from their inner edges, so they face the
-  center without any sideways roll. The center remains upright and its pale
-  border artifact stays removed.
+  images load eagerly. Commit `aea70ea` introduced inner-edge pivots for the
+  two side phones so they face the center without any sideways roll. The
+  follow-up hero perspective adjustment turns the complete screen-and-chassis
+  assemblies 30 degrees around their vertical axes, using a closer perspective
+  so the screens visibly remain flush with the device angle. The center remains
+  upright and its pale border artifact stays removed.
 - Website phone chassis: commit `0cc6b1d` is live. All three hero phones now
   use a restrained graphite bezel with edge highlights, inset shading, and a
   small offset body shadow so they read as physical devices without bringing
