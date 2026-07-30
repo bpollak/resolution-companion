@@ -90,6 +90,10 @@ version is locked, use the smallest permitted metadata refresh:
   and `/release-notes` show Version 1.3 as released, all five versioned
   screenshot assets return HTTP 200, and desktop plus 390 by 844 mobile checks
   found no horizontal overflow or broken images.
+- Website hero correction: commit `20be5de` is live. The hero now uses the
+  simulator captures as the device silhouettes, without duplicate padded
+  frames or perspective tilt; the narrow simulator gutter is cropped and all
+  three above-the-fold images load eagerly.
 - App Store Connect: Version 1.3.1 created because live Version 1.3 is locked.
 - App Store screenshots: six current 6.9-inch images uploaded in the intended
   order.
