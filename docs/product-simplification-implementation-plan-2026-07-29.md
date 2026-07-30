@@ -1,11 +1,13 @@
 # Core-Loop Simplification Implementation Plan
 
-**Status:** Version 1.3, build 74 is live. The simplified source and website
-refresh are committed and pushed. Version 1.3.1 build 75 is Waiting for Review
-with the refreshed App Store screenshots and metadata. The website deployment
-is queued during Railway's July 30 build and deployment incident.
+**Status:** Versions 1.3 and 1.3.1 are live. Version 1.3.2 build 76 was submitted
+July 30, 2026 at 4:10 PM PT and is `Waiting for Review` under App Store
+submission ID `039cf2a9-0097-479c-9b5b-2f40e8299187`. This release updates the
+App Store search positioning for habit tracker, goal planner, routine tracker,
+and AI coach terms without changing the approved in-app experience or pricing.
 
-**Branch:** `agent/simplify-core-loop`
+**Release branch:** `agent/app-store-aso-1.3.2` (based on
+`agent/simplify-core-loop`)
 **Product decision record:**
 `docs/product-simplification-audit-2026-07-29.md`
 
