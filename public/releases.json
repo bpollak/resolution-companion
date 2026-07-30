@@ -1,5 +1,42 @@
 [
   {
+    "version": "1.3",
+    "status": "released",
+    "title": "A simpler daily loop",
+    "summary": "Version 1.3 brings Resolution Companion back to one clear loop: act today, see the evidence, and ask Coach for help when you need it.",
+    "appStoreNotes": [
+      "Today is focused on your identity, today’s progress, and the actions directly in front of you.",
+      "Journey now brings notes, milestones, comebacks, and monthly chapters together in one Your Story destination.",
+      "Coach opens with one clear conversation choice plus quick ways to review your week or adjust your plan.",
+      "Trusted Witness settings now live in Profile, with every share still initiated by you.",
+      "Includes performance, accessibility, and reliability improvements."
+    ],
+    "highlights": [
+      {
+        "title": "Today, without the noise",
+        "description": "The Today tab now centers the identity you are building, one daily completion ring, your scheduled actions, and a single completion moment.",
+        "availability": "The focused daily loop is available to everyone."
+      },
+      {
+        "title": "One place for your story",
+        "description": "Journey combines notes, milestones, comebacks, and monthly chapters in Your Story while keeping the calendar and milestone plan close by.",
+        "availability": "Your Story is built from data stored on your device."
+      },
+      {
+        "title": "Ask Coach for what you need",
+        "description": "Start one open conversation, review your week, or preview a small plan adjustment from a simpler Coach home.",
+        "availability": "Weekly reviews remain free. The existing monthly conversation allowance and Premium limits are unchanged."
+      },
+      {
+        "title": "Sharing stays a choice",
+        "description": "Trusted Witness now lives with your settings in Profile instead of competing with your progress story.",
+        "availability": "Nothing is shared automatically; every message still uses the system share sheet you initiate."
+      }
+    ],
+    "submittedAt": "2026-07-29",
+    "releasedAt": "2026-07-30"
+  },
+  {
     "version": "1.2",
     "status": "draft",
     "title": "Your evidence, your way",

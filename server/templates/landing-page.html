@@ -122,9 +122,11 @@
             "screenshot": [
               "BASE_URL_PLACEHOLDER/assets/website/screen-today-v2.png",
               "BASE_URL_PLACEHOLDER/assets/website/screen-journey-v2.png",
-              "BASE_URL_PLACEHOLDER/assets/website/screen-coach-v2.png"
+              "BASE_URL_PLACEHOLDER/assets/website/screen-milestones-v3.png",
+              "BASE_URL_PLACEHOLDER/assets/website/screen-coach-v2.png",
+              "BASE_URL_PLACEHOLDER/assets/website/screen-day-complete-v3.png"
             ],
-            "description": "An identity-based personal-growth app that turns who you want to become into milestones, small daily actions, consistency tracking, and persona-aware AI coaching.",
+            "description": "An identity-based personal-growth app with one clear daily loop: take small actions today, see the evidence build in Your Story, and ask an AI coach for help when you need it.",
             "applicationCategory": "LifestyleApplication",
             "applicationSubCategory": "Habit tracking and personal development",
             "operatingSystem": "iOS and iPadOS",
@@ -144,12 +146,12 @@
               "worstRating": "1"
             },
             "featureList": [
-              "AI-guided Target Persona definition",
-              "Daily Elemental Action tracking",
-              "120-Second Kickstart versions",
-              "Journey calendar and consistency score",
-              "Core Benchmarks and milestones",
-              "Persona-aware AI coaching"
+              "AI-guided identity and plan creation",
+              "Focused daily action tracking",
+              "Two-minute versions for difficult days",
+              "Your Story notes, calendar, and monthly chapters",
+              "Milestones and comeback support",
+              "Open AI coaching, weekly review, and plan adjustment"
             ],
             "publisher": {
               "@id": "BASE_URL_PLACEHOLDER/#organization"
@@ -172,7 +174,7 @@
                 "name": "How is this different from a habit tracker?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Traditional habit trackers count streaks — and one missed day can wipe out your motivation. Resolution Companion is identity-based: you define who you're becoming, then log small daily actions that reinforce that identity. Progress is measured by monthly consistency, not unbroken chains, so one missed day never erases your growth."
+                  "text": "Traditional habit trackers can turn one missed day into failure. Resolution Companion is identity-based: you define who you're becoming, then cast small daily votes for that identity. Today keeps the next action clear, while Your Story preserves the evidence across notes, calendar days, milestones, comebacks, and monthly chapters."
                 }
               },
               {
@@ -1315,69 +1317,86 @@
 
       /* App Screenshots Section */
       .screenshots {
-        padding: 60px 0;
-        overflow: hidden;
+        padding: 80px 0;
+        background: linear-gradient(
+          180deg,
+          transparent,
+          rgba(139, 92, 246, 0.06),
+          transparent
+        );
       }
 
-      .screenshots-scroll {
-        display: flex;
+      .screenshots-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 24px;
-        padding: 20px 0;
-        animation: scrollScreenshots 30s linear infinite;
-      }
-
-      @keyframes scrollScreenshots {
-        0% {
-          transform: translateX(0);
-        }
-        100% {
-          transform: translateX(-50%);
-        }
+        margin-top: 40px;
       }
 
       .screenshot-card {
-        flex-shrink: 0;
-        width: 280px;
+        margin: 0;
         background: var(--bg-card);
         border-radius: 24px;
-        padding: 20px;
+        padding: 14px 14px 20px;
         border: 1px solid var(--border);
-      }
-
-      .screenshot-phone {
-        width: 100%;
-        height: 400px;
-        background: linear-gradient(180deg, var(--bg-root), var(--bg-elevated));
-        border-radius: 20px;
-        margin-bottom: 16px;
-        display: flex;
-        flex-direction: column;
-        padding: 30px 16px 16px;
-        position: relative;
         overflow: hidden;
       }
 
-      .screenshot-phone::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 80px;
-        height: 20px;
-        background: #000;
-        border-radius: 0 0 12px 12px;
+      .screenshot-card img {
+        display: block;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 640 / 1391;
+        object-fit: cover;
+        border-radius: 18px;
+        margin-bottom: 18px;
       }
 
       .screenshot-card h4 {
         font-size: 16px;
         font-weight: 600;
-        margin-bottom: 4px;
+        margin: 0 6px 6px;
       }
 
       .screenshot-card p {
         font-size: 13px;
         color: var(--text-secondary);
+        line-height: 1.5;
+        margin: 0 6px;
+      }
+
+      @media (max-width: 900px) {
+        .screenshots-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 560px) {
+        .screenshots {
+          padding: 60px 0;
+        }
+
+        .screenshots-grid {
+          gap: 14px;
+        }
+
+        .screenshot-card {
+          border-radius: 18px;
+          padding: 8px 8px 16px;
+        }
+
+        .screenshot-card img {
+          border-radius: 14px;
+          margin-bottom: 14px;
+        }
+
+        .screenshot-card h4 {
+          font-size: 14px;
+        }
+
+        .screenshot-card p {
+          font-size: 12px;
+        }
       }
 
       /* Support Section */
@@ -2647,12 +2666,12 @@
         </div>
 
         <div class="hero-phones">
-          <!-- Left Phone - Calendar -->
+          <!-- Left Phone - Journey -->
           <div class="phone-mockup side">
             <div class="phone-screen-image">
               <img
                 src="/assets/website/screen-journey-v2.png"
-                alt="Journey screen with monthly consistency ring and calendar"
+                alt="Journey screen with Your Story and calendar"
                 width="640"
                 height="1391"
                 loading="lazy"
@@ -2661,12 +2680,12 @@
             </div>
           </div>
 
-          <!-- Center Phone - Welcome (Featured) -->
+          <!-- Center Phone - Today (Featured) -->
           <div class="phone-mockup featured">
             <div class="phone-screen-image">
               <img
-                src="/assets/website/screen-welcome-v2.png"
-                alt="Welcome screen - Begin Your Evolution"
+                src="/assets/website/screen-today-v2.png"
+                alt="Today screen with identity, daily progress, and two actions"
                 width="640"
                 height="1391"
                 fetchpriority="high"
@@ -2679,7 +2698,7 @@
             <div class="phone-screen-image">
               <img
                 src="/assets/website/screen-coach-v2.png"
-                alt="AI Coach screen with monthly check-in"
+                alt="Coach screen with one conversation and quick review options"
                 width="640"
                 height="1391"
                 loading="lazy"
@@ -2714,6 +2733,84 @@
               <span aria-hidden="true">→</span>
             </a>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Current App Experience -->
+    <section
+      class="screenshots"
+      id="app-experience"
+      aria-labelledby="app-experience-title"
+    >
+      <div class="container">
+        <div class="section-header">
+          <div class="section-label">Version 1.3</div>
+          <h2 class="section-title" id="app-experience-title">
+            One Clear Daily Loop
+          </h2>
+          <p class="section-subtitle">
+            Act today, see the evidence build, and ask Coach for help when you
+            need it. Nothing else competes for your attention.
+          </p>
+        </div>
+        <div class="screenshots-grid">
+          <figure class="screenshot-card">
+            <img
+              src="/assets/website/screen-today-v2.png"
+              alt="Today screen showing the active identity, daily completion ring, and two actions"
+              width="640"
+              height="1391"
+              loading="lazy"
+              decoding="async"
+            />
+            <figcaption>
+              <h4>Today, without the noise</h4>
+              <p>Your identity, today’s progress, and the next actions.</p>
+            </figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <img
+              src="/assets/website/screen-day-complete-v3.png"
+              alt="Today screen showing two completed actions and a Day complete message"
+              width="640"
+              height="1391"
+              loading="lazy"
+              decoding="async"
+            />
+            <figcaption>
+              <h4>One completion moment</h4>
+              <p>A calm finish once every scheduled action is done.</p>
+            </figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <img
+              src="/assets/website/screen-milestones-v3.png"
+              alt="Journey screen showing calendar details, daily context, and a milestone"
+              width="640"
+              height="1391"
+              loading="lazy"
+              decoding="async"
+            />
+            <figcaption>
+              <h4>Your Story in one place</h4>
+              <p>Notes, milestones, comebacks, and monthly chapters.</p>
+            </figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <img
+              src="/assets/website/screen-coach-v2.png"
+              alt="Coach screen showing Start a conversation, Review my week, and Adjust my plan"
+              width="640"
+              height="1391"
+              loading="lazy"
+              decoding="async"
+            />
+            <figcaption>
+              <h4>Ask for what you need</h4>
+              <p>Talk openly, review the week, or preview a plan change.</p>
+            </figcaption>
+          </figure>
         </div>
       </div>
     </section>
@@ -3062,8 +3159,9 @@
               destroying motivation.
             </p>
             <p class="feature-benefit">
-              Solution: A month-at-a-glance calendar shows overall progress,
-              not just streaks. One missed day doesn't erase your growth.
+              Solution: Your Story brings the calendar, notes, milestones,
+              comebacks, and monthly chapters together. One missed day
+              doesn't erase your growth.
             </p>
           </div>
 
@@ -3099,9 +3197,9 @@
               provide fresh perspective.
             </p>
             <p class="feature-benefit">
-              Solution: Streaming weekly reviews and deeper monthly check-ins
-              analyze progress, spot patterns you miss, and adapt your
-              strategy.
+              Solution: Start one open conversation, review your week, or
+              preview a small plan adjustment. Nothing changes until you
+              confirm it.
             </p>
           </div>
 
@@ -3132,9 +3230,8 @@
               improving.
             </p>
             <p class="feature-benefit">
-              Solution: Watch your monthly consistency climb as you log each
-              day. See exactly how daily actions compound into real
-              transformation.
+              Solution: A single daily ring shows what is left today, while
+              the Journey calendar preserves the evidence over time.
             </p>
           </div>
 
@@ -3162,8 +3259,8 @@
               Problem: Big goals feel overwhelming with no clear path forward.
             </p>
             <p class="feature-benefit">
-              Solution: Break who you're becoming into 3-5 concrete
-              milestones. Each completed day fills a milestone — and
+              Solution: Break who you're becoming into concrete milestones.
+              Each completed day fills a milestone — and
               milestones only fill up, never drain. Add an optional target
               date for a gentle countdown, never a deadline.
             </p>
@@ -3210,10 +3307,10 @@
       <div class="container">
         <div class="section-header">
           <div class="section-label">How It Works</div>
-          <h2 class="section-title">Your AI Coach, Always There</h2>
+          <h2 class="section-title">A Coach When You Need One</h2>
           <p class="section-subtitle">
-            Get personalized coaching to review your progress and receive
-            guidance — every check-in is a natural conversation.
+            Start an open conversation, review the week, or preview a small
+            plan change. Coaching stays connected to who you're becoming.
           </p>
         </div>
 
@@ -3257,12 +3354,11 @@
                 </svg>
               </div>
               <div>
-                <h4>Weekly &amp; Monthly Check-ins</h4>
+                <h4>Review or Adjust</h4>
                 <p>
-                  A free 3-minute weekly review — one win, one friction, one
-                  small bend for next week — plus deeper monthly sessions
-                  where your coach analyzes patterns and adjusts your
-                  strategy.
+                  Review your week in a few focused prompts, or ask for one
+                  small schedule, anchor, or kickstart adjustment. Every
+                  proposed change is previewed before you confirm it.
                 </p>
               </div>
             </div>
@@ -3328,24 +3424,23 @@
               </div>
               <div class="coach-info">
                 <h4>Your AI Coach</h4>
-                <span>Monthly Reflection</span>
+                <span>Review my week</span>
               </div>
             </div>
             <div class="coaching-message">
               <p>
-                You've been at this for three weeks, and your
-                <strong>consistency is at 87%</strong> — every completed
-                action a vote for who you're becoming.
+                You kept voting for your identity this week, even on the days
+                when the full version of an action did not fit.
               </p>
               <p>
                 I noticed you're strongest on weekday mornings. Consider
-                moving "Read for 20 minutes" to mornings too — it fits the
-                routine you've already built.
+                moving "Read for 20 minutes" to mornings too. I can preview
+                that change without touching your current plan.
               </p>
               <p>
-                Your <strong>"Write one page" milestone</strong> is 14 of 21
-                days full. If evenings keep getting crowded, we can shrink the
-                action, not the ambition.
+                Your <strong>"Write one page" milestone</strong> is still
+                moving forward. If evenings keep getting crowded, we can
+                shrink the action, not the ambition.
               </p>
             </div>
             <div class="ai-disclaimer">
@@ -3410,8 +3505,8 @@
             </div>
             <h3>Track Daily Actions</h3>
             <p>
-              Complete 3-5 small daily actions that reinforce that identity.
-              Use 120-second versions when motivation is low.
+              Complete the small actions scheduled for today. Use a two-minute
+              version when motivation or time is low.
             </p>
           </div>
 
@@ -3433,8 +3528,8 @@
             </div>
             <h3>Evolve with Coaching</h3>
             <p>
-              Streaming weekly reviews and deeper monthly check-ins analyze
-              progress, celebrate wins, and adapt your strategy.
+              Start a conversation, review the week, or preview a small plan
+              adjustment. You decide whether any change is applied.
             </p>
           </div>
         </div>
@@ -3599,8 +3694,9 @@
               Traditional habit trackers count streaks &mdash; and one missed
               day can wipe out your motivation. Resolution Companion is
               identity-based: you define who you're becoming, then log small
-              daily actions that reinforce that identity. Progress is measured
-              by monthly consistency, not unbroken chains, so one missed day
+              daily actions that reinforce that identity. Today keeps the next
+              action clear, while Your Story preserves notes, calendar days,
+              milestones, comebacks, and monthly chapters. One missed day
               never erases your growth.
             </p>
           </details>
