@@ -1,6 +1,6 @@
 # Product Simplification Audit
 
-**Date:** July 29, 2026  
+**Date:** July 29, 2026
 **Decision:** The next product pass is subtractive. Existing data and
 capabilities remain intact, but the primary experience returns to one loop:
 

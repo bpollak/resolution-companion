@@ -1,9 +1,12 @@
 # Core-Loop Simplification Implementation Plan
 
-**Status:** Submitted to App Review; version 1.3, build 74 is Waiting for
-Review. Source remains uncommitted and unpushed; website release notes are not
-deployed.  
-**Branch:** `agent/simplify-core-loop`  
+**Status:** Version 1.3, build 74 is live. The simplified source and website
+refresh are committed and pushed. Version 1.3.1 build 75 has been uploaded for
+the App Store screenshot and metadata refresh; Apple processing is pending.
+The website deployment is queued during Railway's July 30 build and deployment
+incident.
+
+**Branch:** `agent/simplify-core-loop`
 **Product decision record:**
 `docs/product-simplification-audit-2026-07-29.md`
 
