@@ -69,6 +69,10 @@ struct ResolutionActionQuery: EntityQuery {
     func suggestedEntities() async throws -> [ResolutionActionEntity] {
         availableActions()
     }
+
+    func defaultResult() async -> ResolutionActionEntity? {
+        availableActions().first
+    }
 }
 
 struct LogNamedActionIntent: AppIntent {

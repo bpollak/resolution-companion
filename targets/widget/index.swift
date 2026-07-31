@@ -1,6 +1,7 @@
 import WidgetKit
 import SwiftUI
 import AppIntents
+import os
 
 // Shared contract with client/lib/widget.ts: the app writes `widgetData` as a
 // JSON string into the app-group defaults; the widget's CastVoteIntent writes
@@ -9,6 +10,10 @@ import AppIntents
 let kAppGroup = "group.com.resolutioncompanion.app"
 let kWidgetDataKey = "widgetData"
 let kPendingVotesKey = "pendingVotes"
+let widgetLog = Logger(
+    subsystem: "com.resolutioncompanion.app.widget",
+    category: "Timeline"
+)
 
 // Brand colors (Colors.dark in client/constants/theme.ts)
 let brandAccent = Color(red: 0.0, green: 0.851, blue: 1.0)
@@ -58,11 +63,24 @@ func freshCopy(personaName: String, remaining: Int, date: Date = Date()) -> Stri
 }
 
 func loadWidgetData() -> WidgetData? {
+    guard let defaults = UserDefaults(suiteName: kAppGroup) else {
+        widgetLog.error("App Group defaults are unavailable")
+        return nil
+    }
     guard
-        let raw = UserDefaults(suiteName: kAppGroup)?.string(forKey: kWidgetDataKey),
+        let raw = defaults.string(forKey: kWidgetDataKey),
         let data = raw.data(using: .utf8)
-    else { return nil }
-    var decoded = try? JSONDecoder().decode(WidgetData.self, from: data)
+    else {
+        widgetLog.notice("No widget snapshot is available yet")
+        return nil
+    }
+    var decoded: WidgetData?
+    do {
+        decoded = try JSONDecoder().decode(WidgetData.self, from: data)
+    } catch {
+        widgetLog.error("Widget snapshot decoding failed: \(error.localizedDescription, privacy: .public)")
+        return nil
+    }
     // Data written on an earlier day describes yesterday: show a fresh,
     // guilt-free slate rather than yesterday's counts. The identity framing
     // ("any day can be day one") is the brand — never an accusation.
@@ -96,7 +114,9 @@ func saveWidgetData(_ data: WidgetData) {
         let encoded = try? JSONEncoder().encode(data),
         let str = String(data: encoded, encoding: .utf8)
     else { return }
-    UserDefaults(suiteName: kAppGroup)?.set(str, forKey: kWidgetDataKey)
+    let defaults = UserDefaults(suiteName: kAppGroup)
+    defaults?.set(str, forKey: kWidgetDataKey)
+    defaults?.synchronize()
 }
 
 @discardableResult
@@ -152,9 +172,13 @@ struct CastVoteIntent: AppIntent {
     static var description = IntentDescription(
         "Log a daily action for Resolution Companion without opening the app."
     )
+    // This intent is fully configured by each widget button. Keeping it out of
+    // Siri and Shortcuts prevents the system from trying to resolve widget-only
+    // parameters while it builds the widget extension's metadata.
+    static var isDiscoverable = false
 
-    @Parameter(title: "Action") var actionId: String
-    @Parameter(title: "Kickstart") var isKickstart: Bool
+    @Parameter(title: "Action", default: "") var actionId: String
+    @Parameter(title: "Kickstart", default: false) var isKickstart: Bool
 
     init() {
         self.actionId = ""
@@ -212,11 +236,15 @@ struct VoteProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (VoteEntry) -> Void) {
-        completion(VoteEntry(date: Date(), data: loadWidgetData() ?? placeholder(in: context).data))
+        let data = loadWidgetData() ?? placeholder(in: context).data
+        widgetLog.notice("Providing widget snapshot; has data: \(data != nil)")
+        completion(VoteEntry(date: Date(), data: data))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<VoteEntry>) -> Void) {
-        let entry = VoteEntry(date: Date(), data: loadWidgetData())
+        let data = loadWidgetData()
+        widgetLog.notice("Providing widget timeline; has data: \(data != nil)")
+        let entry = VoteEntry(date: Date(), data: data)
         // Refresh at the next local midnight so a new day always gets a
         // fresh ring even if the app is never opened.
         let calendar = Calendar.current

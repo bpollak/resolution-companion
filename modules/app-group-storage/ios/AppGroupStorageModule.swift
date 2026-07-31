@@ -14,7 +14,12 @@ public class AppGroupStorageModule: Module {
     }
 
     Function("setItem") { (appGroup: String, key: String, value: String) in
-      UserDefaults(suiteName: appGroup)?.set(value, forKey: key)
+      let defaults = UserDefaults(suiteName: appGroup)
+      defaults?.set(value, forKey: key)
+      // WidgetKit runs out of process. Flush the shared snapshot before the
+      // JavaScript caller asks WidgetCenter to reload so it cannot observe the
+      // previous value during a rapid app-state update.
+      defaults?.synchronize()
     }
 
     Function("removeItem") { (appGroup: String, key: String) in

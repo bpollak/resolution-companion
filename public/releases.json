@@ -1,5 +1,23 @@
 [
   {
+    "version": "1.3.3",
+    "status": "draft",
+    "title": "Reliable Home Screen widgets",
+    "summary": "Version 1.3.3 fixes a WidgetKit configuration issue that could leave Resolution Companion widgets showing a gray placeholder instead of current progress.",
+    "appStoreNotes": [
+      "Fixed an issue that could leave Home Screen widgets stuck on a gray loading placeholder.",
+      "Widget actions now load more reliably after progress changes in the app.",
+      "Your progress remains stored on your device."
+    ],
+    "highlights": [
+      {
+        "title": "Widgets that are ready when you are",
+        "description": "Home Screen widgets now load current progress reliably and refresh after you update an action.",
+        "availability": "Available to everyone using Resolution Companion widgets."
+      }
+    ]
+  },
+  {
     "version": "1.3.2",
     "status": "submitted",
     "title": "Easier to find, same focused loop",
