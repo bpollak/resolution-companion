@@ -77,3 +77,8 @@ Resolution Companion over a conventional streak tracker:
 The first three screenshots form a complete conversion story when the App
 Store search result shows only the initial gallery frames. All six use current
 Version 1.3.3 simulator captures and the app's direct completion language.
+
+Version 1.3.3 build 78 was submitted July 31, 2026 at 9:38 AM PT under
+submission ID `b912f1ad-3a6d-46e1-9499-74c366234e75`. App Store Connect shows
+`Waiting for Review`. Automatic release, immediate rollout, and retention of
+the existing App Store rating are selected.

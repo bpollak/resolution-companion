@@ -43,6 +43,11 @@ intent while registering and rendering the extension.
   the final Version 1.3.3 simulator build and checked at 1320 by 2868 pixels.
 - The App Store subtitle, keywords, and promotional text retain the approved
   habit-tracker and goal-planner search positioning.
+- Version 1.3.3 build 78 was submitted to App Review on July 31, 2026 at
+  9:38 AM PT under submission ID
+  `b912f1ad-3a6d-46e1-9499-74c366234e75`. App Store Connect confirmed
+  `Waiting for Review`, automatic release, immediate rollout, and retention of
+  the existing rating.
 
 Visual Home Screen verification and a physical-device smoke test remain release
 gates until they can be completed on an unlocked device.

@@ -2,7 +2,7 @@
   {
     "version": "1.3.3",
     "build": 78,
-    "status": "draft",
+    "status": "submitted",
     "title": "Reliable Home Screen widgets",
     "summary": "Version 1.3.3 fixes a WidgetKit configuration issue that could leave Resolution Companion widgets showing a gray placeholder and simplifies completion language throughout the app.",
     "appStoreNotes": [
@@ -18,7 +18,8 @@
         "availability": "Available to everyone using Resolution Companion widgets."
       }
     ],
-    "uploadedAt": "2026-07-31"
+    "uploadedAt": "2026-07-31",
+    "submittedAt": "2026-07-31"
   },
   {
     "version": "1.3.2",
