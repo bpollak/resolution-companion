@@ -56,3 +56,24 @@ coaching disclosures.
 The promotional-text change can appear without a new binary. The subtitle,
 keyword field, and description affect App Store search and the public product
 page only after version 1.3.2 is approved and released.
+
+## Version 1.3.3 conversion refresh
+
+The widget hotfix keeps the same search metadata. The subtitle remains
+`Habit Tracker & Goal Planner` because it states the two highest-intent search
+categories without repeating words from the app name. The keyword field and
+promotional text also remain unchanged.
+
+The six 6.9-inch screenshots are rebuilt around the reasons to choose
+Resolution Companion over a conventional streak tracker:
+
+1. Build habits that survive real life.
+2. Keep going with a 2-minute version.
+3. One missed day never erases your progress.
+4. See the evidence that you're changing.
+5. Ask an AI coach what to adjust.
+6. Your progress stays on your device.
+
+The first three screenshots form a complete conversion story when the App
+Store search result shows only the initial gallery frames. All six use current
+Version 1.3.3 simulator captures and the app's direct completion language.

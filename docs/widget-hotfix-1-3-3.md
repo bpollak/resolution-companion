@@ -39,6 +39,10 @@ intent while registering and rendering the extension.
 - The signed production archive contains host and widget version 1.3.3, build
   78, with the same App Group entitlement, and was uploaded successfully to
   App Store Connect on July 31, 2026.
+- Six conversion-focused 6.9-inch App Store screenshots were generated from
+  the final Version 1.3.3 simulator build and checked at 1320 by 2868 pixels.
+- The App Store subtitle, keywords, and promotional text retain the approved
+  habit-tracker and goal-planner search positioning.
 
 Visual Home Screen verification and a physical-device smoke test remain release
 gates until they can be completed on an unlocked device.

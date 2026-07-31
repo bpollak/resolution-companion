@@ -27,13 +27,14 @@ Website images:
 App Store 6.9-inch images, all 1320 by 2868:
 
 - `appstore-screenshots/01-today.png`
-- `appstore-screenshots/02-journey.png`
-- `appstore-screenshots/03-milestones.png`
-- `appstore-screenshots/04-coach.png`
-- `appstore-screenshots/05-welcome.png`
-- `appstore-screenshots/06-day-complete.png`
+- `appstore-screenshots/02-two-minute.png`
+- `appstore-screenshots/03-journey.png`
+- `appstore-screenshots/04-evidence.png`
+- `appstore-screenshots/05-coach.png`
+- `appstore-screenshots/06-private.png`
 
-Do not upload the older `appstore-screenshots/06-chat.png`.
+The older numbered screenshots and `appstore-screenshots/06-chat.png` are
+retained as source history, not as part of the Version 1.3.3 upload set.
 
 ## Website release path
 
