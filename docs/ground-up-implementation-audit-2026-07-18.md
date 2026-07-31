@@ -45,15 +45,15 @@ not disturbed.
 
 | Requirement | Status | Implementation and evidence |
 | --- | --- | --- |
-| Cast Your Vote widgets | Complete | The app mirrors current and seven-day action state to App Group storage. Small, medium, and large Home Screen families plus a circular lock-screen family cover ring, identity, rest, full-vote, and kickstart states. Interactive families advance optimistically and stale data rolls forward without guilt copy. The 1.0.11 artifact embeds the compiled `ResolutionWidget.appex`. |
-| App Intents / Siri | Complete | `targets/widget/AppShortcuts.swift` exposes kickstart and named-action intents using the same pending-vote contract. |
+| Today's Progress widgets | Complete | The app mirrors current and seven-day action state to App Group storage. Small, medium, and large Home Screen families plus a circular lock-screen family cover ring, identity, rest, full-completion, and kickstart states. Interactive families advance optimistically and stale data rolls forward without guilt copy. The 1.0.11 artifact embeds the compiled `ResolutionWidget.appex`. |
+| App Intents / Siri | Complete | `targets/widget/AppShortcuts.swift` exposes kickstart and named-action intents using the same pending-completion contract. |
 | Portfolio-of-hooks notifications | Complete | Local response history selects momentum, coach, calm, or lapsed copy while preserving the one-notification-per-day covenant. |
 
 ## Phase 2 — Story loop
 
 | Requirement | Status | Implementation and evidence |
 | --- | --- | --- |
-| Month in Votes recap | Complete | Six local story beats cover votes, consistency, best patterns, comeback/floor saves, Health votes, resilience, and shields. Cards are share-ready; the optional coach line is consent-gated and has an offline fallback. |
+| Monthly Progress recap | Complete | Six local story beats cover completed actions, consistency, best patterns, comeback/floor saves, Health completed actions, resilience, and shields. Cards are share-ready; the optional coach line is consent-gated and has an offline fallback. |
 | Insights panel | Complete | Premium Journey insights provide day-of-week patterns, an eight-week momentum view, and a local narrative/recommendation from the same history. |
 | Earned shield economy | Complete | Seven clean scheduled action-days earn a shield; misses spend it; Free holds one and Premium holds two. Earn/spend state appears across Today, Journey, Weekly Review, recap, and paywall. |
 
@@ -66,7 +66,7 @@ not disturbed.
 | Real reflection SSE | Complete | `/api/reflection` streams native SSE; the client buffers updates without stealing user-controlled scroll. The final simulator run received a real non-empty coach response. |
 | Identity-science micro-notes | Complete | Eighteen bundled notes form a free/premium drip; expand/collapse is covered by native regression. |
 | Milestone reward layer | Complete | Five permanent rewards unlock at successive milestones and never drain: Dawn theme, Direct Coach, Aurora celebration, a native Aurora Home Screen icon, and a contrast-safe Violet accent. Profile switches expose names, hints, and checked state. The compiled app declares `CFBundleAlternateIcons`, contains the `AuroraIcon` asset, displayed Apple's native confirmation, and visibly changed the Simulator Home Screen icon. |
-| Health auto-votes | Complete | Per-action workout, step, and mindful-minute triggers evaluate fail-closed and record Health as the source. |
+| Health auto-completion | Complete | Per-action workout, step, and mindful-minute triggers evaluate fail-closed and record Health as the source. |
 
 ## Later bets and foundation requirements
 
@@ -120,7 +120,7 @@ explicitly approved console operation.
 | Roadmap completion moments | Pass — proposal, contextual gate, and second-persona invitation at maximum Dynamic Type |
 | Live engagement | Pass — note expansion, live weekly Coach reply, and theme preference |
 | Earned cosmetic rewards | Pass — Violet accent and Aurora icon switches at maximum Dynamic Type; native confirmation and Home Screen icon verified |
-| Native App Group reconciliation | Pass — pending widget vote consumed and cleared, accessible badge displayed, and log persisted as `widget` + `kickstart` |
+| Native App Group reconciliation | Pass — pending widget action consumed and cleared, accessible badge displayed, and log persisted as `widget` + `kickstart` |
 | Artifact inspection | Pass — version 1.0.11, `CFBundleAlternateIcons`, Aurora asset renditions, and embedded widget extension verified |
 
 Simulator screenshots and the extracted 1.0.11 application are retained under

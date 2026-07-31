@@ -37,10 +37,10 @@ export function YearRecapCard({
         </Pressable>
       </View>
       <ThemedText style={[styles.number, { color: theme.accent }]}>
-        {recap.votesCast}
+        {recap.actionsCompleted}
       </ThemedText>
       <ThemedText style={styles.headline}>
-        votes for {recap.personaName} in {recap.yearLabel}
+        actions completed for {recap.personaName} in {recap.yearLabel}
       </ThemedText>
       <ThemedText style={[styles.body, { color: theme.textSecondary }]}>
         Your premium year-in-review celebrates the returns, floor saves, and

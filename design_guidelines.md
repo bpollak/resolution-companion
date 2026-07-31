@@ -2,7 +2,7 @@
 
 Resolution Companion is an identity-based behavior-change app. The interface
 should make daily action feel light, progress feel earned, and missed days feel
-recoverable. Copy emphasizes "becoming" and "casting a vote," never shame,
+recoverable. Copy emphasizes "becoming" and accumulated evidence, never shame,
 rank, or perfection.
 
 ## Product and privacy model
@@ -12,7 +12,7 @@ rank, or perfection.
 - The server stores the minimum needed for anonymous subscription validation,
   feedback, AI processing, and daily aggregate product-event counts.
 - AI is opt-in. The local starter plan, action tracking, Journey, widgets,
-  Siri, Health auto-votes, and recaps must remain useful without AI consent.
+  Siri, Health auto-completion, and recaps must remain useful without AI consent.
 - Profile is settings, opened from the header gear. It is not a tab.
 
 ## Navigation architecture
@@ -47,7 +47,7 @@ iOS. Keep all tabs mounted (`detachInactiveScreens={false}`, `lazy:false`,
 - Lead with the active persona and the day's completion ring.
 - Each scheduled action has a full-completion control and an explicit
   two-minute kickstart floor.
-- Completed rows may show their source, such as **Health** or **2-minute vote**.
+- Completed rows may show their source, such as **Completed by Health** or **2-minute version**.
   Include that source in the parent checkbox accessibility label; decorative
   badge children are not separate accessibility elements.
 - Celebrate day completion, earned shields, comebacks, and milestone progress.
@@ -75,9 +75,9 @@ iOS. Keep all tabs mounted (`detachInactiveScreens={false}`, `lazy:false`,
 - If AI consent is absent, never imply that an AI-generated observation or
   personalized coach message exists.
 
-### Month in Votes
+### Monthly Progress
 
-- Use a six-card story: votes, consistency, best rhythm, comeback/floor,
+- Use a six-card story: completed actions, consistency, best rhythm, comeback/floor,
   resilience/shields, and a forward-looking coach line.
 - Generate a single consent-gated coach line and cache it by persona/month;
   always have an offline template fallback.
@@ -91,8 +91,8 @@ iOS. Keep all tabs mounted (`detachInactiveScreens={false}`, `lazy:false`,
 - Widget actions optimistically advance and persist a source plus completion
   kind for later reconciliation.
 - App Intents support "I did my kickstart" and named-action logging.
-- Health auto-votes are labeled transparently. They count as real identity
-  votes without pretending the user tapped in-app.
+- Health auto-completions are labeled transparently. They count as real
+  progress without pretending the user tapped in-app.
 
 ## Interaction rules
 

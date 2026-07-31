@@ -53,8 +53,8 @@ export default function StoryArchiveScreen() {
           <ThemedText style={styles.eyebrow}>Your personal story</ThemedText>
           <ThemedText style={styles.title}>Story Archive</ThemedText>
           <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
-            Every Month in Votes stays here, including the month still being
-            written.
+            Every Monthly Progress story stays here, including the month still
+            being written.
           </ThemedText>
         </View>
         <Pressable
@@ -95,7 +95,7 @@ export default function StoryArchiveScreen() {
               });
             }}
             accessibilityRole="button"
-            accessibilityLabel={`${item.monthLabel}${item.isCurrent ? ", in progress" : ""}. ${item.recap.votesCast} votes, ${item.recap.consistency}% consistency. Open Month in Votes.`}
+            accessibilityLabel={`${item.monthLabel}${item.isCurrent ? ", in progress" : ""}. ${item.recap.actionsCompleted} completed actions, ${item.recap.consistency}% consistency. Open Monthly Progress.`}
             style={({ pressed }) => [
               styles.storyCard,
               {
@@ -138,8 +138,8 @@ export default function StoryArchiveScreen() {
               <ThemedText
                 style={[styles.storyMeta, { color: theme.textSecondary }]}
               >
-                {item.recap.votesCast}{" "}
-                {item.recap.votesCast === 1 ? "vote" : "votes"} ·{" "}
+                {item.recap.actionsCompleted} completed{" "}
+                {item.recap.actionsCompleted === 1 ? "action" : "actions"} ·{" "}
                 {item.recap.consistency}% consistency
               </ThemedText>
             </View>

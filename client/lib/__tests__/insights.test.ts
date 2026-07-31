@@ -93,7 +93,7 @@ describe("computeWeeklyTrend", () => {
 });
 
 describe("buildInsightsNarrative", () => {
-  it("invites the first vote when there is no data yet", () => {
+  it("invites the first action when there is no data yet", () => {
     const profile = computeWeekdayProfile([action("a")], [], 8, TODAY);
     const trend = computeWeeklyTrend([action("a")], [], 8, TODAY);
     const narrative = buildInsightsNarrative(profile, trend, "Writer");

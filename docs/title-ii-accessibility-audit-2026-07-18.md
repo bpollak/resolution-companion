@@ -64,7 +64,7 @@ technology review by qualified testers.
 | Premium annual recap | Pass — swipe/share cards with semantic image descriptions |
 | Seeded engagement | Pass — live Coach response, reward, and preference |
 | Earned cosmetic controls | Pass — contrast-safe accent and native app-icon switches reachable and operable at maximum text |
-| Native App Group regression | Pass — widget kickstart reconciled and announced as a 2-minute vote |
+| Native App Group regression | Pass — widget kickstart reconciled and announced as a 2-minute version |
 
 During the annual-recap max-text review, the initial fixed share-card layout
 showed overlap. The implementation was changed to cap only the typography

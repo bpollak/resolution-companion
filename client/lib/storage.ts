@@ -62,7 +62,7 @@ export interface ElementalAction {
   createdAt: string;
   /**
    * Apple Health auto-completion: when set, a matching Health sample for the
-   * day casts this action's vote automatically ("Health cast this vote for
+   * day completes this action automatically ("Health completed this action for
    * you"). HealthKit reads are on-device — consistent with local-first.
    */
   healthAutoComplete?: "workout" | "steps" | "mindful";
@@ -76,7 +76,7 @@ export interface DailyLog {
   createdAt: string;
   /** Optional one-line "how it went" note attached after completing. */
   note?: string;
-  /** How the vote was cast. Missing on legacy records and treated as manual. */
+  /** How the action was completed. Missing on legacy records and treated as manual. */
   completionSource?: "manual" | "widget" | "siri" | "notification" | "health";
   /** Whether the full action or its under-2-minute floor was completed. */
   completionKind?: "full" | "kickstart";

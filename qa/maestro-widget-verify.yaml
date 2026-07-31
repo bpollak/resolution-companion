@@ -1,6 +1,6 @@
 appId: com.resolutioncompanion.app
 ---
-# Verify the app consumed an injected kickstart vote from App Group storage.
+# Verify the app consumed an injected kickstart completion from App Group storage.
 - launchApp
 - extendedWaitUntil:
     visible: "Momentum Builder.*"
@@ -11,8 +11,8 @@ appId: com.resolutioncompanion.app
     direction: DOWN
     timeout: 30000
     centerElement: true
-- assertVisible: "Complete one action toward your goal, 2-minute vote.*"
+- assertVisible: "Complete one action toward your goal, 2-minute version.*"
 - extendedWaitUntil:
-    visible: "Complete one action toward your goal, 2-minute vote.*"
+    visible: "Complete one action toward your goal, 2-minute version.*"
     timeout: 20000
 - takeScreenshot: 21-widget-kickstart-reconciled

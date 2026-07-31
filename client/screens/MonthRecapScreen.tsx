@@ -26,15 +26,15 @@ import { getRecapCoachLine } from "@/lib/ai";
 import { storage } from "@/lib/storage";
 
 /**
- * "Month in Votes" — a swipeable story of last month told the no-guilt way:
- * votes cast, when the user shows up, the comeback moment, shields earned,
+ * "Monthly Progress" — a swipeable story of last month told the no-guilt way:
+ * completed actions, when the user shows up, the comeback moment, shields earned,
  * and a closing line. Every card renders share-ready; sharing is an outbound
  * image only (no accounts, no feed — data never leaves the device except as
  * the picture the user chooses to send).
  */
 
 type CardKind =
-  | "votes"
+  | "actions"
   | "portrait"
   | "support"
   | "comeback"
@@ -47,7 +47,7 @@ interface RecapCard {
 
 function buildCards(): RecapCard[] {
   return [
-    { kind: "votes" },
+    { kind: "actions" },
     { kind: "portrait" },
     { kind: "support" },
     { kind: "comeback" },
@@ -68,18 +68,19 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
   const { theme } = useTheme();
 
   switch (kind) {
-    case "votes":
+    case "actions":
       return (
         <>
           <ThemedText style={styles.cardEyebrow}>{recap.monthLabel}</ThemedText>
           <ThemedText style={[styles.bigNumber, { color: theme.accent }]}>
-            {recap.votesCast}
+            {recap.actionsCompleted}
           </ThemedText>
           <ThemedText style={styles.cardHeadline}>
-            {recap.votesCast === 1 ? "vote" : "votes"} for {recap.personaName}
+            completed {recap.actionsCompleted === 1 ? "action" : "actions"} for{" "}
+            {recap.personaName}
           </ThemedText>
           <ThemedText style={styles.cardSub}>
-            Every action was a vote for who you&rsquo;re becoming.
+            Every action became evidence of who you&rsquo;re becoming.
           </ThemedText>
         </>
       );
@@ -99,7 +100,7 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
           <ThemedText style={styles.cardSub}>
             {recap.bestWeekday
               ? `${recap.bestWeekday}s${recap.bestTimeOfDay ? ` in the ${recap.bestTimeOfDay}` : ""} are when you show up most.`
-              : "A fresh month is a fresh ballot."}
+              : "A fresh month is a fresh start."}
           </ThemedText>
         </>
       );
@@ -112,7 +113,7 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
           <View style={styles.statPair}>
             <View style={styles.statBlock}>
               <ThemedText style={[styles.midNumber, { color: theme.warning }]}>
-                {recap.kickstartVotes}
+                {recap.kickstartCompletions}
               </ThemedText>
               <ThemedText style={styles.cardSub}>
                 2-minute floor saves
@@ -120,9 +121,11 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
             </View>
             <View style={styles.statBlock}>
               <ThemedText style={[styles.midNumber, { color: theme.success }]}>
-                {recap.healthVotes}
+                {recap.healthCompletions}
               </ThemedText>
-              <ThemedText style={styles.cardSub}>Health auto-votes</ThemedText>
+              <ThemedText style={styles.cardSub}>
+                Completed by Health
+              </ThemedText>
             </View>
           </View>
           <ThemedText style={styles.cardHeadline}>
@@ -130,7 +133,7 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
           </ThemedText>
           <ThemedText style={styles.cardSub}>
             The floor exists for real life. Every smaller version was still a
-            vote for {recap.personaName}.
+            step toward {recap.personaName}.
           </ThemedText>
         </>
       );
@@ -273,10 +276,10 @@ export default function MonthRecapScreen() {
         const line = await getRecapCoachLine({
           personaName: recap.personaName,
           monthLabel: recap.monthLabel,
-          votesCast: recap.votesCast,
+          actionsCompleted: recap.actionsCompleted,
           consistency: recap.consistency,
-          kickstartVotes: recap.kickstartVotes,
-          healthVotes: recap.healthVotes,
+          kickstartCompletions: recap.kickstartCompletions,
+          healthCompletions: recap.healthCompletions,
           shieldsEarned: recap.shieldsEarned,
           shieldedDays: recap.shieldedDays,
           comebackGapDays: recap.comeback?.gapDays ?? null,
@@ -308,7 +311,7 @@ export default function MonthRecapScreen() {
       await Share.share(
         Platform.OS === "ios"
           ? { url: uri }
-          : { message: "My month in votes — Resolution Companion", url: uri },
+          : { message: "My monthly progress — Resolution Companion", url: uri },
       );
       track("recap_shared");
     } catch (error) {
@@ -328,7 +331,7 @@ export default function MonthRecapScreen() {
       ]}
     >
       <View style={styles.header}>
-        <ThemedText style={styles.title}>Month in Votes</ThemedText>
+        <ThemedText style={styles.title}>Monthly Progress</ThemedText>
         <Pressable
           onPress={() => navigation.goBack()}
           hitSlop={12}

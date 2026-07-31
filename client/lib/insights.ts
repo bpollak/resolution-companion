@@ -221,7 +221,7 @@ export function buildInsightsNarrative(
   const activeWeeks = trend.filter((p) => p.scheduled > 0);
   if (activeWeeks.length === 0 || weekdayProfile.maxCompletions === 0) {
     return {
-      headline: `The portrait starts with the first vote.`,
+      headline: `The portrait starts with the first action.`,
       recommendation: `Log one small action — even the 2-minute version — and the pattern begins.`,
     };
   }
@@ -237,7 +237,7 @@ export function buildInsightsNarrative(
     : `Consistency is ${trendWord}.`;
 
   const recommendation = bestDay
-    ? `Protect your ${bestDay} anchor — it carries the week. On harder days, the 2-minute floor keeps the vote alive.`
+    ? `Protect your ${bestDay} anchor — it carries the week. On harder days, the 2-minute floor keeps the pattern alive.`
     : `Anchor one action to a moment you already own — after coffee, before bed — and let the floor version cover the rest.`;
 
   return { headline, recommendation };

@@ -49,13 +49,13 @@ appId: com.resolutioncompanion.app
     timeout: 20000
 - takeScreenshot: 03-today-fresh
 - tapOn:
-    text: "Cast today's vote for Complete one action toward your goal.*"
+    text: "Mark Complete one action toward your goal complete.*"
     optional: true
 - tapOn:
-    text: "Cast today's vote for Practice mindful breathing.*"
+    text: "Mark Practice mindful breathing complete.*"
     optional: true
 - tapOn:
-    text: "Cast today's vote for Move your body intentionally.*"
+    text: "Mark Move your body intentionally complete.*"
     optional: true
 - takeScreenshot: 04-today-actions-done
 # Completing the last scheduled action triggers the day-complete +

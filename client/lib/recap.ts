@@ -6,9 +6,9 @@ import {
 } from "@/lib/progress";
 
 /**
- * "Month in Votes" — the no-guilt monthly recap. Pure math over the persona's
+ * "Monthly Progress" — the no-guilt monthly recap. Pure math over the persona's
  * actions and logs for one calendar month, built to be told as a story:
- * votes cast, when the user shows up, the comeback moment, and shields
+ * completed actions, when the user shows up, the comeback moment, and shields
  * earned along the way. Comebacks and rest are celebrated, never shamed —
  * a rough month still produces a warm story.
  */
@@ -20,17 +20,17 @@ export interface MonthRecap {
   monthLabel: string;
   personaName: string;
   /** Completed action-days in the month. */
-  votesCast: number;
+  actionsCompleted: number;
   /** Scheduled action-days in the month. */
   scheduled: number;
   /** 0-100 completion rate. */
   consistency: number;
   /** Days with at least one completion. */
   activeDays: number;
-  /** Votes cast with the under-2-minute floor. */
-  kickstartVotes: number;
-  /** Votes completed automatically from Apple Health. */
-  healthVotes: number;
+  /** Actions completed with the under-2-minute floor. */
+  kickstartCompletions: number;
+  /** Actions completed automatically from Apple Health. */
+  healthCompletions: number;
   /** Weekday with the most completions; null when nothing was completed. */
   bestWeekday: string | null;
   /** Broad local time window with the most completions. */
@@ -56,17 +56,21 @@ export interface YearRecap {
   year: number;
   yearLabel: string;
   personaName: string;
-  votesCast: number;
+  actionsCompleted: number;
   scheduled: number;
   consistency: number;
   activeDays: number;
   activeMonths: number;
-  kickstartVotes: number;
-  healthVotes: number;
+  kickstartCompletions: number;
+  healthCompletions: number;
   comebacks: number;
   shieldsEarned: number;
   shieldedDays: number;
-  bestMonth: { monthKey: string; monthLabel: string; votesCast: number } | null;
+  bestMonth: {
+    monthKey: string;
+    monthLabel: string;
+    actionsCompleted: number;
+  } | null;
   closingLine: string;
 }
 
@@ -117,11 +121,11 @@ export function buildMonthRecap(
     actions.map((a) => [a.id, getLocalDateString(new Date(a.createdAt))]),
   );
 
-  let votesCast = 0;
+  let actionsCompleted = 0;
   let scheduled = 0;
   let activeDays = 0;
-  let kickstartVotes = 0;
-  let healthVotes = 0;
+  let kickstartCompletions = 0;
+  let healthCompletions = 0;
   const weekdayCompletions = new Map<string, number>();
   const timeCompletions = new Map<string, number>();
 
@@ -150,9 +154,9 @@ export function buildMonthRecap(
       scheduled++;
       if (log?.status) {
         dayCompleted++;
-        votesCast++;
-        if (log.completionKind === "kickstart") kickstartVotes++;
-        if (log.completionSource === "health") healthVotes++;
+        actionsCompleted++;
+        if (log.completionKind === "kickstart") kickstartCompletions++;
+        if (log.completionSource === "health") healthCompletions++;
         const completedAt = new Date(log.createdAt);
         if (!Number.isNaN(completedAt.getTime())) {
           const hour = completedAt.getHours();
@@ -229,30 +233,30 @@ export function buildMonthRecap(
   ).length;
 
   const consistency =
-    scheduled > 0 ? Math.round((votesCast / scheduled) * 100) : 0;
+    scheduled > 0 ? Math.round((actionsCompleted / scheduled) * 100) : 0;
   const personaName = persona?.name ?? "Future You";
 
   let closingLine: string;
-  if (votesCast === 0) {
+  if (actionsCompleted === 0) {
     closingLine = `A quiet month. The slate is clean — any day can be day one.`;
   } else if (comeback) {
     closingLine = `You came back after ${comeback.gapDays} days away. That's the whole skill. Still becoming ${personaName}.`;
   } else if (consistency >= 80) {
-    closingLine = `${votesCast} votes at ${consistency}%. ${personaName} isn't a goal anymore — it's a habit.`;
+    closingLine = `${actionsCompleted} actions completed at ${consistency}% consistency. ${personaName} isn't a goal anymore — it's a habit.`;
   } else {
-    closingLine = `${votesCast} votes cast for ${personaName}. Every one of them counted.`;
+    closingLine = `${actionsCompleted} actions completed for ${personaName}. Every one of them counted.`;
   }
 
   return {
     monthKey,
     monthLabel: monthLabelFor(monthKey),
     personaName,
-    votesCast,
+    actionsCompleted,
     scheduled,
     consistency,
     activeDays,
-    kickstartVotes,
-    healthVotes,
+    kickstartCompletions,
+    healthCompletions,
     bestWeekday,
     bestTimeOfDay,
     longestRun,
@@ -291,14 +295,20 @@ export function buildYearRecap(
     );
   }
 
-  const votesCast = months.reduce((sum, month) => sum + month.votesCast, 0);
-  const scheduled = months.reduce((sum, month) => sum + month.scheduled, 0);
-  const activeDays = months.reduce((sum, month) => sum + month.activeDays, 0);
-  const kickstartVotes = months.reduce(
-    (sum, month) => sum + month.kickstartVotes,
+  const actionsCompleted = months.reduce(
+    (sum, month) => sum + month.actionsCompleted,
     0,
   );
-  const healthVotes = months.reduce((sum, month) => sum + month.healthVotes, 0);
+  const scheduled = months.reduce((sum, month) => sum + month.scheduled, 0);
+  const activeDays = months.reduce((sum, month) => sum + month.activeDays, 0);
+  const kickstartCompletions = months.reduce(
+    (sum, month) => sum + month.kickstartCompletions,
+    0,
+  );
+  const healthCompletions = months.reduce(
+    (sum, month) => sum + month.healthCompletions,
+    0,
+  );
   const comebacks = months.filter((month) => month.comeback !== null).length;
   const shieldsEarned = months.reduce(
     (sum, month) => sum + month.shieldsEarned,
@@ -308,41 +318,45 @@ export function buildYearRecap(
     (sum, month) => sum + month.shieldedDays,
     0,
   );
-  const activeMonths = months.filter((month) => month.votesCast > 0).length;
+  const activeMonths = months.filter(
+    (month) => month.actionsCompleted > 0,
+  ).length;
   const best = months.reduce<MonthRecap | null>(
     (winner, month) =>
-      !winner || month.votesCast > winner.votesCast ? month : winner,
+      !winner || month.actionsCompleted > winner.actionsCompleted
+        ? month
+        : winner,
     null,
   );
   const bestMonth =
-    best && best.votesCast > 0
+    best && best.actionsCompleted > 0
       ? {
           monthKey: best.monthKey,
           monthLabel: best.monthLabel,
-          votesCast: best.votesCast,
+          actionsCompleted: best.actionsCompleted,
         }
       : null;
   const consistency =
-    scheduled > 0 ? Math.round((votesCast / scheduled) * 100) : 0;
+    scheduled > 0 ? Math.round((actionsCompleted / scheduled) * 100) : 0;
   const personaName = persona?.name ?? "Future You";
   const closingLine =
-    votesCast === 0
-      ? `The story is still open. Your next vote can begin ${personaName}.`
+    actionsCompleted === 0
+      ? `The story is still open. Your next action can begin ${personaName}.`
       : comebacks > 0
-        ? `${votesCast} votes and ${comebacks} comeback${comebacks === 1 ? "" : "s"}. You kept choosing ${personaName}.`
-        : `${votesCast} votes for ${personaName}. This is the year you practiced becoming.`;
+        ? `${actionsCompleted} completed actions and ${comebacks} comeback${comebacks === 1 ? "" : "s"}. You kept choosing ${personaName}.`
+        : `${actionsCompleted} actions completed for ${personaName}. This is the year you practiced becoming.`;
 
   return {
     year,
     yearLabel: String(year),
     personaName,
-    votesCast,
+    actionsCompleted,
     scheduled,
     consistency,
     activeDays,
     activeMonths,
-    kickstartVotes,
-    healthVotes,
+    kickstartCompletions,
+    healthCompletions,
     comebacks,
     shieldsEarned,
     shieldedDays,

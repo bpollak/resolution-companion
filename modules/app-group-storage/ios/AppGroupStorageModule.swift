@@ -2,7 +2,7 @@ import ExpoModulesCore
 import UIKit
 import WidgetKit
 
-// App Group UserDefaults bridge for the "Cast Your Vote" widget. All values
+// App Group UserDefaults bridge for the "Today's Progress" widget. All values
 // are JSON strings; the shapes are defined by client/lib/widget.ts and
 // targets/widget/index.swift.
 public class AppGroupStorageModule: Module {

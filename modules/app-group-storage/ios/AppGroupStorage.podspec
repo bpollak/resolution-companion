@@ -2,7 +2,7 @@ Pod::Spec.new do |s|
   s.name           = 'AppGroupStorage'
   s.version        = '1.0.0'
   s.summary        = 'App Group UserDefaults bridge for the widget'
-  s.description    = 'Shares widget data and pending votes between the app and the ResolutionWidget extension via App Group UserDefaults.'
+  s.description    = 'Shares widget data and pending completions between the app and the ResolutionWidget extension via App Group UserDefaults.'
   s.author         = ''
   s.homepage       = 'https://resolutioncompanion.com'
   # Must match the app deployment target: a higher platform here makes Expo

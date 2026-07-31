@@ -33,7 +33,7 @@ export type TelemetryEvent =
   | "notification_tap"
   | "notification_mark_all_done"
   | "widget_action_logged"
-  | "health_auto_vote"
+  | "health_auto_completion"
   | "recap_viewed"
   | "recap_shared"
   | "insights_viewed"

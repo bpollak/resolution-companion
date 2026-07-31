@@ -7,7 +7,7 @@ the persistent-memory pickup notes (`enhancement-sprint-v1-0-4`).
 
 **Design principles (from ux-redesign-proposal.md):** Today is the loop; no
 streak guilt; ≤2 notifications/day; jargon budget ~2 concepts; milestones
-only fill, never drain; identity framing ("votes for who you're becoming").
+only fill, never drain; identity framing ("completed actions for who you're becoming").
 
 Legend: ✅ built before the ground-up sprint · 🆕 built in the ground-up
 implementation branch · ⚠️ code-complete with an external release-console
@@ -22,18 +22,18 @@ action still open · ▢ not started
 - ✅ **2. Coach memory** (premium) — digest of the last 2 saved sessions
   injected into the reflection prompt; the feature that makes "unlimited
   check-ins" mean something ("a coach that knows you").
-- 🆕 **3. Home-screen + lock-screen widget** — "Cast Your Vote": interactive
+- 🆕 **3. Home-screen + lock-screen widget** — "Today's Progress": interactive
   home widget (Done + 2-min kickstart buttons via App Intents, iOS 17),
   lock-screen ring, rotating identity copy, rest-day face. Built with
   `@bacons/apple-targets` (`targets/widget/`), App Group
   `group.com.resolutioncompanion.app`, JS bridge `client/lib/widget.ts`,
-  pending-vote reconciliation in AppContext. The JS↔App-Group bridge is the
+  pending-completion reconciliation in AppContext. The JS↔App-Group bridge is the
   local module `modules/app-group-storage` — apple-targets' bundled
   ExtensionStorage pod requires iOS 16.4 and is silently SKIPPED by pod
   autolinking at our 15.1 deployment target (found in sim regression: the
   binary shipped without it and the bridge no-opped).
-- 🆕 **4. Monthly "Identity Wrapped" share card** — "Month in Votes":
-  swipeable no-guilt story (votes, portrait, comeback, shields, closing) on
+- 🆕 **4. Monthly "Identity Wrapped" share card** — "Monthly Progress":
+  swipeable no-guilt story (completed actions, portrait, comeback, shields, closing) on
   the 1st, share-as-image via react-native-view-shot; entry card on Today.
   `client/lib/recap.ts`, `MonthRecapScreen`. The premium December/January
   **The Year You Became** annual edition is also complete.
@@ -55,7 +55,7 @@ action still open · ▢ not started
   pending action's floor version with a spoken reply.
 - 🆕 **10. Apple Health auto-complete** — per-action opt-in
   (workout / 7,000+ steps / mindful session) in the Action editor;
-  auto-votes on foreground via `client/lib/health.ts` (react-native-health;
+  auto-completed actions on foreground via `client/lib/health.ts` (react-native-health;
   reads stay on-device).
 
 ## Tier 3 — Natural premium pull (endow first, gate second)

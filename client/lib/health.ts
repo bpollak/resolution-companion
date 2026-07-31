@@ -3,7 +3,7 @@ import type { ElementalAction } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 
 /**
- * Apple Health auto-votes: a workout, step total, or mindful session
+ * Apple Health auto-completion: a workout, step total, or mindful session
  * recorded in Health automatically completes a matching action — the
  * "never take a zero" floor extended to effort the phone already saw.
  * HealthKit reads happen on-device, so this stays local-first.
@@ -53,7 +53,7 @@ export function isHealthAvailable(): boolean {
 
 let initialized = false;
 
-/** Request read access for the three auto-vote categories. */
+/** Request read access for the three auto-completion categories. */
 export async function initHealth(): Promise<boolean> {
   if (!healthKit) return false;
   if (initialized) return true;

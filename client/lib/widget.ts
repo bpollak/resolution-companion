@@ -5,17 +5,21 @@ import { computeStreak, getLocalDateString } from "@/lib/progress";
 import { logger } from "@/lib/logger";
 
 /**
- * Bridge to the "Cast Your Vote" home/lock-screen widget.
+ * Bridge to the "Today's Progress" home/lock-screen widget.
  *
  * The app writes a JSON snapshot of today's state into the shared app-group
- * defaults; the widget's CastVoteIntent queues taps back as pending votes,
+ * defaults; the widget's CompleteActionIntent queues taps back as pending
+ * completions,
  * which the app reconciles into its real store on the next foreground.
  * Keys and shapes must stay in sync with targets/widget/index.swift.
  */
 
 export const WIDGET_APP_GROUP = "group.com.resolutioncompanion.app";
 const WIDGET_DATA_KEY = "widgetData";
-const PENDING_VOTES_KEY = "pendingVotes";
+const PENDING_COMPLETIONS_KEY = "pendingCompletions";
+// Build 77 and earlier used this key. Read it during reconciliation so an
+// update cannot discard a completion that was queued before installation.
+const LEGACY_PENDING_COMPLETIONS_KEY = "pendingVotes";
 
 export interface WidgetData {
   personaName: string;
@@ -45,7 +49,7 @@ export interface WidgetDayPlan {
   actions: WidgetActionData[];
 }
 
-export interface PendingVote {
+export interface PendingCompletion {
   actionId: string;
   date: string;
   kind: "full" | "kickstart";
@@ -57,7 +61,7 @@ export interface PendingVote {
 // Duolingo widget lesson) while staying deterministic for a given day.
 const COPY_VARIANTS: ((personaName: string, remaining: number) => string)[] = [
   (name, remaining) =>
-    `${remaining} small ${remaining === 1 ? "vote" : "votes"} for ${name} today`,
+    `${remaining} ${remaining === 1 ? "action" : "actions"} left for ${name} today`,
   (name) => `${name} is one small action away`,
   () => "2 minutes still counts today",
 ];
@@ -119,7 +123,7 @@ export function buildWidgetData(
   if (scheduledActions.length === 0) {
     copyLine = "Rest is part of becoming.";
   } else if (remaining === 0) {
-    copyLine = "Every vote cast today ✓";
+    copyLine = "All actions completed today ✓";
   } else {
     let hash = 0;
     for (let i = 0; i < dateStr.length; i++) hash += dateStr.charCodeAt(i);
@@ -181,20 +185,30 @@ export function syncWidgetData(
 }
 
 /**
- * Read and clear votes cast from the widget while the app was closed.
+ * Read and clear actions completed from the widget while the app was closed.
  * Returns [] when there is nothing to reconcile.
  */
-export function consumePendingVotes(): PendingVote[] {
+export function consumePendingCompletions(): PendingCompletion[] {
   const storage = getStorage();
   if (!storage) return [];
   try {
-    const raw = storage.getItem(WIDGET_APP_GROUP, PENDING_VOTES_KEY);
-    if (!raw) return [];
-    storage.removeItem(WIDGET_APP_GROUP, PENDING_VOTES_KEY);
-    const parsed = JSON.parse(raw) as unknown;
+    const raw = storage.getItem(WIDGET_APP_GROUP, PENDING_COMPLETIONS_KEY);
+    const legacyRaw = storage.getItem(
+      WIDGET_APP_GROUP,
+      LEGACY_PENDING_COMPLETIONS_KEY,
+    );
+    if (!raw && !legacyRaw) return [];
+    storage.removeItem(WIDGET_APP_GROUP, PENDING_COMPLETIONS_KEY);
+    storage.removeItem(WIDGET_APP_GROUP, LEGACY_PENDING_COMPLETIONS_KEY);
+    const parsed = [raw, legacyRaw]
+      .filter((value): value is string => Boolean(value))
+      .flatMap((value) => {
+        const decoded = JSON.parse(value) as unknown;
+        return Array.isArray(decoded) ? decoded : [];
+      });
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(
-      (v): v is PendingVote =>
+      (v): v is PendingCompletion =>
         !!v &&
         typeof v.actionId === "string" &&
         typeof v.date === "string" &&
@@ -204,7 +218,7 @@ export function consumePendingVotes(): PendingVote[] {
           v.source === "siri"),
     );
   } catch (error) {
-    logger.error("Failed to read pending widget votes:", error);
+    logger.error("Failed to read pending widget completions:", error);
     return [];
   }
 }

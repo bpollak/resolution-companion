@@ -1,5 +1,5 @@
 /**
- * Unit tests for the pure Month-in-Votes math in client/lib/recap.ts.
+ * Unit tests for the pure Monthly Progress math in client/lib/recap.ts.
  * Tests run under TZ=America/Los_Angeles like the rest of the suite.
  */
 
@@ -73,7 +73,7 @@ describe("month keys", () => {
 });
 
 describe("buildMonthRecap", () => {
-  it("counts votes and consistency for a daily action", () => {
+  it("counts completed actions and consistency for a daily action", () => {
     const logs = [
       log("a", "2026-06-01"),
       log("a", "2026-06-02"),
@@ -86,7 +86,7 @@ describe("buildMonthRecap", () => {
       "2026-06",
       TODAY,
     );
-    expect(recap.votesCast).toBe(3);
+    expect(recap.actionsCompleted).toBe(3);
     // June 2026 has 30 days, all scheduled for a daily action
     expect(recap.scheduled).toBe(30);
     expect(recap.consistency).toBe(10);
@@ -163,7 +163,7 @@ describe("buildMonthRecap", () => {
 
   it("tells a warm story even for an empty month", () => {
     const recap = buildMonthRecap([action("a")], [], persona, "2026-06", TODAY);
-    expect(recap.votesCast).toBe(0);
+    expect(recap.actionsCompleted).toBe(0);
     expect(recap.closingLine).toContain("day one");
   });
 
@@ -177,10 +177,10 @@ describe("buildMonthRecap", () => {
       TODAY,
     );
     expect(recap.scheduled).toBe(5);
-    expect(recap.votesCast).toBe(1);
+    expect(recap.actionsCompleted).toBe(1);
   });
 
-  it("reports kickstart floor saves and Health auto-votes", () => {
+  it("reports kickstart floor saves and Health completions", () => {
     const kickstart = {
       ...log("a", "2026-06-01"),
       completionSource: "widget" as const,
@@ -198,8 +198,8 @@ describe("buildMonthRecap", () => {
       "2026-06",
       TODAY,
     );
-    expect(recap.kickstartVotes).toBe(1);
-    expect(recap.healthVotes).toBe(1);
+    expect(recap.kickstartCompletions).toBe(1);
+    expect(recap.healthCompletions).toBe(1);
   });
 });
 
@@ -211,10 +211,10 @@ describe("buildYearRecap", () => {
       log("a", "2026-06-04"),
     ];
     const recap = buildYearRecap([action("a")], logs, persona, 2026, TODAY);
-    expect(recap.votesCast).toBe(3);
+    expect(recap.actionsCompleted).toBe(3);
     expect(recap.activeMonths).toBe(2);
-    expect(recap.kickstartVotes).toBe(1);
-    expect(recap.healthVotes).toBe(1);
+    expect(recap.kickstartCompletions).toBe(1);
+    expect(recap.healthCompletions).toBe(1);
     expect(recap.bestMonth?.monthLabel).toBe("June 2026");
     expect(recap.closingLine).toContain("Consistent Runner");
   });
@@ -227,7 +227,7 @@ describe("buildYearRecap", () => {
       2026,
       TODAY,
     );
-    expect(recap.votesCast).toBe(0);
+    expect(recap.actionsCompleted).toBe(0);
     expect(recap.closingLine).toContain("still open");
   });
 });

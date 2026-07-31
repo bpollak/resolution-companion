@@ -1,5 +1,5 @@
 /**
- * "Cast Your Vote" widget target. Interactive (iOS 17 App Intents) home-screen
+ * "Today's Progress" widget target. Interactive (iOS 17 App Intents) home-screen
  * widget plus lock-screen accessories. The app-group entitlement is mirrored
  * automatically from ios.entitlements in app.json.
  *

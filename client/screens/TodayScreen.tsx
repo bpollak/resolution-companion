@@ -392,8 +392,8 @@ export default function TodayScreen() {
 
         setToastMessage(
           remaining === 1
-            ? `A vote for ${personaName} ✓ · one left today`
-            : `A vote for ${personaName} ✓`,
+            ? `Action completed for ${personaName} ✓ · one left today`
+            : `Action completed for ${personaName} ✓`,
         );
         setToastVisible(true);
       } catch (error) {
@@ -655,9 +655,9 @@ export default function TodayScreen() {
             </View>
 
             <View style={styles.dateContainer}>
-              <View style={styles.votesHeading}>
-                <ThemedText style={styles.votesTitle}>
-                  Today&apos;s Votes
+              <View style={styles.actionsHeading}>
+                <ThemedText style={styles.actionsTitle}>
+                  Today&apos;s Actions
                 </ThemedText>
                 <ThemedText
                   style={[styles.dateText, { color: theme.textSecondary }]}
@@ -672,7 +672,7 @@ export default function TodayScreen() {
                     { color: theme.textSecondary },
                   ]}
                 >
-                  {completedTodayCount}/{todayActions.length} cast
+                  {completedTodayCount}/{todayActions.length} completed
                 </ThemedText>
               </View>
             </View>
@@ -771,10 +771,10 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     marginBottom: Spacing.lg,
   },
-  votesHeading: {
+  actionsHeading: {
     flex: 1,
   },
-  votesTitle: {
+  actionsTitle: {
     ...Typography.headline,
   },
   dateText: {

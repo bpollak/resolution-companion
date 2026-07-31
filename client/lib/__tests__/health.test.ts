@@ -33,8 +33,8 @@ function adapter(options?: {
   };
 }
 
-describe("Health auto-votes", () => {
-  it("casts a step vote only at the configured threshold", async () => {
+describe("Health auto-completion", () => {
+  it("completes a step action only at the configured threshold", async () => {
     await expect(
       evaluateHealthGoal(
         adapter({ steps: HEALTH_STEPS_THRESHOLD - 1 }),
@@ -46,7 +46,7 @@ describe("Health auto-votes", () => {
     ).resolves.toBe(true);
   });
 
-  it("casts workout and mindful votes from non-empty samples", async () => {
+  it("completes workout and mindful actions from non-empty samples", async () => {
     const health = adapter({
       workouts: [{ id: "workout" }],
       mindful: [{ id: "mindful" }],

@@ -129,7 +129,7 @@ export function DayCompleteCard({
 
       <ThemedText style={styles.title}>Day complete.</ThemedText>
       <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
-        Every action today was a vote for {personaName}.
+        Every action today moved you toward {personaName}.
       </ThemedText>
       {isFirstEver ? (
         <ThemedText style={[styles.firstEver, { color: theme.accent }]}>

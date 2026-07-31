@@ -17,8 +17,12 @@ describe("native widget contract", () => {
     ),
     "utf8",
   );
+  const widgetBridgeSource = fs.readFileSync(
+    path.join(process.cwd(), "client/lib/widget.ts"),
+    "utf8",
+  );
 
-  it("keeps the interactive vote intent widget-only with explicit defaults", () => {
+  it("keeps the interactive completion intent widget-only with explicit defaults", () => {
     expect(widgetSource).toContain("static var isDiscoverable = false");
     expect(widgetSource).toContain(
       '@Parameter(title: "Action", default: "") var actionId: String',
@@ -36,5 +40,17 @@ describe("native widget contract", () => {
 
   it("flushes App Group defaults before WidgetKit reloads", () => {
     expect(storageSource).toContain("defaults?.synchronize()");
+  });
+
+  it("writes the completion key while retaining the legacy queue migration", () => {
+    expect(widgetSource).toContain(
+      'let kPendingCompletionsKey = "pendingCompletions"',
+    );
+    expect(widgetBridgeSource).toContain(
+      'const PENDING_COMPLETIONS_KEY = "pendingCompletions"',
+    );
+    expect(widgetBridgeSource).toContain(
+      'const LEGACY_PENDING_COMPLETIONS_KEY = "pendingVotes"',
+    );
   });
 });

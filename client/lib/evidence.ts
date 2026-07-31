@@ -377,7 +377,7 @@ export function buildEvidenceTimeline({
       title: month.isCurrent
         ? `${month.monthLabel} story in progress`
         : `${month.monthLabel} story`,
-      detail: "Open Month in Votes",
+      detail: "Open Monthly Progress",
       monthKey: month.monthKey,
     });
   }

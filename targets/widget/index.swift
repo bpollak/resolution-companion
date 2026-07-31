@@ -4,12 +4,12 @@ import AppIntents
 import os
 
 // Shared contract with client/lib/widget.ts: the app writes `widgetData` as a
-// JSON string into the app-group defaults; the widget's CastVoteIntent writes
-// `pendingVotes` back, which the app consumes on next foreground. Keys and
-// shapes must stay in sync with WIDGET_DATA_KEY / PENDING_VOTES_KEY there.
+// JSON string into the app-group defaults; the widget's CompleteActionIntent writes
+// `pendingCompletions` back, which the app consumes on next foreground. Keys and
+// shapes must stay in sync with WIDGET_DATA_KEY / PENDING_COMPLETIONS_KEY there.
 let kAppGroup = "group.com.resolutioncompanion.app"
 let kWidgetDataKey = "widgetData"
-let kPendingVotesKey = "pendingVotes"
+let kPendingCompletionsKey = "pendingCompletions"
 let widgetLog = Logger(
     subsystem: "com.resolutioncompanion.app.widget",
     category: "Timeline"
@@ -54,7 +54,7 @@ func localDateString(_ date: Date = Date()) -> String {
 
 func freshCopy(personaName: String, remaining: Int, date: Date = Date()) -> String {
     let variants = [
-        "\(remaining) small \(remaining == 1 ? "vote" : "votes") for \(personaName) today",
+        "\(remaining) \(remaining == 1 ? "action" : "actions") left for \(personaName) today",
         "\(personaName) is one small action away",
         "2 minutes still counts today",
     ]
@@ -120,7 +120,7 @@ func saveWidgetData(_ data: WidgetData) {
 }
 
 @discardableResult
-func enqueueVote(
+func enqueueCompletion(
     actionId: String,
     isKickstart: Bool,
     source: String
@@ -128,26 +128,26 @@ func enqueueVote(
     guard !actionId.isEmpty else { return loadWidgetData() }
     let defaults = UserDefaults(suiteName: kAppGroup)
 
-    var votes: [[String: Any]] = []
-    if let raw = defaults?.string(forKey: kPendingVotesKey),
+    var completions: [[String: Any]] = []
+    if let raw = defaults?.string(forKey: kPendingCompletionsKey),
        let data = raw.data(using: .utf8),
        let parsed = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-        votes = parsed
+        completions = parsed
     }
-    votes.append([
+    completions.append([
         "actionId": actionId,
         "date": localDateString(),
         "kind": isKickstart ? "kickstart" : "full",
         "source": source,
     ])
-    if let out = try? JSONSerialization.data(withJSONObject: votes),
+    if let out = try? JSONSerialization.data(withJSONObject: completions),
        let str = String(data: out, encoding: .utf8) {
-        defaults?.set(str, forKey: kPendingVotesKey)
+        defaults?.set(str, forKey: kPendingCompletionsKey)
     }
 
     guard var data = loadWidgetData() else { return nil }
     data.completed = min(data.completed + 1, max(data.scheduled, 1))
-    data.copyLine = "A vote for \(data.personaName) ✓"
+    data.copyLine = "Action completed for \(data.personaName) ✓"
     if var remaining = data.remainingActions {
         remaining.removeAll(where: { $0.id == actionId })
         data.remainingActions = remaining
@@ -167,8 +167,8 @@ func enqueueVote(
 
 // MARK: - App Intent (interactive logging without opening the app)
 
-struct CastVoteIntent: AppIntent {
-    static var title: LocalizedStringResource = "Cast today's vote"
+struct CompleteActionIntent: AppIntent {
+    static var title: LocalizedStringResource = "Complete today's action"
     static var description = IntentDescription(
         "Log a daily action for Resolution Companion without opening the app."
     )
@@ -192,7 +192,7 @@ struct CastVoteIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         guard !actionId.isEmpty else { return .result() }
-        enqueueVote(
+        enqueueCompletion(
             actionId: actionId,
             isKickstart: isKickstart,
             source: "widget"
@@ -203,14 +203,14 @@ struct CastVoteIntent: AppIntent {
 
 // MARK: - Timeline
 
-struct VoteEntry: TimelineEntry {
+struct ActionEntry: TimelineEntry {
     let date: Date
     let data: WidgetData?
 }
 
-struct VoteProvider: TimelineProvider {
-    func placeholder(in context: Context) -> VoteEntry {
-        VoteEntry(
+struct ActionProvider: TimelineProvider {
+    func placeholder(in context: Context) -> ActionEntry {
+        ActionEntry(
             date: Date(),
             data: WidgetData(
                 personaName: "Future You",
@@ -219,7 +219,7 @@ struct VoteProvider: TimelineProvider {
                 completed: 1,
                 streak: 4,
                 isRestDay: false,
-                copyLine: "1 of 3 votes cast today",
+                copyLine: "1 of 3 actions completed today",
                 nextActionId: "placeholder",
                 nextActionTitle: "Write one paragraph",
                 nextActionKickstart: "Open the doc",
@@ -235,16 +235,16 @@ struct VoteProvider: TimelineProvider {
         )
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (VoteEntry) -> Void) {
+    func getSnapshot(in context: Context, completion: @escaping (ActionEntry) -> Void) {
         let data = loadWidgetData() ?? placeholder(in: context).data
         widgetLog.notice("Providing widget snapshot; has data: \(data != nil)")
-        completion(VoteEntry(date: Date(), data: data))
+        completion(ActionEntry(date: Date(), data: data))
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<VoteEntry>) -> Void) {
+    func getTimeline(in context: Context, completion: @escaping (Timeline<ActionEntry>) -> Void) {
         let data = loadWidgetData()
         widgetLog.notice("Providing widget timeline; has data: \(data != nil)")
-        let entry = VoteEntry(date: Date(), data: data)
+        let entry = ActionEntry(date: Date(), data: data)
         // Refresh at the next local midnight so a new day always gets a
         // fresh ring even if the app is never opened.
         let calendar = Calendar.current
@@ -288,7 +288,7 @@ struct ProgressRing: View {
     }
 }
 
-struct SmallVoteView: View {
+struct SmallActionView: View {
     let data: WidgetData
 
     var body: some View {
@@ -304,7 +304,7 @@ struct SmallVoteView: View {
     }
 }
 
-struct MediumVoteView: View {
+struct MediumActionView: View {
     let data: WidgetData
 
     var allDone: Bool {
@@ -332,7 +332,7 @@ struct MediumVoteView: View {
                         .font(.system(.subheadline, design: .rounded).weight(.semibold))
                         .foregroundStyle(.white)
                 } else if allDone || data.nextActionId == nil {
-                    Text(allDone ? "Every vote cast today ✓" : data.copyLine)
+                    Text(allDone ? "All actions completed today ✓" : data.copyLine)
                         .font(.system(.subheadline, design: .rounded).weight(.semibold))
                         .foregroundStyle(.white)
                         .lineLimit(2)
@@ -342,7 +342,7 @@ struct MediumVoteView: View {
                         .foregroundStyle(.white)
                         .lineLimit(1)
                     HStack(spacing: 8) {
-                        Button(intent: CastVoteIntent(actionId: data.nextActionId ?? "", isKickstart: false)) {
+                        Button(intent: CompleteActionIntent(actionId: data.nextActionId ?? "", isKickstart: false)) {
                             Label("Done", systemImage: "checkmark")
                                 .font(.system(.caption, design: .rounded).weight(.bold))
                         }
@@ -350,7 +350,7 @@ struct MediumVoteView: View {
                         .tint(brandAccent)
                         .foregroundStyle(brandBackground)
                         if let kickstart = data.nextActionKickstart, !kickstart.isEmpty {
-                            Button(intent: CastVoteIntent(actionId: data.nextActionId ?? "", isKickstart: true)) {
+                            Button(intent: CompleteActionIntent(actionId: data.nextActionId ?? "", isKickstart: true)) {
                                 Text("2 min: \(kickstart)")
                                     .font(.system(.caption, design: .rounded).weight(.semibold))
                                     .lineLimit(1)
@@ -366,7 +366,7 @@ struct MediumVoteView: View {
     }
 }
 
-struct LargeVoteView: View {
+struct LargeActionView: View {
     let data: WidgetData
 
     var allDone: Bool {
@@ -402,12 +402,12 @@ struct LargeVoteView: View {
                     .font(.system(.headline, design: .rounded).weight(.semibold))
                     .foregroundStyle(.white)
             } else if allDone || data.nextActionId == nil {
-                Label("Every vote cast today", systemImage: "checkmark.seal.fill")
+                Label("All actions completed today", systemImage: "checkmark.seal.fill")
                     .font(.system(.headline, design: .rounded).weight(.semibold))
                     .foregroundStyle(.white)
             } else {
                 VStack(alignment: .leading, spacing: 9) {
-                    Text("NEXT SMALL VOTE")
+                    Text("NEXT ACTION")
                         .font(.system(.caption2, design: .rounded).weight(.bold))
                         .foregroundStyle(brandTextSecondary)
                     Text(data.nextActionTitle ?? "")
@@ -415,15 +415,15 @@ struct LargeVoteView: View {
                         .foregroundStyle(.white)
                         .lineLimit(2)
                     HStack(spacing: 10) {
-                        Button(intent: CastVoteIntent(actionId: data.nextActionId ?? "", isKickstart: false)) {
-                            Label("Full vote", systemImage: "checkmark")
+                        Button(intent: CompleteActionIntent(actionId: data.nextActionId ?? "", isKickstart: false)) {
+                            Label("Done", systemImage: "checkmark")
                                 .font(.system(.subheadline, design: .rounded).weight(.bold))
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(brandAccent)
                         .foregroundStyle(brandBackground)
                         if let kickstart = data.nextActionKickstart, !kickstart.isEmpty {
-                            Button(intent: CastVoteIntent(actionId: data.nextActionId ?? "", isKickstart: true)) {
+                            Button(intent: CompleteActionIntent(actionId: data.nextActionId ?? "", isKickstart: true)) {
                                 Text("2 min: \(kickstart)")
                                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
                                     .lineLimit(1)
@@ -438,7 +438,7 @@ struct LargeVoteView: View {
             Spacer(minLength: 0)
 
             if let remaining = data.remainingActions, remaining.count > 1 {
-                Text("\(remaining.count - 1) more small \(remaining.count - 1 == 1 ? "vote" : "votes") after this")
+                Text("\(remaining.count - 1) more \(remaining.count - 1 == 1 ? "action" : "actions") after this")
                     .font(.system(.caption, design: .rounded))
                     .foregroundStyle(brandTextSecondary)
             }
@@ -483,7 +483,7 @@ struct EmptyStateView: View {
 
 struct ResolutionWidgetView: View {
     @Environment(\.widgetFamily) var family
-    let entry: VoteEntry
+    let entry: ActionEntry
 
     var body: some View {
         Group {
@@ -492,11 +492,11 @@ struct ResolutionWidgetView: View {
                 case .accessoryCircular:
                     CircularAccessoryView(data: data)
                 case .systemMedium:
-                    MediumVoteView(data: data)
+                    MediumActionView(data: data)
                 case .systemLarge:
-                    LargeVoteView(data: data)
+                    LargeActionView(data: data)
                 default:
-                    SmallVoteView(data: data)
+                    SmallActionView(data: data)
                 }
             } else {
                 EmptyStateView()
@@ -512,10 +512,10 @@ struct ResolutionWidget: Widget {
     let kind: String = "ResolutionWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: VoteProvider()) { entry in
+        StaticConfiguration(kind: kind, provider: ActionProvider()) { entry in
             ResolutionWidgetView(entry: entry)
         }
-        .configurationDisplayName("Cast Your Vote")
+        .configurationDisplayName("Today's Progress")
         .description("Today's ring and your next small action — log it in one tap.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular])
     }

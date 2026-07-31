@@ -21,7 +21,7 @@
 
 5. **Retention cannot currently be measured.** There is no telemetry of any kind — no activation, retention, paywall-conversion, or crash visibility. Before investing in retention features, instrument the funnel (privacy-respecting, on-brand) or every subsequent decision is a guess. Similarly, all user data is device-local with no backup: device loss = total data loss, which is a silent retention killer for the most invested users.
 
-**Recommended sequence:** Phase 0 measure (telemetry + trial) → Phase 1 ambient layer (widget + App Intents) → Phase 2 story loop (Month in Votes + insights) → Phase 3 coach depth + reward layer. Detail in §6.
+**Recommended sequence:** Phase 0 measure (telemetry + trial) → Phase 1 ambient layer (widget + App Intents) → Phase 2 story loop (Monthly Progress + insights) → Phase 3 coach depth + reward layer. Detail in §6.
 
 ---
 
@@ -56,7 +56,7 @@ Three competitor clusters, and where Resolution Companion sits:
 
 1. **The provably-private AI coach that knows your becoming.** Every AI competitor stores your inner life on their servers; every private app is dumb. "An AI coach with perfect memory of who you're becoming — and the memory lives on your phone" is an intersection nobody occupies and neither cluster can easily reach.
 2. **No-guilt insight storytelling.** Habitify has charts, Atoms has analytics — nobody in the category has _story_. Oura/Whoop-grade narrative + Wrapped-grade shareability, framed as identity progress rather than metrics.
-3. **The kickstart floor as an OS-level system.** "Never take a zero" is currently an in-app text field. Made ambient (one-tap widget floor-logging, Health auto-votes, Siri), it becomes the category's first effort-adaptive tracker: the app that meets you at 2 minutes on your worst day, everywhere on your phone. Streaks owns integrations; Finch owns feelings; nobody owns the floor.
+3. **The kickstart floor as an OS-level system.** "Never take a zero" is currently an in-app text field. Made ambient (one-tap widget floor-logging, Health auto-completion, Siri), it becomes the category's first effort-adaptive tracker: the app that meets you at 2 minutes on your worst day, everywhere on your phone. Streaks owns integrations; Finch owns feelings; nobody owns the floor.
 
 **Pricing position:** $2.99/$24.99 sits well below category medians (~$12.99/mo typical; Finch $69.99/yr; Routinery $39.99/yr; Atoms $119.99/yr). That's a legitimate "honest price" wedge à la Streaks — lean into it explicitly ("no dark patterns, cancel anytime, less than one coffee") rather than leaving it implicit. It is arguably _under_-priced for an AI product; §5 covers options.
 
@@ -66,29 +66,29 @@ Three competitor clusters, and where Resolution Companion sits:
 
 Seven designed experiences. Each names the borrowed pattern, the adaptation that protects the positioning, the surfaces it touches, and the retention mechanism. Ordered by recommended build sequence, not importance — E1 and E2 are the two big bets.
 
-### E1. "Cast Your Vote" widget system _(Streaks × Duolingo × Finch — expands ER#3)_
+### E1. "Today's Progress" widget system _(Streaks × Duolingo × Finch — expands ER#3)_
 
 **Pattern:** Streaks lets users complete habits directly from small/medium/large home-screen and lock-screen widgets. Duolingo's widget — "the streak's watch face," with a deep rotating art library — drove roughly a 60% commitment increase and can change constantly without feeling like spam "since the user chose to put it there." Finch's widget works as ambient companionship, not nagging.
 
 **Experience:**
 
-- _Home screen (interactive, App Intents):_ today's ring + the next scheduled action with two tap targets — **full completion** and the **kickstart floor** ("Just 2 min: put on shoes"). One tap logs the vote without opening the app; the ring fills in place. This makes the kickstart floor a physical button on the phone — the positioning, made tangible.
-- _Rotating identity copy_ (computed locally, refreshed daily): "2 votes today for Writer You" · "Runner You is 68% formed this month" · after a miss, never guilt — "Any day can be day one. Today counts." The copy library escalates _warmth_, never desperation; Duo's guilt-escalation art direction is explicitly the anti-pattern.
-- _Lock screen:_ minimal circular ring (votes cast / scheduled) + one-word identity label. _Watch complication_ later, same data source.
+- _Home screen (interactive, App Intents):_ today's ring + the next scheduled action with two tap targets — **full completion** and the **kickstart floor** ("Just 2 min: put on shoes"). One tap logs the action without opening the app; the ring fills in place. This makes the kickstart floor a physical button on the phone — the positioning, made tangible.
+- _Rotating identity copy_ (computed locally, refreshed daily): "2 completed actions today for Writer You" · "Runner You is 68% formed this month" · after a miss, never guilt — "Any day can be day one. Today counts." The copy library escalates _warmth_, never desperation; Duo's guilt-escalation art direction is explicitly the anti-pattern.
+- _Lock screen:_ minimal circular ring (actions completed / scheduled) + one-word identity label. _Watch complication_ later, same data source.
 - _Empty/rest states:_ rest days show a calm "Rest is part of becoming" face — the widget must never look like an accusation.
 
 **Touches:** new iOS widget extension target + App Intents; shared data via App Group (AsyncStorage values mirrored to `UserDefaults(suiteName:)`); `client/lib/progress.ts` math reused for ring/copy inputs. This is the same native-extension workflow ER#10 (Health) is parked behind — building it unblocks E5.
 **Mechanism:** moves the daily decision from "open the app" to "glance at the phone" — the single most proven retention surface in the category. Also the prerequisite infrastructure for Siri/Health.
 
-### E2. "Month in Votes" — the no-guilt Wrapped _(Spotify Wrapped × Strava Year in Sport × Oura — expands ER#4 + ER#7 together)_
+### E2. "Monthly Progress" — the no-guilt Wrapped _(Spotify Wrapped × Strava Year in Sport × Oura — expands ER#4 + ER#7 together)_
 
 **Pattern:** Wrapped's formula is narrative arc + identity flattery + designed-for-story cards + a share button on every card that's never forced (500M+ day-one shares in 2025). Oura/Whoop's insight pattern is _score + narrative + one recommendation_, never raw dashboards.
 
 **Experience:** On the 1st of each month — exactly when the consistency score resets — the clean slate gets a closing ceremony before the fresh start:
 
-- A 5–7 card swipe-through story, generated on-device from `DailyLog` data: **votes cast** ("41 votes for Consistent Morning Mover"), **consistency portrait** (best day-of-week, best time), **the comeback moment** ("On July 12 you came back after 3 days away — that's the whole skill"), **floor saves** ("Kickstarts saved 6 days this month"), **shields earned/used**, and **one coach-written line** looking forward (a single `/api/reflection` call, or template fallback offline).
+- A 5–7 card swipe-through story, generated on-device from `DailyLog` data: **actions completed** ("41 completed actions for Consistent Morning Mover"), **consistency portrait** (best day-of-week, best time), **the comeback moment** ("On July 12 you came back after 3 days away — that's the whole skill"), **floor saves** ("Kickstarts saved 6 days this month"), **shields earned/used**, and **one coach-written line** looking forward (a single `/api/reflection` call, or template fallback offline).
 - Every card renders share-ready (react-native-view-shot → share sheet) — outbound image only, no accounts, no feed, nothing inbound. Perfectly compatible with local-first; the share card _is_ the growth loop the app currently lacks entirely.
-- Celebrates comebacks and floors as first-class stats — the no-guilt inversion of Wrapped's "top 1%" flattery. A rough month still produces a warm story ("28 votes, 2 comebacks. Still becoming.").
+- Celebrates comebacks and floors as first-class stats — the no-guilt inversion of Wrapped's "top 1%" flattery. A rough month still produces a warm story ("28 completed actions, 2 comebacks. Still becoming.").
 - **December: "The Year You Became"** — premium annual edition (ER#4's December idea), the natural January acquisition moment for a resolutions app.
 - The same data views, kept persistent, become the **Insights panel** (ER#7): day-of-week heatmap and momentum sparkline framed as the ongoing version of the monthly story — finally employing the unused `computeBenchmarkProgress` in `client/lib/progress.ts`.
 
@@ -103,7 +103,7 @@ Seven designed experiences. Each names the borrowed pattern, the adaptation that
 
 - When a week of consistency banks a shield: toast + Journey moment — "Your consistency this week earned a shield 🛡". When one is spent: "Your shield covered Tuesday. Streak intact — that's what it was for." (Copy exists in spirit; the _earning_ event is what's new.)
 - Premium: hold up to **2 shields** (ER#14's partial item), positioned as "extra grace, earned the same way" — never sold as anxiety insurance.
-- Weekly Review and Month in Votes both report shields earned/used as celebrated stats.
+- Weekly Review and Monthly Progress both report shields earned/used as celebrated stats.
 
 **Touches:** `client/lib/progress.ts` (shield-earn event detection), Today/Journey copy, one paywall row.
 **Mechanism:** converts the existing safety net into a visible variable-reward loop; deepens the anti-Duolingo brand promise while borrowing Duolingo's economics.
@@ -121,15 +121,15 @@ Seven designed experiences. Each names the borrowed pattern, the adaptation that
 **Touches:** `client/lib/notifications.ts` + a small local response-tracking store; no server, no push infra needed.
 **Mechanism:** raises the value of the single daily notification instead of adding more — the only notification strategy consistent with the brand.
 
-### E5. Health auto-votes + Siri kickstart logging _(Streaks — re-sequences ER#9/#10 behind E1)_
+### E5. Health auto-completion + Siri kickstart logging _(Streaks — re-sequences ER#9/#10 behind E1)_
 
 **Pattern:** Streaks' stickiest feature set: Apple Health auto-completes habits (steps, workouts, mindful minutes) and Siri Shortcuts log by voice. HealthKit is on-device — perfectly aligned with local-first.
 
 **Experience:**
 
-- During action creation/editing, movement-ish actions offer "auto-complete from Health" (workout logged, step threshold, mindful minutes). Copy: "Health cast this vote for you" — the day is saved without opening the app, which _strengthens_ "never take a zero."
+- During action creation/editing, movement-ish actions offer "auto-complete from Health" (workout logged, step threshold, mindful minutes). Copy: "Health completed this action for you" — the day is saved without opening the app, which _strengthens_ "never take a zero."
 - App Intents: "Hey Siri, I did my kickstart" / "mark my morning run done" — plus Action-Button and Shortcuts automation support for free.
-- Auto-votes appear in Today as pre-completed rows with a Health badge; Month in Votes counts them ("Health cast 9 votes for you").
+- Auto-completed actions appear in Today as pre-completed rows with a Health badge; Monthly Progress counts them ("Health completed 9 actions for you").
 
 **Touches:** HealthKit entitlement + read categories; the App Intents layer built in E1; `ActionEditorScreen` gains the auto-complete option.
 **Mechanism:** zero-effort completions materially protect streaks and shields — retention that runs even when motivation doesn't. Build after E1 proves the extension workflow (as ER#10 already intends).
@@ -166,7 +166,7 @@ Seven designed experiences. Each names the borrowed pattern, the adaptation that
 | Shared-consequence social (party damage)                              | Habitica                            | Documented anxiety; users avoid the feature because letting the team down is stressful. Any future social layer must be witness/celebration-only (Duolingo's Friend Streak +22% completion is the acceptable shape — a later Phase 3 bet, done as a privacy-preserving one-person "witness" with no feeds). |
 | Leaderboards / leagues                                                | Duolingo, Habitica                  | Reintroduces metric-identity ("rank 12") over self-identity ("a runner"), and requires accounts/servers — breaks local-first.                                                                                                                                                                               |
 | Pre-value hard paywall, feature clawbacks                             | Fabulous, Me+, Routinery            | The highest-volume complaint across the category; fatal for a trust-positioned app. Paywall only after the identity-setup aha moment.                                                                                                                                                                       |
-| Punitive companion death                                              | Forest-era mechanics                | The market voted: even Finch's bird is un-killable.                                                                                                                                                                                                                                                         |
+| Punitive companion death                                              | Forest-era mechanics                | The market rejected it: even Finch's bird is un-killable.                                                                                                                                                                                                                                                         |
 | Notification volume                                                   | Duolingo (survives on character IP) | A coach that nags is a deleted app. The ≤1/day covenant is a feature — E4 raises its value instead.                                                                                                                                                                                                         |
 
 ---
@@ -198,15 +198,15 @@ Reconciled with `docs/enhancement-roadmap.md` (ER#). Impact ratings are for rete
 | **0 — Measure** (days–1 wk)       | Privacy-respecting telemetry (activation/retention/paywall funnels) | new         | S      | enabling      | Prereq for judging everything below                                         |
 |                                   | 1-month free trial on yearly (ASC intro offer)                      | #13         | XS     | high ($)      | Also unblocks the Meta ads campaign                                         |
 |                                   | Launch-time entitlement re-sync                                     | new         | XS     | med ($)       | One API call in AppContext                                                  |
-| **1 — Ambient layer** (2–4 wks)   | E1 "Cast Your Vote" widgets + App Intents (home, lock, interactive) | #3/#9       | L      | **highest**   | The proven category retention surface; builds the native-extension workflow |
+| **1 — Ambient layer** (2–4 wks)   | E1 "Today's Progress" widgets + App Intents (home, lock, interactive) | #3/#9       | L      | **highest**   | The proven category retention surface; builds the native-extension workflow |
 |                                   | E4 portfolio-of-hooks notifications                                 | new         | S      | med           | Pure client work on existing engine                                         |
-| **2 — Story loop** (2–3 wks)      | E2 "Month in Votes" recap + share cards                             | #4          | M      | **high**      | Monthly reactivation + first viral surface                                  |
+| **2 — Story loop** (2–3 wks)      | E2 "Monthly Progress" recap + share cards                             | #4          | M      | **high**      | Monthly reactivation + first viral surface                                  |
 |                                   | Insights panel from the same data views                             | #7          | S      | med           | Premium; uses dormant `computeBenchmarkProgress`                            |
 |                                   | E3 earned-shield visibility + premium 2-shield                      | #14         | S      | med           | Mostly copy + one event                                                     |
 | **3 — Coach & rewards** (3–5 wks) | E6 MI prompt spine + proactive weekly observation + real SSE        | new/backlog | M      | high          | The moat feature                                                            |
 |                                   | Identity-science micro-notes drip                                   | new         | M      | med           | Content bundle; premium sweetener                                           |
 |                                   | E7 milestone reward layer (incl. light "Dawn" theme unlock)         | new         | M      | med           | Ships dead light-theme code as delight                                      |
-|                                   | E5 Health auto-votes + Siri                                         | #10/#9      | M      | med-high      | After E1 proves extension workflow                                          |
+|                                   | E5 Health auto-completion + Siri                                         | #10/#9      | M      | med-high      | After E1 proves extension workflow                                          |
 | **Later bets**                    | One-person "witness" accountability (celebration-only)              | new         | L      | high if right | Duolingo Friend Streak shape, privacy-preserving; needs careful design      |
 |                                   | "The Year You Became" annual premium wrapped                        | #4          | S      | seasonal      | Build with E2; ship December                                                |
 |                                   | iCloud backup                                                       | new         | M      | med           | Protects long-tenured users                                                 |

@@ -210,7 +210,7 @@ const DEFAULT_BUCKET: ReminderBucket = "evening";
 
 // Keyword → time-of-day mapping for anchor habits ("after my morning
 // coffee", "before bed"). Deliberately conservative: ambiguous anchors
-// ("at my desk") cast no vote.
+// ("at my desk") do not affect the result.
 const BUCKET_KEYWORDS: Record<ReminderBucket, string[]> = {
   morning: ["morning", "wake", "coffee", "breakfast", "sunrise", "alarm"],
   midday: ["lunch", "noon", "midday", "afternoon"],
@@ -223,11 +223,11 @@ function isReminderBucket(value: string | null): value is ReminderBucket {
 
 /**
  * Derive a suggested reminder time bucket from the persona's action anchor
- * habits. Each anchor casts one vote for the first bucket it matches;
+ * habits. Each anchor adds one match to the first bucket it fits;
  * majority wins, ties and no-matches fall back to evening.
  */
 export function suggestReminderBucket(anchorLinks: string[]): ReminderBucket {
-  const votes: Record<ReminderBucket, number> = {
+  const matches: Record<ReminderBucket, number> = {
     morning: 0,
     midday: 0,
     evening: 0,
@@ -237,15 +237,15 @@ export function suggestReminderBucket(anchorLinks: string[]): ReminderBucket {
     const match = (Object.keys(BUCKET_KEYWORDS) as ReminderBucket[]).find(
       (bucket) => BUCKET_KEYWORDS[bucket].some((kw) => text.includes(kw)),
     );
-    if (match) votes[match]++;
+    if (match) matches[match]++;
   }
 
   let bestBucket: ReminderBucket = DEFAULT_BUCKET;
-  let bestVotes = votes[DEFAULT_BUCKET]; // ties go to the evening default
+  let bestMatchCount = matches[DEFAULT_BUCKET]; // ties go to the evening default
   for (const bucket of ["morning", "midday"] as ReminderBucket[]) {
-    if (votes[bucket] > bestVotes) {
+    if (matches[bucket] > bestMatchCount) {
       bestBucket = bucket;
-      bestVotes = votes[bucket];
+      bestMatchCount = matches[bucket];
     }
   }
   return bestBucket;
@@ -423,14 +423,14 @@ export function reminderBody(hook: ReminderHook, options: ReminderOptions) {
       return `${actionLabel} moves ${goalLabel} forward today.`;
     }
     if (actionLabel && personaName) {
-      return `${actionLabel} is today's vote for ${personaName}.`;
+      return `${actionLabel} is today's next step toward ${personaName}.`;
     }
-    if (actionLabel) return `${actionLabel} is today's next vote.`;
+    if (actionLabel) return `${actionLabel} is today's next action.`;
     if (personaName && monthlyConsistency !== undefined) {
-      return `${personaName}: ${Math.round(monthlyConsistency)}% consistent this month. Today's vote is waiting.`;
+      return `${personaName}: ${Math.round(monthlyConsistency)}% consistent this month. Today's next action is waiting.`;
     }
     if (personaName) {
-      return `A 2-minute vote for ${personaName} still counts today.`;
+      return `A 2-minute step toward ${personaName} still counts today.`;
     }
     // fall through to the streak framing below
   }

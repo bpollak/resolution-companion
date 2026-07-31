@@ -130,7 +130,7 @@ The core loop, redesigned:
 OPEN ──► SEE TODAY CLEARLY ──► LOG ──► PROGRESS MOVES ON-SCREEN ──► DAY COMPLETE ──► REASON TO RETURN
  │            │                  │             │                        │                  │
  │      Today Ring (0/3)    tap card     ring fills 1/3→2/3      celebration card    tomorrow preview,
- │      streak chip,        haptic +     +"A vote for            streak +1, glow,    streak at stake,
+ │      streak chip,        haptic +     +"A action for            streak +1, glow,    streak at stake,
  │      today's cards       animation    {persona}" toast        momentum delta      smart notification
  └─ notification deep-links here (anchor-timed, streak-aware)
 ```
@@ -197,7 +197,7 @@ Layout, top → bottom:
    - *Empty (no actions scheduled):* keep the rest-day card; **always** show tomorrow preview (move it out of the zero-scheduled-only branch, `TodayScreen.tsx:397-425`).
    - *Partial:* ring shows fraction; remaining cards full-size on top, completed collapsed below.
    - *Complete:* see 4.2.
-7. **Toast copy on log** (replace static string at `TodayScreen.tsx:278`): rotate through identity-framed variants — `"A vote for {persona.name} ✓"`, `"Momentum +{delta}%"`, `"{remaining} to go — ring's filling up"`; final action uses the celebration instead.
+7. **Toast copy on log** (replace static string at `TodayScreen.tsx:278`): rotate through identity-framed variants — `"A action for {persona.name} ✓"`, `"Momentum +{delta}%"`, `"{remaining} to go — ring's filling up"`; final action uses the celebration instead.
 
 **Haptics:** keep existing per-card success notification (`ActionCard.tsx:69-73`); add `Haptics.notificationAsync(Success)` + a second `impactAsync(Heavy)` 300ms later for the day-complete moment (double-tap pattern reads as "event," not "acknowledgment").
 

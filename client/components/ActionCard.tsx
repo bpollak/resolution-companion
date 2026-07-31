@@ -117,8 +117,8 @@ export const ActionCard = React.memo(function ActionCard({
         isCompleted ? glowStyle : undefined,
       ]}
     >
-      <View style={styles.voteHeader}>
-        <View style={styles.voteCopy}>
+      <View style={styles.actionHeader}>
+        <View style={styles.actionCopy}>
           {benchmarkTitle ? (
             <ThemedText style={[styles.benchmark, { color: theme.accent }]}>
               {benchmarkTitle}
@@ -137,12 +137,12 @@ export const ActionCard = React.memo(function ActionCard({
           accessibilityLabel={
             isCompleted
               ? `${action.title} completed. Tap to undo`
-              : `Cast today's vote for ${action.title}`
+              : `Mark ${action.title} complete`
           }
         >
           <Animated.View
             style={[
-              styles.voteButton,
+              styles.actionButton,
               {
                 backgroundColor: isCompleted
                   ? theme.success
@@ -163,11 +163,11 @@ export const ActionCard = React.memo(function ActionCard({
             </Animated.View>
             <ThemedText
               style={[
-                styles.voteButtonText,
+                styles.actionButtonText,
                 { color: isCompleted ? theme.buttonText : theme.accent },
               ]}
             >
-              {isCompleted ? "Cast" : "Vote"}
+              {isCompleted ? "Done" : "Mark complete"}
             </ThemedText>
           </Animated.View>
         </Pressable>
@@ -253,9 +253,9 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
 
   const completionBadge =
     log.completionSource === "health"
-      ? { icon: "heart" as const, label: "Health auto-vote" }
+      ? { icon: "heart" as const, label: "Completed by Health" }
       : log.completionKind === "kickstart"
-        ? { icon: "zap" as const, label: "2-minute vote" }
+        ? { icon: "zap" as const, label: "2-minute version" }
         : null;
 
   return (
@@ -353,15 +353,15 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     marginBottom: Spacing.sm,
   },
-  voteHeader: {
+  actionHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
   },
-  voteCopy: {
+  actionCopy: {
     flex: 1,
   },
-  voteButton: {
+  actionButton: {
     minWidth: 70,
     minHeight: 44,
     flexDirection: "row",
@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing.md,
   },
-  voteButtonText: {
+  actionButtonText: {
     ...Typography.small,
     fontWeight: "700",
   },

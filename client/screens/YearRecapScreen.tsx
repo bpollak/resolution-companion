@@ -26,13 +26,13 @@ const cards: CardKind[] = ["opening", "rhythm", "resilience", "closing"];
 
 function cardAccessibilityLabel(recap: YearRecap, kind: CardKind): string {
   if (kind === "opening") {
-    return `${recap.yearLabel}. ${recap.votesCast} votes for ${recap.personaName} across ${recap.activeDays} active days. Every vote made the identity a little more real.`;
+    return `${recap.yearLabel}. ${recap.actionsCompleted} actions completed for ${recap.personaName} across ${recap.activeDays} active days. Every action made the identity a little more real.`;
   }
   if (kind === "rhythm") {
-    return `${recap.consistency}% consistency across ${recap.activeMonths} active ${recap.activeMonths === 1 ? "month" : "months"}. ${recap.bestMonth ? `${recap.bestMonth.monthLabel} led the year with ${recap.bestMonth.votesCast} votes.` : "Your first vote can still write the story."}`;
+    return `${recap.consistency}% consistency across ${recap.activeMonths} active ${recap.activeMonths === 1 ? "month" : "months"}. ${recap.bestMonth ? `${recap.bestMonth.monthLabel} led the year with ${recap.bestMonth.actionsCompleted} completed actions.` : "Your first action can still write the story."}`;
   }
   if (kind === "resilience") {
-    return `The plan bent with you. ${recap.kickstartVotes} floor saves, ${recap.comebacks} comebacks, ${recap.healthVotes} Health auto-votes, ${recap.shieldsEarned} shields earned, and ${recap.shieldedDays} days protected.`;
+    return `The plan bent with you. ${recap.kickstartCompletions} floor saves, ${recap.comebacks} comebacks, ${recap.healthCompletions} Health completions, ${recap.shieldsEarned} shields earned, and ${recap.shieldedDays} days protected.`;
   }
   return `${recap.yearLabel}, still becoming. ${recap.closingLine} No rankings. No perfect year required. Just evidence that you returned.`;
 }
@@ -49,14 +49,14 @@ function YearCard({ recap, kind }: { recap: YearRecap; kind: CardKind }) {
           maxFontSizeMultiplier={1}
           style={[styles.big, { color: theme.accent }]}
         >
-          {recap.votesCast}
+          {recap.actionsCompleted}
         </ThemedText>
         <ThemedText maxFontSizeMultiplier={1} style={styles.headline}>
-          votes for {recap.personaName}
+          actions completed for {recap.personaName}
         </ThemedText>
         <ThemedText maxFontSizeMultiplier={1} style={styles.sub}>
-          Across {recap.activeDays} active days, every vote made the identity a
-          little more real.
+          Across {recap.activeDays} active days, every action made the identity
+          a little more real.
         </ThemedText>
       </>
     );
@@ -78,8 +78,8 @@ function YearCard({ recap, kind }: { recap: YearRecap; kind: CardKind }) {
         </ThemedText>
         <ThemedText maxFontSizeMultiplier={1} style={styles.sub}>
           {recap.bestMonth
-            ? `${recap.bestMonth.monthLabel} led the year with ${recap.bestMonth.votesCast} votes.`
-            : "Your first vote can still write the story."}
+            ? `${recap.bestMonth.monthLabel} led the year with ${recap.bestMonth.actionsCompleted} completed actions.`
+            : "Your first action can still write the story."}
         </ThemedText>
       </>
     );
@@ -95,7 +95,7 @@ function YearCard({ recap, kind }: { recap: YearRecap; kind: CardKind }) {
               maxFontSizeMultiplier={1}
               style={[styles.mid, { color: theme.warning }]}
             >
-              {recap.kickstartVotes}
+              {recap.kickstartCompletions}
             </ThemedText>
             <ThemedText maxFontSizeMultiplier={1} style={styles.sub}>
               floor saves
@@ -114,8 +114,8 @@ function YearCard({ recap, kind }: { recap: YearRecap; kind: CardKind }) {
           </View>
         </View>
         <ThemedText maxFontSizeMultiplier={1} style={styles.sub}>
-          {recap.healthVotes} Health auto-votes · {recap.shieldsEarned} shields
-          earned · {recap.shieldedDays} days protected
+          {recap.healthCompletions} Health completions · {recap.shieldsEarned}{" "}
+          shields earned · {recap.shieldedDays} days protected
         </ThemedText>
       </>
     );

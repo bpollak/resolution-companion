@@ -97,7 +97,7 @@ describe("buildWidgetData", () => {
       persona,
       THURSDAY,
     );
-    expect(data.copyLine).toBe("Every vote cast today ✓");
+    expect(data.copyLine).toBe("All actions completed today ✓");
     expect(data.nextActionId).toBeNull();
   });
 

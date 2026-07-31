@@ -1,13 +1,14 @@
 [
   {
     "version": "1.3.3",
-    "build": 77,
+    "build": 78,
     "status": "draft",
     "title": "Reliable Home Screen widgets",
-    "summary": "Version 1.3.3 fixes a WidgetKit configuration issue that could leave Resolution Companion widgets showing a gray placeholder instead of current progress.",
+    "summary": "Version 1.3.3 fixes a WidgetKit configuration issue that could leave Resolution Companion widgets showing a gray placeholder and simplifies completion language throughout the app.",
     "appStoreNotes": [
       "Fixed an issue that could leave Home Screen widgets stuck on a gray loading placeholder.",
       "Widget actions now load more reliably after progress changes in the app.",
+      "Uses clear action and completion language throughout the app.",
       "Your progress remains stored on your device."
     ],
     "highlights": [
@@ -98,23 +99,23 @@
     "version": "1.2",
     "status": "draft",
     "title": "Your evidence, your way",
-    "summary": "Version 1.2 turns everyday votes into a private personal story and adds an optional, confirmation-first way to tune a plan without sending notes or event history.",
+    "summary": "Version 1.2 turns everyday actions into a private personal story and adds an optional, confirmation-first way to tune a plan without sending notes or event history.",
     "appStoreNotes": [
-      "A clearer Today’s Votes board and optional Daily Context make the daily loop faster and more useful.",
-      "Story Archive keeps every Month in Votes, while Evidence Timeline gathers meaningful notes, milestones, comebacks, and plan changes.",
+      "A clearer Today’s Actions board and optional Daily Context make the daily loop faster and more useful.",
+      "Story Archive keeps every Monthly Progress story, while Evidence Timeline gathers meaningful notes, milestones, comebacks, and plan changes.",
       "What Helps You Show Up finds careful on-device associations after enough context-tagged days.",
       "Plan Tune-Up can review bounded 28-day aggregate counts, preview a small adjustment, and applies nothing until you confirm.",
       "Daily notes, context note text, IDs, and individual event dates are never sent in a Plan Tune-Up."
     ],
     "highlights": [
       {
-        "title": "Today’s votes, at a glance",
-        "description": "Scheduled actions now form a compact voting board with the anchor and two-minute version still close at hand.",
+        "title": "Today’s actions, at a glance",
+        "description": "Scheduled actions now form a compact action board with the anchor and two-minute version still close at hand.",
         "availability": "The daily loop and optional Daily Context are free. Context is saved locally and can be backfilled for the prior seven days."
       },
       {
         "title": "A story that stays yours",
-        "description": "Story Archive preserves every Month in Votes. Evidence Timeline gathers context, action notes, milestones, comebacks, monthly stories, and confirmed plan adjustments without turning routine completions into a social feed.",
+        "description": "Story Archive preserves every Monthly Progress story. Evidence Timeline gathers context, action notes, milestones, comebacks, monthly stories, and confirmed plan adjustments without turning routine completions into a social feed.",
         "availability": "Both personal-history views are free and built from data stored on your device."
       },
       {
@@ -160,13 +161,13 @@
         "availability": "Choose the time that fits your routine or turn reminders off at any time."
       },
       {
-        "title": "Cast votes beyond the app",
+        "title": "Complete actions beyond the app",
         "description": "Log progress from Home and Lock Screen widgets, Siri, or optional Apple Health matches for workouts, steps, and mindful minutes.",
         "availability": "Health matching is opt-in per action, and Health data stays on your device."
       },
       {
         "title": "Progress that tells a story",
-        "description": "Month in Votes recaps turn your history into a share-ready story. Premium Journey insights surface patterns and useful next steps.",
+        "description": "Monthly Progress recaps turn your history into a share-ready story. Premium Journey insights surface patterns and useful next steps.",
         "availability": "Your personal history is analyzed locally on your device."
       },
       {

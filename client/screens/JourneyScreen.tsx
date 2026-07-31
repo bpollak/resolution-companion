@@ -267,8 +267,8 @@ function SelectedDateDetails({
                         ]}
                       >
                         {completionSource === "health"
-                          ? "Health auto-vote"
-                          : "2-minute vote"}
+                          ? "Completed by Health"
+                          : "2-minute version"}
                       </ThemedText>
                     </View>
                   ) : null}

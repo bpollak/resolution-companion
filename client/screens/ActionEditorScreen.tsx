@@ -477,8 +477,8 @@ export default function ActionEditorScreen() {
             </View>
             <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
               {healthAutoComplete
-                ? `${HEALTH_KIND_LABELS[healthAutoComplete]} casts this vote automatically — the day is saved without opening the app.`
-                : "Let a workout, step total, or mindful session in Apple Health cast this vote for you. Health data never leaves your phone."}
+                ? `${HEALTH_KIND_LABELS[healthAutoComplete]} completes this action automatically — the day is saved without opening the app.`
+                : "Let a workout, step total, or mindful session in Apple Health complete this action for you. Health data never leaves your phone."}
             </ThemedText>
           </View>
         ) : null}

@@ -60,11 +60,11 @@ Today's actions
 ┌─────────────────────────────────────────┐
 │ Action                                  │
 │ Small version                           │
-│                                  Vote   │
+│                         Mark complete   │
 └─────────────────────────────────────────┘
 ┌─────────────────────────────────────────┐
 │ Action                                  │
-│                                  Vote   │
+│                         Mark complete   │
 └─────────────────────────────────────────┘
 
 [After the final action: one completion card]

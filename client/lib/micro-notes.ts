@@ -15,9 +15,9 @@ export interface MicroNote {
 
 export const MICRO_NOTES: MicroNote[] = [
   {
-    id: "identity-votes",
-    title: "Every action is a ballot",
-    body: 'Identity-based habit research reframes the question from "what do I want to achieve?" to "who do I want to become?" Each completed action is one vote for that person. No single vote decides an election — and no single miss loses one. What matters is which way most ballots lean.',
+    id: "identity-evidence",
+    title: "Every action becomes evidence",
+    body: 'Identity-based habit research reframes the question from "what do I want to achieve?" to "who do I want to become?" Each completed action is evidence that you can live as that person. No single day defines you. What matters is the pattern you keep building.',
   },
   {
     id: "two-minute-rule",
@@ -27,7 +27,7 @@ export const MICRO_NOTES: MicroNote[] = [
   {
     id: "missing-once",
     title: "The math of missing once",
-    body: 'Habit-formation studies found that missing a single day had no measurable effect on long-term habit strength. The danger isn\'t the miss — it\'s the story you tell about it. "I\'m off track" starts a spiral; "that was one vote the other way" ends it. Never miss twice is the whole rule.',
+    body: 'Habit-formation studies found that missing a single day had no measurable effect on long-term habit strength. The danger isn\'t the miss — it\'s the story you tell about it. "I\'m off track" starts a spiral; "I can take the next step" ends it. Never miss twice is the whole rule.',
   },
   {
     id: "fresh-start",

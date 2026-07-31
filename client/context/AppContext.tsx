@@ -44,7 +44,7 @@ import { logger } from "@/lib/logger";
 import { track, flushTelemetry } from "@/lib/telemetry";
 import { inferBenchmarkCompletedAt } from "@/lib/evidence";
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
-import { syncWidgetData, consumePendingVotes } from "@/lib/widget";
+import { syncWidgetData, consumePendingCompletions } from "@/lib/widget";
 import { unlockRewardsForMilestoneCount, Reward } from "@/lib/rewards";
 import { isHealthAvailable, initHealth, isHealthGoalMet } from "@/lib/health";
 import {
@@ -1016,32 +1016,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [toggleDailyLog]);
 
   // Keep the home/lock-screen widget's snapshot in step with the store, and
-  // fold in votes cast from the widget while the app was closed. Widget taps
-  // only ever complete (never un-complete): a queued vote for an action the
+  // fold in completions from the widget while the app was closed. Widget taps
+  // only ever complete (never un-complete): a queued completion for an action the
   // user has since completed in-app is dropped, not toggled.
   useEffect(() => {
     if (Platform.OS !== "ios" || isLoading) return;
-    for (const vote of consumePendingVotes()) {
+    for (const completion of consumePendingCompletions()) {
       const existing = dailyLogsRef.current.find(
         (l) =>
-          l.actionId === vote.actionId && l.logDate.split("T")[0] === vote.date,
+          l.actionId === completion.actionId &&
+          l.logDate.split("T")[0] === completion.date,
       );
       if (existing?.status) continue;
-      if (!actions.some((a) => a.id === vote.actionId)) continue;
+      if (!actions.some((a) => a.id === completion.actionId)) continue;
       track("widget_action_logged");
-      toggleDailyLog(vote.actionId, vote.date, {
-        completionSource: vote.source ?? "widget",
-        completionKind: vote.kind,
-      }).catch((error) => logger.error("Failed to apply widget vote:", error));
+      toggleDailyLog(completion.actionId, completion.date, {
+        completionSource: completion.source ?? "widget",
+        completionKind: completion.kind,
+      }).catch((error) =>
+        logger.error("Failed to apply widget completion:", error),
+      );
     }
     syncWidgetData(actions, dailyLogs, persona);
   }, [isLoading, actions, dailyLogs, persona, toggleDailyLog]);
 
-  // Widget votes cast while the app stayed backgrounded (state changes don't
+  // Widget completions made while the app stayed backgrounded (state changes don't
   // fire above): reconcile on every foreground. Never consume before the
   // store has loaded — iOS fires an 'active' event right at launch, and
-  // reading votes against the still-empty action list would silently drop
-  // them (found in simulator regression: the injected pending vote vanished
+  // reading completions against the still-empty action list would silently drop
+  // them (found in simulator regression: the injected pending completion vanished
   // without completing anything).
   useEffect(() => {
     if (Platform.OS !== "ios") return;
@@ -1049,35 +1052,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (state !== "active") return;
       if (reminderStateRef.current.isLoading) return;
       const { actions: currentActions } = reminderStateRef.current;
-      for (const vote of consumePendingVotes()) {
+      for (const completion of consumePendingCompletions()) {
         const existing = dailyLogsRef.current.find(
           (l) =>
-            l.actionId === vote.actionId &&
-            l.logDate.split("T")[0] === vote.date,
+            l.actionId === completion.actionId &&
+            l.logDate.split("T")[0] === completion.date,
         );
         if (existing?.status) continue;
-        if (!currentActions.some((a) => a.id === vote.actionId)) continue;
+        if (!currentActions.some((a) => a.id === completion.actionId)) continue;
         track("widget_action_logged");
-        toggleDailyLog(vote.actionId, vote.date, {
-          completionSource: vote.source ?? "widget",
-          completionKind: vote.kind,
+        toggleDailyLog(completion.actionId, completion.date, {
+          completionSource: completion.source ?? "widget",
+          completionKind: completion.kind,
         }).catch((error) =>
-          logger.error("Failed to apply widget vote:", error),
+          logger.error("Failed to apply widget completion:", error),
         );
       }
     });
     return () => subscription.remove();
   }, [toggleDailyLog]);
 
-  // Apple Health auto-votes: actions opted into Health auto-completion get
-  // their vote cast when a matching sample exists for today. Runs once per
-  // foreground; a cast vote flows through the normal optimistic toggle, so
+  // Apple Health auto-completion: opted-in actions complete when a matching
+  // sample exists for today. Runs once per foreground; a Health completion
+  // flows through the normal optimistic toggle, so
   // rings, streaks, and the widget all update the same way a tap would.
   const healthCheckDoneRef = useRef(false);
   useEffect(() => {
     if (Platform.OS !== "ios" || isLoading || !isHealthAvailable()) return;
 
-    const runHealthAutoVotes = async () => {
+    const runHealthAutoCompletions = async () => {
       const { actions: currentActions } = reminderStateRef.current;
       const today = new Date();
       const todayStr = getLocalDateString(today);
@@ -1097,7 +1100,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!(await initHealth())) return;
       for (const action of candidates) {
         if (await isHealthGoalMet(action.healthAutoComplete!, today)) {
-          track("health_auto_vote");
+          track("health_auto_completion");
           await toggleDailyLog(action.id, todayStr, {
             completionSource: "health",
             completionKind: "full",
@@ -1108,14 +1111,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     if (!healthCheckDoneRef.current) {
       healthCheckDoneRef.current = true;
-      runHealthAutoVotes().catch((error) =>
-        logger.error("Health auto-vote failed:", error),
+      runHealthAutoCompletions().catch((error) =>
+        logger.error("Health auto-completion failed:", error),
       );
     }
     const subscription = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
-      runHealthAutoVotes().catch((error) =>
-        logger.error("Health auto-vote failed:", error),
+      runHealthAutoCompletions().catch((error) =>
+        logger.error("Health auto-completion failed:", error),
       );
     });
     return () => subscription.remove();

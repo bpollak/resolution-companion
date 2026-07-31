@@ -43,8 +43,8 @@ a **no-guilt** shell so a missed day never causes churn.
 - **Trigger** — the single adaptive daily notification (`selectReminderHook`)
   + the home/lock-screen widget. Ambient presence is the biggest lever most
   habit apps miss; we already have it, so the work is *adoption*, not building.
-- **Tiny action** — the "floor version" / 2-min kickstart. The bar to cast one
-  vote must always be near-zero. A user should never break a streak for lack of
+- **Tiny action** — the "floor version" / 2-min kickstart. The bar to complete one
+  action must always be near-zero. A user should never break a streak for lack of
   time — there's always a kickstart.
 - **Visible reward** — the Today ring fills instantly (optimistic), plus
   identity affirmation, streak/shield, and *variable* rewards (a micro-note, a
@@ -69,8 +69,8 @@ Can't raise engagement blind. Turn the telemetry we shipped into a picture.
 - **Baseline** every funnel number. Write the baselines down here.
 - Exit criteria: we can see the funnel and know our worst drop-off step.
 
-### Phase B — Activation (fastest time-to-first-vote)
-Target the step from "installed" to "cast their first vote today."
+### Phase B — Activation (fastest time-to-first-action)
+Target the step from "installed" to "complete their first action today."
 - Guarantee onboarding *ends with at least one action already scheduled and
   loggable today* — the user tastes the reward loop in session one.
 - Prompt to add the widget **right after the first `day_complete`** (peak
@@ -81,7 +81,7 @@ Target the step from "installed" to "cast their first vote today."
 - Verify the adaptive reminder is actually learning the best hook per user;
   confirm the "Mark all done ✓" notification action works end-to-end.
 - Kickstart/floor available on every action, everywhere (widget, notification,
-  Today) so a vote is always one tap.
+  Today) so a action is always one tap.
 - Metric: **W2 Habit Rate** up. This is the main event.
 
 ### Phase D — Resurrection (win back lapsed users, no guilt)
@@ -92,7 +92,7 @@ Target the step from "installed" to "cast their first vote today."
 
 ### Phase E — Depth loops (week-4+ retention & organic pull)
 - Coach memory taste → the "a coach that knows you" moment; weekly review
-  ritual as a Sunday anchor; **Month in Votes** share card on the 1st (this is
+  ritual as a Sunday anchor; **Monthly Progress** share card on the 1st (this is
   also the only *acquisition* loop — sharing brings friends, no ad spend).
 - Metric: week-4 retention + `recap_shared` rate.
 

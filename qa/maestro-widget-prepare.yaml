@@ -1,6 +1,6 @@
 appId: com.resolutioncompanion.app
 ---
-# Prepare one incomplete starter action before injecting an App Group vote.
+# Prepare one incomplete starter action before injecting an App Group completion.
 # Run after qa/seed_history.py so the completed row is guaranteed to exist.
 - launchApp
 - repeat:
