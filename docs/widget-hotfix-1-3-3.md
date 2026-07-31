@@ -31,6 +31,9 @@ intent while registering and rendering the extension.
   `group.com.resolutioncompanion.app`.
 - The rebuilt extension launched without the prior missing-default App Intent
   warning.
+- The signed production archive contains host and widget version 1.3.3, build
+  77, with the same App Group entitlement, and was uploaded successfully to
+  App Store Connect on July 31, 2026.
 
 Visual Home Screen verification and a physical-device smoke test remain release
 gates until they can be completed on an unlocked device.
