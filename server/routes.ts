@@ -33,6 +33,10 @@ import {
   validatePlanTuneUpRequest,
   type PlanTuneUpRequest,
 } from "../shared/plan-tune-up";
+import {
+  ambientPlanTuneUpRequestSchema,
+  parseAmbientPlanTuneUpResponse,
+} from "./ambient-plan-tune-up";
 
 // Lazily construct the OpenAI client so a missing API key degrades the AI
 // endpoints instead of crashing the whole server (website, webhooks, legal pages).
@@ -862,6 +866,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     aiRateLimit,
     aiQuota("plan-tune-up"),
     async (req: Request, res: Response) => {
+      // Version 1.3.5 sends up to five opaque action slots. Keep the existing
+      // single-action contract below for already-installed clients.
+      if (Array.isArray(req.body?.actions)) {
+        const parsedRequest = ambientPlanTuneUpRequestSchema.safeParse(
+          req.body,
+        );
+        if (!parsedRequest.success) {
+          res.status(400).json({
+            error: "Plan Tune-Up contains invalid aggregate evidence.",
+          });
+          return;
+        }
+        const ambientRequest = parsedRequest.data;
+        try {
+          const response = await getOpenAI().chat.completions.create(
+            {
+              model: OPENAI_MODEL,
+              reasoning_effort: "minimal",
+              max_completion_tokens: 700,
+              response_format: { type: "json_object" },
+              messages: [
+                {
+                  role: "system",
+                  content: `You tune a private identity-based habit plan from aggregate evidence. Return JSON only with this shape: {"slot": number, "changes": {"frequency"?: weekday[], "anchorLink"?: string, "kickstartVersion"?: string}, "rationale": string}. Recommend exactly one action and change only the minimum needed. Use only Monday-Sunday weekday names. Preserve the user's language in existing plan fields. A kickstart must take under two minutes. Never infer diagnoses or blame the person. Prefer a smaller schedule, a clearer existing-routine anchor, or an easier kickstart. The rationale is 1-2 concise sentences and must describe association, not causation. At least one returned field must actually differ from the input.`,
+                },
+                { role: "user", content: JSON.stringify(ambientRequest) },
+              ],
+            },
+            { timeout: 20_000 },
+          );
+          await recordAiModelUsage("plan-tune-up", response.usage);
+          const content = response.choices[0]?.message?.content;
+          if (!content) throw new Error("Empty plan suggestion");
+          res.json(
+            parseAmbientPlanTuneUpResponse(JSON.parse(content), ambientRequest),
+          );
+        } catch (error) {
+          console.error("Ambient Plan Tune-Up error:", error);
+          res.status(503).json({
+            error:
+              "Plan Tune-Up is temporarily unavailable. Your plan was not changed.",
+          });
+        }
+        return;
+      }
+
       const validationError = validatePlanTuneUpRequest(req.body);
       if (validationError) {
         res.status(400).json({ error: validationError });
