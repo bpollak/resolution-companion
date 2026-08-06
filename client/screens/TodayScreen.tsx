@@ -1244,7 +1244,7 @@ export default function TodayScreen() {
                       ]}
                     >
                       Add the &ldquo;Take the Next Step&rdquo; widget to your
-                      Home or Lock Screen to cast tomorrow&rsquo;s votes with
+                      Home or Lock Screen to log tomorrow&rsquo;s actions with
                       one tap. Siri works too: &ldquo;Log my kickstart in
                       Resolution Companion.&rdquo;
                     </ThemedText>

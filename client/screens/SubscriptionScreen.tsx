@@ -71,7 +71,7 @@ const SOURCE_CONTEXT: Record<
   },
   "year-recap": {
     icon: "award",
-    text: "“The Year You Became” is a Premium story built from your whole year of votes.",
+    text: "“The Year You Became” is a Premium story built from your whole year of showing up.",
   },
 };
 
@@ -425,6 +425,18 @@ export default function SubscriptionScreen() {
                   "Approval Pending",
                   "Your purchase is awaiting approval (such as Ask to Buy). Once approved, your subscription will activate automatically.",
                 );
+                return;
+              }
+
+              // Subscribing while already entitled (StoreKit reports the
+              // existing transaction as a duplicate) is a restore, not a
+              // failure — run it instead of alarming the subscriber.
+              if (
+                errorMessage.includes("Duplicate purchase") ||
+                errorMessage.includes("ALREADY_OWNED") ||
+                errorMessage.includes("already owned")
+              ) {
+                handleRestorePurchases();
                 return;
               }
 
@@ -962,7 +974,7 @@ export default function SubscriptionScreen() {
           />
           <CompareRow
             title={"“The Year You Became”"}
-            description="Your year of votes, told as a story worth sharing"
+            description="Your year, told as a story worth sharing"
             free="—"
             premium="Included"
           />

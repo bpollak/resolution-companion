@@ -178,7 +178,7 @@ export function computeTodaySignal(input: {
   return {
     id: `next-${action.id}-${todayKey}`,
     kind: "next-action",
-    eyebrow: "Your next vote",
+    eyebrow: "Up next",
     headline,
     detail,
     actionId: action.id,

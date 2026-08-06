@@ -76,10 +76,10 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
             {recap.votesCast}
           </ThemedText>
           <ThemedText style={styles.cardHeadline}>
-            {recap.votesCast === 1 ? "vote" : "votes"} for {recap.personaName}
+            {recap.votesCast === 1 ? "action" : "actions"} for {recap.personaName}
           </ThemedText>
           <ThemedText style={styles.cardSub}>
-            Every action was a vote for who you&rsquo;re becoming.
+            Every one was proof of who you&rsquo;re becoming.
           </ThemedText>
         </>
       );
@@ -122,15 +122,15 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
               <ThemedText style={[styles.midNumber, { color: theme.success }]}>
                 {recap.healthVotes}
               </ThemedText>
-              <ThemedText style={styles.cardSub}>Health auto-votes</ThemedText>
+              <ThemedText style={styles.cardSub}>Completed by Health</ThemedText>
             </View>
           </View>
           <ThemedText style={styles.cardHeadline}>
             Small and automatic still count.
           </ThemedText>
           <ThemedText style={styles.cardSub}>
-            The floor exists for real life. Every smaller version was still a
-            vote for {recap.personaName}.
+            The floor exists for real life. Every smaller version still counted
+            for {recap.personaName}.
           </ThemedText>
         </>
       );
@@ -308,7 +308,7 @@ export default function MonthRecapScreen() {
       await Share.share(
         Platform.OS === "ios"
           ? { url: uri }
-          : { message: "My month in votes — Resolution Companion", url: uri },
+          : { message: "My month in review — Resolution Companion", url: uri },
       );
       track("recap_shared");
     } catch (error) {
@@ -328,7 +328,7 @@ export default function MonthRecapScreen() {
       ]}
     >
       <View style={styles.header}>
-        <ThemedText style={styles.title}>Month in Votes</ThemedText>
+        <ThemedText style={styles.title}>Your Month in Review</ThemedText>
         <Pressable
           onPress={() => navigation.goBack()}
           hitSlop={12}

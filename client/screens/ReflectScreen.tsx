@@ -73,24 +73,34 @@ export default function ReflectScreen() {
   );
 
   // The coach's plan changes stay reviewable: newest first, capped at 3.
+  // Records written by the 1.3.x line use appliedAt/summary and carry no
+  // status (they only exist once applied) — read both shapes.
   const recentPlanChanges = useMemo(() => {
     const titleById = new Map(actions.map((a) => [a.id, a.title]));
     return [...planAdjustments]
+      .map((adjustment) => {
+        const legacy = adjustment as typeof adjustment & {
+          appliedAt?: string;
+          summary?: string;
+        };
+        return {
+          id: adjustment.id,
+          actionTitle: titleById.get(adjustment.actionId) ?? "An action",
+          applied: adjustment.status
+            ? adjustment.status === "applied"
+            : true,
+          fields: Object.keys(adjustment.after ?? {})
+            .map((field) => PLAN_FIELD_LABELS[field] ?? field)
+            .join(" · "),
+          rationale: adjustment.rationale ?? legacy.summary ?? "",
+          createdAt: adjustment.createdAt ?? legacy.appliedAt ?? "",
+        };
+      })
       .sort(
         (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       )
-      .slice(0, 3)
-      .map((adjustment) => ({
-        id: adjustment.id,
-        actionTitle: titleById.get(adjustment.actionId) ?? "An action",
-        applied: adjustment.status === "applied",
-        fields: Object.keys(adjustment.after)
-          .map((field) => PLAN_FIELD_LABELS[field] ?? field)
-          .join(" · "),
-        rationale: adjustment.rationale,
-        createdAt: adjustment.createdAt,
-      }));
+      .slice(0, 3);
   }, [planAdjustments, actions]);
 
   const remainingCheckIns = Math.max(0, 10 - monthlyReflectionCount);
@@ -98,6 +108,7 @@ export default function ReflectScreen() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return "";
     return date.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -427,7 +438,7 @@ export default function ReflectScreen() {
             <View
               key={change.id}
               accessible
-              accessibilityLabel={`Plan change for ${change.actionTitle} on ${formatDate(change.createdAt)}: ${change.applied ? "applied" : "kept current"}. ${change.rationale}`}
+              accessibilityLabel={`Plan change for ${change.actionTitle}${formatDate(change.createdAt) ? ` on ${formatDate(change.createdAt)}` : ""}: ${change.applied ? "applied" : "not applied"}. ${change.rationale}`}
               style={[
                 styles.planChangeCard,
                 {
@@ -451,14 +462,15 @@ export default function ReflectScreen() {
                     },
                   ]}
                 >
-                  {change.applied ? "Applied" : "Kept current"}
+                  {change.applied ? "Applied" : "Not applied"}
                 </ThemedText>
               </View>
               <ThemedText
                 style={[styles.planChangeMeta, { color: theme.textSecondary }]}
               >
-                {formatDate(change.createdAt)}
-                {change.fields ? ` · ${change.fields}` : ""}
+                {[formatDate(change.createdAt), change.fields]
+                  .filter(Boolean)
+                  .join(" · ")}
               </ThemedText>
               <ThemedText
                 style={[

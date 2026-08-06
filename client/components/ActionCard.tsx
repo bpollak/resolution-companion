@@ -260,9 +260,9 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
 
   const completionBadge =
     log.completionSource === "health"
-      ? { icon: "heart" as const, label: "Health auto-vote" }
+      ? { icon: "heart" as const, label: "Completed by Health" }
       : log.completionKind === "kickstart"
-        ? { icon: "zap" as const, label: "2-minute vote" }
+        ? { icon: "zap" as const, label: "2-minute version" }
         : null;
 
   return (

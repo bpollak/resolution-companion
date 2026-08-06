@@ -29,7 +29,7 @@ function cardAccessibilityLabel(recap: YearRecap, kind: CardKind): string {
     return `${recap.yearLabel}. ${recap.votesCast} votes for ${recap.personaName} across ${recap.activeDays} active days. Every vote made the identity a little more real.`;
   }
   if (kind === "rhythm") {
-    return `${recap.consistency}% consistency across ${recap.activeMonths} active ${recap.activeMonths === 1 ? "month" : "months"}. ${recap.bestMonth ? `${recap.bestMonth.monthLabel} led the year with ${recap.bestMonth.votesCast} votes.` : "Your first vote can still write the story."}`;
+    return `${recap.consistency}% consistency across ${recap.activeMonths} active ${recap.activeMonths === 1 ? "month" : "months"}. ${recap.bestMonth ? `${recap.bestMonth.monthLabel} led the year with ${recap.bestMonth.votesCast} completed actions.` : "Your first action can still write the story."}`;
   }
   if (kind === "resilience") {
     return `The plan bent with you. ${recap.kickstartVotes} floor saves, ${recap.comebacks} comebacks, ${recap.healthVotes} Health auto-votes, ${recap.shieldsEarned} shields earned, and ${recap.shieldedDays} days protected.`;
@@ -78,8 +78,8 @@ function YearCard({ recap, kind }: { recap: YearRecap; kind: CardKind }) {
         </ThemedText>
         <ThemedText maxFontSizeMultiplier={1} style={styles.sub}>
           {recap.bestMonth
-            ? `${recap.bestMonth.monthLabel} led the year with ${recap.bestMonth.votesCast} votes.`
-            : "Your first vote can still write the story."}
+            ? `${recap.bestMonth.monthLabel} led the year with ${recap.bestMonth.votesCast} completed actions.`
+            : "Your first action can still write the story."}
         </ThemedText>
       </>
     );
