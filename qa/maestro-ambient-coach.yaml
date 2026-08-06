@@ -1,0 +1,62 @@
+appId: com.resolutioncompanion.app
+---
+# Run after qa/maestro-regression.yaml creates a local starter plan.
+# State-dependent discovery, quota, Premium, malformed-server, offline, large
+# text, screen-reader, and orientation cases remain explicit manual/device
+# matrix rows in docs/ambient-coach-release.md until deterministic fixtures are
+# available to Maestro.
+
+- launchApp
+- tapOn:
+    text: "Discard"
+    optional: true
+- extendedWaitUntil:
+    visible: "Today’s evidence.*"
+    timeout: 20000
+- assertVisible: "Today"
+- assertVisible: "This month"
+- takeScreenshot: ambient-today-signal
+
+- tapOn:
+    text: "Ask Coach.*"
+    optional: true
+- extendedWaitUntil:
+    visible: "Coach"
+    timeout: 10000
+    optional: true
+- assertVisible:
+    text: "Today’s signal.*"
+    optional: true
+- tapOn: "Close Coach"
+- tapOn:
+    text: "Discard"
+    optional: true
+
+- extendedWaitUntil:
+    visible:
+      id: "tab-journey"
+    timeout: 10000
+- tapOn:
+    id: "tab-journey"
+- extendedWaitUntil:
+    visible: "How the plan is fitting.*"
+    timeout: 10000
+- assertVisible: ".*(Working well|Still forming|Worth simplifying).*"
+- takeScreenshot: ambient-journey-framing
+
+- tapOn:
+    id: "tab-coach"
+- extendedWaitUntil:
+    visible: "What do you need help with?.*"
+    timeout: 10000
+- assertVisible: "Start a conversation.*"
+- assertVisible: "Adjust my plan.*"
+- tapOn: "Adjust my plan.*"
+- scrollUntilVisible:
+    element:
+      text: "Request a previewed plan adjustment"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- takeScreenshot: ambient-coach-sheet
+- tapOn: "Close Coach"

@@ -44,6 +44,11 @@ app-example
 # generated native folders
 /ios
 /android
+# Local Expo module sources are part of the app, not generated native output.
+!/modules/**/ios/
+!/modules/**/ios/**
+!/modules/**/android/
+!/modules/**/android/**
 
 # build output
 /server_dist/
@@ -55,3 +60,14 @@ app-example
 
 # Local EAS build artifacts (eas build --local output)
 /build/
+
+# Untracked working assets (iCloud-hosted, huge)
+marketing/
+appstore-screenshots/
+attached_assets/
+aso-phase1-evidence/
+playstore-assets/
+static-build/
+*.png
+!assets/**/*.png
+!public/**/*.png

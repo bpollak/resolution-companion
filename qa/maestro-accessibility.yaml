@@ -3,6 +3,7 @@ name: accessibility-large-text-orientation
 ---
 - launchApp:
     clearState: true
+- setOrientation: PORTRAIT
 - assertVisible: "Start Your Journey.*"
 - takeScreenshot: a11y-00-large-text-portrait
 - tapOn: "Start Your Journey.*"

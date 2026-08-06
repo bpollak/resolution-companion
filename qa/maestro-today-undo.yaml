@@ -1,0 +1,47 @@
+appId: com.resolutioncompanion.app
+---
+# Run with two scheduled completed actions. Removing one vote must immediately
+# restore its pending card and update the compact Today count; re-completing it
+# must restore the completed-day state.
+# Layout note: the compact count lives in the signal stats at the TOP of
+# Today; action rows (pending above completed) render below the day cards.
+
+- tapOn:
+    id: "tab-today"
+- repeat:
+    times: 4
+    commands:
+      - swipe:
+          direction: DOWN
+          duration: 300
+- extendedWaitUntil:
+    visible: "2/2"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Complete one action toward your goal completed. Undo.*"
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- assertVisible: "Complete one action toward your goal completed. Undo.*"
+- tapOn: "Complete one action toward your goal completed. Undo.*"
+- assertVisible: "Mark Complete one action toward your goal complete"
+- scrollUntilVisible:
+    element:
+      text: "1/2"
+    direction: UP
+    timeout: 15000
+    centerElement: true
+- scrollUntilVisible:
+    element:
+      text: "Mark Complete one action toward your goal complete"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn: "Mark Complete one action toward your goal complete"
+- scrollUntilVisible:
+    element:
+      text: "2/2"
+    direction: UP
+    timeout: 15000
+    centerElement: true

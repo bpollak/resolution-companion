@@ -283,7 +283,7 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
           pressRetentionOffset={20}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: true }}
-          accessibilityLabel={`${action.title}${completionBadge ? `, ${completionBadge.label}` : ""}`}
+          accessibilityLabel={`${action.title} completed. Undo${completionBadge ? `, ${completionBadge.label}` : ""}`}
           accessibilityHint="Marks this action as not done"
           style={({ pressed }) => [
             styles.compactMain,
@@ -325,6 +325,9 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
               </ThemedText>
             ) : null}
           </View>
+          <ThemedText style={[styles.compactUndo, { color: theme.accent }]}>
+            Undo
+          </ThemedText>
         </Pressable>
         {onNotePress ? (
           <Pressable
@@ -385,6 +388,11 @@ const styles = StyleSheet.create({
   },
   compactTextCol: {
     flex: 1,
+  },
+  compactUndo: {
+    ...Typography.caption,
+    fontWeight: "700",
+    marginLeft: Spacing.sm,
   },
   compactTitle: {
     ...Typography.body,

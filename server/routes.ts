@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "node:http";
 import * as crypto from "node:crypto";
 import OpenAI from "openai";
+import { ZodError } from "zod";
 import { db } from "./db";
 import {
   websiteFeedback,
@@ -28,6 +29,10 @@ import {
   verifyGooglePubSubPush,
   type GoogleSubscriptionValidation,
 } from "./google-play";
+import {
+  parsePlanTuneUpResponse,
+  planTuneUpRequestSchema,
+} from "./plan-tune-up";
 
 // Lazily construct the OpenAI client so a missing API key degrades the AI
 // endpoints instead of crashing the whole server (website, webhooks, legal pages).
@@ -73,7 +78,12 @@ type ModelUsage = {
 };
 
 async function recordAiModelUsage(
-  endpoint: "chat" | "extract" | "reflection" | "milestone-proposal",
+  endpoint:
+    | "chat"
+    | "extract"
+    | "reflection"
+    | "milestone-proposal"
+    | "plan-tune-up",
   usage: ModelUsage | null | undefined,
 ): Promise<void> {
   if (!db) return;
@@ -785,6 +795,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.post(
+    "/api/plan-tune-up",
+    requireApiKey,
+    aiRateLimit,
+    aiQuota("reflection"),
+    async (req: Request, res: Response) => {
+      try {
+        const request = planTuneUpRequestSchema.parse(req.body);
+        const response = await getOpenAI().chat.completions.create(
+          {
+            model: OPENAI_MODEL,
+            reasoning_effort: "minimal",
+            max_completion_tokens: 700,
+            response_format: { type: "json_object" },
+            messages: [
+              {
+                role: "system",
+                content: `You tune a private identity-based habit plan from aggregate evidence. Return JSON only with this shape: {"slot": number, "changes": {"frequency"?: weekday[], "anchorLink"?: string, "kickstartVersion"?: string}, "rationale": string}. Recommend exactly one action and change only the minimum needed. Use only Monday-Sunday weekday names. Preserve the user's language in existing plan fields. A kickstart must take under two minutes. Never infer diagnoses or blame the person. Prefer a smaller schedule, a clearer existing-routine anchor, or an easier kickstart. The rationale is 1-2 concise sentences and must describe association, not causation. At least one returned field must actually differ from the input.`,
+              },
+              { role: "user", content: JSON.stringify(request) },
+            ],
+          },
+          { timeout: 20_000 },
+        );
+        await recordAiModelUsage("plan-tune-up", response.usage);
+        const content = response.choices[0]?.message?.content;
+        if (!content) throw new Error("Empty plan suggestion");
+        const suggestion = parsePlanTuneUpResponse(
+          JSON.parse(content),
+          request,
+        );
+        res.json(suggestion);
+      } catch (error) {
+        console.error("Plan tune-up error:", error);
+        res
+          .status(error instanceof ZodError ? 400 : 503)
+          .json({ error: "Unable to create a safe plan suggestion." });
+      }
+    },
+  );
+
+  app.post(
     "/api/milestone-proposal",
     requireApiKey,
     aiRateLimit,
@@ -1009,6 +1060,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "shield_used",
     "reward_unlocked",
     "coach_observation_opened",
+    "today_signal_actioned",
+    "daily_context_saved",
+    "daily_context_dismissed",
+    "coach_sheet_opened",
+    "coach_context_prompt_sent",
+    "coach_context_session_saved",
+    "journey_discovery_opened",
+    "coach_response_helpful",
+    "coach_response_unhelpful",
+    "plan_tuneup_previewed",
+    "plan_tuneup_applied",
+    "plan_tuneup_dismissed",
     "micro_note_read",
     "year_recap_shared",
     "witness_progress_shared",

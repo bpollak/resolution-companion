@@ -1,0 +1,97 @@
+appId: com.resolutioncompanion.app
+---
+# Run after qa/maestro-regression.yaml creates the starter plan and declines
+# AI consent. This deliberately uses production AI once, then verifies the
+# response controls, saved contextual history, and preview-before-apply flow.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Today’s evidence.*"
+    timeout: 20000
+- tapOn: "Ask Coach.*"
+- extendedWaitUntil:
+    visible: "Coach"
+    timeout: 10000
+- assertVisible: "Today’s signal.*"
+- scrollUntilVisible:
+    element:
+      text: "Help me.*"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn: "Help me.*"
+- tapOn:
+    text: "Agree and continue.*"
+    optional: true
+- extendedWaitUntil:
+    visible: "AI coach: .+"
+    timeout: 90000
+- assertVisible: "Copy coach response"
+- assertVisible: "Mark coach response helpful"
+- assertVisible: "Mark coach response not helpful"
+- assertVisible: "Report this AI response"
+- tapOn: "Copy coach response"
+- tapOn: "Mark coach response helpful"
+- tapOn: "Save coaching session"
+- extendedWaitUntil:
+    visible:
+      id: "tab-coach"
+    timeout: 15000
+
+# The saved contextual session must be discoverable from the persistent lobby.
+- tapOn:
+    id: "tab-coach"
+- scrollUntilVisible:
+    element:
+      text: "Past Sessions.*"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- extendedWaitUntil:
+    visible: "Past Sessions.*"
+    timeout: 15000
+- assertVisible: ".*momentum.*"
+
+# Plan tuning may reuse the already-counted session, but never mutates until
+# the field-level preview is explicitly confirmed.
+- scrollUntilVisible:
+    element:
+      text: "Adjust my plan.*"
+    direction: UP
+    timeout: 15000
+    centerElement: true
+- tapOn: "Adjust my plan.*"
+- extendedWaitUntil:
+    visible: "Request a previewed plan adjustment"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Request a previewed plan adjustment"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn: "Request a previewed plan adjustment"
+- scrollUntilVisible:
+    element:
+      text: "Preview changes"
+    direction: DOWN
+    timeout: 90000
+    centerElement: true
+- assertVisible: "Before:.*"
+- assertVisible: "After:.*"
+- assertVisible: "Keep current plan"
+- assertVisible: "Apply previewed plan changes"
+- tapOn: "Keep current plan"
+- assertNotVisible: "Preview changes"
+
+# Request a fresh recommendation and exercise the atomic apply path.
+- tapOn: "Request a previewed plan adjustment"
+- scrollUntilVisible:
+    element:
+      text: "Preview changes"
+    direction: DOWN
+    timeout: 90000
+    centerElement: true
+- tapOn: "Apply previewed plan changes"
+- assertNotVisible: "Preview changes"
+- tapOn: "Close Coach"

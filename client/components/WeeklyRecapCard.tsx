@@ -40,7 +40,7 @@ export function WeeklyRecapCard({
 
   const identityLine =
     prevWeek.scheduled > 0 && scoreDelta < 0
-      ? `New week, fresh ballot — every log is a vote for ${personaName}.`
+      ? `New week, fresh start — every completion builds evidence for ${personaName}.`
       : `Another week of becoming ${personaName}.`;
 
   return (

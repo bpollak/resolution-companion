@@ -332,7 +332,7 @@ export const CTA: React.FC = () => {
       >
         <Img src={staticFile("appstore-badge.svg")} style={{ width: 420 * ts }} />
         <div style={{ fontSize: 36 * ts, color: TEXT_DIM }}>
-          Free forever. No credit card required.
+          Free to start. No credit card required.
         </div>
       </div>
     </AbsoluteFill>

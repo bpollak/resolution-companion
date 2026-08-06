@@ -37,7 +37,42 @@ import { getSubscriptionPlanLabel } from "@/lib/subscription";
 type PlanType = "monthly" | "yearly" | "lifetime";
 
 type SubscriptionRouteParams = {
-  Subscription: { source?: "coach-limit" | "milestone-proposal" } | undefined;
+  Subscription: { source?: SubscriptionSource } | undefined;
+};
+
+type SubscriptionSource =
+  | "coach-limit"
+  | "milestone-proposal"
+  | "milestone-limit"
+  | "insights"
+  | "year-recap";
+
+// "Here's what you just hit" — every gated entry point names the cap so the
+// paywall never opens as a generic ad
+const SOURCE_CONTEXT: Record<
+  SubscriptionSource,
+  { icon: keyof typeof Feather.glyphMap; text: string }
+> = {
+  "coach-limit": {
+    icon: "message-circle",
+    text: "You’ve used all 10 free check-ins this month — Premium removes the cap.",
+  },
+  "milestone-proposal": {
+    icon: "flag",
+    text: "Your next milestone is ready — Premium lets you add it while keeping the full proposal visible first.",
+  },
+  "milestone-limit": {
+    icon: "flag",
+    text: "Your starter milestones are set — Premium lets you add new ones as your goals evolve.",
+  },
+  insights: {
+    icon: "bar-chart-2",
+    text: "Insights show when you show up best and the one thing to protect — Premium unlocks the full panel.",
+  },
+  "year-recap": {
+    icon: "award",
+    text: "“The Year You Became” is a Premium story built from your whole year of votes.",
+  },
 };
 
 // Fallback expiry estimate when the server didn't return a store-validated date
@@ -249,10 +284,11 @@ export default function SubscriptionScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<SubscriptionRouteParams, "Subscription">>();
-  // Presentation-only framing: arriving from the coach 10/10 gate explains
-  // which cap was hit before the generic hero
-  const fromCoachLimit = route.params?.source === "coach-limit";
-  const fromMilestoneProposal = route.params?.source === "milestone-proposal";
+  // Presentation-only framing: arriving from a gate explains which cap was
+  // hit before the generic hero
+  const sourceContext = route.params?.source
+    ? SOURCE_CONTEXT[route.params.source]
+    : null;
   const { theme, isDark } = useTheme();
   const {
     subscription,
@@ -812,7 +848,7 @@ export default function SubscriptionScreen() {
           </View>
         ) : null}
 
-        {fromCoachLimit || fromMilestoneProposal ? (
+        {sourceContext ? (
           <View
             style={[
               styles.contextCard,
@@ -823,11 +859,9 @@ export default function SubscriptionScreen() {
               },
             ]}
           >
-            <Feather name="message-circle" size={20} color={theme.accent} />
+            <Feather name={sourceContext.icon} size={20} color={theme.accent} />
             <ThemedText style={styles.contextCardText}>
-              {fromCoachLimit
-                ? "You’ve used all 10 free check-ins this month — Premium removes the cap."
-                : "Your next milestone is ready — Premium lets you add it while keeping the full proposal visible first."}
+              {sourceContext.text}
             </ThemedText>
           </View>
         ) : null}
@@ -905,6 +939,30 @@ export default function SubscriptionScreen() {
           <CompareRow
             title="Insights"
             description="When you show up, and the one thing to protect"
+            free="—"
+            premium="Included"
+          />
+          <CompareRow
+            title="Coach memory"
+            description="A coach that remembers your past sessions"
+            free="—"
+            premium="Included"
+          />
+          <CompareRow
+            title="Pattern discoveries"
+            description="What helps and what gets in the way, from your own days"
+            free="First one"
+            premium="All"
+          />
+          <CompareRow
+            title="Identity micro-reads"
+            description="60-second habit science, matched to your journey"
+            free="Weekly"
+            premium="Daily"
+          />
+          <CompareRow
+            title={"“The Year You Became”"}
+            description="Your year of votes, told as a story worth sharing"
             free="—"
             premium="Included"
           />

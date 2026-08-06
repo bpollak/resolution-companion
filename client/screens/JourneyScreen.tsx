@@ -24,7 +24,9 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { StatChip } from "@/components/StatChip";
 import { Toast } from "@/components/Toast";
 import { InsightsPanel } from "@/components/InsightsPanel";
+import { JourneyFramingCard } from "@/components/JourneyFramingCard";
 import { getMainTabHeaderClearance } from "@/navigation/tab-bar-layout";
+import { categorizeActionRhythms } from "@/lib/ambient-coach";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -273,8 +275,8 @@ function SelectedDateDetails({
                         ]}
                       >
                         {completionSource === "health"
-                          ? "Health auto-vote"
-                          : "2-minute vote"}
+                          ? "Completed by Health"
+                          : "2-minute fallback"}
                       </ThemedText>
                     </View>
                   ) : null}
@@ -312,6 +314,7 @@ interface MilestoneRowProps {
   theme: any;
   onToggle: (benchmarkId: string) => void;
   onEdit: (benchmarkId: string) => void;
+  onAskMilestone: (benchmarkId: string) => void;
 }
 
 const MilestoneRow = React.memo(function MilestoneRow({
@@ -321,6 +324,7 @@ const MilestoneRow = React.memo(function MilestoneRow({
   theme,
   onToggle,
   onEdit,
+  onAskMilestone,
 }: MilestoneRowProps) {
   const {
     benchmark,
@@ -333,68 +337,74 @@ const MilestoneRow = React.memo(function MilestoneRow({
 
   return (
     <View>
-      <Pressable
-        onPress={() => onToggle(benchmark.id)}
-        accessibilityRole="button"
-        accessibilityState={{ expanded }}
-        accessibilityLabel={`${benchmark.title} milestone, ${daysDone} of ${target} days done`}
-        accessibilityHint="Shows the daily actions for this milestone"
-        style={({ pressed }) => [
+      <View
+        style={[
           styles.benchmarkCard,
           {
             backgroundColor: isDark
               ? Colors.dark.backgroundDefault
               : Colors.light.backgroundDefault,
-            opacity: pressed ? 0.9 : 1,
           },
           completed && styles.benchmarkCardCompleted,
         ]}
       >
-        <View style={styles.benchmarkHeader}>
-          <View style={styles.benchmarkTitleCol}>
-            <View style={styles.benchmarkTitleRow}>
-              <Feather
-                name={completed ? "check-circle" : "circle"}
-                size={16}
-                color={completed ? theme.success : theme.accent}
-                style={styles.milestoneStatusIcon}
-              />
-              <ThemedText style={styles.benchmarkTitle}>
-                {benchmark.title}
-              </ThemedText>
+        <Pressable
+          onPress={() => onToggle(benchmark.id)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+          accessibilityLabel={`${benchmark.title} milestone, ${daysDone} of ${target} days done`}
+          accessibilityHint="Shows the daily actions for this milestone"
+          style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}
+        >
+          <View style={styles.benchmarkHeader}>
+            <View style={styles.benchmarkTitleCol}>
+              <View style={styles.benchmarkTitleRow}>
+                <Feather
+                  name={completed ? "check-circle" : "circle"}
+                  size={16}
+                  color={completed ? theme.success : theme.accent}
+                  style={styles.milestoneStatusIcon}
+                />
+                <ThemedText style={styles.benchmarkTitle}>
+                  {benchmark.title}
+                </ThemedText>
+              </View>
+              {actionProgress[0]?.action.frequency ? (
+                <ThemedText
+                  style={[
+                    styles.frequencyBadge,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  {actionProgress[0].action.frequency.length >= 7
+                    ? "Daily"
+                    : `${actionProgress[0].action.frequency.length}×/week`}
+                </ThemedText>
+              ) : null}
             </View>
-            {actionProgress[0]?.action.frequency ? (
+            <View style={styles.benchmarkMeta}>
               <ThemedText
-                style={[styles.frequencyBadge, { color: theme.textSecondary }]}
+                style={[
+                  styles.benchmarkDays,
+                  {
+                    color: completed ? theme.success : theme.accent,
+                  },
+                ]}
               >
-                {actionProgress[0].action.frequency.length >= 7
-                  ? "Daily"
-                  : `${actionProgress[0].action.frequency.length}×/week`}
+                {daysDone}/{target}
               </ThemedText>
-            ) : null}
+              <Feather
+                name={expanded ? "chevron-up" : "chevron-down"}
+                size={20}
+                color={theme.textSecondary}
+              />
+            </View>
           </View>
-          <View style={styles.benchmarkMeta}>
-            <ThemedText
-              style={[
-                styles.benchmarkDays,
-                {
-                  color: completed ? theme.success : theme.accent,
-                },
-              ]}
-            >
-              {daysDone}/{target}
-            </ThemedText>
-            <Feather
-              name={expanded ? "chevron-up" : "chevron-down"}
-              size={20}
-              color={theme.textSecondary}
-            />
-          </View>
-        </View>
-        <ProgressBar
-          progress={progress}
-          color={completed ? theme.success : theme.accent}
-        />
+          <ProgressBar
+            progress={progress}
+            color={completed ? theme.success : theme.accent}
+          />
+        </Pressable>
         <View style={styles.benchmarkFooter}>
           <ThemedText
             style={[
@@ -432,7 +442,7 @@ const MilestoneRow = React.memo(function MilestoneRow({
             </ThemedText>
           </Pressable>
         </View>
-      </Pressable>
+      </View>
 
       {expanded && actionProgress.length > 0 ? (
         <View style={styles.actionsContainer}>
@@ -541,6 +551,24 @@ const MilestoneRow = React.memo(function MilestoneRow({
               </View>
             </View>
           ))}
+          <Pressable
+            onPress={() => onAskMilestone(benchmark.id)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={`Ask Coach about ${benchmark.title} milestone`}
+            style={({ pressed }) => [
+              styles.contextCoachButton,
+              styles.milestoneCoachButton,
+              { borderColor: theme.accent, opacity: pressed ? 0.65 : 1 },
+            ]}
+          >
+            <Feather name="target" size={14} color={theme.accent} />
+            <ThemedText
+              style={[styles.contextCoachText, { color: theme.accent }]}
+            >
+              Ask Coach about this milestone
+            </ThemedText>
+          </Pressable>
         </View>
       ) : null}
     </View>
@@ -619,6 +647,11 @@ export default function JourneyScreen() {
     const personaBenchmarkIds = personaBenchmarks.map((b) => b.id);
     return actions.filter((a) => personaBenchmarkIds.includes(a.benchmarkId));
   }, [actions, personaBenchmarks]);
+
+  const actionRhythms = useMemo(
+    () => categorizeActionRhythms(personaActions, dailyLogs),
+    [dailyLogs, personaActions],
+  );
 
   const personaCreatedDate = useMemo(() => {
     if (!persona?.createdAt) return null;
@@ -809,6 +842,17 @@ export default function JourneyScreen() {
     [navigation],
   );
 
+  const askCoachAboutMilestone = useCallback(
+    (benchmarkId: string) => {
+      navigation.navigate("CoachSheet", {
+        origin: "milestone",
+        benchmarkId,
+        promptId: "reflect-success",
+      });
+    },
+    [navigation],
+  );
+
   const renderMilestoneRow = useCallback(
     ({ item }: { item: MilestoneProgressResult }) => (
       <MilestoneRow
@@ -818,9 +862,17 @@ export default function JourneyScreen() {
         theme={theme}
         onToggle={toggleExpand}
         onEdit={editBenchmark}
+        onAskMilestone={askCoachAboutMilestone}
       />
     ),
-    [editBenchmark, expandedBenchmarks, isDark, theme, toggleExpand],
+    [
+      askCoachAboutMilestone,
+      editBenchmark,
+      expandedBenchmarks,
+      isDark,
+      theme,
+      toggleExpand,
+    ],
   );
 
   if (!hasOnboarded || !persona) {
@@ -867,70 +919,31 @@ export default function JourneyScreen() {
         windowSize={7}
         ListHeaderComponent={
           <>
-            <View
-              style={[
-                styles.personaCard,
-                {
-                  backgroundColor: isDark
-                    ? Colors.dark.backgroundDefault
-                    : Colors.light.backgroundDefault,
-                },
-              ]}
-            >
-              <View style={styles.personaHeader}>
-                <View style={styles.personaIcon}>
-                  <Feather name="target" size={24} color={theme.accent} />
-                </View>
-                <View style={styles.personaInfo}>
-                  <ThemedText
-                    style={[styles.personaLabel, { color: theme.accent }]}
-                  >
-                    Becoming
-                  </ThemedText>
-                  <ThemedText style={styles.personaName}>
-                    {persona.name}
-                  </ThemedText>
-                </View>
-              </View>
+            {/* The tab header already pins the persona name; here a compact
+                line keeps the description without a full card of chrome */}
+            <View style={styles.personaIntro}>
+              <ThemedText
+                style={[styles.personaLabel, { color: theme.accent }]}
+              >
+                Becoming {persona.name}
+              </ThemedText>
               {persona.description ? (
                 <ThemedText
                   style={[
                     styles.personaDescription,
                     { color: theme.textSecondary },
                   ]}
+                  numberOfLines={2}
                 >
                   {persona.description}
                 </ThemedText>
               ) : null}
             </View>
 
-            <View style={styles.journeyToolsSection}>
-              <ThemedText style={styles.journeyToolsHeading}>
-                Stories &amp; Support
-              </ThemedText>
-              <JourneyTool
-                icon="award"
-                title="The Year You Became"
-                subtitle={
-                  subscription.isPremium
-                    ? `${new Date().getFullYear()} year-to-date story`
-                    : "Premium annual story"
-                }
-                onPress={() =>
-                  subscription.isPremium
-                    ? navigation.navigate("YearRecap", {
-                        year: new Date().getFullYear(),
-                      })
-                    : navigation.navigate("Subscription")
-                }
-              />
-              <JourneyTool
-                icon="users"
-                title="Someone in Your Corner"
-                subtitle="One trusted witness · you choose every share"
-                onPress={() => navigation.navigate("Witness")}
-              />
-            </View>
+            <JourneyFramingCard
+              actions={personaActions}
+              rhythms={actionRhythms}
+            />
 
             {showGuide ? (
               <View
@@ -1331,7 +1344,7 @@ export default function JourneyScreen() {
                 <ThemedText
                   style={[styles.addButtonText, { color: theme.buttonText }]}
                 >
-                  Add milestone
+                  {canAddBenchmark() ? "Add milestone" : "Add · Premium"}
                 </ThemedText>
               </Pressable>
             </View>
@@ -1344,8 +1357,35 @@ export default function JourneyScreen() {
               dailyLogs={dailyLogs}
               personaName={persona?.name ?? "Future You"}
               isPremium={subscription.isPremium}
-              onUpgrade={() => navigation.navigate("Subscription")}
+              onUpgrade={() =>
+                navigation.navigate("Subscription", { source: "insights" })
+              }
             />
+            <View style={styles.journeyToolsSection}>
+              <ThemedText style={styles.journeyToolsHeading}>
+                Stories &amp; Support
+              </ThemedText>
+              <JourneyTool
+                icon="award"
+                title="The Year You Became"
+                subtitle={
+                  subscription.isPremium
+                    ? `${new Date().getFullYear()} year-to-date story`
+                    : "Premium annual story"
+                }
+                onPress={() =>
+                  navigation.navigate("YearRecap", {
+                    year: new Date().getFullYear(),
+                  })
+                }
+              />
+              <JourneyTool
+                icon="users"
+                title="Someone in Your Corner"
+                subtitle="One trusted witness · you choose every share"
+                onPress={() => navigation.navigate("Witness")}
+              />
+            </View>
             {!subscription.isPremium ? (
               <Pressable
                 onPress={() => navigation.navigate("Subscription")}
@@ -1427,26 +1467,9 @@ const styles = StyleSheet.create({
     ...Typography.body,
     textAlign: "center",
   },
-  personaCard: {
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.md,
+  personaIntro: {
     marginBottom: Spacing.xl,
-  },
-  personaHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  personaIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.full,
-    backgroundColor: "rgba(0, 217, 255, 0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.lg,
-  },
-  personaInfo: {
-    flex: 1,
+    gap: Spacing.xs,
   },
   personaLabel: {
     ...Typography.caption,
@@ -1455,12 +1478,9 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: Spacing.xs,
   },
-  personaName: {
-    ...Typography.headline,
-  },
   personaDescription: {
-    ...Typography.body,
-    marginTop: Spacing.md,
+    ...Typography.small,
+    lineHeight: 20,
   },
   journeyToolsSection: {
     marginBottom: Spacing.xl,
@@ -1851,6 +1871,28 @@ const styles = StyleSheet.create({
     // as one clipped line; an explicit width forces wrap on the first pass
     width: "100%",
     flexShrink: 1,
+  },
+  contextCoachButton: {
+    minHeight: 44,
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+  },
+  milestoneCoachButton: {
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    borderWidth: 0,
+    alignSelf: "flex-start",
+  },
+  contextCoachText: {
+    ...Typography.small,
+    fontWeight: "600",
   },
   frequencyTags: {
     flexDirection: "row",

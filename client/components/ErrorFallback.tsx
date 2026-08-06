@@ -120,6 +120,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
               </View>
 
               <ScrollView
+                delaysContentTouches={false}
                 style={styles.modalScrollView}
                 contentContainerStyle={styles.modalScrollContent}
                 showsVerticalScrollIndicator

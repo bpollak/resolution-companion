@@ -23,15 +23,23 @@ appId: com.resolutioncompanion.app
 - extendedWaitUntil:
     visible: "AI coach: .*goal.*"
     timeout: 30000
-- tapOn: "Message to your AI persona interviewer.*"
+- tapOn:
+    text: "Message to your AI persona interviewer.*"
+    waitToSettleTimeoutMs: 500
 - inputText: "I want to prepare for military service by improving land navigation and obstacle movement."
-- tapOn: "Send message.*"
+- tapOn:
+    text: "Send message.*"
+    waitToSettleTimeoutMs: 500
 - extendedWaitUntil:
     visible: "AI coach: .*starting points.*"
     timeout: 60000
-- tapOn: "Message to your AI persona interviewer.*"
+- tapOn:
+    text: "Message to your AI persona interviewer.*"
+    waitToSettleTimeoutMs: 500
 - inputText: "Yes, they do."
-- tapOn: "Send message.*"
+- tapOn:
+    text: "Send message.*"
+    waitToSettleTimeoutMs: 500
 
 - extendedWaitUntil:
     visible: "Create my plan.*"
@@ -41,4 +49,3 @@ appId: com.resolutioncompanion.app
     visible: "Today"
     timeout: 60000
 - assertNotVisible: "Connection Issue"
-- takeScreenshot: ai-onboarding-plan-created

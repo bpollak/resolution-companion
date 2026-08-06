@@ -11,6 +11,8 @@ const STORAGE_KEYS = {
   BENCHMARKS: "benchmarks",
   ELEMENTAL_ACTIONS: "elementalActions",
   DAILY_LOGS: "dailyLogs",
+  DAILY_CONTEXT_ENTRIES: "dailyContextEntries",
+  PLAN_ADJUSTMENTS: "planAdjustments",
   REFLECTIONS: "reflections",
   ONBOARDING_MESSAGES: "onboardingMessages",
   SUBSCRIPTION: "subscription",
@@ -66,14 +68,71 @@ export interface DailyLog {
   completionKind?: "full" | "kickstart";
 }
 
+export type DailyContextFactor =
+  | "energy"
+  | "time"
+  | "support"
+  | "environment"
+  | "planFit";
+
+export type DailyContextFactorState = "helped" | "hindered";
+
+export interface DailyContextEntry {
+  id: string;
+  personaId: string;
+  logDate: string;
+  factors: Partial<Record<DailyContextFactor, DailyContextFactorState>>;
+  note?: string;
+  status: "saved" | "dismissed";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlanAdjustmentChanges {
+  frequency?: string[];
+  anchorLink?: string;
+  kickstartVersion?: string;
+}
+
+export interface PlanAdjustment {
+  id: string;
+  personaId: string;
+  actionId: string;
+  before: PlanAdjustmentChanges;
+  after: PlanAdjustmentChanges;
+  rationale: string;
+  status: "applied" | "dismissed";
+  createdAt: string;
+}
+
+export type CoachEntryOrigin =
+  | "today-signal"
+  | "journey-discovery"
+  | "lapse-recovery"
+  | "milestone"
+  | "recap"
+  | "action"
+  | "direct";
+
+export interface CoachEvidenceSnapshot {
+  eyebrow: string;
+  headline: string;
+  detail: string;
+  value?: string;
+  trend?: "up" | "steady" | "down";
+}
+
 export interface Reflection {
   id: string;
-  periodType: "weekly" | "monthly" | "yearly";
+  periodType: "weekly" | "monthly" | "yearly" | "contextual";
   userInput: string;
   aiFeedback: string;
   momentumScore: number;
   createdAt: string;
   conversation?: string;
+  personaId?: string;
+  origin?: CoachEntryOrigin;
+  evidenceSnapshot?: CoachEvidenceSnapshot;
 }
 
 export interface ChatMessage {
@@ -217,6 +276,18 @@ export const storage = {
     const logs = await this.getDailyLogs();
     const filteredLogs = logs.filter((l) => !actionIds.includes(l.actionId));
     await this.setDailyLogs(filteredLogs);
+    const contextEntries = await this.getDailyContextEntries();
+    await this.setDailyContextEntries(
+      contextEntries.filter((entry) => entry.personaId !== id),
+    );
+    const adjustments = await this.getPlanAdjustments();
+    await this.setPlanAdjustments(
+      adjustments.filter((entry) => entry.personaId !== id),
+    );
+    const reflections = await this.getReflections();
+    await this.setReflections(
+      reflections.filter((entry) => entry.personaId !== id),
+    );
     const activeId = await this.getActivePersonaId();
     if (activeId === id && filtered.length > 0) {
       await this.setActivePersonaId(filtered[0].id);
@@ -328,6 +399,12 @@ export const storage = {
       (l) => !actionIdsToDelete.includes(l.actionId),
     );
     await this.setDailyLogs(filteredLogs);
+    const adjustments = await this.getPlanAdjustments();
+    await this.setPlanAdjustments(
+      adjustments.filter(
+        (entry) => !actionIdsToDelete.includes(entry.actionId),
+      ),
+    );
   },
 
   async getElementalActions(): Promise<ElementalAction[]> {
@@ -377,6 +454,10 @@ export const storage = {
     const dailyLogs = await this.getDailyLogs();
     const filteredLogs = dailyLogs.filter((l) => l.actionId !== id);
     await this.setDailyLogs(filteredLogs);
+    const adjustments = await this.getPlanAdjustments();
+    await this.setPlanAdjustments(
+      adjustments.filter((entry) => entry.actionId !== id),
+    );
   },
 
   async getDailyLogs(): Promise<DailyLog[]> {
@@ -386,6 +467,114 @@ export const storage = {
 
   async setDailyLogs(logs: DailyLog[]): Promise<void> {
     await AsyncStorage.setItem(STORAGE_KEYS.DAILY_LOGS, JSON.stringify(logs));
+  },
+
+  async getDailyContextEntries(): Promise<DailyContextEntry[]> {
+    const value = await AsyncStorage.getItem(
+      STORAGE_KEYS.DAILY_CONTEXT_ENTRIES,
+    );
+    return safeParse<DailyContextEntry[]>(value, []);
+  },
+
+  async setDailyContextEntries(entries: DailyContextEntry[]): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.DAILY_CONTEXT_ENTRIES,
+      JSON.stringify(entries),
+    );
+  },
+
+  async upsertDailyContextEntry(
+    entry: Omit<DailyContextEntry, "id" | "createdAt" | "updatedAt">,
+  ): Promise<DailyContextEntry> {
+    const entries = await this.getDailyContextEntries();
+    const index = entries.findIndex(
+      (candidate) =>
+        candidate.personaId === entry.personaId &&
+        candidate.logDate.split("T")[0] === entry.logDate.split("T")[0],
+    );
+    const now = new Date().toISOString();
+    const next: DailyContextEntry =
+      index >= 0
+        ? { ...entries[index], ...entry, updatedAt: now }
+        : {
+            ...entry,
+            id: generateId(),
+            createdAt: now,
+            updatedAt: now,
+          };
+    if (index >= 0) entries[index] = next;
+    else entries.push(next);
+    await this.setDailyContextEntries(entries);
+    return next;
+  },
+
+  async getPlanAdjustments(): Promise<PlanAdjustment[]> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.PLAN_ADJUSTMENTS);
+    return safeParse<PlanAdjustment[]>(value, []);
+  },
+
+  async setPlanAdjustments(entries: PlanAdjustment[]): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.PLAN_ADJUSTMENTS,
+      JSON.stringify(entries),
+    );
+  },
+
+  async recordPlanAdjustment(
+    entry: Omit<PlanAdjustment, "id" | "createdAt">,
+  ): Promise<PlanAdjustment> {
+    const entries = await this.getPlanAdjustments();
+    const next: PlanAdjustment = {
+      ...entry,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    entries.push(next);
+    await this.setPlanAdjustments(entries);
+    return next;
+  },
+
+  async applyPlanAdjustment(
+    actionId: string,
+    personaId: string,
+    changes: PlanAdjustmentChanges,
+    rationale: string,
+  ): Promise<{ action: ElementalAction; adjustment: PlanAdjustment } | null> {
+    const actions = await this.getElementalActions();
+    const actionIndex = actions.findIndex((action) => action.id === actionId);
+    if (actionIndex < 0) return null;
+    const current = actions[actionIndex];
+    const before: PlanAdjustmentChanges = {};
+    const after: PlanAdjustmentChanges = {};
+    for (const key of [
+      "frequency",
+      "anchorLink",
+      "kickstartVersion",
+    ] as const) {
+      if (changes[key] === undefined) continue;
+      Object.assign(before, { [key]: current[key] });
+      Object.assign(after, { [key]: changes[key] });
+    }
+    if (Object.keys(after).length === 0) return null;
+    const updated: ElementalAction = { ...current, ...after };
+    actions[actionIndex] = updated;
+    const adjustments = await this.getPlanAdjustments();
+    const adjustment: PlanAdjustment = {
+      id: generateId(),
+      personaId,
+      actionId,
+      before,
+      after,
+      rationale: rationale.trim().slice(0, 500),
+      status: "applied",
+      createdAt: new Date().toISOString(),
+    };
+    adjustments.push(adjustment);
+    await AsyncStorage.multiSet([
+      [STORAGE_KEYS.ELEMENTAL_ACTIONS, JSON.stringify(actions)],
+      [STORAGE_KEYS.PLAN_ADJUSTMENTS, JSON.stringify(adjustments)],
+    ]);
+    return { action: updated, adjustment };
   },
 
   // Serializes log writes so concurrent optimistic persists can't interleave
@@ -473,6 +662,13 @@ export const storage = {
     return safeParse<Reflection[]>(value, []);
   },
 
+  async setReflections(reflections: Reflection[]): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.REFLECTIONS,
+      JSON.stringify(reflections),
+    );
+  },
+
   async addReflection(
     reflection: Omit<Reflection, "id" | "createdAt">,
   ): Promise<Reflection> {
@@ -483,10 +679,7 @@ export const storage = {
       createdAt: new Date().toISOString(),
     };
     reflections.push(newReflection);
-    await AsyncStorage.setItem(
-      STORAGE_KEYS.REFLECTIONS,
-      JSON.stringify(reflections),
-    );
+    await this.setReflections(reflections);
     return newReflection;
   },
 

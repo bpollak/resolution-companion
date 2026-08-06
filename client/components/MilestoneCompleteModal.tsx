@@ -98,6 +98,8 @@ export function MilestoneCompleteModal({
       accessibilityViewIsModal
     >
       <ScrollView
+        delaysContentTouches={false}
+        decelerationRate="fast"
         style={styles.backdropScroll}
         contentContainerStyle={styles.backdrop}
         showsVerticalScrollIndicator={false}

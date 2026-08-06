@@ -72,6 +72,8 @@ export default function WitnessScreen() {
 
   return (
     <ScrollView
+      delaysContentTouches={false}
+      decelerationRate="fast"
       keyboardShouldPersistTaps="handled"
       style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
       contentContainerStyle={{

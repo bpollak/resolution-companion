@@ -103,7 +103,7 @@ export default function BenchmarkEditorScreen() {
       navigation.goBack();
     }
     if (!isEditing && !canAddBenchmark()) {
-      navigation.navigate("Subscription");
+      navigation.navigate("Subscription", { source: "milestone-limit" });
     }
   }, [isEditing, existingBenchmark, persona, navigation, canAddBenchmark]);
 

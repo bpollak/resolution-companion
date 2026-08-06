@@ -427,10 +427,10 @@ export function reminderBody(hook: ReminderHook, options: ReminderOptions) {
     }
     if (actionLabel) return `${actionLabel} is today's next vote.`;
     if (personaName && monthlyConsistency !== undefined) {
-      return `${personaName}: ${Math.round(monthlyConsistency)}% consistent this month. Today's vote is waiting.`;
+      return `${personaName}: ${Math.round(monthlyConsistency)}% consistent this month. Today's next step is waiting.`;
     }
     if (personaName) {
-      return `A 2-minute vote for ${personaName} still counts today.`;
+      return `A 2-minute step toward ${personaName} still counts today.`;
     }
     // fall through to the streak framing below
   }

@@ -84,7 +84,7 @@ interface SettingsRowProps {
   destructive?: boolean;
 }
 
-type ProfilePanel = "main" | "reminders" | "privacy" | "about";
+type ProfilePanel = "main" | "reminders" | "appearance" | "privacy" | "about";
 
 function SettingsRow({
   icon,
@@ -229,11 +229,13 @@ export default function ProfileScreen() {
     const title =
       activePanel === "reminders"
         ? "Daily Reminder"
-        : activePanel === "privacy"
-          ? "Privacy & Data"
-          : activePanel === "about"
-            ? "About"
-            : "Profile";
+        : activePanel === "appearance"
+          ? "Appearance"
+          : activePanel === "privacy"
+            ? "Privacy & Data"
+            : activePanel === "about"
+              ? "About"
+              : "Profile";
     const isMain = activePanel === "main";
 
     navigation.setOptions({
@@ -269,8 +271,8 @@ export default function ProfileScreen() {
     return () => cancelAnimationFrame(frame);
   }, [activePanel]);
 
-  // Dawn theme: a milestone reward — the Appearance row only exists once
-  // it has been earned
+  // Milestone rewards live in the Appearance panel; each row appears only
+  // once its reward has been earned
   const {
     mode: themeMode,
     setMode: setThemeMode,
@@ -914,6 +916,28 @@ export default function ProfileScreen() {
           />
 
           <SettingsRow
+            icon="sunrise"
+            title="Appearance"
+            subtitle="Themes, accents, and earned rewards"
+            onPress={() => setActivePanel("appearance")}
+          />
+
+          {Platform.OS === "ios" ? (
+            <SettingsRow
+              icon="grid"
+              title="Widget & Siri"
+              subtitle="Log actions without opening the app"
+              onPress={() =>
+                Alert.alert(
+                  "Log from your Home Screen",
+                  "Touch and hold your Home or Lock Screen, tap +, and search for Resolution Companion to add the “Take the Next Step” widget.\n\nSiri works too — try “Log my kickstart in Resolution Companion.”",
+                  [{ text: "Got it" }],
+                )
+              }
+            />
+          ) : null}
+
+          <SettingsRow
             icon="shield"
             title="Privacy & Data"
             subtitle={
@@ -1184,6 +1208,21 @@ export default function ProfileScreen() {
               small action at a time.
             </ThemedText>
           </View>
+        </>
+      ) : null}
+
+      {activePanel === "appearance" ? (
+        <>
+          <View style={styles.detailIntro}>
+            <Feather name="sunrise" size={28} color={theme.accent} />
+            <ThemedText style={styles.detailTitle}>Make it yours</ThemedText>
+            <ThemedText
+              style={[styles.detailBody, { color: theme.textSecondary }]}
+            >
+              Completed milestones unlock personalization rewards — a theme, an
+              accent, a coach voice, celebrations, and an app icon.
+            </ThemedText>
+          </View>
 
           {dawnUnlocked ||
           violetAccentUnlocked ||
@@ -1195,7 +1234,40 @@ export default function ProfileScreen() {
             >
               Earned Personalization
             </ThemedText>
-          ) : null}
+          ) : (
+            <View
+              style={[
+                styles.settingsRow,
+                {
+                  backgroundColor: isDark
+                    ? Colors.dark.backgroundDefault
+                    : Colors.light.backgroundDefault,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.settingsIcon,
+                  { backgroundColor: "rgba(255, 184, 0, 0.1)" },
+                ]}
+              >
+                <Feather name="lock" size={20} color={theme.textSecondary} />
+              </View>
+              <View style={styles.settingsContent}>
+                <ThemedText style={styles.settingsTitle}>
+                  Nothing unlocked yet
+                </ThemedText>
+                <ThemedText
+                  style={[
+                    styles.settingsSubtitle,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Your first completed milestone unlocks the Dawn theme
+                </ThemedText>
+              </View>
+            </View>
+          )}
 
           {dawnUnlocked ? (
             <View
@@ -1461,6 +1533,31 @@ export default function ProfileScreen() {
                 thumbColor="#FFFFFF"
               />
             </View>
+          ) : null}
+        </>
+      ) : null}
+
+      {activePanel === "about" ? (
+        <>
+          {Platform.OS === "ios" ? (
+            <>
+              <ThemedText
+                style={[styles.sectionTitle, { marginTop: Spacing.xl }]}
+              >
+                Support
+              </ThemedText>
+
+              <SettingsRow
+                icon="star"
+                title="Rate Resolution Companion"
+                subtitle="Share your experience on the App Store"
+                onPress={() =>
+                  Linking.openURL(
+                    "https://apps.apple.com/app/id6757996708?action=write-review",
+                  )
+                }
+              />
+            </>
           ) : null}
 
           <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>

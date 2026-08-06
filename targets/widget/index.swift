@@ -49,7 +49,7 @@ func localDateString(_ date: Date = Date()) -> String {
 
 func freshCopy(personaName: String, remaining: Int, date: Date = Date()) -> String {
     let variants = [
-        "\(remaining) small \(remaining == 1 ? "vote" : "votes") for \(personaName) today",
+        "\(remaining) small \(remaining == 1 ? "action" : "actions") for \(personaName) today",
         "\(personaName) is one small action away",
         "2 minutes still counts today",
     ]
@@ -127,7 +127,7 @@ func enqueueVote(
 
     guard var data = loadWidgetData() else { return nil }
     data.completed = min(data.completed + 1, max(data.scheduled, 1))
-    data.copyLine = "A vote for \(data.personaName) ✓"
+    data.copyLine = "\(data.personaName) in action ✓"
     if var remaining = data.remainingActions {
         remaining.removeAll(where: { $0.id == actionId })
         data.remainingActions = remaining
@@ -148,7 +148,7 @@ func enqueueVote(
 // MARK: - App Intent (interactive logging without opening the app)
 
 struct CastVoteIntent: AppIntent {
-    static var title: LocalizedStringResource = "Cast today's vote"
+    static var title: LocalizedStringResource = "Complete today's action"
     static var description = IntentDescription(
         "Log a daily action for Resolution Companion without opening the app."
     )
@@ -195,7 +195,7 @@ struct VoteProvider: TimelineProvider {
                 completed: 1,
                 streak: 4,
                 isRestDay: false,
-                copyLine: "1 of 3 votes cast today",
+                copyLine: "1 of 3 actions complete today",
                 nextActionId: "placeholder",
                 nextActionTitle: "Write one paragraph",
                 nextActionKickstart: "Open the doc",
@@ -304,7 +304,7 @@ struct MediumVoteView: View {
                         .font(.system(.subheadline, design: .rounded).weight(.semibold))
                         .foregroundStyle(.white)
                 } else if allDone || data.nextActionId == nil {
-                    Text(allDone ? "Every vote cast today ✓" : data.copyLine)
+                    Text(allDone ? "Every action complete today ✓" : data.copyLine)
                         .font(.system(.subheadline, design: .rounded).weight(.semibold))
                         .foregroundStyle(.white)
                         .lineLimit(2)
@@ -374,12 +374,12 @@ struct LargeVoteView: View {
                     .font(.system(.headline, design: .rounded).weight(.semibold))
                     .foregroundStyle(.white)
             } else if allDone || data.nextActionId == nil {
-                Label("Every vote cast today", systemImage: "checkmark.seal.fill")
+                Label("Every action complete today", systemImage: "checkmark.seal.fill")
                     .font(.system(.headline, design: .rounded).weight(.semibold))
                     .foregroundStyle(.white)
             } else {
                 VStack(alignment: .leading, spacing: 9) {
-                    Text("NEXT SMALL VOTE")
+                    Text("NEXT SMALL ACTION")
                         .font(.system(.caption2, design: .rounded).weight(.bold))
                         .foregroundStyle(brandTextSecondary)
                     Text(data.nextActionTitle ?? "")
@@ -388,7 +388,7 @@ struct LargeVoteView: View {
                         .lineLimit(2)
                     HStack(spacing: 10) {
                         Button(intent: CastVoteIntent(actionId: data.nextActionId ?? "", isKickstart: false)) {
-                            Label("Full vote", systemImage: "checkmark")
+                            Label("Complete", systemImage: "checkmark")
                                 .font(.system(.subheadline, design: .rounded).weight(.bold))
                         }
                         .buttonStyle(.borderedProminent)
@@ -410,7 +410,7 @@ struct LargeVoteView: View {
             Spacer(minLength: 0)
 
             if let remaining = data.remainingActions, remaining.count > 1 {
-                Text("\(remaining.count - 1) more small \(remaining.count - 1 == 1 ? "vote" : "votes") after this")
+                Text("\(remaining.count - 1) more small \(remaining.count - 1 == 1 ? "action" : "actions") after this")
                     .font(.system(.caption, design: .rounded))
                     .foregroundStyle(brandTextSecondary)
             }
@@ -477,6 +477,8 @@ struct ResolutionWidgetView: View {
         .containerBackground(for: .widget) {
             brandBackground
         }
+        // Body taps (outside the intent buttons) open the app on Today
+        .widgetURL(URL(string: "resolutioncompanion://today"))
     }
 }
 
@@ -487,7 +489,7 @@ struct ResolutionWidget: Widget {
         StaticConfiguration(kind: kind, provider: VoteProvider()) { entry in
             ResolutionWidgetView(entry: entry)
         }
-        .configurationDisplayName("Cast Your Vote")
+        .configurationDisplayName("Take the Next Step")
         .description("Today's ring and your next small action — log it in one tap.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular])
     }

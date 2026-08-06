@@ -10,6 +10,7 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -141,6 +142,8 @@ const STEP_COLORS = [
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const compactLandscape = width > height && height < 600;
   const navigation = useNavigation<any>();
   const { theme, isDark } = useTheme();
   const {
@@ -603,7 +606,16 @@ export default function OnboardingScreen() {
       <View
         style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
       >
-        <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+        <View
+          style={[
+            styles.header,
+            compactLandscape && styles.introHeaderCompact,
+            {
+              paddingTop:
+                insets.top + (compactLandscape ? Spacing.xs : Spacing.md),
+            },
+          ]}
+        >
           {navigation.canGoBack() ? (
             <Pressable
               onPress={() => navigation.goBack()}
@@ -626,11 +638,24 @@ export default function OnboardingScreen() {
         <ScrollView
           delaysContentTouches={false}
           style={styles.introScroll}
-          contentContainerStyle={styles.introPageContent}
+          contentContainerStyle={[
+            styles.introPageContent,
+            compactLandscape && styles.introPageContentCompact,
+          ]}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.introHero}>
-            <View style={styles.heroLogoContainer}>
+          <View
+            style={[
+              styles.introHero,
+              compactLandscape && styles.introHeroCompact,
+            ]}
+          >
+            <View
+              style={[
+                styles.heroLogoContainer,
+                compactLandscape && styles.heroLogoContainerCompact,
+              ]}
+            >
               <View
                 style={[
                   styles.heroGlowRing,
@@ -652,7 +677,12 @@ export default function OnboardingScreen() {
                 </View>
               </View>
             </View>
-            <ThemedText style={styles.introTitle}>
+            <ThemedText
+              style={[
+                styles.introTitle,
+                compactLandscape && styles.introTitleCompact,
+              ]}
+            >
               {currentIntroPage.title}
             </ThemedText>
             <ThemedText
@@ -663,12 +693,18 @@ export default function OnboardingScreen() {
           </View>
 
           {currentIntroPage.details ? (
-            <View style={styles.introDetailsContainer}>
+            <View
+              style={[
+                styles.introDetailsContainer,
+                compactLandscape && styles.introDetailsContainerCompact,
+              ]}
+            >
               {currentIntroPage.details.map((detail, index) => (
                 <View
                   key={index}
                   style={[
                     styles.introDetailRow,
+                    compactLandscape && styles.introDetailRowCompact,
                     {
                       backgroundColor: isDark
                         ? Colors.dark.backgroundDefault
@@ -700,13 +736,21 @@ export default function OnboardingScreen() {
         <View
           style={[
             styles.introFooter,
+            compactLandscape && styles.introFooterCompact,
             {
-              paddingBottom: Math.max(insets.bottom, 20) + Spacing.xl,
+              paddingBottom: compactLandscape
+                ? Math.max(insets.bottom, Spacing.xs) + Spacing.sm
+                : Math.max(insets.bottom, 20) + Spacing.xl,
               backgroundColor: theme.backgroundRoot,
             },
           ]}
         >
-          <View style={styles.paginationDots}>
+          <View
+            style={[
+              styles.paginationDots,
+              compactLandscape && styles.paginationDotsCompact,
+            ]}
+          >
             {INTRO_PAGES.map((_, index) => (
               <View
                 key={index}
@@ -845,6 +889,7 @@ export default function OnboardingScreen() {
 
       <FlatList
         ref={flatListRef}
+        delaysContentTouches={false}
         data={messages}
         renderItem={renderMessage}
         keyExtractor={(item) => item.id}
@@ -1100,12 +1145,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Spacing.xl,
   },
+  introHeroCompact: {
+    paddingVertical: 0,
+  },
   heroLogoContainer: {
     width: 100,
     height: 100,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Spacing.xl,
+  },
+  heroLogoContainerCompact: {
+    width: 64,
+    height: 64,
+    marginBottom: Spacing.xs,
+    transform: [{ scale: 0.64 }],
   },
   heroGlowRing: {
     position: "absolute",
@@ -1135,6 +1189,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: Spacing.sm,
   },
+  introTitleCompact: {
+    ...Typography.headline,
+    lineHeight: 28,
+  },
   introSubtitle: {
     ...Typography.body,
     textAlign: "center",
@@ -1143,6 +1201,9 @@ const styles = StyleSheet.create({
   introFooter: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
+  },
+  introFooterCompact: {
+    paddingTop: Spacing.xs,
   },
   beginButton: {
     flexDirection: "row",
@@ -1171,15 +1232,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.lg,
   },
+  introPageContentCompact: {
+    justifyContent: "flex-start",
+    paddingBottom: Spacing.xs,
+  },
   introDetailsContainer: {
     marginTop: Spacing.xl,
     gap: Spacing.sm,
+  },
+  introDetailsContainerCompact: {
+    marginTop: Spacing.sm,
   },
   introDetailRow: {
     flexDirection: "row",
     alignItems: "center",
     padding: Spacing.md,
     borderRadius: BorderRadius.lg,
+  },
+  introDetailRowCompact: {
+    padding: Spacing.sm,
   },
   introDetailIcon: {
     width: 36,
@@ -1199,6 +1270,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.sm,
     marginBottom: Spacing.lg,
+  },
+  paginationDotsCompact: {
+    marginBottom: Spacing.xs,
+  },
+  introHeaderCompact: {
+    minHeight: 44,
   },
   paginationDot: {
     height: 8,

@@ -157,6 +157,8 @@ export default function DataBackupScreen() {
 
   return (
     <ScrollView
+      delaysContentTouches={false}
+      decelerationRate="fast"
       style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
       contentContainerStyle={{
         paddingTop: insets.top + Spacing.lg,

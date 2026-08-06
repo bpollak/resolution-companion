@@ -1,5 +1,98 @@
 [
   {
+    "version": "1.3.6",
+    "status": "submitted",
+    "title": "Coach, right where you need it",
+    "summary": "Version 1.3.6 brings one timely signal to Today, clearer Journey patterns, contextual coaching that keeps your place, and a milestone accessibility fix found during final regression.",
+    "appStoreNotes": [
+      "Today now leads with one timely, private signal and the easiest next action.",
+      "Optionally record what helped or made a completed day harder.",
+      "Journey now groups actions as Working well, Still forming, or Worth simplifying and surfaces careful on-device discoveries.",
+      "Ask Coach about Today or Journey evidence in an expandable sheet without leaving your place.",
+      "Review any suggested plan adjustment before confirming a change.",
+      "Improved VoiceOver access to milestone editing and strengthened editor persistence testing."
+    ],
+    "highlights": [
+      {
+        "title": "One signal for today",
+        "description": "Today prioritizes the most useful local signal, from a gentle restart to the easiest next vote, without requiring AI or a network connection.",
+        "availability": "Available to everyone."
+      },
+      {
+        "title": "Coach in context",
+        "description": "Open a full coaching conversation over Today or Journey with local evidence attached, then save it to Coach history if it is useful.",
+        "availability": "Weekly reviews remain free; ten other successful sessions are included each month, with unlimited sessions in Premium."
+      },
+      {
+        "title": "Accessible plan editing",
+        "description": "Milestone expand and Edit controls are now independently available to VoiceOver, with plan-field changes verified through relaunch.",
+        "availability": "Available to everyone."
+      }
+    ],
+    "submittedAt": "2026-08-05"
+  },
+  {
+    "version": "1.3.5",
+    "status": "submitted",
+    "title": "Coach, right where you need it",
+    "summary": "Version 1.3.5 brings one timely signal to Today, clearer Journey patterns, optional daily context, and contextual coaching that keeps your place.",
+    "appStoreNotes": [
+      "Today now leads with one timely, private signal and the easiest next action.",
+      "Optionally record what helped or made a completed day harder.",
+      "Journey now groups actions as Working well, Still forming, or Worth simplifying and surfaces careful on-device discoveries.",
+      "Ask Coach about Today or Journey evidence in an expandable sheet without leaving your place.",
+      "Review any suggested plan adjustment before confirming a change."
+    ],
+    "highlights": [
+      {
+        "title": "One signal for today",
+        "description": "Today prioritizes the most useful local signal, from a gentle restart to the easiest next vote, without requiring AI or a network connection.",
+        "availability": "Available to everyone."
+      },
+      {
+        "title": "Context without judgment",
+        "description": "Optional Energy, Time, Support, Environment, and Plan fit context can reveal associations after enough saved days, never causal claims.",
+        "availability": "Categories and one qualifying discovery are free; Premium includes every qualifying discovery and deeper trends."
+      },
+      {
+        "title": "Coach in context",
+        "description": "Open a full coaching conversation over Today or Journey with local evidence attached, then save it to Coach history if it is useful.",
+        "availability": "Weekly reviews remain free; ten other successful sessions are included each month, with unlimited sessions in Premium."
+      },
+      {
+        "title": "Preview every plan change",
+        "description": "Coach can suggest one smaller schedule, clearer anchor, or easier two-minute version at a time. Nothing changes until you confirm the field-level preview.",
+        "availability": "Plan guidance follows the existing coaching allowance."
+      }
+    ],
+    "submittedAt": "2026-08-05"
+  },
+  {
+    "version": "1.3.4",
+    "status": "submitted",
+    "title": "A better time to share your experience",
+    "summary": "Version 1.3.4 improves App Store discovery and makes it easier to rate Resolution Companion after you have had time to use it, without changing Premium pricing.",
+    "appStoreNotes": [
+      "Added a direct App Store rating link in Settings.",
+      "Improved the timing of the optional App Store review prompt so it appears after you have more experience with the app.",
+      "Keeps the existing Monthly and Yearly Premium options unchanged.",
+      "Includes small reliability and usability improvements."
+    ],
+    "highlights": [
+      {
+        "title": "Rate the app when you are ready",
+        "description": "A new link in Settings opens the Resolution Companion rating page directly, while the optional native review prompt waits until seven distinct completed days.",
+        "availability": "Available on iPhone and iPad in version 1.3.4."
+      },
+      {
+        "title": "The same straightforward Premium choices",
+        "description": "Monthly and Yearly Premium plans remain available at the existing prices, with no Lifetime tier added.",
+        "availability": "$2.99 monthly or $24.99 yearly in the United States; regional pricing may vary."
+      }
+    ],
+    "submittedAt": "2026-08-04"
+  },
+  {
     "version": "1.1",
     "status": "released",
     "submittedAt": "2026-07-19",
@@ -25,13 +118,13 @@
         "availability": "Choose the time that fits your routine or turn reminders off at any time."
       },
       {
-        "title": "Cast votes beyond the app",
+        "title": "Keep moving beyond the app",
         "description": "Log progress from Home and Lock Screen widgets, Siri, or optional Apple Health matches for workouts, steps, and mindful minutes.",
         "availability": "Health matching is opt-in per action, and Health data stays on your device."
       },
       {
         "title": "Progress that tells a story",
-        "description": "Month in Votes recaps turn your history into a share-ready story. Premium Journey insights surface patterns and useful next steps.",
+        "description": "Month in Motion recaps turn your history into a share-ready story. Premium Journey insights surface patterns and useful next steps.",
         "availability": "Your personal history is analyzed locally on your device."
       },
       {

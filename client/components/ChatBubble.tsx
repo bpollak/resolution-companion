@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import { Alert, Pressable, View, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as Clipboard from "expo-clipboard";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { reportAIContent, type AIReportSurface } from "@/lib/ai-reporting";
+import { track } from "@/lib/telemetry";
 
 interface ChatBubbleProps {
   message: string;
@@ -24,6 +26,25 @@ export const ChatBubble = React.memo(function ChatBubble({
   const [reportState, setReportState] = useState<
     "idle" | "submitting" | "reported"
   >("idle");
+  const [feedbackState, setFeedbackState] = useState<
+    "idle" | "helpful" | "unhelpful"
+  >("idle");
+
+  const copyResponse = async () => {
+    await Clipboard.setStringAsync(message);
+    Haptics.selectionAsync().catch(() => {});
+  };
+
+  const setFeedback = (next: "helpful" | "unhelpful") => {
+    if (feedbackState !== "idle") return;
+    setFeedbackState(next);
+    track(
+      next === "helpful"
+        ? "coach_response_helpful"
+        : "coach_response_unhelpful",
+    );
+    Haptics.selectionAsync().catch(() => {});
+  };
 
   const confirmReport = () => {
     Alert.alert(
@@ -97,38 +118,115 @@ export const ChatBubble = React.memo(function ChatBubble({
         >
           {isTyping ? `${message}...` : message}
         </ThemedText>
-        {!isUser && !isTyping && reportSurface ? (
-          <Pressable
-            onPress={confirmReport}
-            disabled={reportState !== "idle"}
-            hitSlop={12}
-            pressRetentionOffset={12}
-            accessibilityRole="button"
-            accessibilityLabel={
-              reportState === "reported"
-                ? "AI response reported"
-                : "Report this AI response"
-            }
-            style={({ pressed }) => [
-              styles.reportButton,
-              { opacity: pressed ? 0.55 : reportState === "idle" ? 0.8 : 0.5 },
-            ]}
-          >
-            <Feather
-              name={reportState === "reported" ? "check" : "flag"}
-              size={13}
-              color={theme.textSecondary}
-            />
-            <ThemedText
-              style={[styles.reportText, { color: theme.textSecondary }]}
+        {!isUser && !isTyping && reportSurface === "coach" ? (
+          <View style={styles.responseActions}>
+            <Pressable
+              onPress={copyResponse}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Copy coach response"
+              style={({ pressed }) => [
+                styles.actionButton,
+                { opacity: pressed ? 0.45 : 0.75 },
+              ]}
             >
-              {reportState === "submitting"
-                ? "Reporting…"
-                : reportState === "reported"
-                  ? "Reported"
-                  : "Report"}
-            </ThemedText>
-          </Pressable>
+              <Feather name="copy" size={13} color={theme.textSecondary} />
+            </Pressable>
+            <Pressable
+              onPress={() => setFeedback("helpful")}
+              disabled={feedbackState !== "idle"}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Mark coach response helpful"
+              accessibilityState={{ selected: feedbackState === "helpful" }}
+              style={({ pressed }) => [
+                styles.actionButton,
+                {
+                  opacity: pressed
+                    ? 0.45
+                    : feedbackState === "unhelpful"
+                      ? 0.35
+                      : 0.75,
+                },
+              ]}
+            >
+              <Feather
+                name="thumbs-up"
+                size={13}
+                color={
+                  feedbackState === "helpful"
+                    ? theme.accent
+                    : theme.textSecondary
+                }
+              />
+            </Pressable>
+            <Pressable
+              onPress={() => setFeedback("unhelpful")}
+              disabled={feedbackState !== "idle"}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Mark coach response not helpful"
+              accessibilityState={{ selected: feedbackState === "unhelpful" }}
+              style={({ pressed }) => [
+                styles.actionButton,
+                {
+                  opacity: pressed
+                    ? 0.45
+                    : feedbackState === "helpful"
+                      ? 0.35
+                      : 0.75,
+                },
+              ]}
+            >
+              <Feather
+                name="thumbs-down"
+                size={13}
+                color={
+                  feedbackState === "unhelpful"
+                    ? theme.warning
+                    : theme.textSecondary
+                }
+              />
+            </Pressable>
+            {reportSurface ? (
+              <Pressable
+                onPress={confirmReport}
+                disabled={reportState !== "idle"}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  reportState === "reported"
+                    ? "AI response reported"
+                    : "Report this AI response"
+                }
+                style={({ pressed }) => [
+                  styles.reportButton,
+                  {
+                    opacity: pressed
+                      ? 0.45
+                      : reportState === "idle"
+                        ? 0.75
+                        : 0.4,
+                  },
+                ]}
+              >
+                <Feather
+                  name={reportState === "reported" ? "check" : "flag"}
+                  size={13}
+                  color={theme.textSecondary}
+                />
+                <ThemedText
+                  style={[styles.reportText, { color: theme.textSecondary }]}
+                >
+                  {reportState === "submitting"
+                    ? "Reporting…"
+                    : reportState === "reported"
+                      ? "Reported"
+                      : "Report"}
+                </ThemedText>
+              </Pressable>
+            ) : null}
+          </View>
         ) : null}
       </View>
     </View>
@@ -170,12 +268,23 @@ const styles = StyleSheet.create({
     ...Typography.body,
   },
   reportButton: {
-    alignSelf: "flex-end",
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xs,
-    marginTop: Spacing.sm,
     minHeight: 24,
+  },
+  responseActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  actionButton: {
+    minWidth: 24,
+    minHeight: 24,
+    alignItems: "center",
+    justifyContent: "center",
   },
   reportText: {
     ...Typography.caption,

@@ -1,34 +1,36 @@
 import fs from "fs";
 import path from "path";
 
-describe("Coach session lifecycle", () => {
+// The live coach implementation is the CoachSheet; the Coach tab itself is a
+// lobby that only routes into it. These source-level checks guard the
+// lifecycle contracts that unit tests can't reach through the sheet UI.
+describe("Coach session lifecycle (CoachSheet)", () => {
   const source = fs.readFileSync(
-    path.resolve(__dirname, "../../screens/ReflectScreen.tsx"),
+    path.resolve(__dirname, "../../screens/CoachSheetScreen.tsx"),
     "utf8",
   );
 
-  it("streams grounded local opening copy instead of waiting on the model", () => {
-    const starter = source.slice(
-      source.indexOf("const beginReflectionSession"),
-      source.indexOf("const requestCoachReply"),
-    );
-    expect(starter).toContain("buildCoachOpening");
-    expect(starter).toContain("startTextTypewriter");
-    expect(starter).toContain("setStreamingText");
-    expect(starter).not.toContain("getReflectionResponse(");
-    expect(starter).toContain("setIsStreaming(true)");
+  it("aborts the in-flight request when the sheet unmounts", () => {
+    expect(source).toContain("return () => abortRef.current?.abort()");
   });
 
-  it("invalidates late responses before they can enter a newer session", () => {
-    expect(source).toContain("coachRequestGenerationRef");
-    expect(source).toContain(
-      "requestGeneration !== coachRequestGenerationRef.current",
-    );
+  it("replaces any in-flight request before starting a new one", () => {
+    expect(source).toContain("abortRef.current?.abort();");
+    expect(source).toContain("controller.signal");
   });
 
-  it("cancels the active request when a session closes", () => {
-    expect(source).toContain("coachAbortControllerRef.current?.abort()");
-    expect(source).toContain("abortController.signal");
+  it("routes a quota-blocked request to the contextual paywall", () => {
+    expect(source).toContain("coachRequestAllowed");
+    expect(source).toContain('{ source: "coach-limit" }');
+  });
+
+  it("keeps the lobby free of its own chat session", () => {
+    const lobby = fs.readFileSync(
+      path.resolve(__dirname, "../../screens/ReflectScreen.tsx"),
+      "utf8",
+    );
+    expect(lobby).not.toContain("getReflectionResponse");
+    expect(lobby).not.toContain("startWeekly");
   });
 
   it("uses the same incremental SSE typewriter path as onboarding", () => {

@@ -1,9 +1,12 @@
 import React from "react";
 import { Platform, Pressable } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import type { NavigatorScreenParams } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import MainTabNavigator from "@/navigation/MainTabNavigator";
+import MainTabNavigator, {
+  type MainTabParamList,
+} from "@/navigation/MainTabNavigator";
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import BenchmarkEditorScreen from "@/screens/BenchmarkEditorScreen";
 import ActionEditorScreen from "@/screens/ActionEditorScreen";
@@ -13,23 +16,49 @@ import MonthRecapScreen from "@/screens/MonthRecapScreen";
 import YearRecapScreen from "@/screens/YearRecapScreen";
 import WitnessScreen from "@/screens/WitnessScreen";
 import DataBackupScreen from "@/screens/DataBackupScreen";
+import CoachSheetScreen from "@/screens/CoachSheetScreen";
+import type { CoachEntryOrigin } from "@/lib/storage";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
 import { getMainTabRootTopOffset } from "@/navigation/tab-bar-layout";
 
 export type RootStackParamList = {
-  Main: undefined;
+  Main: NavigatorScreenParams<MainTabParamList> | undefined;
   Onboarding: undefined;
   BenchmarkEditor: { benchmarkId?: string; suggestedTitle?: string };
   ActionEditor: { benchmarkId: string; actionId?: string };
-  Subscription: { source?: "coach-limit" | "milestone-proposal" } | undefined;
+  Subscription:
+    | {
+        source?:
+          | "coach-limit"
+          | "milestone-proposal"
+          | "milestone-limit"
+          | "insights"
+          | "year-recap";
+      }
+    | undefined;
   Profile: undefined;
   MonthRecap: { monthKey: string };
   YearRecap: { year: number };
   Witness: undefined;
   DataBackup: undefined;
+  CoachSheet: CoachSheetParams;
 };
+
+export type CoachPromptId =
+  | "start-today"
+  | "understand-pattern"
+  | "reduce-friction"
+  | "review-week"
+  | "reflect-success";
+
+export interface CoachSheetParams {
+  origin: CoachEntryOrigin;
+  promptId?: CoachPromptId;
+  actionId?: string;
+  benchmarkId?: string;
+}
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -111,6 +140,23 @@ export default function RootStackNavigator() {
         name="DataBackup"
         component={DataBackupScreen}
         options={{ headerShown: false, presentation: "modal" }}
+      />
+      <Stack.Screen
+        name="CoachSheet"
+        component={CoachSheetScreen}
+        options={{
+          headerShown: false,
+          presentation: "formSheet",
+          sheetAllowedDetents: [0.55, 0.94],
+          sheetInitialDetentIndex: 0,
+          sheetGrabberVisible: true,
+          sheetCornerRadius: 28,
+          // Dim the screen behind at every detent — undimmed background text
+          // peeking past the sheet's corners reads as glitched overlap.
+          // ("none" = no undimmed detents; numeric -1 is silently ignored.)
+          sheetLargestUndimmedDetentIndex: "none",
+          contentStyle: { backgroundColor: theme.backgroundRoot },
+        }}
       />
       <Stack.Screen
         name="Profile"

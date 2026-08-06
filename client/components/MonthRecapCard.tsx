@@ -14,7 +14,7 @@ interface MonthRecapCardProps {
 }
 
 /**
- * Entry card for the "Month in Votes" story, shown on Today during the first
+ * Entry card for the "Month in Motion" story, shown on Today during the first
  * days of a new month — the clean slate gets a closing ceremony before the
  * fresh start.
  */
@@ -55,7 +55,7 @@ export function MonthRecapCard({
       </View>
 
       <ThemedText style={styles.headline}>
-        {recap.votesCast} {recap.votesCast === 1 ? "vote" : "votes"} for{" "}
+        {recap.votesCast} {recap.votesCast === 1 ? "action" : "actions"} for{" "}
         {recap.personaName}
       </ThemedText>
       <ThemedText style={[styles.sub, { color: theme.textSecondary }]}>
@@ -69,7 +69,7 @@ export function MonthRecapCard({
         hitSlop={8}
         pressRetentionOffset={12}
         accessibilityRole="button"
-        accessibilityLabel="Open your Month in Votes story"
+        accessibilityLabel="Open your Month in Motion story"
         style={({ pressed }) => [styles.cta, { opacity: pressed ? 0.7 : 1 }]}
       >
         <ThemedText style={[styles.ctaText, { color: theme.accent }]}>

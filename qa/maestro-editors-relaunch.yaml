@@ -1,0 +1,19 @@
+appId: com.resolutioncompanion.app
+---
+# Run after terminating and relaunching the app following the editor flow.
+- extendedWaitUntil:
+    visible: "Today, .*"
+    timeout: 15000
+- waitForAnimationToEnd
+- tapOn: "Journey tab"
+- scrollUntilVisible:
+    element:
+      text: ".*Navigation confidence.*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- assertVisible: ".*Practice one map bearing.*"
+- tapOn: "Today tab"
+- extendedWaitUntil:
+    visible: ".*Practice one map bearing.*"
+    timeout: 15000

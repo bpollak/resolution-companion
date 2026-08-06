@@ -9,6 +9,7 @@ appId: com.resolutioncompanion.app
 
 - launchApp:
     clearState: true
+- setOrientation: PORTRAIT
 
 # --- Empty Today state → onboarding entry ---
 - extendedWaitUntil:
@@ -71,24 +72,27 @@ appId: com.resolutioncompanion.app
     optional: true
 
 # --- Journey: fresh-plan identity and support surface ---
-- tapOn: "Journey, tab.*"
+- extendedWaitUntil:
+    visible:
+      id: "tab-journey"
+    timeout: 10000
+- tapOn:
+    id: "tab-journey"
 - extendedWaitUntil:
     # A same-day Sunday starter plan has no scheduled history yet, so the
-    # consistency module is intentionally absent. This stable section still
-    # proves the Journey surface mounted and became interactive.
-    visible: "Stories & Support.*"
+    # consistency module is intentionally absent. The persona intro line is
+    # the stable top-of-screen proof that Journey mounted and is interactive.
+    # (Stories & Support now lives at the bottom of the scroll.)
+    visible: "Becoming Momentum Builder.*"
     timeout: 10000
 - takeScreenshot: 05-journey-top
 
-# --- Coach lobby: momentum, weekly review, micro-note drip ---
-- tapOn: "Coach, tab.*"
-- scrollUntilVisible:
-    element:
-      text: ".*3-minute weekly review.*"
-    direction: DOWN
-    timeout: 30000
-    centerElement: true
-    visibilityPercentage: 40
+# --- Coach lobby: single conversation entry + micro-note drip ---
+- tapOn:
+    id: "tab-coach"
+- extendedWaitUntil:
+    visible: "Start a conversation with Coach"
+    timeout: 15000
 - takeScreenshot: 08-coach-lobby
 - scrollUntilVisible:
     element:
@@ -99,7 +103,8 @@ appId: com.resolutioncompanion.app
 - takeScreenshot: 09-coach-micro-note
 
 # --- Paywall (via stable Profile entry on every fresh plan) ---
-- tapOn: "Today, tab.*"
+- tapOn:
+    id: "tab-today"
 - tapOn: "Open profile and settings.*"
 - scrollUntilVisible:
     element:
@@ -110,18 +115,41 @@ appId: com.resolutioncompanion.app
 - extendedWaitUntil:
     visible: "Upgrade to Premium"
     timeout: 15000
-- assertVisible: ".*24.99.*year.*"
-- takeScreenshot: 10-paywall-compare-table
-- scrollUntilVisible:
-    element:
-      text: "Monthly plan, .*"
-    direction: DOWN
-    timeout: 30000
-    centerElement: true
-    visibilityPercentage: 40
-- tapOn: "Monthly plan, .*"
-- assertVisible: ".*2.99.*month.*"
-- takeScreenshot: 11-paywall-monthly-price
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: ".*24.99.*year.*"
+          direction: DOWN
+          timeout: 30000
+      - takeScreenshot: 10-paywall-compare-table
+      - scrollUntilVisible:
+          element:
+            text: "Monthly plan, .*"
+          direction: DOWN
+          timeout: 30000
+          centerElement: true
+          visibilityPercentage: 40
+      - tapOn: "Monthly plan, .*"
+      - assertVisible: ".*2.99.*month.*"
+      - takeScreenshot: 11-paywall-monthly-price
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      # A sideloaded AAB has no Play entitlement context. The correct state is
+      # a recoverable store-connection message, never placeholder pricing.
+      - scrollUntilVisible:
+          element:
+            text: "We couldn't load subscription options from the store.*"
+          direction: DOWN
+          timeout: 30000
+          centerElement: true
+          visibilityPercentage: 40
+      - assertVisible: "Retry"
+      - takeScreenshot: 10-paywall-store-unavailable
 # Run with: JAVA_HOME=/opt/homebrew/opt/openjdk@17 PATH="$JAVA_HOME/bin:$PATH:$HOME/.maestro/bin" \
 #   DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer maestro test qa/maestro-regression.yaml
 # (build + install first: npm run build:local:sim → tar -xzf → xcrun simctl install)

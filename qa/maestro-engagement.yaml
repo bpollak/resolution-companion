@@ -20,7 +20,8 @@ appId: com.resolutioncompanion.app
 - extendedWaitUntil:
     visible: "Momentum Builder.*"
     timeout: 20000
-- tapOn: "Coach, tab.*"
+- tapOn:
+    id: "tab-coach"
 - waitForAnimationToEnd
 
 # --- Micro-note: expand, verified by the accessibility state flip ---
@@ -36,33 +37,55 @@ appId: com.resolutioncompanion.app
 - takeScreenshot: 16-micro-note-expanded
 - scrollUntilVisible:
     element:
-      text: ".*3-minute weekly review.*"
+      text: "Start a conversation.*"
     direction: UP
     timeout: 30000
     centerElement: true
 
-# --- Live weekly review: consent-agree + real coach reply ---
-- tapOn: ".*3-minute weekly review.*"
+# --- Live weekly review via the sheet's review chip ---
+- tapOn: "Start a conversation with Coach"
+- extendedWaitUntil:
+    visible: "Help me review one win and one point of friction from last week.*"
+    timeout: 15000
+- tapOn: "Help me review one win and one point of friction from last week.*"
+# In the contextual sheet, AI consent is requested at send time (not on open)
 - tapOn:
     text: "Agree and continue.*"
     optional: true
-- extendedWaitUntil:
-    visible: "Message to your AI coach.*"
-    timeout: 45000
 - extendedWaitUntil:
     # Match a non-empty coach bubble. The old week regex matched the static
     # "Weekly Review" title while the response was still spinning.
     visible: "AI coach: .+"
     timeout: 90000
 - takeScreenshot: 17-weekly-review-live
+- extendedWaitUntil:
+    # Wait for the completed turn (ends with a follow-up question) — a Save
+    # while still streaming has nothing in the transcript to keep yet.
+    visible: "AI coach: .+\\?.*"
+    timeout: 90000
+- tapOn: "Save coaching session"
+- extendedWaitUntil:
+    visible:
+      id: "tab-today"
+    timeout: 15000
 
 # --- Flip the Dawn switch back to midnight via the UI ---
-- tapOn: "Today, tab.*"
+- tapOn:
+    id: "tab-today"
 - waitForAnimationToEnd
 - tapOn: "Open profile and settings.*"
 - extendedWaitUntil:
+    # Post-AI-session modal presentation can lag; give it headroom
     visible: "My Personas.*"
-    timeout: 10000
+    timeout: 20000
+# Earned rewards live in the dedicated Appearance panel
+- scrollUntilVisible:
+    element:
+      text: "Appearance.*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn: "Appearance.*"
 - scrollUntilVisible:
     element:
       text: "Dawn Theme.*"
@@ -73,5 +96,6 @@ appId: com.resolutioncompanion.app
 - tapOn: "Toggle Dawn Theme"
 - waitForAnimationToEnd
 - takeScreenshot: 19-profile-back-to-midnight
+- tapOn: "Back to profile.*"
 - tapOn: "Close profile.*"
 - takeScreenshot: 20-today-midnight-restored

@@ -477,14 +477,39 @@ export default function ActionEditorScreen() {
             </View>
             <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
               {healthAutoComplete
-                ? `${HEALTH_KIND_LABELS[healthAutoComplete]} casts this vote automatically — the day is saved without opening the app.`
-                : "Let a workout, step total, or mindful session in Apple Health cast this vote for you. Health data never leaves your phone."}
+                ? `${HEALTH_KIND_LABELS[healthAutoComplete]} completes this action automatically — the day is saved without opening the app.`
+                : "Let a workout, step total, or mindful session in Apple Health complete this action for you. Health data never leaves your phone."}
             </ThemedText>
           </View>
         ) : null}
 
         {isEditing ? (
           <View>
+            <Pressable
+              onPress={() =>
+                navigation.navigate("CoachSheet", {
+                  origin: "action",
+                  actionId: existingAction?.id,
+                  promptId: "reduce-friction",
+                })
+              }
+              accessibilityRole="button"
+              accessibilityLabel={`Ask Coach about ${existingAction?.title ?? "this action"}`}
+              style={({ pressed }) => [
+                styles.coachButton,
+                {
+                  borderColor: theme.accent,
+                  opacity: pressed ? 0.65 : 1,
+                },
+              ]}
+            >
+              <Feather name="message-circle" size={18} color={theme.accent} />
+              <ThemedText
+                style={[styles.coachButtonText, { color: theme.accent }]}
+              >
+                Ask Coach about this action
+              </ThemedText>
+            </Pressable>
             <Pressable
               onPress={handleDelete}
               disabled={!canDeleteAction}
@@ -607,6 +632,21 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     gap: Spacing.sm,
     marginTop: Spacing.xl,
+  },
+  coachButton: {
+    minHeight: 44,
+    marginTop: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+  },
+  coachButtonText: {
+    ...Typography.body,
+    fontWeight: "600",
   },
   deleteButtonText: {
     ...Typography.body,

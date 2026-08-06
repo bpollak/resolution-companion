@@ -13,12 +13,14 @@ type Props = KeyboardAwareScrollViewProps & ScrollViewProps;
 export function KeyboardAwareScrollViewCompat({
   children,
   keyboardShouldPersistTaps = "handled",
+  delaysContentTouches = false,
   ...props
 }: Props) {
   if (Platform.OS === "web") {
     return (
       <ScrollView
         keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+        delaysContentTouches={delaysContentTouches}
         {...props}
       >
         {children}
@@ -29,6 +31,7 @@ export function KeyboardAwareScrollViewCompat({
   return (
     <KeyboardAwareScrollView
       keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+      delaysContentTouches={delaysContentTouches}
       {...props}
     >
       {children}

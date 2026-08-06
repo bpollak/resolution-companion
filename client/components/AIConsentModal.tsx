@@ -71,6 +71,8 @@ export function AIConsentModal({
       <View style={styles.overlay}>
         <ThemedView style={styles.container}>
           <ScrollView
+            delaysContentTouches={false}
+            decelerationRate="fast"
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}

@@ -345,6 +345,7 @@ export default function MonthRecapScreen() {
       </View>
 
       <FlatList
+        delaysContentTouches={false}
         data={cards}
         keyExtractor={(item) => item.kind}
         horizontal

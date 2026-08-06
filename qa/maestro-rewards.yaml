@@ -10,6 +10,15 @@ name: earned-cosmetic-rewards
     visible: "My Personas.*"
     timeout: 10000
 
+# Earned rewards live in the dedicated Appearance panel
+- scrollUntilVisible:
+    element:
+      text: "Appearance.*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn: "Appearance.*"
+
 # The accent changes immediately and stays readable in the Profile surface.
 - scrollUntilVisible:
     element:

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   FlatList,
   Platform,
@@ -156,16 +156,10 @@ export default function YearRecapScreen() {
         persona,
         route.params.year,
         new Date(),
-        2,
+        subscription.isPremium ? 2 : 1,
       ),
-    [actions, dailyLogs, persona, route.params.year],
+    [actions, dailyLogs, persona, route.params.year, subscription.isPremium],
   );
-  useEffect(() => {
-    if (!subscription.isPremium) {
-      navigation.goBack();
-      navigation.navigate("Subscription" as never);
-    }
-  }, [navigation, subscription.isPremium]);
   const cardWidth = width - Spacing["3xl"] * 2;
   const share = async () => {
     const shot = refs.current.get(index);
@@ -179,8 +173,71 @@ export default function YearRecapScreen() {
     );
     track("year_recap_shared");
   };
+  // A visible gate, not a silent redirect: the user sees what the story is
+  // and why it's locked before deciding on the paywall
   if (!subscription.isPremium) {
-    return null;
+    return (
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: theme.backgroundRoot,
+            paddingTop: insets.top + Spacing.lg,
+            paddingBottom: insets.bottom + Spacing.lg,
+          },
+        ]}
+      >
+        <View style={styles.header}>
+          <ThemedText accessibilityRole="header" style={styles.title}>
+            The Year You Became
+          </ThemedText>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            hitSlop={12}
+            pressRetentionOffset={16}
+            accessibilityRole="button"
+            accessibilityLabel="Close year recap"
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          >
+            <Feather name="x" size={22} color={theme.text} />
+          </Pressable>
+        </View>
+        <View style={styles.gateContainer}>
+          <View
+            style={[
+              styles.gateIcon,
+              { backgroundColor: theme.backgroundSecondary },
+            ]}
+          >
+            <Feather name="lock" size={28} color={theme.textSecondary} />
+          </View>
+          <ThemedText style={styles.gateTitle}>A Premium story</ThemedText>
+          <ThemedText style={[styles.gateBody, { color: theme.textSecondary }]}>
+            Your whole year of votes — the rhythm, the comebacks, the person
+            they add up to — told as a shareable story.
+          </ThemedText>
+          <Pressable
+            onPress={() =>
+              (navigation as any).navigate("Subscription", {
+                source: "year-recap",
+              })
+            }
+            accessibilityRole="button"
+            accessibilityLabel="See Premium plans"
+            style={({ pressed }) => [
+              styles.gateButton,
+              { backgroundColor: theme.accent, opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <ThemedText
+              style={[styles.gateButtonText, { color: theme.buttonText }]}
+            >
+              See Premium plans
+            </ThemedText>
+          </Pressable>
+        </View>
+      </View>
+    );
   }
   return (
     <View
@@ -209,6 +266,7 @@ export default function YearRecapScreen() {
         </Pressable>
       </View>
       <FlatList
+        delaysContentTouches={false}
         data={cards}
         horizontal
         pagingEnabled
@@ -349,4 +407,38 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   shareText: { ...Typography.headline },
+  gateContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing["3xl"],
+    gap: Spacing.md,
+  },
+  gateIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.sm,
+  },
+  gateTitle: {
+    ...Typography.title,
+    textAlign: "center",
+  },
+  gateBody: {
+    ...Typography.body,
+    lineHeight: 23,
+    textAlign: "center",
+  },
+  gateButton: {
+    marginTop: Spacing.lg,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing["2xl"],
+    borderRadius: BorderRadius.full,
+  },
+  gateButtonText: {
+    ...Typography.body,
+    fontWeight: "700",
+  },
 });

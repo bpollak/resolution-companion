@@ -372,6 +372,8 @@ export default function MainTabNavigator() {
         component={TodayScreen}
         options={({ navigation }) => ({
           title: "Today",
+          tabBarAccessibilityLabel: "Today tab",
+          tabBarButtonTestID: "tab-today",
           headerTitle: () => (
             <HeaderTitle title="Today" subtitle={todayLabel} />
           ),
@@ -402,6 +404,8 @@ export default function MainTabNavigator() {
         component={JourneyScreen}
         options={({ navigation }) => ({
           title: "Journey",
+          tabBarAccessibilityLabel: "Journey tab",
+          tabBarButtonTestID: "tab-journey",
           headerTitle: () => (
             <HeaderTitle title="Journey" subtitle={persona?.name} />
           ),
@@ -414,8 +418,13 @@ export default function MainTabNavigator() {
       <Tab.Screen
         name="ReflectTab"
         component={ReflectScreen}
-        options={{
+        options={({ navigation }) => ({
           title: "Coach",
+          tabBarAccessibilityLabel: "Coach tab",
+          tabBarButtonTestID: "tab-coach",
+          headerTitle: () => (
+            <HeaderTitle title="Coach" subtitle={persona?.name} />
+          ),
           tabBarIcon: ({ focused }) => (
             <TabBarIcon
               focused={focused}
@@ -423,7 +432,8 @@ export default function MainTabNavigator() {
               outline="chatbubble-ellipses-outline"
             />
           ),
-        }}
+          headerRight: () => <ProfileHeaderButton navigation={navigation} />,
+        })}
       />
     </Tab.Navigator>
   );

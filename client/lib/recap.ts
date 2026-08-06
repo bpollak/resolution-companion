@@ -238,9 +238,9 @@ export function buildMonthRecap(
   } else if (comeback) {
     closingLine = `You came back after ${comeback.gapDays} days away. That's the whole skill. Still becoming ${personaName}.`;
   } else if (consistency >= 80) {
-    closingLine = `${votesCast} votes at ${consistency}%. ${personaName} isn't a goal anymore — it's a habit.`;
+    closingLine = `${votesCast} actions completed at ${consistency}%. ${personaName} isn't a goal anymore — it's a habit.`;
   } else {
-    closingLine = `${votesCast} votes cast for ${personaName}. Every one of them counted.`;
+    closingLine = `${votesCast} actions completed for ${personaName}. Every one of them counted.`;
   }
 
   return {
@@ -327,10 +327,10 @@ export function buildYearRecap(
   const personaName = persona?.name ?? "Future You";
   const closingLine =
     votesCast === 0
-      ? `The story is still open. Your next vote can begin ${personaName}.`
+      ? `The story is still open. Your next action can begin ${personaName}.`
       : comebacks > 0
-        ? `${votesCast} votes and ${comebacks} comeback${comebacks === 1 ? "" : "s"}. You kept choosing ${personaName}.`
-        : `${votesCast} votes for ${personaName}. This is the year you practiced becoming.`;
+        ? `${votesCast} actions and ${comebacks} comeback${comebacks === 1 ? "" : "s"}. You kept choosing ${personaName}.`
+        : `${votesCast} actions for ${personaName}. This is the year you practiced becoming.`;
 
   return {
     year,

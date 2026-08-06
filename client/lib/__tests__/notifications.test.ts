@@ -218,10 +218,10 @@ describe("reminderBody", () => {
         monthlyConsistency: 72.4,
       }),
     ).toBe(
-      "Consistent Runner: 72% consistent this month. Today's vote is waiting.",
+      "Consistent Runner: 72% consistent this month. Today's next step is waiting.",
     );
     expect(reminderBody("momentum", { personaName: "Writer" })).toContain(
-      "vote for Writer",
+      "step toward Writer",
     );
   });
 

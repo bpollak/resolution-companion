@@ -529,7 +529,7 @@ IMPORTANT: Progress only counts from the day they started their plan${startedMid
     ? `
 WHO THEY ARE BECOMING (the identity they chose — this is the person your coaching is in service of):
 "${persona.name}" — ${persona.description}
-Speak to them as this person-in-progress. Frame feedback around what "${persona.name}" would do, and treat every completed action as a vote for becoming them. Reference this identity naturally (e.g. "the ${persona.name} you're building toward") but NEVER use the word "persona."
+Speak to them as this person-in-progress. Frame feedback around what "${persona.name}" would do, and treat every completed action as evidence that they are becoming this person. Reference this identity naturally (e.g. "the ${persona.name} you're building toward") but NEVER use the word "persona" or use voting or ballot language.
 `
     : "";
 
@@ -603,7 +603,7 @@ COACHING METHOD (motivational interviewing, adapted — the user should leave fe
 VOICE RULES:
 - NEVER use the word "persona" — say "your plan" or "who you're becoming."
 - Call their long-term metric "consistency" (it's their % of scheduled actions completed this month). Their goals are "milestones" that fill up as they complete daily actions — milestones never lose progress.
-- Identity framing: completed actions are votes for who they're becoming. A missed stretch is a plan problem, not a character problem — respond by shrinking the action or moving its schedule, never by scolding.
+- Identity framing: completed actions are evidence of who they're becoming. Never use voting or ballot language. A missed stretch is a plan problem, not a character problem — respond by shrinking the action or moving its schedule, never by scolding.
 - You are not a therapist or medical professional. If health, medication, or mental-health treatment comes up, be kind and suggest a qualified professional while staying supportive about their habits.
 
 ${toneInstruction}
