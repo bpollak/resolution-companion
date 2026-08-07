@@ -3,30 +3,30 @@
     "version": "1.3.6",
     "status": "submitted",
     "title": "Coach, right where you need it",
-    "summary": "Version 1.3.6 brings one timely signal to Today, clearer Journey patterns, contextual coaching that keeps your place, and a milestone accessibility fix found during final regression.",
+    "summary": "Version 1.3.6 brings one timely signal to Today, clearer Journey patterns, contextual coaching that keeps your place, a coach that remembers your recent sessions with Premium, and a refreshed look.",
     "appStoreNotes": [
       "Today now leads with one timely, private signal and the easiest next action.",
-      "Optionally record what helped or made a completed day harder.",
-      "Journey now groups actions as Working well, Still forming, or Worth simplifying and surfaces careful on-device discoveries.",
+      "Journey groups your actions as Working well, Still forming, or Worth simplifying.",
       "Ask Coach about Today or Journey evidence in an expandable sheet without leaving your place.",
       "Review any suggested plan adjustment before confirming a change.",
-      "Improved VoiceOver access to milestone editing and strengthened editor persistence testing."
+      "With Premium, your coach now remembers your recent sessions.",
+      "A refreshed app icon and launch screen, plus accessibility and stability fixes."
     ],
     "highlights": [
       {
         "title": "One signal for today",
-        "description": "Today prioritizes the most useful local signal, from a gentle restart to the easiest next vote, without requiring AI or a network connection.",
+        "description": "Today prioritizes the most useful local signal, from a gentle restart to the easiest next action, without requiring AI or a network connection.",
         "availability": "Available to everyone."
       },
       {
         "title": "Coach in context",
-        "description": "Open a full coaching conversation over Today or Journey with local evidence attached, then save it to Coach history if it is useful.",
-        "availability": "Weekly reviews remain free; ten other successful sessions are included each month, with unlimited sessions in Premium."
+        "description": "Open the coach from the evidence you're looking at, keep your place, and preview any plan change before it's applied.",
+        "availability": "10 free check-ins monthly; unlimited with Premium."
       },
       {
-        "title": "Accessible plan editing",
-        "description": "Milestone expand and Edit controls are now independently available to VoiceOver, with plan-field changes verified through relaunch.",
-        "availability": "Available to everyone."
+        "title": "A coach that remembers",
+        "description": "Premium coaching sessions now pick up where your recent conversations left off.",
+        "availability": "Premium."
       }
     ],
     "submittedAt": "2026-08-05"
