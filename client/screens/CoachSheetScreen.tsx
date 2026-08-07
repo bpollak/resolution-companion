@@ -7,7 +7,6 @@ import React, {
 } from "react";
 import {
   Alert,
-  KeyboardAvoidingView,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
@@ -27,6 +26,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { BorderRadius, Colors, Spacing, Typography } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ChatBubble } from "@/components/ChatBubble";
+import { KeyboardAvoidingViewCompat } from "@/components/KeyboardAvoidingViewCompat";
 import { CoachEvidenceCard } from "@/components/CoachEvidenceCard";
 import { AIConsentModal } from "@/components/AIConsentModal";
 import {
@@ -627,7 +627,7 @@ export default function CoachSheetScreen() {
     44 + Spacing.sm + Math.max(insets.bottom, Spacing.md) + Spacing.lg;
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAvoidingViewCompat
       style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
@@ -852,6 +852,12 @@ export default function CoachSheetScreen() {
           <TextInput
             value={inputText}
             onChangeText={setInputText}
+            onFocus={() => {
+              nearBottomRef.current = true;
+              requestAnimationFrame(() =>
+                scrollRef.current?.scrollToEnd({ animated: true }),
+              );
+            }}
             placeholder="Write to Coach"
             placeholderTextColor={theme.textSecondary}
             multiline
@@ -894,7 +900,7 @@ export default function CoachSheetScreen() {
           else if (pending) requestReply(pending);
         }}
       />
-    </KeyboardAvoidingView>
+    </KeyboardAvoidingViewCompat>
   );
 }
 

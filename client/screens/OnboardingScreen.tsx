@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-  KeyboardAvoidingView,
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,6 +20,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
+import { KeyboardAvoidingViewCompat } from "@/components/KeyboardAvoidingViewCompat";
 import { ChatBubble } from "@/components/ChatBubble";
 import { AIConsentModal } from "@/components/AIConsentModal";
 import {
@@ -827,7 +827,7 @@ export default function OnboardingScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAvoidingViewCompat
       style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={0}
@@ -1025,7 +1025,7 @@ export default function OnboardingScreen() {
           </Pressable>
         </View>
       ) : null}
-    </KeyboardAvoidingView>
+    </KeyboardAvoidingViewCompat>
   );
 }
 
