@@ -83,6 +83,7 @@ describe("current StoreKit entitlement verification", () => {
     expect(result).toEqual({
       storeAvailable: true,
       verificationCompleted: true,
+      activeItemCount: 1,
       purchases: [
         expect.objectContaining({
           productId: "com.resolutioncompanion.annual",
@@ -101,6 +102,25 @@ describe("current StoreKit entitlement verification", () => {
     await expect(iapService.checkCurrentEntitlements()).resolves.toEqual({
       storeAvailable: true,
       verificationCompleted: false,
+      activeItemCount: 1,
+      purchases: [],
+    });
+  });
+
+  it("reports the store-owned item even when server validation rejects it", async () => {
+    // A definitive {valid:false} on an item the store says is active must be
+    // distinguishable from "no active items" — callers use activeItemCount to
+    // avoid downgrading a subscriber over a validation-service failure.
+    mockGetAvailablePurchases.mockResolvedValue([annualPurchase]);
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ valid: false }),
+    }) as jest.Mock;
+
+    await expect(iapService.checkCurrentEntitlements()).resolves.toEqual({
+      storeAvailable: true,
+      verificationCompleted: true,
+      activeItemCount: 1,
       purchases: [],
     });
   });
@@ -109,6 +129,7 @@ describe("current StoreKit entitlement verification", () => {
     await expect(iapService.checkCurrentEntitlements()).resolves.toEqual({
       storeAvailable: true,
       verificationCompleted: true,
+      activeItemCount: 0,
       purchases: [],
     });
   });

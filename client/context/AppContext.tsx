@@ -324,7 +324,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return "verified";
         }
 
-        if (store.storeAvailable && store.verificationCompleted) {
+        if (
+          store.storeAvailable &&
+          store.verificationCompleted &&
+          store.activeItemCount === 0
+        ) {
           // StoreKit's active-entitlements list is current account truth. An
           // empty completed result clears stale local/server Premium flags,
           // including lifetime access left behind by a missed revocation.
@@ -338,6 +342,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setSubscriptionState(next);
           setSubscriptionVerificationStatus("verified");
           return "verified";
+        }
+
+        if (store.activeItemCount > 0) {
+          // The store says this account owns an active item but our server
+          // rejected or failed its validation. That is a validation-service
+          // problem, not a lapsed subscription — never downgrade here.
+          setSubscriptionState(local);
+          setSubscriptionVerificationStatus("unavailable");
+          return "unavailable";
         }
       }
 

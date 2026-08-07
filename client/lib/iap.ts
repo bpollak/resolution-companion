@@ -90,6 +90,8 @@ export interface IAPEntitlementCheck {
   verificationCompleted: boolean;
   /** Purchases confirmed by both the store and this app's validation server. */
   purchases: IAPPurchase[];
+  /** Raw count of active items the store itself reported, validated or not. */
+  activeItemCount: number;
 }
 
 /** Human-readable StoreKit offer duration, derived only from live metadata. */
@@ -504,6 +506,7 @@ class IAPService {
         storeAvailable: false,
         verificationCompleted: false,
         purchases: [],
+        activeItemCount: 0,
       };
     }
 
@@ -514,6 +517,7 @@ class IAPService {
           storeAvailable: false,
           verificationCompleted: false,
           purchases: [],
+          activeItemCount: 0,
         };
       }
 
@@ -526,6 +530,7 @@ class IAPService {
           storeAvailable: true,
           verificationCompleted: true,
           purchases: [],
+          activeItemCount: 0,
         };
       }
 
@@ -551,13 +556,19 @@ class IAPService {
         if (!validation.verificationCompleted) verificationCompleted = false;
       }
 
-      return { storeAvailable: true, verificationCompleted, purchases };
+      return {
+        storeAvailable: true,
+        verificationCompleted,
+        purchases,
+        activeItemCount: results.length,
+      };
     } catch (error) {
       logger.error("Failed to check current entitlements:", error);
       return {
         storeAvailable: false,
         verificationCompleted: false,
         purchases: [],
+        activeItemCount: 0,
       };
     }
   }
