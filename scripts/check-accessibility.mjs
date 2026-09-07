@@ -191,17 +191,17 @@ if (/<(?:ul|li) class="release-(?:grid|item)/i.test(landingPage)) {
     "server/templates/landing-page.html: detailed release highlights must stay on /release-notes",
   );
 }
-const demoVideo = landingPage.match(
-  /<video\b[^>]*poster="\/assets\/website\/app-demo-vertical-poster\.jpg"[^>]*>/i,
-)?.[0];
-if (
-  !demoVideo ||
-  /\bautoplay\b/i.test(demoVideo) ||
-  !/preload="none"/i.test(demoVideo)
-) {
-  failures.push(
-    "server/templates/landing-page.html: product demo must be user-initiated and preload none",
-  );
+// A page may use screenshots only. Any video must still wait for user intent.
+for (const [demoVideo] of landingPage.matchAll(/<video\b[^>]*>/gi)) {
+  if (
+    /\bautoplay\b/i.test(demoVideo) ||
+    !/\bcontrols\b/i.test(demoVideo) ||
+    !/preload="none"/i.test(demoVideo)
+  ) {
+    failures.push(
+      "server/templates/landing-page.html: product demo must be user-initiated and preload none",
+    );
+  }
 }
 
 if (failures.length > 0) {

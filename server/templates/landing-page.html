@@ -120,11 +120,10 @@
             "sameAs": "https://apps.apple.com/us/app/resolution-companion-ai/id6757996708",
             "image": "BASE_URL_PLACEHOLDER/assets/website/app-logo.png",
             "screenshot": [
-              "BASE_URL_PLACEHOLDER/assets/website/screen-today-v4.png",
-              "BASE_URL_PLACEHOLDER/assets/website/screen-journey-v4.png",
-              "BASE_URL_PLACEHOLDER/assets/website/screen-milestones-v4.png",
-              "BASE_URL_PLACEHOLDER/assets/website/screen-coach-v4.png",
-              "BASE_URL_PLACEHOLDER/assets/website/screen-day-complete-v4.png"
+              "BASE_URL_PLACEHOLDER/assets/website/screen-today-v5.png",
+              "BASE_URL_PLACEHOLDER/assets/website/screen-journey-v5.png",
+              "BASE_URL_PLACEHOLDER/assets/website/screen-coach-v5.png",
+              "BASE_URL_PLACEHOLDER/assets/website/screen-plan-v5.png"
             ],
             "description": "An identity-based personal-growth app with one clear daily loop: take small actions today, see the evidence build in Your Story, and ask an AI coach for help when you need it.",
             "applicationCategory": "LifestyleApplication",
@@ -744,8 +743,8 @@
 
       .phone-screen-image {
         width: 100%;
-        /* Simulator captures include a narrow desktop gutter on both sides. */
-        aspect-ratio: 610 / 1391;
+        /* Raw simulator captures preserve the full app viewport. */
+        aspect-ratio: 1206 / 2622;
         overflow: hidden;
         border-radius: 44px;
         background: #000;
@@ -1362,8 +1361,8 @@
 
       .screenshot-image-frame {
         width: 100%;
-        /* Crop the simulator desktop gutter and follow the app silhouette. */
-        aspect-ratio: 610 / 1391;
+        /* Match the full-resolution iPhone screenshot without cropping. */
+        aspect-ratio: 1206 / 2622;
         overflow: hidden;
         border-radius: 52px;
         background: #000;
@@ -2702,10 +2701,10 @@
           <div class="phone-mockup side">
             <div class="phone-screen-image">
               <img
-                src="/assets/website/screen-journey-v4.png"
-                alt="Journey screen with Your Story and calendar"
-                width="640"
-                height="1391"
+                src="/assets/website/screen-journey-v5.png"
+                alt="Journey screen showing habit rhythm, monthly consistency, and calendar"
+                width="1206"
+                height="2622"
                 loading="eager"
                 decoding="async"
               />
@@ -2716,10 +2715,10 @@
           <div class="phone-mockup featured">
             <div class="phone-screen-image">
               <img
-                src="/assets/website/screen-today-v4.png"
+                src="/assets/website/screen-today-v5.png"
                 alt="Today screen with identity, daily progress, and two actions"
-                width="640"
-                height="1391"
+                width="1206"
+                height="2622"
                 fetchpriority="high"
               />
             </div>
@@ -2729,10 +2728,10 @@
           <div class="phone-mockup side right">
             <div class="phone-screen-image">
               <img
-                src="/assets/website/screen-coach-v4.png"
-                alt="Coach screen with one conversation and quick review options"
-                width="640"
-                height="1391"
+                src="/assets/website/screen-coach-v5.png"
+                alt="Coach screen offering a conversation and a short weekly read"
+                width="1206"
+                height="2622"
                 loading="eager"
                 decoding="async"
               />
@@ -2752,16 +2751,15 @@
         <div class="release-summary">
           <div class="release-heading">
             <div class="release-badge">
-              Version LATEST_RELEASE_VERSION_PLACEHOLDER · Available Now
+              A plan you choose
             </div>
-            <h2 id="whats-new-title">LATEST_RELEASE_TITLE_PLACEHOLDER</h2>
-            <p>LATEST_RELEASE_SUMMARY_PLACEHOLDER</p>
+            <h2 id="whats-new-title">Start small, with a plan you choose</h2>
+            <p>Talk with Coach, review your habits and schedule, then start when the plan feels right. One habit is enough.</p>
             <a
               class="btn-secondary"
-              href="/release-notes#LATEST_RELEASE_ANCHOR_PLACEHOLDER"
+              href="#how-it-works"
             >
-              Read the version LATEST_RELEASE_VERSION_PLACEHOLDER release
-              notes
+              See how it works
               <span aria-hidden="true">→</span>
             </a>
           </div>
@@ -2777,113 +2775,79 @@
     >
       <div class="container">
         <div class="section-header">
-          <div class="section-label">Version 1.3</div>
+          <div class="section-label">Inside the App</div>
           <h2 class="section-title" id="app-experience-title">
             One Clear Daily Loop
           </h2>
           <p class="section-subtitle">
-            Act today, see the evidence build, and ask Coach for help when you
-            need it. Nothing else competes for your attention.
+            Choose a manageable plan, take a small action, and see how it fits your life. Screens shown with sample data.
           </p>
         </div>
         <div class="screenshots-grid">
           <figure class="screenshot-card">
             <div class="screenshot-image-frame">
               <img
-                src="/assets/website/screen-today-v4.png"
+                src="/assets/website/screen-today-v5.png"
                 alt="Today screen showing the active identity, daily completion ring, and two actions"
-                width="640"
-                height="1391"
+                width="1206"
+                height="2622"
                 loading="lazy"
                 decoding="async"
               />
             </div>
             <figcaption>
               <h4>Today, without the noise</h4>
-              <p>Your identity, today’s progress, and the next actions.</p>
+              <p>Complete the full habit or its two-minute version. Both count as showing up.</p>
             </figcaption>
           </figure>
           <figure class="screenshot-card">
             <div class="screenshot-image-frame">
               <img
-                src="/assets/website/screen-day-complete-v4.png"
-                alt="Today screen showing two completed actions and a Day complete message"
-                width="640"
-                height="1391"
+                src="/assets/website/screen-plan-v5.png"
+                alt="Plan review showing one reading habit, its schedule, a two-minute version, and the Start button"
+                width="1206"
+                height="2622"
                 loading="lazy"
                 decoding="async"
               />
             </div>
             <figcaption>
-              <h4>One completion moment</h4>
-              <p>A calm finish once every scheduled action is done.</p>
+              <h4>Review before you start</h4>
+              <p>Choose your habits, edit the details, and see when your plan starts.</p>
             </figcaption>
           </figure>
           <figure class="screenshot-card">
             <div class="screenshot-image-frame">
               <img
-                src="/assets/website/screen-milestones-v4.png"
-                alt="Journey screen showing calendar details, daily context, and a milestone"
-                width="640"
-                height="1391"
+                src="/assets/website/screen-journey-v5.png"
+                alt="Journey screen showing how a reading habit is fitting and monthly consistency"
+                width="1206"
+                height="2622"
                 loading="lazy"
                 decoding="async"
               />
             </div>
             <figcaption>
-              <h4>Your Story in one place</h4>
-              <p>Notes, milestones, comebacks, and monthly chapters.</p>
+              <h4>See how your plan fits</h4>
+              <p>Spot patterns in Journey and adjust a habit directly.</p>
             </figcaption>
           </figure>
           <figure class="screenshot-card">
             <div class="screenshot-image-frame">
               <img
-                src="/assets/website/screen-coach-v4.png"
-                alt="Coach screen showing Start a conversation, Review my week, and Adjust my plan"
-                width="640"
-                height="1391"
+                src="/assets/website/screen-coach-v5.png"
+                alt="Coach screen with Start a conversation and a short weekly read"
+                width="1206"
+                height="2622"
                 loading="lazy"
                 decoding="async"
               />
             </div>
             <figcaption>
               <h4>Ask for what you need</h4>
-              <p>Talk openly, review the week, or preview a plan change.</p>
+              <p>Talk through what is working, what feels hard, or what to change.</p>
             </figcaption>
           </figure>
-        </div>
-      </div>
-    </section>
-
-    <!-- Video Demo Section -->
-    <section class="video-demo" id="video">
-      <div class="container">
-        <div class="section-header">
-          <div class="section-label">The Mid-Year Reset</div>
-          <h2 class="section-title">
-            Your resolution isn't dead.
-            <span class="gradient-text">It's half-time.</span>
-          </h2>
-          <p class="section-subtitle">
-            That goal you dropped in February? Here's the real app bringing it
-            back — a two-minute AI setup, small daily actions, and a coach in
-            your corner every week. Any day can be day one.
-          </p>
-        </div>
-        <div class="video-demo-frame">
-          <video
-            controls
-            playsinline
-            preload="none"
-            poster="/assets/website/app-demo-vertical-poster.jpg"
-            width="720"
-            height="1280"
-          >
-            <source
-              src="/assets/website/app-demo-vertical.mp4"
-              type="video/mp4"
-            />
-          </video>
         </div>
       </div>
     </section>
@@ -3501,7 +3465,7 @@
           <div class="section-label">Getting Started</div>
           <h2 class="section-title">How It Works</h2>
           <p class="section-subtitle">
-            Three simple steps to begin your identity transformation journey.
+            A conversation, a plan you approve, and small actions you can return to.
           </p>
         </div>
 
@@ -3522,10 +3486,9 @@
                 />
               </svg>
             </div>
-            <h3>Define Who You're Becoming</h3>
+            <h3>Talk with Coach</h3>
             <p>
-              Chat with our AI to discover who you want to become. No forms or
-              guesswork - just a conversation about your aspirations.
+              Tell Coach who you want to become and one habit you want to build. Start with what feels manageable.
             </p>
           </div>
 
@@ -3544,10 +3507,10 @@
                 <polyline points="22 4 12 14.01 9 11.01" />
               </svg>
             </div>
-            <h3>Track Daily Actions</h3>
+            <h3>Review Your Plan</h3>
             <p>
-              Complete the small actions scheduled for today. Use a two-minute
-              version when motivation or time is low.
+              Review your habits, schedule, and two-minute alternatives. Edit the
+              details before you tap Start. One habit is enough.
             </p>
           </div>
 
@@ -3567,10 +3530,10 @@
                 <line x1="6" y1="20" x2="6" y2="16" />
               </svg>
             </div>
-            <h3>Evolve with Coaching</h3>
+            <h3>Show Up, Then Adjust</h3>
             <p>
-              Start a conversation, review the week, or preview a small plan
-              adjustment. You decide whether any change is applied.
+              Use Today to record the full action or its small version. Check
+              Journey for patterns and ask Coach for help when you need it.
             </p>
           </div>
         </div>
