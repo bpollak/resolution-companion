@@ -1,5 +1,38 @@
 [
   {
+    "version": "1.4.0",
+    "status": "released",
+    "title": "Start small, with a plan you choose",
+    "summary": "Build a starting plan with AI Coach in two clear steps, review a simple summary, and see when your first habit begins.",
+    "appStoreNotes": [
+      "Two clear onboarding steps: talk with AI Coach, then review your habits and schedule before starting.",
+      "Hide the keyboard while chatting or editing your plan, with improved bottom spacing and larger-text layouts.",
+      "Record the full action or its small version, with clear completion and undo controls.",
+      "Open the correct date in Journey and edit a habit directly from its assessment.",
+      "Stop, retry, or save an interrupted Coach reply without losing the partial conversation.",
+      "Clearer Premium allowances and calendar status symbols that work without color."
+    ],
+    "highlights": [
+      {
+        "title": "Your plan, before you start",
+        "description": "AI Coach helps you find one small habit. Review the summary, adjust details if needed, and see your first scheduled day.",
+        "availability": "Available to everyone."
+      },
+      {
+        "title": "A clearer daily action",
+        "description": "Today brings completion controls forward; Journey offers a direct way to adjust a habit.",
+        "availability": "Available to everyone."
+      },
+      {
+        "title": "Conversations that recover",
+        "description": "Coach shows when it is waiting and lets you stop, retry, or save partial replies.",
+        "availability": "Uses the existing coaching allowance."
+      }
+    ],
+    "submittedAt": "2026-09-07",
+    "releasedAt": "2026-09-08"
+  },
+  {
     "version": "1.3",
     "status": "released",
     "title": "A simpler daily loop",

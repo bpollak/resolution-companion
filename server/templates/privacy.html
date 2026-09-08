@@ -12,7 +12,7 @@
       name="robots"
       content="index, follow, max-image-preview:large, max-snippet:-1"
     />
-    <meta name="theme-color" content="#0f0f1a" />
+    <meta name="theme-color" content="#101316" />
     <link rel="icon" type="image/png" href="/assets/icon.png" />
     <link rel="canonical" href="https://resolutioncompanion.com/privacy" />
     <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
@@ -34,7 +34,7 @@
       property="og:image"
       content="https://resolutioncompanion.com/assets/website/app-logo.png"
     />
-    <script src="/assets/website/site-navigation.js" defer></script>
+
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -50,535 +50,71 @@
         "inLanguage": "en-US"
       }
     </script>
-    <style>
-      :root {
-        --accent: #00d9ff;
-        --accent-secondary: #8b5cf6;
-        --accent-tertiary: #f472b6;
-        --accent-green: #10b981;
-        --accent-glow: rgba(0, 217, 255, 0.3);
-        --purple-glow: rgba(139, 92, 246, 0.3);
-        --pink-glow: rgba(244, 114, 182, 0.3);
-        --bg-root: #0f0f1a;
-        --bg-card: rgba(20, 20, 35, 0.8);
-        --text-primary: #ffffff;
-        --text-secondary: #c8c8d4;
-        --text-muted: #9d9dae;
-        --border: rgba(255, 255, 255, 0.1);
-      }
 
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-
-      html {
-        scroll-behavior: smooth;
-      }
-
-      body {
-        font-family:
-          "Inter",
-          -apple-system,
-          BlinkMacSystemFont,
-          "Segoe UI",
-          sans-serif;
-        background: var(--bg-root);
-        color: var(--text-primary);
-        line-height: 1.7;
-        min-height: 100vh;
-        -webkit-font-smoothing: antialiased;
-        overflow-x: hidden;
-      }
-
-      .gradient-bg {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background:
-          radial-gradient(
-            ellipse at 20% 20%,
-            rgba(139, 92, 246, 0.25) 0%,
-            transparent 50%
-          ),
-          radial-gradient(
-            ellipse at 80% 30%,
-            rgba(0, 217, 255, 0.2) 0%,
-            transparent 45%
-          ),
-          radial-gradient(
-            ellipse at 40% 80%,
-            rgba(244, 114, 182, 0.2) 0%,
-            transparent 50%
-          ),
-          radial-gradient(
-            ellipse at 90% 80%,
-            rgba(16, 185, 129, 0.15) 0%,
-            transparent 40%
-          ),
-          linear-gradient(180deg, #0f0f1a 0%, #1a1025 50%, #0f1a1a 100%);
-        z-index: -1;
-        animation: gradientShift 20s ease infinite;
-      }
-
-      @keyframes gradientShift {
-        0%,
-        100% {
-          opacity: 1;
-        }
-        50% {
-          opacity: 0.85;
-        }
-      }
-
-      .container {
-        max-width: 800px;
-        margin: 0 auto;
-        padding: 60px 24px;
-        position: relative;
-        z-index: 1;
-      }
-
-      header {
-        text-align: center;
-        margin-bottom: 48px;
-        padding-bottom: 32px;
-        border-bottom: 1px solid var(--border);
-      }
-
-      h1 {
-        font-size: 36px;
-        font-weight: 700;
-        margin-bottom: 16px;
-        background: linear-gradient(
-          135deg,
-          var(--accent) 0%,
-          var(--accent-secondary) 100%
-        );
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-      }
-
-      .last-updated {
-        color: var(--text-muted);
-        font-size: 14px;
-      }
-
-      section {
-        margin-bottom: 40px;
-      }
-
-      h2 {
-        font-size: 22px;
-        font-weight: 600;
-        color: var(--text-primary);
-        margin-bottom: 16px;
-        padding-bottom: 8px;
-        border-bottom: 2px solid var(--accent-glow);
-      }
-
-      p {
-        margin-bottom: 16px;
-        color: var(--text-secondary);
-      }
-
-      ul {
-        margin: 16px 0;
-        padding-left: 24px;
-      }
-
-      li {
-        margin-bottom: 12px;
-        color: var(--text-secondary);
-      }
-
-      li strong {
-        color: var(--text-primary);
-      }
-
-      a {
-        color: var(--accent);
-        text-decoration: none;
-      }
-
-      a:hover {
-        text-decoration: underline;
-      }
-
-      .highlight-box {
-        background: var(--bg-card);
-        border: 1px solid var(--accent-glow);
-        border-radius: 12px;
-        padding: 24px;
-        margin: 24px 0;
-        backdrop-filter: blur(10px);
-      }
-
-      .highlight-box h3 {
-        color: var(--accent);
-        font-size: 18px;
-        margin-bottom: 12px;
-      }
-
-      footer {
-        text-align: center;
-        padding: 40px 0;
-        border-top: 1px solid var(--border);
-        margin-top: 48px;
-      }
-
-      .footer-links {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 24px;
-        margin-bottom: 16px;
-      }
-
-      .footer-links a {
-        color: var(--text-secondary);
-        text-decoration: none;
-        font-size: 14px;
-        transition: color 0.2s;
-      }
-
-      .footer-links a:hover {
-        color: var(--accent);
-      }
-
-      footer p {
-        font-size: 14px;
-        color: var(--text-muted);
-        margin-top: 16px;
-      }
-
-      .back-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        color: #00d9ff;
-        margin-bottom: 24px;
-      }
-
-      .back-link:hover {
-        text-decoration: none;
-        opacity: 0.8;
-      }
-
-      nav {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 100;
-        background: rgba(15, 15, 26, 0.85);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border-bottom: 1px solid var(--border);
-      }
-
-      nav .container {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 0 24px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        height: 64px;
-      }
-
-      nav .logo {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        text-decoration: none;
-        color: var(--text-primary);
-        font-weight: 700;
-        font-size: 18px;
-      }
-
-      nav .logo-icon {
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
-        overflow: hidden;
-      }
-
-      nav .logo-icon img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-      }
-
-      nav .nav-links {
-        display: flex;
-        align-items: center;
-        gap: 32px;
-      }
-
-      nav .nav-links a {
-        color: var(--text-secondary);
-        text-decoration: none;
-        font-size: 14px;
-        font-weight: 500;
-        transition: color 0.2s;
-      }
-
-      nav .nav-links a:hover {
-        color: var(--text-primary);
-      }
-
-      nav .nav-links a.active {
-        color: var(--accent);
-      }
-
-      nav .nav-cta {
-        background: #7c3aed;
-        color: #ffffff !important;
-        padding: 10px 20px;
-        border-radius: 8px;
-        font-weight: 600;
-        transition: all 0.2s;
-      }
-
-      nav .nav-cta:hover {
-        transform: translateY(-1px);
-        background: #6d28d9;
-        box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
-        text-decoration: none;
-      }
-
-      .mobile-menu-btn {
-        display: none;
-        background: none;
-        border: none;
-        padding: 8px;
-        cursor: pointer;
-      }
-
-      .mobile-menu-btn svg {
-        width: 24px;
-        height: 24px;
-        stroke: #fff;
-      }
-
-      .mobile-nav {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(10, 10, 15, 0.98);
-        z-index: 2000;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 32px;
-      }
-
-      .mobile-nav.open {
-        display: flex;
-      }
-
-      .mobile-nav a {
-        color: #fff;
-        text-decoration: none;
-        font-size: 24px;
-        font-weight: 600;
-      }
-
-      .mobile-nav a:hover,
-      .mobile-nav a.active {
-        color: #00d9ff;
-      }
-
-      .mobile-nav-close {
-        position: absolute;
-        top: 20px;
-        right: 20px;
-        background: none;
-        border: none;
-        padding: 8px;
-        cursor: pointer;
-      }
-
-      .mobile-nav-close svg {
-        width: 32px;
-        height: 32px;
-        stroke: #fff;
-      }
-
-      .page-content {
-        padding-top: 80px;
-      }
-
-      @media (max-width: 768px) {
-        nav .nav-links {
-          display: none;
-        }
-        .mobile-menu-btn {
-          display: block;
-        }
-      }
-      a:focus-visible,
-      button:focus-visible {
-        outline: 3px solid var(--accent);
-        outline-offset: 4px;
-      }
-
-      .skip-link {
-        position: fixed;
-        top: 12px;
-        left: 12px;
-        z-index: 2000;
-        padding: 10px 14px;
-        border-radius: 10px;
-        background: var(--accent);
-        color: #001116;
-        font-weight: 800;
-        text-decoration: none;
-        transform: translateY(-160%);
-      }
-
-      .skip-link:focus {
-        transform: translateY(0);
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        html {
-          scroll-behavior: auto;
-        }
-
-        *,
-        *::before,
-        *::after {
-          animation-duration: 0.01ms !important;
-          animation-iteration-count: 1 !important;
-          transition-duration: 0.01ms !important;
-        }
-      }
-    </style>
+    <link rel="stylesheet" href="/assets/website/site.css?v=61bfc9537567" />
+    <script src="/assets/website/site.js?v=61bfc9537567" defer></script>
   </head>
   <body>
-    <a class="skip-link" href="#main-content">Skip to privacy policy</a>
-    <div class="gradient-bg"></div>
-    <nav aria-label="Primary navigation">
-      <div class="container">
-        <a href="/" class="logo">
-          <div class="logo-icon">
-            <img
-              src="/assets/website/app-logo.png"
-              alt="Resolution Companion Logo"
-            />
-          </div>
-          Resolution Companion
-        </a>
-        <div class="nav-links">
-          <a href="/#features">Features</a>
-          <a href="/feedback">Support</a>
-          <a href="/privacy" class="active">Privacy</a>
-          <a href="/terms">Terms</a>
-          <a
-            href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
-            class="nav-cta"
-            target="_blank"
-            rel="noopener"
-            >Get the App</a
-          >
-        </div>
-        <button
-          id="mobileMenuButton"
-          class="mobile-menu-btn"
+    <a class="skip" href="#main-content">Skip to content</a>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a href="/" class="brand" aria-label="Resolution Companion home"
+          ><img
+            src="/assets/website/app-logo.png"
+            alt=""
+            width="34"
+            height="34"
+          />Resolution Companion</a
+        ><button
+          class="menu-toggle"
           type="button"
-          aria-label="Open navigation menu"
-          aria-controls="mobileNav"
           aria-expanded="false"
-          onclick="document.getElementById('mobileNav').classList.add('open')"
+          aria-controls="site-nav"
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="18" x2="21" y2="18" />
-          </svg>
+          Menu
         </button>
+        <nav class="site-nav" id="site-nav" aria-label="Main navigation">
+          <a href="/#inside">The app</a><a href="/#how-it-works">How it works</a
+          ><a href="/#pricing">Pricing</a
+          ><a href="/release-notes">Release notes</a
+          ><a href="/feedback">Support</a
+          ><a
+            href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
+            class="nav-download"
+            >Get the app ↗</a
+          >
+        </nav>
       </div>
-    </nav>
-
-    <div
-      class="mobile-nav"
-      id="mobileNav"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Site navigation"
-      aria-hidden="true"
-    >
-      <button
-        class="mobile-nav-close"
-        type="button"
-        aria-label="Close navigation menu"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
-      <a
-        href="/#features"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
-        >Features</a
-      >
-      <a
-        href="/feedback"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
-        >Support</a
-      >
-      <a
-        href="/privacy"
-        class="active"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
-        >Privacy</a
-      >
-      <a
-        href="/terms"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
-        >Terms</a
-      >
-      <a
-        href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
-        class="mobile-cta"
-        target="_blank"
-        rel="noopener"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
-        >Get the App</a
-      >
-    </div>
-
-    <div class="page-content">
-      <div class="container">
-        <main id="main-content">
-          <header>
-            <h1>Privacy Policy</h1>
-            <p class="last-updated">Last Updated: August 2026</p>
-          </header>
-
+    </header>
+    <main id="main-content">
+      <div class="page-hero">
+        <div class="wrap">
+          <p class="eyebrow">Resolution Companion</p>
+          <h1>Privacy Policy</h1>
+          <p>How your information is handled.</p>
+          <p class="updated">Last Updated: August 2026</p>
+        </div>
+      </div>
+      <div class="wrap content-layout">
+        <aside class="content-nav">
+          <p>On this page</p>
+          <nav class="nav-items" aria-label="On this page">
+            <a href="#overview">Overview</a
+            ><a href="#information-we-don-t-collect"
+              >Information We Don't Collect</a
+            ><a href="#information-we-do-store">Information We Do Store</a
+            ><a href="#what-stays-on-your-device">What Stays on Your Device</a
+            ><a href="#ai-features-openai">AI Features &amp; OpenAI</a
+            ><a href="#subscription-payments">Subscription &amp; Payments</a
+            ><a href="#hosting-infrastructure">Hosting &amp; Infrastructure</a
+            ><a href="#children-s-privacy">Children's Privacy</a
+            ><a href="#changes-to-this-policy">Changes to This Policy</a
+            ><a href="#contact-us">Contact Us</a>
+          </nav>
+        </aside>
+        <div class="legal-document">
           <section>
-            <h2>Overview</h2>
+            <h2 id="overview">Overview</h2>
             <p>
               Resolution Companion is designed with your privacy as a top
               priority. We believe your personal growth journey is deeply
@@ -587,7 +123,7 @@
 
             <div class="highlight-box">
               <h3>The Short Version</h3>
-              <p style="margin-bottom: 0">
+              <p>
                 Your personal growth data stays on your device. We don't sell
                 your data, track you across apps, or use third-party analytics
                 or ad trackers. On our own servers we store only the minimum: an
@@ -601,7 +137,9 @@
           </section>
 
           <section>
-            <h2>Information We Don't Collect</h2>
+            <h2 id="information-we-don-t-collect">
+              Information We Don't Collect
+            </h2>
             <ul>
               <li>
                 <strong>No Account Required:</strong> Use the app without
@@ -622,7 +160,7 @@
           </section>
 
           <section>
-            <h2>Information We Do Store</h2>
+            <h2 id="information-we-do-store">Information We Do Store</h2>
             <p>
               To make premium subscriptions work, we store a small amount of
               data on our servers:
@@ -696,7 +234,7 @@
           </section>
 
           <section>
-            <h2>What Stays on Your Device</h2>
+            <h2 id="what-stays-on-your-device">What Stays on Your Device</h2>
             <p>
               All of your personal data is stored locally on your device using
               secure local storage:
@@ -745,7 +283,7 @@
           </section>
 
           <section>
-            <h2>AI Features & OpenAI</h2>
+            <h2 id="ai-features-openai">AI Features &amp; OpenAI</h2>
             <p>
               Our AI coaching, onboarding, and Plan Tune-Up features are powered
               by
@@ -767,7 +305,7 @@
             </p>
             <div class="highlight-box">
               <h3>Plan Tune-Up Privacy Boundary</h3>
-              <p style="margin-bottom: 0">
+              <p>
                 Daily log notes, Daily Context note text, local record
                 identifiers, persona name and description, and individual event
                 dates are never included in a Plan Tune-Up request. Current
@@ -788,7 +326,7 @@
 
             <div class="highlight-box">
               <h3>What You Should Know About OpenAI</h3>
-              <ul style="margin-bottom: 0">
+              <ul>
                 <li>
                   <strong>Not Used for Training:</strong> OpenAI does not use
                   API data to train or improve their models.
@@ -826,7 +364,7 @@
           </section>
 
           <section>
-            <h2>Subscription & Payments</h2>
+            <h2 id="subscription-payments">Subscription &amp; Payments</h2>
             <p>
               If you choose a subscription or, where available, a one-time
               Lifetime Premium purchase:
@@ -846,7 +384,7 @@
           </section>
 
           <section>
-            <h2>Hosting & Infrastructure</h2>
+            <h2 id="hosting-infrastructure">Hosting &amp; Infrastructure</h2>
             <p>
               Resolution Companion's backend services are hosted on trusted
               cloud infrastructure that employs industry-standard security
@@ -860,7 +398,7 @@
           </section>
 
           <section>
-            <h2>Children's Privacy</h2>
+            <h2 id="children-s-privacy">Children's Privacy</h2>
             <p>
               Resolution Companion is not intended for children under 13 years
               of age. We do not knowingly collect personal information from
@@ -869,7 +407,7 @@
           </section>
 
           <section>
-            <h2>Changes to This Policy</h2>
+            <h2 id="changes-to-this-policy">Changes to This Policy</h2>
             <p>
               We may update this Privacy Policy from time to time. We will
               notify you of any changes by posting the new Privacy Policy on
@@ -878,7 +416,7 @@
           </section>
 
           <section>
-            <h2>Contact Us</h2>
+            <h2 id="contact-us">Contact Us</h2>
             <p>
               Resolution Companion is operated by Brett Pollak. If you have any
               questions about this Privacy Policy, our privacy practices, or
@@ -887,37 +425,40 @@
               or through our <a href="/feedback">support page</a>.
             </p>
           </section>
-        </main>
-        <footer>
-          <div class="footer-links">
-            <a href="/">Home</a>
-            <a href="/#features">Features</a>
-            <a href="/release-notes">Release Notes</a>
-            <a href="/feedback">Support</a>
-            <a href="/privacy">Privacy Policy</a>
-            <a href="/terms">Terms of Use</a>
-            <a
-              href="https://www.facebook.com/profile.php?id=61591806574903"
-              target="_blank"
-              rel="noopener noreferrer"
+        </div>
+      </div>
+    </main>
+    <footer class="site-footer">
+      <div class="wrap">
+        <div class="footer-top">
+          <a class="brand" href="/"
+            ><img
+              src="/assets/website/app-logo.png"
+              width="30"
+              height="30"
+              alt=""
+            />Resolution Companion</a
+          >
+          <nav class="footer-links" aria-label="Footer">
+            <a href="/">Home</a><a href="/release-notes">Release notes</a
+            ><a href="/feedback">Support</a
+            ><a href="/privacy" aria-current="page">Privacy</a
+            ><a href="/terms">Terms</a>
+          </nav>
+        </div>
+        <div class="footer-bottom">
+          <p>© 2026 Resolution Companion</p>
+          <div class="social-links">
+            <a href="https://www.facebook.com/profile.php?id=61591806574903"
               >Facebook</a
-            >
-            <a
-              href="https://www.instagram.com/resolutioncompanion/"
-              target="_blank"
-              rel="noopener noreferrer"
+            ><a href="https://www.instagram.com/resolutioncompanion/"
               >Instagram</a
-            >
-            <a
-              href="https://www.linkedin.com/company/resolution-companion/"
-              target="_blank"
-              rel="noopener noreferrer"
+            ><a href="https://www.linkedin.com/company/resolution-companion/"
               >LinkedIn</a
             >
           </div>
-          <p>&copy; 2026 Resolution Companion. Built with purpose.</p>
-        </footer>
+        </div>
       </div>
-    </div>
+    </footer>
   </body>
 </html>

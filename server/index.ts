@@ -419,6 +419,19 @@ function configureExpoAndLanding(app: express.Application) {
     ),
   ) as Release[];
   const releaseEntries = releases.map(renderRelease).join("\n");
+  const releaseNavigation = releases
+    .map((release) => {
+      const date = release.releasedAt || release.submittedAt;
+      const dateLabel = date
+        ? new Intl.DateTimeFormat("en-US", {
+            month: "long",
+            year: "numeric",
+            timeZone: "UTC",
+          }).format(new Date(`${date}T12:00:00Z`))
+        : "";
+      return `<a href="#${releaseAnchor(release.version)}">${escapeHtml(release.version)}${dateLabel ? ` · ${escapeHtml(dateLabel)}` : ""}</a>`;
+    })
+    .join("\n");
   const latestReleased =
     releases.find((release) => release.status === "released") || releases[0];
 
@@ -524,7 +537,8 @@ function configureExpoAndLanding(app: express.Application) {
     const html = releaseNotesTemplate
       .replace(/BASE_URL_PLACEHOLDER/g, SITE_URL)
       .replace(/RELEASE_JSON_LD_PLACEHOLDER/g, releaseJsonLd(releases))
-      .replace(/RELEASE_ENTRIES_PLACEHOLDER/g, releaseEntries);
+      .replace(/RELEASE_ENTRIES_PLACEHOLDER/g, releaseEntries)
+      .replace(/RELEASE_NAVIGATION_PLACEHOLDER/g, releaseNavigation);
 
     sendHtml(res, html);
   });

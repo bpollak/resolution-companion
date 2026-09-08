@@ -12,7 +12,7 @@
       name="robots"
       content="index, follow, max-image-preview:large, max-snippet:-1"
     />
-    <meta name="theme-color" content="#0f0f1a" />
+    <meta name="theme-color" content="#101316" />
     <link rel="icon" type="image/png" href="/assets/icon.png" />
     <link rel="canonical" href="https://resolutioncompanion.com/feedback" />
     <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
@@ -40,7 +40,7 @@
       property="og:image"
       content="https://resolutioncompanion.com/assets/website/app-logo.png"
     />
-    <script src="/assets/website/site-navigation.js" defer></script>
+
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -113,922 +113,248 @@
         ]
       }
     </script>
-    <style>
-      :root {
-        --accent: #00d9ff;
-        --accent-secondary: #8b5cf6;
-        --accent-tertiary: #f472b6;
-        --accent-green: #10b981;
-        --accent-glow: rgba(0, 217, 255, 0.3);
-        --purple-glow: rgba(139, 92, 246, 0.3);
-        --pink-glow: rgba(244, 114, 182, 0.3);
-        --bg-root: #0f0f1a;
-        --bg-card: rgba(20, 20, 35, 0.8);
-        --text-primary: #ffffff;
-        --text-secondary: #c8c8d4;
-        --text-muted: #9d9dae;
-        --border: rgba(255, 255, 255, 0.1);
-      }
 
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-
-      html {
-        scroll-behavior: smooth;
-      }
-
-      body {
-        font-family:
-          "Inter",
-          -apple-system,
-          BlinkMacSystemFont,
-          "Segoe UI",
-          sans-serif;
-        background: var(--bg-root);
-        color: var(--text-primary);
-        line-height: 1.7;
-        min-height: 100vh;
-        -webkit-font-smoothing: antialiased;
-        overflow-x: hidden;
-      }
-
-      .gradient-bg {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background:
-          radial-gradient(
-            ellipse at 20% 20%,
-            rgba(139, 92, 246, 0.25) 0%,
-            transparent 50%
-          ),
-          radial-gradient(
-            ellipse at 80% 30%,
-            rgba(0, 217, 255, 0.2) 0%,
-            transparent 45%
-          ),
-          radial-gradient(
-            ellipse at 40% 80%,
-            rgba(244, 114, 182, 0.2) 0%,
-            transparent 50%
-          ),
-          radial-gradient(
-            ellipse at 90% 80%,
-            rgba(16, 185, 129, 0.15) 0%,
-            transparent 40%
-          ),
-          linear-gradient(180deg, #0f0f1a 0%, #1a1025 50%, #0f1a1a 100%);
-        z-index: -1;
-        animation: gradientShift 20s ease infinite;
-      }
-
-      @keyframes gradientShift {
-        0%,
-        100% {
-          opacity: 1;
-        }
-        50% {
-          opacity: 0.85;
-        }
-      }
-
-      nav {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 100;
-        background: rgba(15, 15, 26, 0.85);
-        backdrop-filter: blur(20px);
-        border-bottom: 1px solid var(--border);
-      }
-
-      nav .container {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 0 24px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        height: 64px;
-      }
-
-      .logo {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-weight: 700;
-        font-size: 18px;
-        color: var(--text-primary);
-        text-decoration: none;
-      }
-
-      .logo-icon {
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
-        overflow: hidden;
-      }
-
-      .logo-icon img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-      }
-
-      .nav-links {
-        display: flex;
-        gap: 32px;
-        align-items: center;
-      }
-
-      .nav-links a {
-        color: var(--text-secondary);
-        text-decoration: none;
-        font-size: 14px;
-        font-weight: 500;
-        transition: color 0.2s;
-      }
-
-      .nav-links a:hover {
-        color: var(--text-primary);
-      }
-
-      .nav-links a.active {
-        color: var(--accent);
-      }
-
-      .nav-links a.nav-cta {
-        background: #7c3aed;
-        color: #ffffff !important;
-        padding: 10px 20px;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 14px;
-        text-decoration: none;
-        transition: all 0.2s;
-      }
-
-      .nav-links a.nav-cta:hover {
-        transform: translateY(-1px);
-        background: #6d28d9;
-        color: #ffffff !important;
-        box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
-      }
-
-      .mobile-menu-btn {
-        display: none;
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: 8px;
-        color: var(--text-primary);
-      }
-
-      .mobile-menu-btn svg {
-        width: 24px;
-        height: 24px;
-      }
-
-      .mobile-nav {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(10, 10, 18, 0.98);
-        z-index: 1000;
-        flex-direction: column;
-        padding: 80px 24px 24px;
-      }
-
-      .mobile-nav.open {
-        display: flex;
-      }
-
-      .mobile-nav-close {
-        position: absolute;
-        top: 16px;
-        right: 16px;
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: 8px;
-        color: var(--text-primary);
-      }
-
-      .mobile-nav-close svg {
-        width: 28px;
-        height: 28px;
-      }
-
-      .mobile-nav a {
-        color: var(--text-primary);
-        text-decoration: none;
-        font-size: 24px;
-        font-weight: 600;
-        padding: 16px 0;
-        border-bottom: 1px solid var(--border);
-        transition: color 0.2s;
-      }
-
-      .mobile-nav a:hover {
-        color: var(--accent);
-      }
-
-      .mobile-nav a.mobile-cta {
-        margin-top: 24px;
-        background: #7c3aed;
-        color: #ffffff !important;
-        text-align: center;
-        padding: 16px 24px;
-        border-radius: 12px;
-        border: none;
-      }
-
-      .main-content {
-        max-width: 900px;
-        margin: 0 auto;
-        padding: 120px 24px 60px;
-        position: relative;
-        z-index: 1;
-      }
-
-      .page-header {
-        text-align: center;
-        margin-bottom: 60px;
-      }
-
-      .page-header h1 {
-        font-size: 42px;
-        font-weight: 700;
-        margin-bottom: 16px;
-        background: linear-gradient(
-          135deg,
-          var(--accent) 0%,
-          var(--accent-secondary) 100%
-        );
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-      }
-
-      .page-header p {
-        color: var(--text-secondary);
-        font-size: 18px;
-        max-width: 600px;
-        margin: 0 auto;
-      }
-
-      .support-grid {
-        display: block;
-        margin-bottom: 60px;
-      }
-
-      .support-card {
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        padding: 32px;
-        backdrop-filter: blur(10px);
-      }
-
-      .support-card h2 {
-        font-size: 22px;
-        font-weight: 600;
-        margin-bottom: 16px;
-        color: var(--text-primary);
-      }
-
-      .support-card p {
-        color: var(--text-secondary);
-        margin-bottom: 20px;
-      }
-
-      .support-email {
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-        color: var(--accent);
-        text-decoration: none;
-        font-weight: 500;
-        font-size: 16px;
-        padding: 12px 20px;
-        background: rgba(0, 217, 255, 0.1);
-        border-radius: 10px;
-        transition: all 0.3s ease;
-      }
-
-      .support-email:hover {
-        background: rgba(0, 217, 255, 0.2);
-        text-decoration: none;
-      }
-
-      .response-time {
-        margin-top: 16px;
-        font-size: 14px;
-        color: var(--text-muted);
-      }
-
-      .faq-section {
-        margin-bottom: 60px;
-      }
-
-      .faq-section h2 {
-        font-size: 28px;
-        font-weight: 600;
-        margin-bottom: 32px;
-        text-align: center;
-        color: var(--text-primary);
-      }
-
-      .faq-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 24px;
-      }
-
-      .faq-item {
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 24px;
-        backdrop-filter: blur(10px);
-      }
-
-      .faq-item h3 {
-        font-size: 16px;
-        font-weight: 600;
-        color: var(--accent);
-        margin-bottom: 12px;
-      }
-
-      .faq-item p {
-        color: var(--text-secondary);
-        font-size: 15px;
-        margin: 0;
-      }
-
-      .faq-item a {
-        color: var(--accent);
-        text-decoration: none;
-      }
-
-      .faq-item a:hover {
-        text-decoration: underline;
-      }
-
-      .feedback-section {
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: 20px;
-        padding: 48px;
-        backdrop-filter: blur(10px);
-      }
-
-      .feedback-section h2 {
-        font-size: 28px;
-        font-weight: 600;
-        margin-bottom: 12px;
-        text-align: center;
-        color: var(--text-primary);
-      }
-
-      .feedback-section > p {
-        text-align: center;
-        color: var(--text-secondary);
-        margin-bottom: 32px;
-      }
-
-      .form-group {
-        margin-bottom: 24px;
-      }
-
-      .form-group label {
-        display: block;
-        color: var(--text-primary);
-        font-weight: 500;
-        margin-bottom: 8px;
-        font-size: 14px;
-      }
-
-      .form-group input,
-      .form-group select,
-      .form-group textarea {
-        width: 100%;
-        padding: 14px 16px;
-        background: rgba(15, 15, 26, 0.6);
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        color: var(--text-primary);
-        font-size: 15px;
-        font-family: inherit;
-        transition: all 0.3s ease;
-      }
-
-      .form-group input:focus,
-      .form-group select:focus,
-      .form-group textarea:focus {
-        outline: none;
-        border-color: var(--accent);
-        box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.15);
-      }
-
-      .form-group input::placeholder,
-      .form-group textarea::placeholder {
-        color: var(--text-muted);
-      }
-
-      .form-group select {
-        cursor: pointer;
-        appearance: none;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23A0A0B0' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-position: right 16px center;
-      }
-
-      .form-group select option {
-        background: var(--bg-root);
-        color: var(--text-primary);
-      }
-
-      .form-group textarea {
-        min-height: 150px;
-        resize: vertical;
-      }
-
-      .form-submit {
-        width: 100%;
-        padding: 16px 32px;
-        background: linear-gradient(
-          135deg,
-          var(--accent) 0%,
-          var(--accent-secondary) 100%
-        );
-        color: #0f0f1a;
-        border: none;
-        border-radius: 12px;
-        font-size: 16px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-      }
-
-      .form-submit:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 30px rgba(0, 217, 255, 0.3);
-      }
-
-      .form-submit:active {
-        transform: translateY(0);
-      }
-
-      .form-message {
-        margin-top: 16px;
-        padding: 14px;
-        border-radius: 10px;
-        text-align: center;
-        display: none;
-      }
-
-      .form-message.success {
-        display: block;
-        background: rgba(16, 185, 129, 0.15);
-        border: 1px solid rgba(16, 185, 129, 0.3);
-        color: #10b981;
-      }
-
-      .form-message.error {
-        display: block;
-        background: rgba(239, 68, 68, 0.15);
-        border: 1px solid rgba(239, 68, 68, 0.3);
-        color: #ef4444;
-      }
-
-      footer {
-        margin-top: 80px;
-        padding: 40px 24px;
-        border-top: 1px solid var(--border);
-        text-align: center;
-      }
-
-      .footer-links {
-        display: flex;
-        justify-content: center;
-        gap: 24px;
-        flex-wrap: wrap;
-        margin-bottom: 16px;
-      }
-
-      .footer-links a {
-        color: var(--text-secondary);
-        text-decoration: none;
-        font-size: 14px;
-        transition: color 0.3s ease;
-      }
-
-      .footer-links a:hover {
-        color: var(--accent);
-      }
-
-      footer p {
-        color: var(--text-muted);
-        font-size: 14px;
-      }
-
-      @media (max-width: 768px) {
-        .nav-links {
-          display: none;
-        }
-
-        .mobile-menu-btn {
-          display: block;
-        }
-
-        .page-header h1 {
-          font-size: 32px;
-        }
-
-        .support-grid {
-          grid-template-columns: 1fr;
-          gap: 24px;
-        }
-
-        .faq-grid {
-          grid-template-columns: 1fr;
-        }
-
-        .feedback-section {
-          padding: 32px 24px;
-        }
-      }
-
-      @media (max-width: 480px) {
-        .main-content {
-          padding: 100px 16px 40px;
-        }
-
-        .page-header h1 {
-          font-size: 28px;
-        }
-
-        .support-card {
-          padding: 24px;
-        }
-
-        .footer-links {
-          gap: 16px;
-        }
-      }
-      a:focus-visible,
-      button:focus-visible,
-      input:focus-visible,
-      select:focus-visible,
-      textarea:focus-visible {
-        outline: 3px solid var(--accent);
-        outline-offset: 4px;
-      }
-
-      .skip-link {
-        position: fixed;
-        top: 12px;
-        left: 12px;
-        z-index: 2000;
-        padding: 10px 14px;
-        border-radius: 10px;
-        background: var(--accent);
-        color: #001116;
-        font-weight: 800;
-        text-decoration: none;
-        transform: translateY(-160%);
-      }
-
-      .skip-link:focus {
-        transform: translateY(0);
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        html {
-          scroll-behavior: auto;
-        }
-
-        *,
-        *::before,
-        *::after {
-          animation-duration: 0.01ms !important;
-          animation-iteration-count: 1 !important;
-          transition-duration: 0.01ms !important;
-        }
-      }
-    </style>
+    <link rel="stylesheet" href="/assets/website/site.css?v=61bfc9537567" />
+    <script src="/assets/website/site.js?v=61bfc9537567" defer></script>
   </head>
   <body>
-    <a class="skip-link" href="#main-content">Skip to support</a>
-    <div class="gradient-bg"></div>
-
-    <nav aria-label="Primary navigation">
-      <div class="container">
-        <a href="/" class="logo">
-          <div class="logo-icon">
-            <img
-              src="/assets/website/app-logo.png"
-              alt="Resolution Companion Logo"
-            />
-          </div>
-          Resolution Companion
-        </a>
-        <div class="nav-links">
-          <a href="/#features">Features</a>
-          <a href="/feedback" class="active">Support</a>
-          <a href="/privacy">Privacy</a>
-          <a href="/terms">Terms</a>
-          <a
-            href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
-            class="nav-cta"
-            target="_blank"
-            rel="noopener"
-            >Get the App</a
-          >
-        </div>
-        <button
-          id="mobileMenuButton"
-          class="mobile-menu-btn"
+    <a class="skip" href="#main-content">Skip to content</a>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a href="/" class="brand" aria-label="Resolution Companion home"
+          ><img
+            src="/assets/website/app-logo.png"
+            alt=""
+            width="34"
+            height="34"
+          />Resolution Companion</a
+        ><button
+          class="menu-toggle"
           type="button"
-          aria-label="Open navigation menu"
-          aria-controls="mobileNav"
           aria-expanded="false"
-          onclick="document.getElementById('mobileNav').classList.add('open')"
+          aria-controls="site-nav"
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="18" x2="21" y2="18" />
-          </svg>
+          Menu
         </button>
+        <nav class="site-nav" id="site-nav" aria-label="Main navigation">
+          <a href="/#inside">The app</a><a href="/#how-it-works">How it works</a
+          ><a href="/#pricing">Pricing</a
+          ><a href="/release-notes">Release notes</a
+          ><a href="/feedback" aria-current="page">Support</a
+          ><a
+            href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
+            class="nav-download"
+            >Get the app ↗</a
+          >
+        </nav>
       </div>
-    </nav>
-
-    <div
-      class="mobile-nav"
-      id="mobileNav"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Site navigation"
-      aria-hidden="true"
-    >
-      <button
-        class="mobile-nav-close"
-        type="button"
-        aria-label="Close navigation menu"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
-      <a
-        href="/#features"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
-        >Features</a
-      >
-      <a
-        href="/feedback"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
-        >Support</a
-      >
-      <a
-        href="/privacy"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
-        >Privacy</a
-      >
-      <a
-        href="/terms"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
-        >Terms</a
-      >
-      <a
-        href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
-        class="mobile-cta"
-        target="_blank"
-        rel="noopener"
-        onclick="document.getElementById('mobileNav').classList.remove('open')"
-        >Get the App</a
-      >
-    </div>
-
-    <main class="main-content" id="main-content">
-      <div class="page-header">
-        <h1>Support & Feedback</h1>
-        <p>
-          Have questions or need assistance? We're committed to helping you
-          succeed on your personal growth journey.
-        </p>
-      </div>
-
-      <div class="support-grid">
-        <div class="support-card">
-          <h2>Email Support</h2>
+    </header>
+    <main id="main-content">
+      <div class="page-hero">
+        <div class="wrap">
+          <p class="eyebrow">Here to help</p>
+          <h1>Support &amp; feedback</h1>
           <p>
-            For account, data deletion, or general support questions, email us
-            and we'll get back to you as soon as we can:
-          </p>
-          <p style="margin-top: 16px">
-            <a class="support-email" href="mailto:brettcpollak@gmail.com"
-              >brettcpollak@gmail.com</a
-            >
-          </p>
-        </div>
-        <div class="support-card">
-          <h2>App Store Support</h2>
-          <p>
-            For subscription or billing issues, manage your subscription
-            directly through your device:
-          </p>
-          <p style="margin-top: 16px; color: var(--text-secondary)">
-            <strong style="color: var(--text-primary)">iOS:</strong> Settings >
-            [Your Name] > Subscriptions
+            Questions about your plan, a subscription, or something that isn’t
+            working? Start here.
           </p>
         </div>
       </div>
-
-      <div class="faq-section">
-        <h2>Frequently Asked Questions</h2>
-        <div class="faq-grid">
-          <div class="faq-item">
-            <h3>How do I create my plan?</h3>
+      <div class="wrap support-main">
+        <div class="support-grid">
+          <div class="support-card">
+            <h2>Email Support</h2>
             <p>
-              When you first open the app, your AI coach guides you through a
-              short conversation about who you want to become, then builds your
-              plan: a few milestones, each with a small daily action.
+              For account, data deletion, or general support questions, email us
+              and we'll get back to you as soon as we can:
+            </p>
+            <p>
+              <a class="support-email" href="mailto:brettcpollak@gmail.com"
+                >brettcpollak@gmail.com</a
+              >
             </p>
           </div>
-
-          <div class="faq-item">
-            <h3>Can I change my milestones or actions later?</h3>
+          <div class="support-card">
+            <h2>App Store Support</h2>
             <p>
-              Yes! You can edit your milestones and daily actions anytime —
-              including which days of the week an action repeats. Premium users
-              can also add new milestones and create additional plans.
+              For subscription or billing issues, manage your subscription
+              directly through your device:
             </p>
-          </div>
-
-          <div class="faq-item">
-            <h3>What's the difference between Free and Premium?</h3>
             <p>
-              Free includes 1 plan, 10 coaching check-ins per month, and full
-              tracking features. Premium unlocks unlimited plans, unlimited
-              coaching check-ins, and unlimited milestones.
-            </p>
-          </div>
-
-          <div class="faq-item">
-            <h3>How do I cancel my subscription?</h3>
-            <p>
-              You can manage or cancel your subscription anytime on your iPhone
-              under Settings > [Your Name] > Subscriptions.
-            </p>
-          </div>
-
-          <div class="faq-item">
-            <h3>Is my data private and secure?</h3>
-            <p>
-              Yes. Your personal growth data is stored locally on your device —
-              our servers keep only an anonymous device identifier and your
-              subscription status so purchases can be restored. AI conversations
-              use encrypted connections and are not used to train AI models. See
-              our <a href="/privacy">Privacy Policy</a> for details.
-            </p>
-          </div>
-
-          <div class="faq-item">
-            <h3>What is the 120 Second Kickstart?</h3>
-            <p>
-              On low-energy days, every action has a ~2-minute version you can
-              do instead of the full thing. It still counts — showing up is what
-              builds the habit.
+              <strong>iOS:</strong> Settings &gt; [Your Name] &gt; Subscriptions
             </p>
           </div>
         </div>
-      </div>
 
-      <div class="feedback-section" id="feedback-form">
-        <h2>Send Us Feedback</h2>
-        <p>
-          Help us improve Resolution Companion. Report bugs, suggest features,
-          or just say hello!
-        </p>
+        <div class="support-columns">
+          <section class="faq-section">
+            <h2>Frequently Asked Questions</h2>
+            <div class="faq-grid">
+              <details class="faq-item">
+                <summary>How do I create my plan?</summary>
+                <p>
+                  When you first open the app, your AI coach guides you through
+                  a short conversation about who you want to become, then builds
+                  your plan: a few milestones, each with a small daily action.
+                </p>
+              </details>
 
-        <form id="feedbackForm">
-          <div class="form-group">
-            <label for="name">Your Name</label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              required
-              placeholder="John Doe"
-            />
-          </div>
+              <details class="faq-item">
+                <summary>Can I change my milestones or actions later?</summary>
+                <p>
+                  Yes! You can edit your milestones and daily actions anytime —
+                  including which days of the week an action repeats. Premium
+                  users can also add new milestones and create additional plans.
+                </p>
+              </details>
 
-          <div class="form-group">
-            <label for="email">Email Address</label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              required
-              placeholder="john@example.com"
-            />
-          </div>
+              <details class="faq-item">
+                <summary>
+                  What's the difference between Free and Premium?
+                </summary>
+                <p>
+                  Free includes 1 plan, 10 coaching check-ins per month, and
+                  full tracking features. Premium unlocks unlimited plans,
+                  unlimited coaching check-ins, and unlimited milestones.
+                </p>
+              </details>
 
-          <div class="form-group">
-            <label for="type">Feedback Type</label>
-            <select id="type" name="type" required>
-              <option value="">Select a type...</option>
-              <option value="bug">Bug Report</option>
-              <option value="feature">Feature Request</option>
-              <option value="question">Question</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
+              <details class="faq-item">
+                <summary>How do I cancel my subscription?</summary>
+                <p>
+                  You can manage or cancel your subscription anytime on your
+                  iPhone under Settings &gt; [Your Name] &gt; Subscriptions.
+                </p>
+              </details>
 
-          <div class="form-group">
-            <label for="message">Your Message</label>
-            <textarea
-              id="message"
-              name="message"
-              required
-              placeholder="Tell us what's on your mind..."
-            ></textarea>
-          </div>
+              <details class="faq-item">
+                <summary>Is my data private and secure?</summary>
+                <p>
+                  Yes. Your personal growth data is stored locally on your
+                  device — our servers keep only an anonymous device identifier
+                  and your subscription status so purchases can be restored. AI
+                  conversations use encrypted connections and are not used to
+                  train AI models. See our
+                  <a href="/privacy">Privacy Policy</a> for details.
+                </p>
+              </details>
 
-          <input
-            type="checkbox"
-            name="botcheck"
-            id="botcheck"
-            style="display: none"
-            tabindex="-1"
-            aria-hidden="true"
-            autocomplete="off"
-          />
+              <details class="faq-item">
+                <summary>What is the 120 Second Kickstart?</summary>
+                <p>
+                  On low-energy days, every action has a ~2-minute version you
+                  can do instead of the full thing. It still counts — showing up
+                  is what builds the habit.
+                </p>
+              </details>
+            </div>
+          </section>
+          <section class="feedback-section" id="feedback-form">
+            <h2>Send Us Feedback</h2>
+            <p>
+              Help us improve Resolution Companion. Report bugs, suggest
+              features, or just say hello!
+            </p>
 
-          <button type="submit" class="form-submit">Send Feedback</button>
-          <div
-            class="form-message"
-            id="formMessage"
-            role="status"
-            aria-live="polite"
-          ></div>
-        </form>
+            <form id="feedbackForm">
+              <div class="form-group">
+                <label for="name">Your Name</label>
+                <input
+                  type="text"
+                  id="name"
+                  autocomplete="name"
+                  name="name"
+                  required=""
+                  placeholder="Your name"
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="email">Email Address</label>
+                <input
+                  type="email"
+                  id="email"
+                  autocomplete="email"
+                  name="email"
+                  required=""
+                  placeholder="you@example.com"
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="type">Feedback Type</label>
+                <select id="type" name="type" required="">
+                  <option value="">Select a type...</option>
+                  <option value="bug">Bug Report</option>
+                  <option value="feature">Feature Request</option>
+                  <option value="question">Question</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="message">Your Message</label>
+                <textarea
+                  id="message"
+                  name="message"
+                  required=""
+                  placeholder="Tell us what's on your mind..."
+                ></textarea>
+              </div>
+
+              <input
+                type="checkbox"
+                name="botcheck"
+                id="botcheck"
+                hidden
+                tabindex="-1"
+                aria-hidden="true"
+                autocomplete="off"
+              />
+
+              <button type="submit" class="form-submit">Send Feedback</button>
+              <div
+                class="form-message"
+                id="formMessage"
+                role="status"
+                aria-live="polite"
+              ></div>
+            </form>
+          </section>
+        </div>
       </div>
     </main>
-
-    <footer>
-      <div class="footer-links">
-        <a href="/">Home</a>
-        <a href="/#features">Features</a>
-        <a href="/feedback">Support</a>
-        <a href="/privacy">Privacy Policy</a>
-        <a href="/terms">Terms of Use</a>
-        <a
-          href="https://www.facebook.com/profile.php?id=61591806574903"
-          target="_blank"
-          rel="noopener noreferrer"
-          >Facebook</a
-        >
-        <a
-          href="https://www.instagram.com/resolutioncompanion/"
-          target="_blank"
-          rel="noopener noreferrer"
-          >Instagram</a
-        >
-        <a
-          href="https://www.linkedin.com/company/resolution-companion/"
-          target="_blank"
-          rel="noopener noreferrer"
-          >LinkedIn</a
-        >
+    <footer class="site-footer">
+      <div class="wrap">
+        <div class="footer-top">
+          <a class="brand" href="/"
+            ><img
+              src="/assets/website/app-logo.png"
+              width="30"
+              height="30"
+              alt=""
+            />Resolution Companion</a
+          >
+          <nav class="footer-links" aria-label="Footer">
+            <a href="/">Home</a><a href="/release-notes">Release notes</a
+            ><a href="/feedback" aria-current="page">Support</a
+            ><a href="/privacy">Privacy</a><a href="/terms">Terms</a>
+          </nav>
+        </div>
+        <div class="footer-bottom">
+          <p>© 2026 Resolution Companion</p>
+          <div class="social-links">
+            <a href="https://www.facebook.com/profile.php?id=61591806574903"
+              >Facebook</a
+            ><a href="https://www.instagram.com/resolutioncompanion/"
+              >Instagram</a
+            ><a href="https://www.linkedin.com/company/resolution-companion/"
+              >LinkedIn</a
+            >
+          </div>
+        </div>
       </div>
-      <p>&copy; 2026 Resolution Companion. Built with purpose.</p>
     </footer>
-
     <script>
       document
         .getElementById("feedbackForm")
