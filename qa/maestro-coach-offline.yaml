@@ -1,0 +1,32 @@
+appId: com.resolutioncompanion.app
+---
+# Run after the clean-install regression creates a starter plan. The harness
+# disables connectivity before this flow and restores it afterward.
+
+- launchApp
+- tapOn:
+    id: "tab-today"
+- extendedWaitUntil:
+    visible: "Today’s evidence.*"
+    timeout: 20000
+- tapOn: "Ask Coach.*"
+- extendedWaitUntil:
+    visible: "Today’s signal.*"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Help me.*"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn: "Help me.*"
+- tapOn:
+    text: "Agree and continue.*"
+    optional: true
+- extendedWaitUntil:
+    visible: "Coach is unavailable"
+    timeout: 45000
+- assertVisible: "Your evidence is still here.*"
+- tapOn: "OK"
+- assertVisible: "Today’s signal.*"
+- tapOn: "Close Coach"

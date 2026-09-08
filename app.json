@@ -1,0 +1,132 @@
+{
+  "expo": {
+    "name": "Resolution Companion AI",
+    "slug": "evolve-app",
+    "version": "1.4.1",
+    "description": "AI-powered personal development app to define your goals, build daily habits, and track your progress with coaching.",
+    "orientation": "default",
+    "icon": "./assets/images/icon.png",
+    "scheme": "resolutioncompanion",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.resolutioncompanion.app",
+      "appleTeamId": "ZA8AJG27JX",
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.resolutioncompanion.app"
+        ],
+        "com.apple.developer.ubiquity-kvstore-identifier": "$(TeamIdentifierPrefix)com.resolutioncompanion.app"
+      },
+      "buildNumber": "94",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryDiskSpace",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "E174.1"
+            ]
+          }
+        ],
+        "NSPrivacyCollectedDataTypes": [
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeDeviceID",
+            "NSPrivacyCollectedDataTypeLinked": false,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          }
+        ],
+        "NSPrivacyTracking": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#000000",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "versionCode": 2,
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.resolutioncompanion.app",
+      "permissions": [
+        "INTERNET",
+        "VIBRATE"
+      ]
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#000000",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      "expo-web-browser",
+      "react-native-iap",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#00D9FF"
+        }
+      ],
+      "@bacons/apple-targets",
+      [
+        "react-native-health",
+        {
+          "healthSharePermission": "Resolution Companion reads workouts, steps, and mindful minutes \u2014 on this device only \u2014 to automatically complete matching daily actions so you never take a zero."
+        }
+      ],
+      "./plugins/with-alternate-app-icons"
+    ],
+    "experiments": {
+      "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d859501c-8b40-4c99-a0ff-7572a09cc434",
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "ResolutionWidget",
+                  "bundleIdentifier": "com.resolutioncompanion.app.widget",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.resolutioncompanion.app"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "owner": "bpollak99"
+  }
+}

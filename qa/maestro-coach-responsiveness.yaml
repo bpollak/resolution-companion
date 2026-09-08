@@ -1,0 +1,70 @@
+appId: com.resolutioncompanion.app
+---
+# Requires the standard seeded simulator state used by qa/maestro-regression.
+# Verifies the free weekly review streams one real production Coach response
+# inside the contextual sheet, that the composer works mid-session, and that
+# a freshly opened session cannot inherit a discarded one.
+
+- launchApp
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          text: "Dismiss milestone celebration.*"
+          optional: true
+      - waitForAnimationToEnd
+- tapOn:
+    id: "tab-coach"
+- tapOn: "Start a conversation with Coach"
+
+# The sheet opens on its evidence card; the weekly-review prompt is a chip.
+- extendedWaitUntil:
+    visible: "Help me review one win.*"
+    timeout: 10000
+- takeScreenshot: coach-weekly-sheet-open
+- tapOn: "Help me review one win.*"
+- tapOn:
+    text: "Agree and continue.*"
+    optional: true
+- extendedWaitUntil:
+    visible: "AI coach: .+"
+    timeout: 90000
+- takeScreenshot: coach-weekly-live-streaming
+- extendedWaitUntil:
+    # The model's completed coaching turn ends with a follow-up question.
+    # Waiting for it distinguishes a complete stream from the first chunk.
+    visible: "AI coach: .+\\?.*"
+    timeout: 90000
+
+# The composer stays usable after a streamed response. (iOS 26 exposes the
+# placeholder, older versions the accessibility label — match either.)
+- tapOn: "(Message Coach|Write to Coach).*"
+- inputText: "I made the run easier by putting my shoes beside the door."
+- assertVisible: ".*shoes beside the door.*"
+- tapOn: "Send message to Coach"
+- extendedWaitUntil:
+    visible: "You: .*shoes beside the door.*"
+    timeout: 10000
+- takeScreenshot: coach-weekly-followup-sent
+
+# Discard the session; a brand-new session must open with fresh chips and
+# none of the discarded conversation.
+- tapOn: "Close Coach"
+- tapOn:
+    text: "Discard"
+    optional: true
+- extendedWaitUntil:
+    visible: "Weekly Review"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Start a conversation.*"
+    direction: UP
+    timeout: 15000
+    centerElement: true
+- tapOn: "Start a conversation with Coach"
+- extendedWaitUntil:
+    visible: "Help me name what made today work.*"
+    timeout: 10000
+- assertNotVisible: "You: .*shoes beside the door.*"
+- takeScreenshot: coach-session-isolated

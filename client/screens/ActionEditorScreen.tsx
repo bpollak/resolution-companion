@@ -1,0 +1,653 @@
+import React, { useState } from "react";
+import {
+  View,
+  StyleSheet,
+  TextInput,
+  Pressable,
+  Alert,
+  Platform,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+
+import { useTheme } from "@/hooks/useTheme";
+import { useApp } from "@/context/AppContext";
+import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
+import { ThemedText } from "@/components/ThemedText";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { logger } from "@/lib/logger";
+import {
+  isHealthAvailable,
+  initHealth,
+  HEALTH_KIND_LABELS,
+} from "@/lib/health";
+
+const DAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+const MIN_ACTIONS_PER_PERSONA = 1;
+const MAX_ACTIONS_PER_PERSONA = 5;
+
+type RouteParams = {
+  ActionEditor: {
+    benchmarkId: string;
+    actionId?: string;
+  };
+};
+
+export default function ActionEditorScreen() {
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
+  const route = useRoute<RouteProp<RouteParams, "ActionEditor">>();
+  const { theme, isDark } = useTheme();
+  const {
+    persona,
+    benchmarks,
+    actions,
+    addAction,
+    updateAction,
+    deleteAction,
+  } = useApp();
+
+  const { benchmarkId, actionId } = route.params;
+  const isEditing = !!actionId;
+  const existingAction = actions.find((a) => a.id === actionId);
+  const benchmark = benchmarks.find((b) => b.id === benchmarkId);
+
+  const personaBenchmarkIds = benchmarks
+    .filter((b) => b.personaId === persona?.id)
+    .map((b) => b.id);
+  const personaActionsCount = actions.filter((a) =>
+    personaBenchmarkIds.includes(a.benchmarkId),
+  ).length;
+  const canAddAction = personaActionsCount < MAX_ACTIONS_PER_PERSONA;
+  const canDeleteAction = personaActionsCount > MIN_ACTIONS_PER_PERSONA;
+
+  React.useEffect(() => {
+    if (!persona) {
+      navigation.goBack();
+      return;
+    }
+    if (benchmark && benchmark.personaId !== persona.id) {
+      navigation.goBack();
+      return;
+    }
+    if (!benchmark) {
+      navigation.goBack();
+      return;
+    }
+    if (isEditing && !existingAction) {
+      navigation.goBack();
+      return;
+    }
+    if (!isEditing && !canAddAction) {
+      if (Platform.OS === "web") {
+        window.alert(
+          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} actions per persona.`,
+        );
+      } else {
+        Alert.alert(
+          "Action Limit Reached",
+          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} actions per persona.`,
+        );
+      }
+      navigation.goBack();
+      return;
+    }
+  }, [persona, benchmark, isEditing, existingAction, navigation, canAddAction]);
+
+  const [actionTitle, setActionTitle] = useState(existingAction?.title || "");
+  const [kickstartVersion, setKickstartVersion] = useState(
+    existingAction?.kickstartVersion || "",
+  );
+  const [anchorLink, setAnchorLink] = useState(
+    existingAction?.anchorLink || "",
+  );
+  // Drop any legacy non-weekday values (e.g. "First Thursday" from early
+  // AI-generated plans) so they can't survive an edit-save round trip
+  const [frequency, setFrequency] = useState<string[]>(() => {
+    const valid = (existingAction?.frequency || []).filter((d) =>
+      DAYS.includes(d),
+    );
+    return valid.length > 0 || existingAction
+      ? valid
+      : ["Monday", "Wednesday", "Friday"];
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [healthAutoComplete, setHealthAutoComplete] = useState<
+    "workout" | "steps" | "mindful" | null
+  >(existingAction?.healthAutoComplete ?? null);
+
+  const toggleDay = (day: string) => {
+    if (frequency.includes(day)) {
+      setFrequency(frequency.filter((d) => d !== day));
+    } else {
+      // Keep calendar order regardless of the order days were toggled
+      setFrequency(
+        [...frequency, day].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)),
+      );
+    }
+  };
+
+  const handleSave = async () => {
+    if (!actionTitle.trim()) {
+      if (Platform.OS === "web") {
+        window.alert("Please enter an action title.");
+      } else {
+        Alert.alert("Missing Title", "Please enter an action title.");
+      }
+      return;
+    }
+    if (frequency.length === 0) {
+      if (Platform.OS === "web") {
+        window.alert("Please select at least one day.");
+      } else {
+        Alert.alert("Missing Frequency", "Please select at least one day.");
+      }
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      if (isEditing && existingAction) {
+        await updateAction(existingAction.id, {
+          title: actionTitle,
+          frequency,
+          kickstartVersion:
+            kickstartVersion || `Do ${actionTitle.toLowerCase()} for 2 minutes`,
+          anchorLink: anchorLink || "After I wake up",
+          healthAutoComplete: healthAutoComplete ?? undefined,
+        });
+      } else {
+        await addAction({
+          benchmarkId,
+          title: actionTitle,
+          frequency,
+          kickstartVersion:
+            kickstartVersion || `Do ${actionTitle.toLowerCase()} for 2 minutes`,
+          anchorLink: anchorLink || "After I wake up",
+          healthAutoComplete: healthAutoComplete ?? undefined,
+        });
+      }
+
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+
+      navigation.goBack();
+    } catch (error) {
+      logger.error("Failed to save action:", error);
+      if (Platform.OS === "web") {
+        window.alert("Failed to save action. Please try again.");
+      } else {
+        Alert.alert("Error", "Failed to save action. Please try again.");
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = () => {
+    if (!isEditing || !existingAction) return;
+
+    if (!canDeleteAction) {
+      if (Platform.OS === "web") {
+        window.alert("Keep at least one action in each persona.");
+      } else {
+        Alert.alert(
+          "Cannot Delete",
+          "Keep at least one action in each persona.",
+        );
+      }
+      return;
+    }
+
+    const doDelete = async () => {
+      try {
+        await deleteAction(existingAction.id);
+        if (Platform.OS !== "web") {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        }
+        navigation.goBack();
+      } catch (error) {
+        logger.error("Failed to delete action:", error);
+        if (Platform.OS === "web") {
+          window.alert("Failed to delete the action. Please try again.");
+        } else {
+          Alert.alert(
+            "Error",
+            "Failed to delete the action. Please try again.",
+          );
+        }
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (
+        window.confirm(
+          `Delete "${existingAction.title}"? This will also remove all logs for this action.`,
+        )
+      ) {
+        doDelete();
+      }
+    } else {
+      Alert.alert(
+        "Delete Action",
+        `Are you sure you want to delete "${existingAction.title}"? This will also remove all logs for this action.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete", style: "destructive", onPress: doDelete },
+        ],
+      );
+    }
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          hitSlop={4}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          style={({ pressed }) => [
+            styles.headerButton,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
+        >
+          <Feather name="x" size={24} color={theme.text} />
+        </Pressable>
+        <ThemedText style={styles.headerTitle}>
+          {isEditing ? "Edit Action" : "New Action"}
+        </ThemedText>
+        <Pressable
+          onPress={handleSave}
+          disabled={isSaving}
+          hitSlop={4}
+          accessibilityRole="button"
+          accessibilityLabel="Save action"
+          accessibilityState={{ disabled: isSaving }}
+          style={({ pressed }) => [
+            styles.headerButton,
+            { opacity: pressed || isSaving ? 0.5 : 1 },
+          ]}
+        >
+          <Feather name="check" size={24} color={theme.accent} />
+        </Pressable>
+      </View>
+
+      <KeyboardAwareScrollViewCompat
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: insets.bottom + Spacing.xl },
+        ]}
+      >
+        <View style={styles.section}>
+          <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
+            Action Title
+          </ThemedText>
+          <TextInput
+            accessibilityLabel="Action title"
+            accessibilityHint="Enter the repeatable behavior you want to track"
+            style={[
+              styles.input,
+              {
+                backgroundColor: isDark
+                  ? Colors.dark.backgroundDefault
+                  : Colors.light.backgroundDefault,
+                color: theme.text,
+              },
+            ]}
+            value={actionTitle}
+            onChangeText={setActionTitle}
+            placeholder="e.g., Run for 30 minutes, Write 500 words"
+            placeholderTextColor={theme.textSecondary}
+            maxLength={100}
+          />
+          <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
+            A repeatable behavior that builds toward your goal
+          </ThemedText>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
+            Frequency
+          </ThemedText>
+          <View style={styles.daysContainer}>
+            {DAYS.map((day) => (
+              <Pressable
+                key={day}
+                onPress={() => toggleDay(day)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: frequency.includes(day) }}
+                accessibilityLabel={day}
+                style={({ pressed }) => [
+                  styles.dayButton,
+                  {
+                    backgroundColor: frequency.includes(day)
+                      ? theme.accent
+                      : isDark
+                        ? Colors.dark.backgroundDefault
+                        : Colors.light.backgroundDefault,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <ThemedText
+                  style={[
+                    styles.dayText,
+                    { color: frequency.includes(day) ? "#000000" : theme.text },
+                  ]}
+                >
+                  {day.slice(0, 3)}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
+            120-Second Kickstart
+          </ThemedText>
+          <TextInput
+            accessibilityLabel="120-second kickstart"
+            accessibilityHint="Enter a two-minute version of this action"
+            style={[
+              styles.input,
+              {
+                backgroundColor: isDark
+                  ? Colors.dark.backgroundDefault
+                  : Colors.light.backgroundDefault,
+                color: theme.text,
+              },
+            ]}
+            value={kickstartVersion}
+            onChangeText={setKickstartVersion}
+            placeholder="e.g., Put on running shoes and jog for 2 min"
+            placeholderTextColor={theme.textSecondary}
+            maxLength={150}
+          />
+          <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
+            On low-energy days, do this ~2-minute version instead of the full
+            action. It still counts — showing up is what builds the habit.
+          </ThemedText>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
+            Anchor Link
+          </ThemedText>
+          <TextInput
+            accessibilityLabel="Anchor link"
+            accessibilityHint="Enter an existing habit that will cue this action"
+            style={[
+              styles.input,
+              {
+                backgroundColor: isDark
+                  ? Colors.dark.backgroundDefault
+                  : Colors.light.backgroundDefault,
+                color: theme.text,
+              },
+            ]}
+            value={anchorLink}
+            onChangeText={setAnchorLink}
+            placeholder="e.g., After I pour my morning coffee"
+            placeholderTextColor={theme.textSecondary}
+            maxLength={100}
+          />
+          <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
+            Attach this action to a habit you already have — doing it right
+            after something automatic makes it far easier to remember
+          </ThemedText>
+        </View>
+
+        {isHealthAvailable() ? (
+          <View style={styles.section}>
+            <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
+              Auto-complete from Health
+            </ThemedText>
+            <View style={styles.daysContainer}>
+              {(
+                [
+                  { value: null, label: "Off" },
+                  { value: "workout", label: "Workout" },
+                  { value: "steps", label: "Steps" },
+                  { value: "mindful", label: "Mindful" },
+                ] as const
+              ).map((option) => {
+                const selected = healthAutoComplete === option.value;
+                return (
+                  <Pressable
+                    key={option.label}
+                    onPress={async () => {
+                      if (option.value !== null) {
+                        const ok = await initHealth();
+                        if (!ok) {
+                          Alert.alert(
+                            "Health Unavailable",
+                            "Resolution Companion couldn't get access to Health data. You can grant access in Settings → Privacy → Health.",
+                          );
+                          return;
+                        }
+                      }
+                      setHealthAutoComplete(option.value);
+                    }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={
+                      option.value === null
+                        ? "Health auto-complete off"
+                        : HEALTH_KIND_LABELS[option.value]
+                    }
+                    style={({ pressed }) => [
+                      styles.dayButton,
+                      {
+                        backgroundColor: selected
+                          ? theme.accent
+                          : isDark
+                            ? Colors.dark.backgroundDefault
+                            : Colors.light.backgroundDefault,
+                        opacity: pressed ? 0.7 : 1,
+                      },
+                    ]}
+                  >
+                    <ThemedText
+                      style={[
+                        styles.dayText,
+                        { color: selected ? "#000000" : theme.text },
+                      ]}
+                    >
+                      {option.label}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
+              {healthAutoComplete
+                ? `${HEALTH_KIND_LABELS[healthAutoComplete]} completes this action automatically — the day is saved without opening the app.`
+                : "Let a workout, step total, or mindful session in Apple Health complete this action for you. Health data never leaves your phone."}
+            </ThemedText>
+          </View>
+        ) : null}
+
+        {isEditing ? (
+          <View>
+            <Pressable
+              onPress={() =>
+                navigation.navigate("CoachSheet", {
+                  origin: "action",
+                  actionId: existingAction?.id,
+                  promptId: "reduce-friction",
+                })
+              }
+              accessibilityRole="button"
+              accessibilityLabel={`Ask Coach about ${existingAction?.title ?? "this action"}`}
+              style={({ pressed }) => [
+                styles.coachButton,
+                {
+                  borderColor: theme.accent,
+                  opacity: pressed ? 0.65 : 1,
+                },
+              ]}
+            >
+              <Feather name="message-circle" size={18} color={theme.accent} />
+              <ThemedText
+                style={[styles.coachButtonText, { color: theme.accent }]}
+              >
+                Ask Coach about this action
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={handleDelete}
+              disabled={!canDeleteAction}
+              accessibilityRole="button"
+              accessibilityLabel="Delete action"
+              accessibilityState={{ disabled: !canDeleteAction }}
+              style={({ pressed }) => [
+                styles.deleteButton,
+                {
+                  backgroundColor: isDark
+                    ? Colors.dark.backgroundDefault
+                    : Colors.light.backgroundDefault,
+                  opacity: pressed || !canDeleteAction ? 0.5 : 1,
+                },
+              ]}
+            >
+              <Feather
+                name="trash-2"
+                size={20}
+                color={canDeleteAction ? theme.error : theme.textSecondary}
+              />
+              <ThemedText
+                style={[
+                  styles.deleteButtonText,
+                  {
+                    color: canDeleteAction ? theme.error : theme.textSecondary,
+                  },
+                ]}
+              >
+                Delete Action
+              </ThemedText>
+            </Pressable>
+            {!canDeleteAction ? (
+              <ThemedText
+                style={[
+                  styles.hint,
+                  {
+                    color: theme.textSecondary,
+                    textAlign: "center",
+                    marginTop: Spacing.sm,
+                  },
+                ]}
+              >
+                Keep at least one action in this persona
+              </ThemedText>
+            ) : null}
+          </View>
+        ) : null}
+      </KeyboardAwareScrollViewCompat>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  headerButton: {
+    padding: Spacing.sm,
+  },
+  headerTitle: {
+    ...Typography.headline,
+    flex: 1,
+    textAlign: "center",
+  },
+  content: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+  },
+  section: {
+    marginBottom: Spacing.xl,
+  },
+  sectionLabel: {
+    ...Typography.caption,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: Spacing.sm,
+  },
+  input: {
+    ...Typography.body,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    minHeight: 48,
+  },
+  hint: {
+    ...Typography.caption,
+    marginTop: Spacing.xs,
+  },
+  daysContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  dayButton: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    minWidth: 48,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayText: {
+    ...Typography.small,
+    fontWeight: "600",
+  },
+  deleteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+    marginTop: Spacing.xl,
+  },
+  coachButton: {
+    minHeight: 44,
+    marginTop: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+  },
+  coachButtonText: {
+    ...Typography.body,
+    fontWeight: "600",
+  },
+  deleteButtonText: {
+    ...Typography.body,
+    fontWeight: "500",
+  },
+});

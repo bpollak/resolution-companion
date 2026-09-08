@@ -1,0 +1,50 @@
+appId: com.resolutioncompanion.app
+---
+# Fresh-install AI path: consent, conversation, editable plan, explicit approval.
+# Prompt is synthetic. Selectors do not depend on generated prose.
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Start your journey.*"
+    timeout: 20000
+- tapOn: "Start your journey.*"
+- assertNotVisible: "Start with one habit"
+- tapOn: "Build a plan with Coach"
+- tapOn: "Not now"
+- assertVisible: "Setup is paused.*"
+- assertNotVisible: "Step 2 of 2. Review your plan"
+- tapOn: "Build a plan with Coach"
+- extendedWaitUntil:
+    visible: "Agree and continue.*"
+    timeout: 10000
+- tapOn: "Agree and continue.*"
+- extendedWaitUntil:
+    notVisible: "Stop Coach response"
+    timeout: 60000
+- assertVisible: "Step 1 of 2. Talk with Coach"
+- tapOn: "Message your onboarding coach"
+- inputText: "I want to become a consistent reader. Suggest just one habit: read one page on Monday, Wednesday, and Friday. No weekends."
+- tapOn: "Send message"
+- extendedWaitUntil:
+    notVisible: "Stop Coach response"
+    timeout: 60000
+- assertVisible: "Preview my plan"
+- tapOn: "Preview my plan"
+- extendedWaitUntil:
+    visible: "Step 2 of 2. Review your plan"
+    timeout: 60000
+- assertVisible: "Edit identity"
+- assertVisible: "Edit habit 1"
+- assertVisible: "Start with 1 habit"
+- takeScreenshot: ai-plan-review
+- scrollUntilVisible:
+    element:
+      text: "Start with 1 habit"
+    direction: DOWN
+    timeout: 15000
+- tapOn: "Start with 1 habit"
+- extendedWaitUntil:
+    visible:
+      id: "tab-today"
+    timeout: 20000
+- assertNotVisible: "Connection Issue"

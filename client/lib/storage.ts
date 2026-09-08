@@ -1,0 +1,885 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Crypto from "expo-crypto";
+import { logger } from "@/lib/logger";
+import { computeMomentumScore } from "@/lib/progress";
+import { approvePlan, type OnboardingPlanDraft } from "@/lib/onboarding-plan";
+
+const STORAGE_KEYS = {
+  HAS_ONBOARDED: "hasOnboarded",
+  PERSONA: "persona",
+  PERSONAS: "personas",
+  ACTIVE_PERSONA_ID: "activePersonaId",
+  BENCHMARKS: "benchmarks",
+  ELEMENTAL_ACTIONS: "elementalActions",
+  DAILY_LOGS: "dailyLogs",
+  DAILY_CONTEXT_ENTRIES: "dailyContextEntries",
+  PLAN_ADJUSTMENTS: "planAdjustments",
+  REFLECTIONS: "reflections",
+  ONBOARDING_MESSAGES: "onboardingMessages",
+  ONBOARDING_DRAFT: "onboardingPlanDraft",
+  SUBSCRIPTION: "subscription",
+  MONTHLY_REFLECTION_COUNT: "monthlyReflectionCount",
+  DEVICE_ID: "deviceId",
+  AI_CONSENT: "aiConsent",
+  RECAP_COACH_LINES: "recapCoachLines",
+};
+
+export interface Persona {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+}
+
+export interface Benchmark {
+  id: string;
+  personaId: string;
+  title: string;
+  targetDate: string | null;
+  status: "active" | "completed";
+  createdAt: string;
+}
+
+export interface ElementalAction {
+  id: string;
+  benchmarkId: string;
+  title: string;
+  frequency: string[];
+  anchorLink: string;
+  kickstartVersion: string;
+  createdAt: string;
+  /**
+   * Apple Health auto-completion: when set, a matching Health sample for the
+   * day casts this action's vote automatically ("Health cast this vote for
+   * you"). HealthKit reads are on-device — consistent with local-first.
+   */
+  healthAutoComplete?: "workout" | "steps" | "mindful";
+}
+
+export interface DailyLog {
+  id: string;
+  actionId: string;
+  logDate: string;
+  status: boolean;
+  createdAt: string;
+  /** Optional one-line "how it went" note attached after completing. */
+  note?: string;
+  /** How the vote was cast. Missing on legacy records and treated as manual. */
+  completionSource?: "manual" | "widget" | "siri" | "notification" | "health";
+  /** Whether the full action or its under-2-minute floor was completed. */
+  completionKind?: "full" | "kickstart";
+}
+
+export type DailyContextFactor =
+  | "energy"
+  | "time"
+  | "support"
+  | "environment"
+  | "planFit";
+
+export type DailyContextFactorState = "helped" | "hindered";
+
+export interface DailyContextEntry {
+  id: string;
+  personaId: string;
+  logDate: string;
+  factors: Partial<Record<DailyContextFactor, DailyContextFactorState>>;
+  note?: string;
+  status: "saved" | "dismissed";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlanAdjustmentChanges {
+  frequency?: string[];
+  anchorLink?: string;
+  kickstartVersion?: string;
+}
+
+export interface PlanAdjustment {
+  id: string;
+  personaId: string;
+  actionId: string;
+  before: PlanAdjustmentChanges;
+  after: PlanAdjustmentChanges;
+  rationale: string;
+  status: "applied" | "dismissed";
+  createdAt: string;
+}
+
+export type CoachEntryOrigin =
+  | "today-signal"
+  | "journey-discovery"
+  | "lapse-recovery"
+  | "milestone"
+  | "recap"
+  | "action"
+  | "direct";
+
+export interface CoachEvidenceSnapshot {
+  eyebrow: string;
+  headline: string;
+  detail: string;
+  value?: string;
+  trend?: "up" | "steady" | "down";
+}
+
+export interface Reflection {
+  id: string;
+  periodType: "weekly" | "monthly" | "yearly" | "contextual";
+  userInput: string;
+  aiFeedback: string;
+  momentumScore: number;
+  createdAt: string;
+  conversation?: string;
+  personaId?: string;
+  origin?: CoachEntryOrigin;
+  evidenceSnapshot?: CoachEvidenceSnapshot;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+}
+
+export interface Subscription {
+  isPremium: boolean;
+  plan: "free" | "monthly" | "yearly" | "lifetime";
+  expiresAt: string | null;
+  purchasedAt: string | null;
+}
+
+export interface MonthlyReflectionCount {
+  month: string;
+  count: number;
+}
+
+function generateId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+/** For optimistic UI paths that build the record before persisting it. */
+export function generateStorageId(): string {
+  return generateId();
+}
+
+// Corrupted AsyncStorage data should degrade to defaults, never crash the app
+function safeParse<T>(value: string | null, fallback: T): T {
+  if (value == null) return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch (error) {
+    logger.error("Failed to parse stored value, using fallback:", error);
+    return fallback;
+  }
+}
+
+export const storage = {
+  async getOnboardingDraft(): Promise<OnboardingPlanDraft | null> {
+    return safeParse<OnboardingPlanDraft | null>(
+      await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_DRAFT),
+      null,
+    );
+  },
+
+  async setOnboardingDraft(draft: OnboardingPlanDraft | null): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.ONBOARDING_DRAFT,
+      JSON.stringify(draft),
+    );
+  },
+
+  async commitOnboardingPlan(draft: OnboardingPlanDraft): Promise<void> {
+    const [personas, benchmarks, actions] = await Promise.all([
+      this.getPersonas(),
+      this.getBenchmarks(),
+      this.getElementalActions(),
+    ]);
+    const prior = personas.find((item) => item.id === draft.id);
+    const plan = approvePlan(
+      draft,
+      prior?.createdAt ?? new Date().toISOString(),
+    );
+    if (
+      personas.some(
+        (item) =>
+          item.id !== plan.persona.id && item.name === plan.persona.name,
+      )
+    ) {
+      throw new Error(
+        "You already have that identity name. Choose a different name for this plan.",
+      );
+    }
+    const replacedIds = new Set([
+      ...benchmarks
+        .filter((item) => item.personaId === plan.persona.id)
+        .map((item) => item.id),
+      ...Array.from(
+        { length: 5 },
+        (_, index) => `${draft.id}-milestone-${index}`,
+      ),
+    ]);
+    const replacedActionIds = new Set(
+      Array.from({ length: 5 }, (_, index) => `${draft.id}-action-${index}`),
+    );
+    // AsyncStorage can persist actions while another key fails. Remove all
+    // draft-owned IDs on retry, including habits deselected since that attempt.
+    await AsyncStorage.multiSet([
+      [
+        STORAGE_KEYS.PERSONAS,
+        JSON.stringify([
+          ...personas.filter((item) => item.id !== plan.persona.id),
+          plan.persona,
+        ]),
+      ],
+      [STORAGE_KEYS.PERSONA, JSON.stringify(plan.persona)],
+      [STORAGE_KEYS.ACTIVE_PERSONA_ID, plan.persona.id],
+      [
+        STORAGE_KEYS.BENCHMARKS,
+        JSON.stringify([
+          ...benchmarks.filter((item) => item.personaId !== plan.persona.id),
+          ...plan.benchmarks,
+        ]),
+      ],
+      [
+        STORAGE_KEYS.ELEMENTAL_ACTIONS,
+        JSON.stringify([
+          ...actions.filter(
+            (item) =>
+              !replacedIds.has(item.benchmarkId) &&
+              !replacedActionIds.has(item.id),
+          ),
+          ...plan.actions,
+        ]),
+      ],
+    ]);
+    await this.setHasOnboarded(true);
+  },
+
+  async getHasOnboarded(): Promise<boolean> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.HAS_ONBOARDED);
+    return value === "true";
+  },
+
+  async setHasOnboarded(value: boolean): Promise<void> {
+    await AsyncStorage.setItem(STORAGE_KEYS.HAS_ONBOARDED, value.toString());
+  },
+
+  async getPersona(): Promise<Persona | null> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.PERSONA);
+    return safeParse<Persona | null>(value, null);
+  },
+
+  async setPersona(
+    persona: Omit<Persona, "id" | "createdAt">,
+  ): Promise<Persona> {
+    const newPersona: Persona = {
+      ...persona,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.PERSONA,
+      JSON.stringify(newPersona),
+    );
+    const personas = await this.getPersonas();
+    personas.push(newPersona);
+    await this.setPersonas(personas);
+    await this.setActivePersonaId(newPersona.id);
+    return newPersona;
+  },
+
+  async getPersonas(): Promise<Persona[]> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.PERSONAS);
+    // Corrupt data falls through to the legacy single-persona branch
+    const parsed = safeParse<Persona[] | null>(value, null);
+    if (parsed) {
+      const personas: Persona[] = parsed;
+      const seenById = new Map<string, Persona>();
+      const seenByName = new Map<string, Persona>();
+      for (const p of personas) {
+        if (!seenById.has(p.id) && !seenByName.has(p.name)) {
+          seenById.set(p.id, p);
+          seenByName.set(p.name, p);
+        }
+      }
+      const deduped = Array.from(seenById.values());
+      if (deduped.length !== personas.length) {
+        await this.setPersonas(deduped);
+      }
+      return deduped;
+    }
+    const legacy = await this.getPersona();
+    return legacy ? [legacy] : [];
+  },
+
+  async setPersonas(personas: Persona[]): Promise<void> {
+    await AsyncStorage.setItem(STORAGE_KEYS.PERSONAS, JSON.stringify(personas));
+  },
+
+  async addPersona(
+    persona: Omit<Persona, "id" | "createdAt">,
+  ): Promise<Persona> {
+    const newPersona: Persona = {
+      ...persona,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    const personas = await this.getPersonas();
+    personas.push(newPersona);
+    await this.setPersonas(personas);
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.PERSONA,
+      JSON.stringify(newPersona),
+    );
+    await this.setActivePersonaId(newPersona.id);
+    return newPersona;
+  },
+
+  async deletePersona(id: string): Promise<void> {
+    const personas = await this.getPersonas();
+    const filtered = personas.filter((p) => p.id !== id);
+    await this.setPersonas(filtered);
+    const benchmarks = await this.getBenchmarks();
+    const benchmarkIds = benchmarks
+      .filter((b) => b.personaId === id)
+      .map((b) => b.id);
+    const filteredBenchmarks = benchmarks.filter((b) => b.personaId !== id);
+    await this.setBenchmarks(filteredBenchmarks);
+    const actions = await this.getElementalActions();
+    const actionIds = actions
+      .filter((a) => benchmarkIds.includes(a.benchmarkId))
+      .map((a) => a.id);
+    const filteredActions = actions.filter(
+      (a) => !benchmarkIds.includes(a.benchmarkId),
+    );
+    await this.setElementalActions(filteredActions);
+    const logs = await this.getDailyLogs();
+    const filteredLogs = logs.filter((l) => !actionIds.includes(l.actionId));
+    await this.setDailyLogs(filteredLogs);
+    const contextEntries = await this.getDailyContextEntries();
+    await this.setDailyContextEntries(
+      contextEntries.filter((entry) => entry.personaId !== id),
+    );
+    const adjustments = await this.getPlanAdjustments();
+    await this.setPlanAdjustments(
+      adjustments.filter((entry) => entry.personaId !== id),
+    );
+    const reflections = await this.getReflections();
+    await this.setReflections(
+      reflections.filter((entry) => entry.personaId !== id),
+    );
+    const activeId = await this.getActivePersonaId();
+    if (activeId === id && filtered.length > 0) {
+      await this.setActivePersonaId(filtered[0].id);
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.PERSONA,
+        JSON.stringify(filtered[0]),
+      );
+    } else if (filtered.length === 0) {
+      await AsyncStorage.removeItem(STORAGE_KEYS.PERSONA);
+      await AsyncStorage.removeItem(STORAGE_KEYS.ACTIVE_PERSONA_ID);
+      await this.setHasOnboarded(false);
+    }
+  },
+
+  async calculateMomentumScoreForPersona(
+    personaId: string,
+    days: number = 7,
+  ): Promise<number> {
+    const benchmarks = await this.getBenchmarks();
+    const personaBenchmarkIds = benchmarks
+      .filter((b) => b.personaId === personaId)
+      .map((b) => b.id);
+    const allActions = await this.getElementalActions();
+    const personaActions = allActions.filter((a) =>
+      personaBenchmarkIds.includes(a.benchmarkId),
+    );
+    const logs = await this.getDailyLogs();
+
+    return computeMomentumScore(personaActions, logs, days);
+  },
+
+  async getPersonaAlignmentScoreForPersona(personaId: string): Promise<number> {
+    return this.calculateMomentumScoreForPersona(personaId, 30);
+  },
+
+  async getActivePersonaId(): Promise<string | null> {
+    return AsyncStorage.getItem(STORAGE_KEYS.ACTIVE_PERSONA_ID);
+  },
+
+  async setActivePersonaId(id: string): Promise<void> {
+    await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_PERSONA_ID, id);
+    const personas = await this.getPersonas();
+    const persona = personas.find((p) => p.id === id);
+    if (persona) {
+      await AsyncStorage.setItem(STORAGE_KEYS.PERSONA, JSON.stringify(persona));
+    }
+  },
+
+  async getActivePersona(): Promise<Persona | null> {
+    const activeId = await this.getActivePersonaId();
+    if (!activeId) return this.getPersona();
+    const personas = await this.getPersonas();
+    return personas.find((p) => p.id === activeId) || null;
+  },
+
+  async getBenchmarks(): Promise<Benchmark[]> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.BENCHMARKS);
+    return safeParse<Benchmark[]>(value, []);
+  },
+
+  async setBenchmarks(benchmarks: Benchmark[]): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.BENCHMARKS,
+      JSON.stringify(benchmarks),
+    );
+  },
+
+  async addBenchmark(
+    benchmark: Omit<Benchmark, "id" | "createdAt">,
+  ): Promise<Benchmark> {
+    const benchmarks = await this.getBenchmarks();
+    const newBenchmark: Benchmark = {
+      ...benchmark,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    benchmarks.push(newBenchmark);
+    await this.setBenchmarks(benchmarks);
+    return newBenchmark;
+  },
+
+  async updateBenchmark(
+    id: string,
+    updates: Partial<Omit<Benchmark, "id" | "createdAt">>,
+  ): Promise<Benchmark | null> {
+    const benchmarks = await this.getBenchmarks();
+    const index = benchmarks.findIndex((b) => b.id === id);
+    if (index === -1) return null;
+
+    benchmarks[index] = { ...benchmarks[index], ...updates };
+    await this.setBenchmarks(benchmarks);
+    return benchmarks[index];
+  },
+
+  async deleteBenchmark(id: string): Promise<void> {
+    const benchmarks = await this.getBenchmarks();
+    const filtered = benchmarks.filter((b) => b.id !== id);
+    await this.setBenchmarks(filtered);
+
+    const actions = await this.getElementalActions();
+    const actionIdsToDelete = actions
+      .filter((a) => a.benchmarkId === id)
+      .map((a) => a.id);
+    const filteredActions = actions.filter((a) => a.benchmarkId !== id);
+    await this.setElementalActions(filteredActions);
+
+    const dailyLogs = await this.getDailyLogs();
+    const filteredLogs = dailyLogs.filter(
+      (l) => !actionIdsToDelete.includes(l.actionId),
+    );
+    await this.setDailyLogs(filteredLogs);
+    const adjustments = await this.getPlanAdjustments();
+    await this.setPlanAdjustments(
+      adjustments.filter(
+        (entry) => !actionIdsToDelete.includes(entry.actionId),
+      ),
+    );
+  },
+
+  async getElementalActions(): Promise<ElementalAction[]> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.ELEMENTAL_ACTIONS);
+    return safeParse<ElementalAction[]>(value, []);
+  },
+
+  async setElementalActions(actions: ElementalAction[]): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.ELEMENTAL_ACTIONS,
+      JSON.stringify(actions),
+    );
+  },
+
+  async addElementalAction(
+    action: Omit<ElementalAction, "id" | "createdAt">,
+  ): Promise<ElementalAction> {
+    const actions = await this.getElementalActions();
+    const newAction: ElementalAction = {
+      ...action,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    actions.push(newAction);
+    await this.setElementalActions(actions);
+    return newAction;
+  },
+
+  async updateElementalAction(
+    id: string,
+    updates: Partial<Omit<ElementalAction, "id" | "createdAt">>,
+  ): Promise<ElementalAction | null> {
+    const actions = await this.getElementalActions();
+    const index = actions.findIndex((a) => a.id === id);
+    if (index === -1) return null;
+
+    actions[index] = { ...actions[index], ...updates };
+    await this.setElementalActions(actions);
+    return actions[index];
+  },
+
+  async deleteElementalAction(id: string): Promise<void> {
+    const actions = await this.getElementalActions();
+    const filtered = actions.filter((a) => a.id !== id);
+    await this.setElementalActions(filtered);
+
+    const dailyLogs = await this.getDailyLogs();
+    const filteredLogs = dailyLogs.filter((l) => l.actionId !== id);
+    await this.setDailyLogs(filteredLogs);
+    const adjustments = await this.getPlanAdjustments();
+    await this.setPlanAdjustments(
+      adjustments.filter((entry) => entry.actionId !== id),
+    );
+  },
+
+  async getDailyLogs(): Promise<DailyLog[]> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.DAILY_LOGS);
+    return safeParse<DailyLog[]>(value, []);
+  },
+
+  async setDailyLogs(logs: DailyLog[]): Promise<void> {
+    await AsyncStorage.setItem(STORAGE_KEYS.DAILY_LOGS, JSON.stringify(logs));
+  },
+
+  async getDailyContextEntries(): Promise<DailyContextEntry[]> {
+    const value = await AsyncStorage.getItem(
+      STORAGE_KEYS.DAILY_CONTEXT_ENTRIES,
+    );
+    return safeParse<DailyContextEntry[]>(value, []);
+  },
+
+  async setDailyContextEntries(entries: DailyContextEntry[]): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.DAILY_CONTEXT_ENTRIES,
+      JSON.stringify(entries),
+    );
+  },
+
+  async upsertDailyContextEntry(
+    entry: Omit<DailyContextEntry, "id" | "createdAt" | "updatedAt">,
+  ): Promise<DailyContextEntry> {
+    const entries = await this.getDailyContextEntries();
+    const index = entries.findIndex(
+      (candidate) =>
+        candidate.personaId === entry.personaId &&
+        candidate.logDate.split("T")[0] === entry.logDate.split("T")[0],
+    );
+    const now = new Date().toISOString();
+    const next: DailyContextEntry =
+      index >= 0
+        ? { ...entries[index], ...entry, updatedAt: now }
+        : {
+            ...entry,
+            id: generateId(),
+            createdAt: now,
+            updatedAt: now,
+          };
+    if (index >= 0) entries[index] = next;
+    else entries.push(next);
+    await this.setDailyContextEntries(entries);
+    return next;
+  },
+
+  async getPlanAdjustments(): Promise<PlanAdjustment[]> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.PLAN_ADJUSTMENTS);
+    return safeParse<PlanAdjustment[]>(value, []);
+  },
+
+  async setPlanAdjustments(entries: PlanAdjustment[]): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.PLAN_ADJUSTMENTS,
+      JSON.stringify(entries),
+    );
+  },
+
+  async recordPlanAdjustment(
+    entry: Omit<PlanAdjustment, "id" | "createdAt">,
+  ): Promise<PlanAdjustment> {
+    const entries = await this.getPlanAdjustments();
+    const next: PlanAdjustment = {
+      ...entry,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    entries.push(next);
+    await this.setPlanAdjustments(entries);
+    return next;
+  },
+
+  async applyPlanAdjustment(
+    actionId: string,
+    personaId: string,
+    changes: PlanAdjustmentChanges,
+    rationale: string,
+  ): Promise<{ action: ElementalAction; adjustment: PlanAdjustment } | null> {
+    const actions = await this.getElementalActions();
+    const actionIndex = actions.findIndex((action) => action.id === actionId);
+    if (actionIndex < 0) return null;
+    const current = actions[actionIndex];
+    const before: PlanAdjustmentChanges = {};
+    const after: PlanAdjustmentChanges = {};
+    for (const key of [
+      "frequency",
+      "anchorLink",
+      "kickstartVersion",
+    ] as const) {
+      if (changes[key] === undefined) continue;
+      Object.assign(before, { [key]: current[key] });
+      Object.assign(after, { [key]: changes[key] });
+    }
+    if (Object.keys(after).length === 0) return null;
+    const updated: ElementalAction = { ...current, ...after };
+    actions[actionIndex] = updated;
+    const adjustments = await this.getPlanAdjustments();
+    const adjustment: PlanAdjustment = {
+      id: generateId(),
+      personaId,
+      actionId,
+      before,
+      after,
+      rationale: rationale.trim().slice(0, 500),
+      status: "applied",
+      createdAt: new Date().toISOString(),
+    };
+    adjustments.push(adjustment);
+    await AsyncStorage.multiSet([
+      [STORAGE_KEYS.ELEMENTAL_ACTIONS, JSON.stringify(actions)],
+      [STORAGE_KEYS.PLAN_ADJUSTMENTS, JSON.stringify(adjustments)],
+    ]);
+    return { action: updated, adjustment };
+  },
+
+  // Serializes log writes so concurrent optimistic persists can't interleave
+  // their read-modify-write cycles and drop each other's updates
+  _logWriteQueue: Promise.resolve() as Promise<void>,
+
+  /**
+   * Persist a log the UI already applied optimistically. Writes are queued
+   * FIFO so rapid taps can't lose updates to interleaved array rewrites.
+   */
+  upsertDailyLog(log: DailyLog): Promise<void> {
+    const write = this._logWriteQueue.then(async () => {
+      const logs = await this.getDailyLogs();
+      const index = logs.findIndex((l) => l.id === log.id);
+      if (index >= 0) {
+        logs[index] = log;
+      } else {
+        logs.push(log);
+      }
+      await this.setDailyLogs(logs);
+    });
+    // The queue itself never rejects; callers still see this write's error
+    this._logWriteQueue = write.catch((error) => {
+      logger.error("Failed to persist daily log:", error);
+    });
+    return write;
+  },
+
+  async toggleDailyLog(
+    actionId: string,
+    date: string,
+    completion: Pick<DailyLog, "completionSource" | "completionKind"> = {
+      completionSource: "manual",
+      completionKind: "full",
+    },
+  ): Promise<DailyLog> {
+    const logs = await this.getDailyLogs();
+    const dateStr = date.includes("T") ? date.split("T")[0] : date;
+
+    const existingIndex = logs.findIndex((log) => {
+      const logDateStr = log.logDate.includes("T")
+        ? log.logDate.split("T")[0]
+        : log.logDate;
+      return log.actionId === actionId && logDateStr === dateStr;
+    });
+
+    if (existingIndex >= 0) {
+      logs[existingIndex].status = !logs[existingIndex].status;
+      if (logs[existingIndex].status) {
+        Object.assign(logs[existingIndex], completion);
+      }
+      await this.setDailyLogs(logs);
+      return logs[existingIndex];
+    } else {
+      const newLog: DailyLog = {
+        id: generateId(),
+        actionId,
+        logDate: dateStr,
+        status: true,
+        createdAt: new Date().toISOString(),
+        ...completion,
+      };
+      logs.push(newLog);
+      await this.setDailyLogs(logs);
+      return newLog;
+    }
+  },
+
+  async getLogForDate(
+    actionId: string,
+    date: string,
+  ): Promise<DailyLog | null> {
+    const logs = await this.getDailyLogs();
+    const dateStr = date.split("T")[0];
+    return (
+      logs.find(
+        (log) =>
+          log.actionId === actionId && log.logDate.split("T")[0] === dateStr,
+      ) || null
+    );
+  },
+
+  async getReflections(): Promise<Reflection[]> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.REFLECTIONS);
+    return safeParse<Reflection[]>(value, []);
+  },
+
+  async setReflections(reflections: Reflection[]): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.REFLECTIONS,
+      JSON.stringify(reflections),
+    );
+  },
+
+  async addReflection(
+    reflection: Omit<Reflection, "id" | "createdAt">,
+  ): Promise<Reflection> {
+    const reflections = await this.getReflections();
+    const newReflection: Reflection = {
+      ...reflection,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    reflections.push(newReflection);
+    await this.setReflections(reflections);
+    return newReflection;
+  },
+
+  async getOnboardingMessages(): Promise<ChatMessage[]> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_MESSAGES);
+    return safeParse<ChatMessage[]>(value, []);
+  },
+
+  async setOnboardingMessages(messages: ChatMessage[]): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.ONBOARDING_MESSAGES,
+      JSON.stringify(messages),
+    );
+  },
+
+  // Apple guideline 5.1.1(i): AI features may only send data to OpenAI after
+  // the user has explicitly agreed. Defaults to false until consent is given.
+  async getAiConsent(): Promise<boolean> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.AI_CONSENT);
+    return value === "true";
+  },
+
+  async setAiConsent(value: boolean): Promise<void> {
+    await AsyncStorage.setItem(STORAGE_KEYS.AI_CONSENT, String(value));
+  },
+
+  async getRecapCoachLine(key: string): Promise<string | null> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.RECAP_COACH_LINES);
+    return safeParse<Record<string, string>>(value, {})[key] ?? null;
+  },
+
+  async setRecapCoachLine(key: string, line: string): Promise<void> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.RECAP_COACH_LINES);
+    const lines = safeParse<Record<string, string>>(value, {});
+    lines[key] = line;
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.RECAP_COACH_LINES,
+      JSON.stringify(lines),
+    );
+  },
+
+  // Keeps DEVICE_ID: server-side subscription records are keyed by it, so
+  // wiping it would permanently orphan purchase restore after a data reset.
+  // Account deletion removes it explicitly via removeDeviceId().
+  async clearAll(): Promise<void> {
+    const keys = Object.values(STORAGE_KEYS).filter(
+      (key) => key !== STORAGE_KEYS.DEVICE_ID,
+    );
+    await AsyncStorage.multiRemove(keys);
+  },
+
+  async getSubscription(): Promise<Subscription> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.SUBSCRIPTION);
+    return safeParse<Subscription>(value, {
+      isPremium: false,
+      plan: "free",
+      expiresAt: null,
+      purchasedAt: null,
+    });
+  },
+
+  async setSubscription(subscription: Subscription): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.SUBSCRIPTION,
+      JSON.stringify(subscription),
+    );
+  },
+
+  async getMonthlyReflectionCount(): Promise<MonthlyReflectionCount> {
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const value = await AsyncStorage.getItem(
+      STORAGE_KEYS.MONTHLY_REFLECTION_COUNT,
+    );
+    const data = safeParse<MonthlyReflectionCount | null>(value, null);
+    if (data?.month === currentMonth) return data;
+    return { month: currentMonth, count: 0 };
+  },
+
+  async incrementReflectionCount(): Promise<number> {
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const data = await this.getMonthlyReflectionCount();
+    if (data.month !== currentMonth) {
+      data.month = currentMonth;
+      data.count = 0;
+    }
+    data.count += 1;
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.MONTHLY_REFLECTION_COUNT,
+      JSON.stringify(data),
+    );
+    return data.count;
+  },
+
+  async calculateMomentumScore(days: number = 7): Promise<number> {
+    const logs = await this.getDailyLogs();
+    const actions = await this.getElementalActions();
+    return computeMomentumScore(actions, logs, days);
+  },
+
+  async getPersonaAlignmentScore(): Promise<number> {
+    return this.calculateMomentumScore(30);
+  },
+
+  async getDeviceId(): Promise<string> {
+    let deviceId = await AsyncStorage.getItem(STORAGE_KEYS.DEVICE_ID);
+    if (!deviceId) {
+      // The deviceId is the only credential tying this install to its
+      // server-side subscription record, so it must not be guessable.
+      deviceId = Crypto.randomUUID();
+      await AsyncStorage.setItem(STORAGE_KEYS.DEVICE_ID, deviceId);
+    }
+    return deviceId;
+  },
+
+  // Only for account deletion: mints a fresh identity on next launch after
+  // the server-side record has been deleted.
+  async removeDeviceId(): Promise<void> {
+    await AsyncStorage.removeItem(STORAGE_KEYS.DEVICE_ID);
+  },
+};

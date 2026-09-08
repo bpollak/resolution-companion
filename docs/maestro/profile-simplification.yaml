@@ -1,0 +1,65 @@
+appId: com.resolutioncompanion.app
+name: Profile simplification regression
+---
+- launchApp:
+    clearState: false
+- tapOn:
+    text: Open profile and settings
+- assertVisible: Profile
+- scrollUntilVisible:
+    element:
+      text: Daily Reminder.*
+    direction: DOWN
+- assertVisible: Daily Reminder.*
+- assertVisible: Privacy & Data.*
+- assertVisible: About.*
+- assertNotVisible: The Year You Became.*
+- assertNotVisible: Someone in Your Corner.*
+- takeScreenshot: profile-simplification-main
+- tapOn: Daily Reminder.*
+- assertVisible: One gentle nudge
+- tapOn:
+    text: Back to profile
+- scrollUntilVisible:
+    element:
+      text: Privacy & Data.*
+    direction: DOWN
+- tapOn: Privacy & Data.*
+- assertVisible: Your data, your choice
+- scrollUntilVisible:
+    element:
+      text: Private iCloud Backup.*
+    direction: DOWN
+- assertVisible: Private iCloud Backup.*
+- scrollUntilVisible:
+    element:
+      text: AI Data Sharing
+    direction: DOWN
+- assertVisible: AI Data Sharing
+- tapOn:
+    text: Back to profile
+- scrollUntilVisible:
+    element:
+      text: About.*
+    direction: DOWN
+- tapOn: About.*
+- assertVisible: Resolution Companion
+- assertVisible: Version 1.0.11
+- scrollUntilVisible:
+    element:
+      text: Privacy Policy.*
+    direction: DOWN
+- assertVisible: Terms of Use.*
+- tapOn:
+    text: Back to profile
+- tapOn:
+    text: Close profile
+- tapOn:
+    point: 50%,95%
+- scrollUntilVisible:
+    element:
+      text: Stories & Support
+    direction: DOWN
+- assertVisible: The Year You Became.*
+- assertVisible: Someone in Your Corner.*
+- takeScreenshot: profile-simplification-journey

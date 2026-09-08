@@ -1,0 +1,894 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy Policy - Resolution Companion</title>
+    <meta
+      name="description"
+      content="Privacy Policy for Resolution Companion - Learn how we protect your data and respect your privacy."
+    />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large, max-snippet:-1"
+    />
+    <meta name="theme-color" content="#0f0f1a" />
+    <link rel="icon" type="image/png" href="/assets/icon.png" />
+    <link rel="canonical" href="https://resolutioncompanion.com/privacy" />
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+    <link
+      rel="alternate"
+      type="text/markdown"
+      href="/llms.txt"
+      title="Resolution Companion product brief"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Resolution Companion" />
+    <meta property="og:title" content="Privacy Policy | Resolution Companion" />
+    <meta
+      property="og:description"
+      content="How Resolution Companion stores personal growth data locally, processes AI conversations, and protects user privacy."
+    />
+    <meta property="og:url" content="https://resolutioncompanion.com/privacy" />
+    <meta
+      property="og:image"
+      content="https://resolutioncompanion.com/assets/website/app-logo.png"
+    />
+    <script src="/assets/website/site-navigation.js" defer></script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": "Resolution Companion Privacy Policy",
+        "url": "https://resolutioncompanion.com/privacy",
+        "description": "How Resolution Companion stores personal growth data locally, processes AI conversations, and protects user privacy.",
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "Resolution Companion",
+          "url": "https://resolutioncompanion.com/"
+        },
+        "inLanguage": "en-US"
+      }
+    </script>
+    <style>
+      :root {
+        --accent: #00d9ff;
+        --accent-secondary: #8b5cf6;
+        --accent-tertiary: #f472b6;
+        --accent-green: #10b981;
+        --accent-glow: rgba(0, 217, 255, 0.3);
+        --purple-glow: rgba(139, 92, 246, 0.3);
+        --pink-glow: rgba(244, 114, 182, 0.3);
+        --bg-root: #0f0f1a;
+        --bg-card: rgba(20, 20, 35, 0.8);
+        --text-primary: #ffffff;
+        --text-secondary: #c8c8d4;
+        --text-muted: #9d9dae;
+        --border: rgba(255, 255, 255, 0.1);
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        font-family:
+          "Inter",
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        background: var(--bg-root);
+        color: var(--text-primary);
+        line-height: 1.7;
+        min-height: 100vh;
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+      }
+
+      .gradient-bg {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background:
+          radial-gradient(
+            ellipse at 20% 20%,
+            rgba(139, 92, 246, 0.25) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            ellipse at 80% 30%,
+            rgba(0, 217, 255, 0.2) 0%,
+            transparent 45%
+          ),
+          radial-gradient(
+            ellipse at 40% 80%,
+            rgba(244, 114, 182, 0.2) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            ellipse at 90% 80%,
+            rgba(16, 185, 129, 0.15) 0%,
+            transparent 40%
+          ),
+          linear-gradient(180deg, #0f0f1a 0%, #1a1025 50%, #0f1a1a 100%);
+        z-index: -1;
+        animation: gradientShift 20s ease infinite;
+      }
+
+      @keyframes gradientShift {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.85;
+        }
+      }
+
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 60px 24px;
+        position: relative;
+        z-index: 1;
+      }
+
+      header {
+        text-align: center;
+        margin-bottom: 48px;
+        padding-bottom: 32px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      h1 {
+        font-size: 36px;
+        font-weight: 700;
+        margin-bottom: 16px;
+        background: linear-gradient(
+          135deg,
+          var(--accent) 0%,
+          var(--accent-secondary) 100%
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .last-updated {
+        color: var(--text-muted);
+        font-size: 14px;
+      }
+
+      section {
+        margin-bottom: 40px;
+      }
+
+      h2 {
+        font-size: 22px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 16px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid var(--accent-glow);
+      }
+
+      p {
+        margin-bottom: 16px;
+        color: var(--text-secondary);
+      }
+
+      ul {
+        margin: 16px 0;
+        padding-left: 24px;
+      }
+
+      li {
+        margin-bottom: 12px;
+        color: var(--text-secondary);
+      }
+
+      li strong {
+        color: var(--text-primary);
+      }
+
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      a:hover {
+        text-decoration: underline;
+      }
+
+      .highlight-box {
+        background: var(--bg-card);
+        border: 1px solid var(--accent-glow);
+        border-radius: 12px;
+        padding: 24px;
+        margin: 24px 0;
+        backdrop-filter: blur(10px);
+      }
+
+      .highlight-box h3 {
+        color: var(--accent);
+        font-size: 18px;
+        margin-bottom: 12px;
+      }
+
+      footer {
+        text-align: center;
+        padding: 40px 0;
+        border-top: 1px solid var(--border);
+        margin-top: 48px;
+      }
+
+      .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 24px;
+        margin-bottom: 16px;
+      }
+
+      .footer-links a {
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-size: 14px;
+        transition: color 0.2s;
+      }
+
+      .footer-links a:hover {
+        color: var(--accent);
+      }
+
+      footer p {
+        font-size: 14px;
+        color: var(--text-muted);
+        margin-top: 16px;
+      }
+
+      .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: #00d9ff;
+        margin-bottom: 24px;
+      }
+
+      .back-link:hover {
+        text-decoration: none;
+        opacity: 0.8;
+      }
+
+      nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        background: rgba(15, 15, 26, 0.85);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-bottom: 1px solid var(--border);
+      }
+
+      nav .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 64px;
+      }
+
+      nav .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        text-decoration: none;
+        color: var(--text-primary);
+        font-weight: 700;
+        font-size: 18px;
+      }
+
+      nav .logo-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+
+      nav .logo-icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      nav .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 32px;
+      }
+
+      nav .nav-links a {
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 500;
+        transition: color 0.2s;
+      }
+
+      nav .nav-links a:hover {
+        color: var(--text-primary);
+      }
+
+      nav .nav-links a.active {
+        color: var(--accent);
+      }
+
+      nav .nav-cta {
+        background: #7c3aed;
+        color: #ffffff !important;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.2s;
+      }
+
+      nav .nav-cta:hover {
+        transform: translateY(-1px);
+        background: #6d28d9;
+        box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
+        text-decoration: none;
+      }
+
+      .mobile-menu-btn {
+        display: none;
+        background: none;
+        border: none;
+        padding: 8px;
+        cursor: pointer;
+      }
+
+      .mobile-menu-btn svg {
+        width: 24px;
+        height: 24px;
+        stroke: #fff;
+      }
+
+      .mobile-nav {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(10, 10, 15, 0.98);
+        z-index: 2000;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 32px;
+      }
+
+      .mobile-nav.open {
+        display: flex;
+      }
+
+      .mobile-nav a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 24px;
+        font-weight: 600;
+      }
+
+      .mobile-nav a:hover,
+      .mobile-nav a.active {
+        color: #00d9ff;
+      }
+
+      .mobile-nav-close {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: none;
+        border: none;
+        padding: 8px;
+        cursor: pointer;
+      }
+
+      .mobile-nav-close svg {
+        width: 32px;
+        height: 32px;
+        stroke: #fff;
+      }
+
+      .page-content {
+        padding-top: 80px;
+      }
+
+      @media (max-width: 768px) {
+        nav .nav-links {
+          display: none;
+        }
+        .mobile-menu-btn {
+          display: block;
+        }
+      }
+      a:focus-visible,
+      button:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 4px;
+      }
+
+      .skip-link {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 2000;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: var(--accent);
+        color: #001116;
+        font-weight: 800;
+        text-decoration: none;
+        transform: translateY(-160%);
+      }
+
+      .skip-link:focus {
+        transform: translateY(0);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to privacy policy</a>
+    <div class="gradient-bg"></div>
+    <nav aria-label="Primary navigation">
+      <div class="container">
+        <a href="/" class="logo">
+          <div class="logo-icon">
+            <img
+              src="/assets/website/app-logo.png"
+              alt="Resolution Companion Logo"
+            />
+          </div>
+          Resolution Companion
+        </a>
+        <div class="nav-links">
+          <a href="/#features">Features</a>
+          <a href="/feedback">Support</a>
+          <a href="/privacy" class="active">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a
+            href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
+            class="nav-cta"
+            target="_blank"
+            rel="noopener"
+            >Get the App</a
+          >
+        </div>
+        <button
+          id="mobileMenuButton"
+          class="mobile-menu-btn"
+          type="button"
+          aria-label="Open navigation menu"
+          aria-controls="mobileNav"
+          aria-expanded="false"
+          onclick="document.getElementById('mobileNav').classList.add('open')"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+      </div>
+    </nav>
+
+    <div
+      class="mobile-nav"
+      id="mobileNav"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Site navigation"
+      aria-hidden="true"
+    >
+      <button
+        class="mobile-nav-close"
+        type="button"
+        aria-label="Close navigation menu"
+        onclick="document.getElementById('mobileNav').classList.remove('open')"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+      <a
+        href="/#features"
+        onclick="document.getElementById('mobileNav').classList.remove('open')"
+        >Features</a
+      >
+      <a
+        href="/feedback"
+        onclick="document.getElementById('mobileNav').classList.remove('open')"
+        >Support</a
+      >
+      <a
+        href="/privacy"
+        class="active"
+        onclick="document.getElementById('mobileNav').classList.remove('open')"
+        >Privacy</a
+      >
+      <a
+        href="/terms"
+        onclick="document.getElementById('mobileNav').classList.remove('open')"
+        >Terms</a
+      >
+      <a
+        href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708"
+        class="mobile-cta"
+        target="_blank"
+        rel="noopener"
+        onclick="document.getElementById('mobileNav').classList.remove('open')"
+        >Get the App</a
+      >
+    </div>
+
+    <div class="page-content">
+      <div class="container">
+        <main id="main-content">
+          <header>
+            <h1>Privacy Policy</h1>
+            <p class="last-updated">Last Updated: August 2026</p>
+          </header>
+
+          <section>
+            <h2>Overview</h2>
+            <p>
+              Resolution Companion is designed with your privacy as a top
+              priority. We believe your personal growth journey is deeply
+              personal, and we've built our app to keep it that way.
+            </p>
+
+            <div class="highlight-box">
+              <h3>The Short Version</h3>
+              <p style="margin-bottom: 0">
+                Your personal growth data stays on your device. We don't sell
+                your data, track you across apps, or use third-party analytics
+                or ad trackers. On our own servers we store only the minimum: an
+                anonymous device identifier, your subscription status, and
+                privacy-respecting usage counts (how often features are used, by
+                day — never what you write or do). AI conversations are
+                processed by OpenAI (see details below).
+              </p>
+            </div>
+          </section>
+
+          <section>
+            <h2>Information We Don't Collect</h2>
+            <ul>
+              <li>
+                <strong>No Account Required:</strong> Use the app without
+                creating an account or providing personal information.
+              </li>
+              <li>
+                <strong>No Third-Party Analytics or Ad Tracking:</strong> We do
+                not use third-party analytics SDKs, advertising trackers, or
+                cross-app tracking of any kind. The only usage data we keep is
+                our own privacy-respecting, aggregate feature counts, described
+                below.
+              </li>
+              <li>
+                <strong>No Data Selling:</strong> We never sell or rent your
+                information to third parties.
+              </li>
+            </ul>
+          </section>
+
+          <section>
+            <h2>Information We Do Store</h2>
+            <p>
+              To make premium subscriptions work, we store a small amount of
+              data on our servers:
+            </p>
+            <ul>
+              <li>
+                <strong>Anonymous Device Identifier:</strong> A randomly
+                generated identifier created on your device. It is not your
+                advertising ID and is not linked to your name, email, or
+                identity.
+              </li>
+              <li>
+                <strong>Subscription Status:</strong> Your subscription plan,
+                status, and renewal date, so your purchase can be verified and
+                restored after a reinstall.
+              </li>
+              <li>
+                <strong>Aggregate Usage Counts:</strong> To understand which
+                features are useful and where the app can be improved, we keep
+                per-day counts of anonymous events (for example, "a plan was
+                created," "the coach was opened," or the app caught an error),
+                tied only to the same anonymous device identifier above. We
+                never record what you write, your goals, your messages, or any
+                content — only how many times a feature was used on a given day.
+              </li>
+              <li>
+                <strong>Aggregate AI Operations:</strong> We total AI request
+                and token counts by day, feature, and model so we can monitor
+                cost. These totals contain no device identifier, prompt,
+                response, or other user content.
+              </li>
+              <li>
+                <strong>Feedback Submissions:</strong> If you contact us through
+                the website feedback form, we store the name, email address, and
+                message you provide so we can respond.
+              </li>
+              <li>
+                <strong>AI Safety Reports:</strong> If you use the in-app Report
+                action on an AI response, we store that response, an anonymous
+                device identifier, and the app surface where it appeared so we
+                can review safety issues and improve our safeguards.
+              </li>
+            </ul>
+            <p>
+              You can delete the device identifier and subscription records at
+              any time from the app via
+              <strong>Profile &gt; Delete My Account &amp; Data</strong>, or by
+              contacting us at the email address below.
+            </p>
+            <h3>How Long We Keep It</h3>
+            <ul>
+              <li>
+                <strong>Device Identifier &amp; Subscription Records:</strong>
+                Retained while your subscription records are needed to verify or
+                restore purchases. When you use
+                <strong>Delete My Account &amp; Data</strong> in the app, these
+                records (including monthly AI usage counters and the aggregate
+                usage counts) are permanently deleted from our servers
+                immediately. The app also removes local product data and, on
+                supported Apple devices, its private iCloud backup.
+              </li>
+              <li>
+                <strong>Feedback Submissions:</strong> Retained only as long as
+                needed to respond to and follow up on your message. You can
+                request deletion of your feedback at any time by emailing us at
+                the address below, and we will remove it promptly.
+              </li>
+            </ul>
+          </section>
+
+          <section>
+            <h2>What Stays on Your Device</h2>
+            <p>
+              All of your personal data is stored locally on your device using
+              secure local storage:
+            </p>
+            <ul>
+              <li>
+                Your plan — the identity you're working toward and your goals
+              </li>
+              <li>All milestones and daily actions you create</li>
+              <li>Your daily logs and progress history</li>
+              <li>
+                Optional daily context factors and notes, saved Coach sessions,
+                response-feedback choices, and plan-adjustment history
+              </li>
+              <li>Momentum chains and alignment metrics</li>
+              <li>App settings and preferences</li>
+            </ul>
+            <p>
+              This data stays on your device unless you explicitly use an AI
+              feature, explicitly report an AI response, turn on Private iCloud
+              Backup on a supported Apple device, or choose to share a recap or
+              witness celebration through the system share sheet.
+            </p>
+            <div class="highlight-box">
+              <h3>Private iCloud Backup</h3>
+              <p>
+                If you opt in, the app copies your local product data to your
+                own private Apple iCloud key-value store. Resolution Companion
+                does not receive or read that backup. Subscription information,
+                the anonymous device identifier, and aggregate telemetry are
+                excluded. You can turn backup off, create a new backup, or
+                explicitly confirm a restore from Profile at any time.
+              </p>
+            </div>
+            <p>
+              Recap and witness sharing is never automatic. The app prepares an
+              image or message locally, and you decide whether to share it,
+              which app receives it, and who receives it. Resolution Companion
+              has no social feed, shared account, or contact list.
+            </p>
+          </section>
+
+          <section>
+            <h2>AI Features & OpenAI</h2>
+            <p>
+              Our AI coaching and onboarding features are powered by
+              <strong>OpenAI's GPT models</strong> (currently GPT-5 mini), a
+              third-party AI service. When you use these features, your
+              conversation messages are sent to OpenAI for processing.
+            </p>
+            <p>
+              Contextual evidence cards and Journey discoveries are generated on
+              your device and can be viewed without contacting an AI service. If
+              you request a plan tune-up, the service receives no action title,
+              persona description, note, individual date, or local identifier.
+              It receives only up to five opaque action slots, the editable plan
+              fields, and bounded 28-day aggregate counts. The app always shows
+              a preview and changes your local plan only after you confirm it.
+              Helpful and Not helpful choices are counted without the response
+              text; response text is sent to us only when you separately confirm
+              the Report action.
+            </p>
+
+            <div class="highlight-box">
+              <h3>What You Should Know About OpenAI</h3>
+              <ul style="margin-bottom: 0">
+                <li>
+                  <strong>Not Used for Training:</strong> OpenAI does not use
+                  API data to train or improve their models.
+                </li>
+                <li>
+                  <strong>Temporary Retention:</strong> OpenAI retains API data
+                  for up to 30 days for abuse monitoring, then permanently
+                  deletes it.
+                </li>
+                <li>
+                  <strong>No Human Review:</strong> Your conversations are not
+                  reviewed by humans unless flagged for safety concerns.
+                </li>
+                <li>
+                  <strong>We Don't Store It:</strong> Resolution Companion does
+                  not store your AI conversations on our servers.
+                </li>
+              </ul>
+            </div>
+            <p>
+              Because AI conversations are processed on OpenAI's servers in the
+              United States, we recommend not sharing sensitive personal details
+              (such as health, financial, or legal information) in your coaching
+              conversations.
+            </p>
+            <p>
+              For more details, see
+              <a
+                href="https://openai.com/policies/api-data-usage-policies"
+                target="_blank"
+                rel="noopener"
+                >OpenAI's API Data Usage Policy</a
+              >.
+            </p>
+          </section>
+
+          <section>
+            <h2>Subscription & Payments</h2>
+            <p>
+              If you choose a subscription or, where available, a one-time
+              Lifetime Premium purchase:
+            </p>
+            <ul>
+              <li>
+                Payments are processed securely by the store where you obtained
+                the app: the Apple App Store or Google Play.
+              </li>
+              <li>We never see, access, or store your payment information.</li>
+              <li>
+                Subscription management and restoration of eligible purchases
+                are handled by Apple or Google, as applicable. Lifetime Premium
+                is currently offered only through the Apple App Store.
+              </li>
+            </ul>
+          </section>
+
+          <section>
+            <h2>Hosting & Infrastructure</h2>
+            <p>
+              Resolution Companion's backend services are hosted on trusted
+              cloud infrastructure that employs industry-standard security
+              measures, including:
+            </p>
+            <ul>
+              <li>Encrypted data transmission (HTTPS/TLS)</li>
+              <li>Secure data centers</li>
+              <li>Access controls limiting who can reach stored data</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2>Children's Privacy</h2>
+            <p>
+              Resolution Companion is not intended for children under 13 years
+              of age. We do not knowingly collect personal information from
+              children under 13.
+            </p>
+          </section>
+
+          <section>
+            <h2>Changes to This Policy</h2>
+            <p>
+              We may update this Privacy Policy from time to time. We will
+              notify you of any changes by posting the new Privacy Policy on
+              this page and updating the "Last Updated" date.
+            </p>
+          </section>
+
+          <section>
+            <h2>Contact Us</h2>
+            <p>
+              Resolution Companion is operated by Brett Pollak. If you have any
+              questions about this Privacy Policy, our privacy practices, or
+              want your data deleted, contact us at
+              <a href="mailto:brettcpollak@gmail.com">brettcpollak@gmail.com</a>
+              or through our <a href="/feedback">support page</a>.
+            </p>
+          </section>
+        </main>
+        <footer>
+          <div class="footer-links">
+            <a href="/">Home</a>
+            <a href="/#features">Features</a>
+            <a href="/release-notes">Release Notes</a>
+            <a href="/feedback">Support</a>
+            <a href="/privacy">Privacy Policy</a>
+            <a href="/terms">Terms of Use</a>
+            <a
+              href="https://www.facebook.com/profile.php?id=61591806574903"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Facebook</a
+            >
+            <a
+              href="https://www.instagram.com/resolutioncompanion/"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Instagram</a
+            >
+            <a
+              href="https://www.linkedin.com/company/resolution-companion/"
+              target="_blank"
+              rel="noopener noreferrer"
+              >LinkedIn</a
+            >
+          </div>
+          <p>&copy; 2026 Resolution Companion. Built with purpose.</p>
+        </footer>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,79 @@
+import React from "react";
+import { StyleSheet } from "react-native";
+import * as Linking from "expo-linking";
+import {
+  NavigationContainer,
+  type LinkingOptions,
+} from "@react-navigation/native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/lib/query-client";
+
+import RootStackNavigator, {
+  type RootStackParamList,
+} from "@/navigation/RootStackNavigator";
+import { navigationRef } from "@/navigation/navigationRef";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { MilestoneCelebrationHost } from "@/components/MilestoneCompleteModal";
+import { AppProvider } from "@/context/AppContext";
+import { ThemeProvider, useThemeMode } from "@/context/ThemeContext";
+
+function ThemedStatusBar() {
+  const { isDark } = useThemeMode();
+  return <StatusBar style={isDark ? "light" : "dark"} />;
+}
+
+// resolutioncompanion:// deep links land the widget body-tap and notification
+// taps on the tab they're about instead of whatever was last open
+const linking: LinkingOptions<RootStackParamList> = {
+  prefixes: [Linking.createURL("/"), "resolutioncompanion://"],
+  config: {
+    screens: {
+      Main: {
+        screens: {
+          TodayTab: "today",
+          JourneyTab: "journey",
+          ReflectTab: "coach",
+        },
+      },
+    },
+  },
+};
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <AppProvider>
+            <SafeAreaProvider>
+              <GestureHandlerRootView style={styles.root}>
+                <KeyboardProvider>
+                  <NavigationContainer ref={navigationRef} linking={linking}>
+                    <OfflineBanner />
+                    <RootStackNavigator />
+                    {/* Milestone celebrations overlay whichever screen the
+                        completion flip happened on */}
+                    <MilestoneCelebrationHost />
+                  </NavigationContainer>
+                  <ThemedStatusBar />
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </SafeAreaProvider>
+          </AppProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+});

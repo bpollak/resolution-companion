@@ -1,0 +1,101 @@
+appId: com.resolutioncompanion.app
+---
+# Remaining engagement items: micro-note expand (asserted via the card's
+# Expand→Collapse label change), live weekly-review coach session, and the
+# Dawn switch flipped back to midnight through the UI.
+
+- launchApp
+
+# Seeded history completes a milestone on launch, firing the completion
+# celebration (with the Dawn-theme unlock reveal). Dismiss it to reach Today.
+# Optional + repeated so the flow is robust whether one or several fire, or
+# none (already seen on a prior launch).
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          text: "Dismiss milestone celebration.*"
+          optional: true
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Momentum Builder.*"
+    timeout: 20000
+- tapOn:
+    id: "tab-coach"
+- waitForAnimationToEnd
+
+# --- Micro-note: expand, verified by the accessibility state flip ---
+- scrollUntilVisible:
+    element:
+      text: "60-second read.*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn: "60-second read.*"
+- waitForAnimationToEnd
+- assertVisible: "60-second read.*Collapse.*"
+- takeScreenshot: 16-micro-note-expanded
+- scrollUntilVisible:
+    element:
+      text: "Start a conversation.*"
+    direction: UP
+    timeout: 30000
+    centerElement: true
+
+# --- Live weekly review via the sheet's review chip ---
+- tapOn: "Start a conversation with Coach"
+- extendedWaitUntil:
+    visible: "Help me review one win and one point of friction from last week.*"
+    timeout: 15000
+- tapOn: "Help me review one win and one point of friction from last week.*"
+# In the contextual sheet, AI consent is requested at send time (not on open)
+- tapOn:
+    text: "Agree and continue.*"
+    optional: true
+- extendedWaitUntil:
+    # Match a non-empty coach bubble. The old week regex matched the static
+    # "Weekly Review" title while the response was still spinning.
+    visible: "AI coach: .+"
+    timeout: 90000
+- takeScreenshot: 17-weekly-review-live
+- extendedWaitUntil:
+    # Wait for the completed turn (ends with a follow-up question) — a Save
+    # while still streaming has nothing in the transcript to keep yet.
+    visible: "AI coach: .+\\?.*"
+    timeout: 90000
+- tapOn: "Save coaching session"
+- extendedWaitUntil:
+    visible:
+      id: "tab-today"
+    timeout: 15000
+
+# --- Flip the Dawn switch back to midnight via the UI ---
+- tapOn:
+    id: "tab-today"
+- waitForAnimationToEnd
+- tapOn: "Open profile and settings.*"
+- extendedWaitUntil:
+    # Post-AI-session modal presentation can lag; give it headroom
+    visible: "My Personas.*"
+    timeout: 20000
+# Earned rewards live in the dedicated Appearance panel
+- scrollUntilVisible:
+    element:
+      text: "Appearance.*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn: "Appearance.*"
+- scrollUntilVisible:
+    element:
+      text: "Dawn Theme.*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- waitForAnimationToEnd
+- tapOn: "Toggle Dawn Theme"
+- waitForAnimationToEnd
+- takeScreenshot: 19-profile-back-to-midnight
+- tapOn: "Back to profile.*"
+- tapOn: "Close profile.*"
+- takeScreenshot: 20-today-midnight-restored

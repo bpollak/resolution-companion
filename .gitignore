@@ -1,0 +1,73 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+google-service-account*.json
+credentials.json
+/.credentials/
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+app-example
+
+# generated native folders
+/ios
+/android
+# Local Expo module sources are part of the app, not generated native output.
+!/modules/**/ios/
+!/modules/**/ios/**
+!/modules/**/android/
+!/modules/**/android/**
+
+# build output
+/server_dist/
+/static-build/
+
+# attached assets (large binary files)
+/attached_assets/
+.claude/
+
+# Local EAS build artifacts (eas build --local output)
+/build/
+
+# Untracked working assets (iCloud-hosted, huge)
+marketing/
+appstore-screenshots/
+attached_assets/
+aso-phase1-evidence/
+playstore-assets/
+static-build/
+*.png
+!assets/**/*.png
+!public/**/*.png

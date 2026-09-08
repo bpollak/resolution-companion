@@ -1,0 +1,76 @@
+{
+  "cli": {
+    "version": ">= 15.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "resolutioncompanion.com",
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "arm64-v8a"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "resolutioncompanion.com"
+      },
+      "ios": {
+        "image": "latest"
+      },
+      "android": {
+        "image": "latest"
+      }
+    },
+    "simulator": {
+      "distribution": "internal",
+      "environment": "production",
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "resolutioncompanion.com"
+      },
+      "ios": {
+        "simulator": true,
+        "image": "latest"
+      }
+    }
+  },
+  "submit": {
+    "internal": {
+      "android": {
+        "serviceAccountKeyPath": ".credentials/google-play-submit.json",
+        "track": "internal"
+      }
+    },
+    "closed": {
+      "android": {
+        "serviceAccountKeyPath": ".credentials/google-play-submit.json",
+        "track": "alpha"
+      }
+    },
+    "production": {
+      "ios": {
+        "appleId": "brettcpollak@gmail.com",
+        "ascAppId": "6757996708",
+        "appleTeamId": "ZA8AJG27JX"
+      },
+      "android": {
+        "serviceAccountKeyPath": ".credentials/google-play-submit.json",
+        "track": "production"
+      }
+    }
+  }
+}

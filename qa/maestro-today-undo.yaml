@@ -1,0 +1,36 @@
+appId: com.resolutioncompanion.app
+---
+# Run after the fresh-install regression's single daily habit is complete.
+- tapOn:
+    id: "tab-today"
+- scrollUntilVisible:
+    element:
+      text: ".* completed. Undo.*"
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- tapOn: ".* completed. Undo.*"
+- assertVisible: "Mark .* complete"
+- scrollUntilVisible:
+    element:
+      text: "0 of 1 actions done today.*"
+    direction: UP
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: "I did the 2-minute version of .*"
+    direction: DOWN
+    timeout: 15000
+- tapOn: "I did the 2-minute version of .*"
+- extendedWaitUntil:
+    visible: ".* completed. Undo, 2-minute.*"
+    timeout: 10000
+- takeScreenshot: today-small-version-logged
+- tapOn: ".* completed. Undo, 2-minute.*"
+- assertVisible: "Mark .* complete"
+- tapOn: "Mark .* complete"
+- scrollUntilVisible:
+    element:
+      text: "1 of 1 actions done today.*"
+    direction: UP
+    timeout: 15000

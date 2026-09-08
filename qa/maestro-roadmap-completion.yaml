@@ -1,0 +1,46 @@
+appId: com.resolutioncompanion.app
+name: roadmap-completion-moments
+---
+# Run after seed_history.py + prepare-roadmap-completion.py.
+- launchApp
+
+# The actual proposal is visible before any gate. Only Add routes a free user
+# to the contextual paywall, preserving the value-first commitment.
+- extendedWaitUntil:
+    visible: "Milestone complete.*"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Suggested next milestone.*"
+    direction: DOWN
+    timeout: 30000
+- assertVisible: "Suggested next milestone. Deepen Build Daily Momentum.*"
+- scrollUntilVisible:
+    element:
+      text: "Add next milestone: Deepen Build Daily Momentum.*"
+    direction: DOWN
+    timeout: 30000
+- takeScreenshot: 22-next-milestone-proposal
+- tapOn: "Add next milestone: Deepen Build Daily Momentum.*"
+- extendedWaitUntil:
+    visible: "Your next milestone is ready.*"
+    timeout: 15000
+- takeScreenshot: 23-next-milestone-contextual-paywall
+- tapOn: "Close.*"
+
+# One-persona users with 30+ sustained days receive a quiet invitation. The
+# free user's exploration action gates only after the invitation's value copy.
+- extendedWaitUntil:
+    visible: "Another part of you.*"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Explore another journey.*"
+    direction: DOWN
+    timeout: 30000
+- assertVisible: "Explore another journey.*"
+- takeScreenshot: 24-second-persona-invitation
+- tapOn: "Explore another journey.*"
+- extendedWaitUntil:
+    visible: "Upgrade to Premium.*"
+    timeout: 15000

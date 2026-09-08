@@ -1,0 +1,28 @@
+appId: com.resolutioncompanion.app
+name: accessibility-large-text-orientation
+---
+# Set the simulator's preferred content size before this flow.
+- launchApp:
+    clearState: true
+- setOrientation: PORTRAIT
+- assertVisible: "Start your journey.*"
+- takeScreenshot: a11y-00-large-text-portrait
+- tapOn: "Start your journey.*"
+- assertVisible: "Who would you like to become?"
+- takeScreenshot: a11y-01-onboarding-portrait
+- setOrientation: LANDSCAPE_LEFT
+- assertVisible: "Who would you like to become?"
+- takeScreenshot: a11y-02-onboarding-landscape
+- setOrientation: PORTRAIT
+- assertNotVisible: "Start with one habit"
+- tapOn: "Build a plan with Coach"
+- assertVisible: "AI Coaching & Your Data"
+- assertVisible: "Agree and continue.*"
+- assertVisible: "Not now"
+- takeScreenshot: a11y-03-consent
+- tapOn: "Not now"
+- assertVisible: "Setup is paused.*"
+- assertNotVisible: "Your starting plan"
+- takeScreenshot: a11y-04-setup-paused
+# Plan preview, editing, and its pinned Start control are checked by the AI
+# flow and native simulator walkthrough; this entry/consent flow needs no AI request.

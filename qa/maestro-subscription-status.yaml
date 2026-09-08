@@ -1,0 +1,21 @@
+appId: com.resolutioncompanion.app
+name: subscription-status-reconciliation
+---
+# Uses the standard seeded simulator state. The simulator has no App Store
+# entitlement, so the quiet verification must settle to the free state instead
+# of remaining stuck on a cached Premium or checking label.
+- launchApp
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          text: "Dismiss milestone celebration.*"
+          optional: true
+      - waitForAnimationToEnd
+- tapOn: "Open profile and settings.*"
+- extendedWaitUntil:
+    visible: "Upgrade to Premium.*"
+    timeout: 30000
+- assertNotVisible: "Checking Premium status.*"
+- assertNotVisible: ".*Premium.*Verified with the App Store.*"
+- takeScreenshot: subscription-status-free-verified
