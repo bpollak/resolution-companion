@@ -153,7 +153,7 @@
       }
     </script>
 
-    <link rel="stylesheet" href="/assets/website/site.css?v=c49d853f0fef" />
+    <link rel="stylesheet" href="/assets/website/site.css?v=9741d755f039" />
     <script src="/assets/website/site.js?v=61bfc9537567" defer></script>
   </head>
   <body>
@@ -231,10 +231,10 @@
             <div class="screen-shell" id="app-viewer">
               <img
                 id="app-screen"
-                src="/assets/website/screen-today-v5.png"
+                src="/assets/website/screen-plan-v5.png"
                 width="1206"
                 height="2622"
-                alt="Today screen with a sample reading plan and full and two-minute action controls"
+                alt="Plan review showing a reading habit, daily schedule, two-minute alternative, and Start button"
                 fetchpriority="high"
               />
             </div>
@@ -245,8 +245,27 @@
             >
               <button
                 type="button"
-                data-screen="today"
+                data-screen="plan"
                 aria-pressed="true"
+                aria-controls="app-viewer"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="5" y="4" width="14" height="18" rx="2" />
+                  <path d="M9 4V2h6v2M9 10h6m-6 5 2 2 4-4" /></svg
+                >Plan
+              </button>
+              <button
+                type="button"
+                data-screen="today"
+                aria-pressed="false"
                 aria-controls="app-viewer"
               >
                 <svg
@@ -262,8 +281,9 @@
                   <path
                     d="M12 1v3m0 16v3M1 12h3m16 0h3M4 4l2 2m12 12 2 2M4 20l2-2M18 6l2-2"
                   /></svg
-                >Today</button
-              ><button
+                >Today
+              </button>
+              <button
                 type="button"
                 data-screen="journey"
                 aria-pressed="false"
@@ -281,8 +301,9 @@
                   <path
                     d="m3 5 6-3 6 3 6-3v17l-6 3-6-3-6 3V5ZM9 2v17m6-14v17"
                   /></svg
-                >Journey</button
-              ><button
+                >Journey
+              </button>
+              <button
                 type="button"
                 data-screen="coach"
                 aria-pressed="false"
@@ -299,25 +320,7 @@
                 >
                   <path d="M21 11a9 9 0 0 1-9 9H3l1-5a9 9 0 1 1 17-4Z" />
                   <path d="M8 11h.01M12 11h.01M16 11h.01" /></svg
-                >Coach</button
-              ><button
-                type="button"
-                data-screen="plan"
-                aria-pressed="false"
-                aria-controls="app-viewer"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.7"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <rect x="5" y="4" width="14" height="18" rx="2" />
-                  <path d="M9 4V2h6v2M9 10h6m-6 5 2 2 4-4" /></svg
-                >Plan
+                >Coach
               </button>
             </div>
             <figcaption
@@ -325,7 +328,8 @@
               aria-live="polite"
               aria-atomic="true"
             >
-              <strong id="screen-caption">Today: a clear next action.</strong
+              <strong id="screen-caption"
+                >Plan: review your habits before you start.</strong
               >Actual app screen · Sample data
             </figcaption>
           </figure>

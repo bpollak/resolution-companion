@@ -30,7 +30,7 @@ html {
 body {
   margin: 0;
   line-height: 1.65;
-  font-size: 16px;
+  font-size: 19px;
 }
 h1,
 h2,
@@ -116,7 +116,7 @@ button:active,
   color: inherit;
   text-decoration: none;
   font-weight: 650;
-  font-size: 17px;
+  font-size: 20px;
   letter-spacing: -0.5px;
   line-height: 1.15;
 }
@@ -136,7 +136,7 @@ button:active,
   display: flex;
   align-items: center;
   gap: 25px;
-  font-size: 13px;
+  font-size: 17px;
 }
 .site-nav a {
   color: #b9c4cb;
@@ -164,7 +164,7 @@ button:active,
   border-radius: 7px;
   color: white;
   padding: 8px 12px;
-  font-size: 13px;
+  font-size: 17px;
 }
 .btn {
   min-height: 50px;
@@ -178,7 +178,7 @@ button:active,
   justify-content: center;
   align-items: center;
   gap: 14px;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 650;
   line-height: 1.5;
 }
@@ -205,7 +205,7 @@ button:active,
   color: var(--ink);
 }
 .text-link {
-  font-size: 13px;
+  font-size: 17px;
   text-decoration: none;
   display: inline-flex;
   gap: 12px;
@@ -223,7 +223,7 @@ button:active,
   color: #b7c1c9;
 }
 .eyebrow {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 1.65px;
@@ -239,7 +239,7 @@ button:active,
   padding: 58px 0 60px;
 }
 .hero-copy h1 {
-  font-size: clamp(48px, 4.5vw, 64px);
+  font-size: clamp(52px, 4.8vw, 68px);
   font-weight: 620;
   line-height: 1.08;
   letter-spacing: -2.6px;
@@ -249,7 +249,7 @@ button:active,
   color: var(--cyan);
 }
 .hero-intro {
-  font-size: 17px;
+  font-size: 20px;
   max-width: 450px;
   line-height: 1.8;
   margin-bottom: 28px;
@@ -264,7 +264,7 @@ button:active,
   color: #dae3e8;
 }
 .hero-fine {
-  font-size: 12px;
+  font-size: 16px;
   margin: 17px 0 0;
   color: #aebdc6 !important;
 }
@@ -290,15 +290,15 @@ button:active,
   display: grid;
   place-items: center;
   color: var(--cyan);
-  font-size: 18px;
+  font-size: 21px;
 }
 .feature-note p {
-  font-size: 12px;
+  font-size: 16px;
   margin: 0;
   line-height: 1.7;
 }
 .feature-note strong {
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 600;
   color: #f5f7f8;
 }
@@ -313,7 +313,7 @@ button:active,
   position: relative;
 }
 .stage-label {
-  font-size: 10px;
+  font-size: 14px;
   letter-spacing: 1.5px;
   color: #46606e;
   align-self: stretch;
@@ -363,7 +363,7 @@ button:active,
   color: #b3c0c8;
   border-radius: 7px;
   padding: 8px 13px;
-  font-size: 12px;
+  font-size: 16px;
   min-height: 42px;
   flex: 1;
   display: flex;
@@ -389,7 +389,7 @@ button:active,
   height: 15px;
 }
 .stage-caption {
-  font-size: 11px;
+  font-size: 14px;
   color: #46606e !important;
   text-align: center;
   min-height: 36px;
@@ -416,7 +416,7 @@ button:active,
   padding: 18px 0;
 }
 .release-banner p {
-  font-size: 13px;
+  font-size: 17px;
   color: #38525a;
   margin: 0;
 }
@@ -425,7 +425,7 @@ button:active,
   font-weight: 650;
 }
 .release-banner .text-link {
-  font-size: 12px;
+  font-size: 16px;
   white-space: nowrap;
   min-height: 32px;
 }
@@ -434,7 +434,7 @@ button:active,
   border: 1px solid #b9dde3;
   padding: 3px 8px;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: 14px;
   margin-right: 12px;
   color: #075b6b;
 }
@@ -449,7 +449,7 @@ button:active,
   margin-bottom: 40px;
 }
 .section h2 {
-  font-size: 37px;
+  font-size: 42px;
   line-height: 1.15;
   letter-spacing: -1.2px;
   font-weight: 620;
@@ -458,7 +458,7 @@ button:active,
 .section-top > p {
   max-width: 340px;
   color: var(--muted);
-  font-size: 15px;
+  font-size: 18px;
   margin: 0;
 }
 .section-top .eyebrow {
@@ -491,19 +491,19 @@ button:active,
 }
 .step-top span {
   color: #657681;
-  font-size: 11px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 1px;
 }
 .step-card h3 {
-  font-size: 18px;
+  font-size: 21px;
   font-weight: 600;
   letter-spacing: -0.35px;
   margin-bottom: 11px;
   line-height: 1.4;
 }
 .step-card p {
-  font-size: 14px;
+  font-size: 18px;
   color: var(--muted);
   line-height: 1.8;
   margin-bottom: 0;
@@ -525,7 +525,7 @@ button:active,
 }
 .creator-inner blockquote {
   margin: 0;
-  font-size: 22px;
+  font-size: 25px;
   font-weight: 430;
   letter-spacing: -0.4px;
   line-height: 1.6;
@@ -533,7 +533,7 @@ button:active,
 .creator-inner cite {
   display: block;
   margin-top: 12px;
-  font-size: 12px;
+  font-size: 16px;
   color: var(--muted);
   font-style: normal;
   letter-spacing: 0;
@@ -558,30 +558,30 @@ button:active,
   align-items: center;
 }
 .price-top h3 {
-  font-size: 15px;
+  font-size: 18px;
   margin-bottom: 0;
   font-weight: 650;
 }
 .price-top .eyebrow {
-  font-size: 9px;
+  font-size: 13px;
   margin: 0;
   letter-spacing: 1px;
 }
 .price {
-  font-size: 41px;
+  font-size: 46px;
   font-weight: 550;
   letter-spacing: -1.5px;
   line-height: 1.2;
   margin: 24px 0 12px;
 }
 .price span {
-  font-size: 13px;
+  font-size: 17px;
   color: var(--muted);
   letter-spacing: 0;
   font-weight: 400;
 }
 .price-card > p {
-  font-size: 13px;
+  font-size: 17px;
   color: var(--muted);
 }
 .price-card ul {
@@ -589,7 +589,7 @@ button:active,
   padding: 19px 0 0;
   margin: 20px 0 0;
   border-top: 1px solid var(--line);
-  font-size: 13px;
+  font-size: 17px;
   line-height: 2;
   color: var(--muted);
 }
@@ -599,7 +599,7 @@ button:active,
   margin-right: 10px;
 }
 .fine {
-  font-size: 11px;
+  font-size: 14px;
   color: var(--muted);
   line-height: 1.8;
 }
@@ -617,7 +617,7 @@ button:active,
   gap: 30px;
 }
 .privacy-note p {
-  font-size: 13px;
+  font-size: 17px;
   color: var(--muted);
   max-width: 640px;
   margin: 0;
@@ -635,14 +635,14 @@ button:active,
   gap: 30px;
 }
 .closing h2 {
-  font-size: 30px;
+  font-size: 34px;
   font-weight: 580;
   line-height: 1.2;
   letter-spacing: -0.8px;
   margin: 0 0 10px;
 }
 .closing p {
-  font-size: 13px;
+  font-size: 17px;
   color: #b6c3cc;
   margin: 0;
 }
@@ -659,7 +659,7 @@ button:active,
   gap: 30px;
 }
 .footer-top .brand {
-  font-size: 15px;
+  font-size: 18px;
   color: #e4ecf0;
 }
 .footer-links {
@@ -670,7 +670,7 @@ button:active,
 .footer-links a {
   color: #c7d2d9;
   text-decoration: none;
-  font-size: 12px;
+  font-size: 16px;
   min-height: 38px;
   display: inline-flex;
   align-items: center;
@@ -687,7 +687,7 @@ button:active,
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  font-size: 10px;
+  font-size: 14px;
   color: #9dadb7;
 }
 .footer-bottom p {
@@ -711,7 +711,7 @@ button:active,
   padding: 49px 0 54px;
 }
 .page-hero h1 {
-  font-size: 48px;
+  font-size: 54px;
   font-weight: 620;
   line-height: 1.1;
   letter-spacing: -1.7px;
@@ -719,17 +719,17 @@ button:active,
 }
 .page-hero p {
   max-width: 600px;
-  font-size: 15px;
+  font-size: 18px;
   color: #b9c6cf;
   margin: 0;
 }
 .page-hero .eyebrow {
-  font-size: 10px;
+  font-size: 14px;
   color: var(--cyan);
   margin-bottom: 18px;
 }
 .page-hero .updated {
-  font-size: 12px;
+  font-size: 16px;
   margin-top: 18px;
   color: #a5b5c0;
 }
@@ -749,7 +749,7 @@ button:active,
   align-self: start;
 }
 .content-nav p {
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 650;
   letter-spacing: 1.5px;
   text-transform: uppercase;
@@ -760,7 +760,7 @@ button:active,
   display: block;
   text-decoration: none;
   color: #53616b;
-  font-size: 12px;
+  font-size: 16px;
   line-height: 1.6;
   padding: 10px 12px;
   border-left: 2px solid #d5dfe5;
@@ -775,7 +775,7 @@ button:active,
   border-left-color: var(--teal);
 }
 .content-nav .nav-note {
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.8;
   letter-spacing: 0;
   font-weight: 400;
@@ -803,7 +803,7 @@ button:active,
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-  font-size: 11px;
+  font-size: 14px;
   margin-bottom: 17px;
 }
 .version-pill {
@@ -815,22 +815,22 @@ button:active,
   color: #006a7d;
   padding: 2px 8px;
   border-radius: 5px;
-  font-size: 10px;
+  font-size: 14px;
 }
 .release-meta time {
   color: #647580;
   margin-left: auto;
-  font-size: 11px;
+  font-size: 14px;
 }
 .release h2 {
-  font-size: 25px;
+  font-size: 29px;
   line-height: 1.25;
   letter-spacing: -0.7px;
   font-weight: 620;
   margin: 0 0 13px;
 }
 .release-summary {
-  font-size: 14px;
+  font-size: 18px;
   color: var(--muted);
   line-height: 1.8;
   margin: 0;
@@ -843,14 +843,14 @@ button:active,
 }
 .release-section h3,
 .release-media h3 {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 650;
   margin-bottom: 15px;
 }
 .app-store-notes {
   padding-left: 19px;
   margin: 0;
-  font-size: 13px;
+  font-size: 17px;
   color: var(--muted);
   line-height: 1.85;
 }
@@ -876,19 +876,19 @@ button:active,
   padding: 18px;
 }
 .highlight h4 {
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 620;
   line-height: 1.5;
   margin-bottom: 8px;
 }
 .highlight p {
-  font-size: 12px;
+  font-size: 16px;
   color: var(--muted);
   line-height: 1.75;
   margin-bottom: 10px;
 }
 .highlight .availability {
-  font-size: 11px;
+  font-size: 14px;
   color: #5b737e;
   margin-bottom: 0;
 }
@@ -901,7 +901,7 @@ button:active,
   padding-top: 20px;
 }
 .release-actions a {
-  font-size: 12px;
+  font-size: 16px;
   min-height: 36px;
   display: inline-flex;
   align-items: center;
@@ -926,18 +926,18 @@ button:active,
   max-height: 390px;
 }
 .media-copy {
-  font-size: 12px;
+  font-size: 16px;
   color: var(--muted);
 }
 .media-copy summary {
   cursor: pointer;
   padding: 10px 0;
   color: var(--teal);
-  font-size: 12px;
+  font-size: 16px;
   min-height: 44px;
 }
 .media-copy p {
-  font-size: 12px;
+  font-size: 16px;
   line-height: 1.8;
 }
 .transcript {
@@ -963,21 +963,21 @@ button:active,
   padding-bottom: 0;
 }
 .legal-document h2 {
-  font-size: 22px;
+  font-size: 25px;
   font-weight: 600;
   letter-spacing: -0.5px;
   line-height: 1.35;
   margin-bottom: 18px;
 }
 .legal-document h3 {
-  font-size: 15px;
+  font-size: 18px;
   line-height: 1.5;
   margin: 22px 0 12px;
   font-weight: 620;
 }
 .legal-document p,
 .legal-document li {
-  font-size: 14px;
+  font-size: 18px;
   color: var(--muted);
   line-height: 1.9;
 }
@@ -1028,13 +1028,13 @@ button:active,
   padding: 28px 30px;
 }
 .support-card h2 {
-  font-size: 18px;
+  font-size: 21px;
   font-weight: 600;
   letter-spacing: -0.35px;
   margin-bottom: 12px;
 }
 .support-card p {
-  font-size: 14px;
+  font-size: 18px;
   color: var(--muted);
   line-height: 1.8;
   margin-bottom: 0;
@@ -1051,7 +1051,7 @@ button:active,
 }
 .faq-section h2,
 .feedback-section h2 {
-  font-size: 25px;
+  font-size: 29px;
   font-weight: 600;
   letter-spacing: -0.65px;
   line-height: 1.3;
@@ -1061,7 +1061,7 @@ button:active,
   border-bottom: 1px solid var(--line);
 }
 .faq-item summary {
-  font-size: 14px;
+  font-size: 18px;
   line-height: 1.65;
   font-weight: 550;
   min-height: 64px;
@@ -1080,13 +1080,13 @@ button:active,
   content: "+";
   font-weight: 400;
   color: var(--teal);
-  font-size: 21px;
+  font-size: 24px;
 }
 .faq-item[open] summary:after {
   content: "−";
 }
 .faq-item p {
-  font-size: 13px;
+  font-size: 17px;
   color: var(--muted);
   line-height: 1.8;
   margin-bottom: 20px;
@@ -1099,7 +1099,7 @@ button:active,
   padding: 30px;
 }
 .feedback-section > p {
-  font-size: 13px;
+  font-size: 17px;
   color: var(--muted);
   line-height: 1.8;
 }
@@ -1111,7 +1111,7 @@ button:active,
 }
 .form-group label {
   display: block;
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
   margin-bottom: 8px;
 }
@@ -1125,7 +1125,7 @@ button:active,
   background: #fcfdfe;
   padding: 11px 12px;
   color: var(--ink);
-  font-size: 14px;
+  font-size: 18px;
   min-height: 46px;
 }
 .form-group textarea {
@@ -1145,7 +1145,7 @@ button:active,
   border-radius: 8px;
   padding: 12px;
   min-height: 48px;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 650;
 }
 .form-submit:hover {
@@ -1154,13 +1154,13 @@ button:active,
 .preview-note {
   border-left: 2px solid #6b9eac;
   padding: 7px 12px;
-  font-size: 11px !important;
+  font-size: 14px !important;
   color: #536c78 !important;
   background: #eef5f7;
   margin: 23px 0;
 }
 .form-message {
-  font-size: 13px;
+  font-size: 17px;
   color: #07586a;
   padding: 0;
   margin-top: 15px;
@@ -1173,14 +1173,14 @@ button:active,
   padding: 80px 20px;
 }
 .not-found h1 {
-  font-size: 40px;
+  font-size: 45px;
 }
 @media (min-width: 1500px) {
   .hero-grid {
     gap: 110px;
   }
   .hero-copy h1 {
-    font-size: 68px;
+    font-size: 72px;
   }
 }
 @media (max-width: 1050px) {
@@ -1191,13 +1191,13 @@ button:active,
     gap: 17px;
   }
   .brand {
-    font-size: 15px;
+    font-size: 18px;
   }
   .hero-grid {
     gap: 42px;
   }
   .hero-copy h1 {
-    font-size: 52px;
+    font-size: 58px;
   }
   .screen-shell {
     width: 228px;
@@ -1206,7 +1206,7 @@ button:active,
     padding: 20px;
   }
   .hero-intro {
-    font-size: 16px;
+    font-size: 19px;
   }
   .section-top {
     gap: 30px;
@@ -1242,7 +1242,7 @@ button:active,
     position: relative;
   }
   .brand {
-    font-size: 14px;
+    font-size: 18px;
     gap: 9px;
   }
   .brand img {
@@ -1287,27 +1287,27 @@ button:active,
     padding: 42px 0 35px;
   }
   .hero-copy h1 {
-    font-size: clamp(42px, 9vw, 60px);
+    font-size: clamp(46px, 10vw, 64px);
     letter-spacing: -1.9px;
     line-height: 1.08;
     max-width: 600px;
     margin-bottom: 23px;
   }
   .hero-intro {
-    font-size: 16px;
+    font-size: 19px;
     max-width: 540px;
     line-height: 1.8;
     margin-bottom: 25px;
   }
   .hero-copy .eyebrow {
-    font-size: 10px;
+    font-size: 14px;
     margin-bottom: 20px;
   }
   .hero-actions {
     gap: 20px;
   }
   .btn {
-    font-size: 13px;
+    font-size: 17px;
     padding: 12px 18px;
   }
   .feature-note {
@@ -1325,14 +1325,14 @@ button:active,
     width: 244px;
   }
   .stage-label {
-    font-size: 9px;
+    font-size: 13px;
     margin-bottom: 18px;
   }
   .screen-switcher {
     margin-top: 20px;
   }
   .screen-switcher button {
-    font-size: 11px;
+    font-size: 14px;
     padding: 8px;
   }
   .screen-switcher svg {
@@ -1340,7 +1340,7 @@ button:active,
     height: 14px;
   }
   .stage-caption {
-    font-size: 10px;
+    font-size: 14px;
   }
   .release-banner .wrap {
     align-items: flex-start;
@@ -1349,7 +1349,7 @@ button:active,
     flex-direction: column;
   }
   .release-banner p {
-    font-size: 12px;
+    font-size: 16px;
     line-height: 1.9;
   }
   .release-tag {
@@ -1366,13 +1366,13 @@ button:active,
     margin-bottom: 28px;
   }
   .section h2 {
-    font-size: 32px;
+    font-size: 36px;
     letter-spacing: -1px;
   }
   .section-top > p {
     max-width: 500px;
     margin-top: 19px;
-    font-size: 14px;
+    font-size: 18px;
   }
   .steps-grid {
     grid-template-columns: 1fr;
@@ -1385,7 +1385,7 @@ button:active,
     margin-bottom: 17px;
   }
   .step-card p {
-    font-size: 14px;
+    font-size: 18px;
   }
   .creator-inner {
     grid-template-columns: 1fr;
@@ -1393,11 +1393,11 @@ button:active,
     padding: 36px 0;
   }
   .creator-inner .eyebrow {
-    font-size: 10px;
+    font-size: 14px;
     margin-bottom: 10px;
   }
   .creator-inner blockquote {
-    font-size: 20px;
+    font-size: 23px;
     line-height: 1.65;
   }
   .price-grid {
@@ -1413,7 +1413,7 @@ button:active,
     gap: 12px;
   }
   .privacy-note p {
-    font-size: 12px;
+    font-size: 16px;
   }
   .closing {
     padding: 36px 0;
@@ -1424,7 +1424,7 @@ button:active,
     gap: 25px;
   }
   .closing h2 {
-    font-size: 27px;
+    font-size: 31px;
   }
   .footer-top {
     flex-direction: column;
@@ -1443,11 +1443,11 @@ button:active,
     padding: 37px 0 39px;
   }
   .page-hero h1 {
-    font-size: 38px;
+    font-size: 43px;
     letter-spacing: -1.2px;
   }
   .page-hero p {
-    font-size: 14px;
+    font-size: 18px;
   }
   .content-layout {
     grid-template-columns: 1fr;
@@ -1474,7 +1474,7 @@ button:active,
     white-space: nowrap;
     background: white;
     padding: 9px 12px;
-    font-size: 11px;
+    font-size: 14px;
     min-height: 40px;
   }
   .content-nav .nav-note {
@@ -1488,17 +1488,17 @@ button:active,
     padding: 24px 22px 21px;
   }
   .release h2 {
-    font-size: 23px;
+    font-size: 26px;
   }
   .release-meta {
     gap: 7px;
     margin-bottom: 15px;
   }
   .release-meta time {
-    font-size: 10px;
+    font-size: 14px;
   }
   .release-summary {
-    font-size: 13px;
+    font-size: 17px;
   }
   .release-body {
     padding: 22px;
@@ -1525,11 +1525,11 @@ button:active,
     border-radius: 12px;
   }
   .legal-document h2 {
-    font-size: 21px;
+    font-size: 24px;
   }
   .legal-document p,
   .legal-document li {
-    font-size: 14px;
+    font-size: 18px;
   }
   .legal-document .highlight-box {
     padding: 17px;
@@ -1551,7 +1551,7 @@ button:active,
   }
   .faq-section h2,
   .feedback-section h2 {
-    font-size: 24px;
+    font-size: 28px;
   }
   .feedback-section {
     padding: 24px;
@@ -1559,7 +1559,7 @@ button:active,
   .form-group input,
   .form-group select,
   .form-group textarea {
-    font-size: 16px;
+    font-size: 19px;
   }
   .site-footer {
     padding-top: 30px;
@@ -1648,4 +1648,67 @@ button:active,
 }
 #inside :focus-visible {
   outline-color: #00687d;
+}
+
+/* Larger type needs room in the app viewer and compact navigation. */
+.screen-shell {
+  max-width: 100%;
+}
+.screen-switcher {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.screen-switcher button {
+  min-height: 46px;
+}
+.stage-label {
+  gap: 16px;
+}
+.stage-label > span:last-child {
+  flex-shrink: 0;
+}
+@media (min-width: 781px) and (max-width: 1100px) {
+  .header-inner {
+    position: relative;
+  }
+  .menu-toggle {
+    display: block;
+  }
+  .site-nav {
+    display: none;
+    position: absolute;
+    top: 87px;
+    left: 0;
+    right: 0;
+    z-index: 5;
+    padding: 18px 20px 22px;
+    background: #161d22;
+    border: 1px solid #43525d;
+    border-radius: 0 0 10px 10px;
+    align-items: stretch;
+    gap: 2px;
+    flex-direction: column;
+  }
+  .site-nav[data-open="true"] {
+    display: flex;
+  }
+  .site-nav a {
+    padding: 7px 12px;
+    min-height: 48px;
+  }
+  .site-nav .nav-download {
+    margin: 9px 0 0;
+    background: var(--cyan);
+    border-color: var(--cyan);
+    color: #06252b;
+    justify-content: center;
+  }
+}
+@media (max-width: 420px) {
+  .site-header .brand {
+    font-size: 16px;
+  }
+  .menu-toggle {
+    padding-inline: 10px;
+  }
 }
