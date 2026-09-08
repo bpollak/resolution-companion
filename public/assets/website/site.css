@@ -233,7 +233,7 @@ button:active,
 }
 .hero-grid {
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   align-items: center;
   gap: 84px;
   padding: 58px 0 60px;
@@ -303,6 +303,9 @@ button:active,
   color: #f5f7f8;
 }
 .app-stage {
+  margin: 0;
+  container-type: inline-size;
+  min-width: 0;
   border: 1px solid #c5d4dd;
   background: #e6edf1;
   border-radius: 22px;
@@ -331,7 +334,7 @@ button:active,
   margin-right: 7px;
 }
 .screen-shell {
-  width: 248px;
+  width: 320px;
   border: 1px solid #5a656d;
   padding: 5px;
   background: #080909;
@@ -1200,7 +1203,7 @@ button:active,
     font-size: 58px;
   }
   .screen-shell {
-    width: 228px;
+    width: 280px;
   }
   .app-stage {
     padding: 20px;
@@ -1322,7 +1325,7 @@ button:active,
     padding: 19px 19px 16px;
   }
   .screen-shell {
-    width: 244px;
+    width: 300px;
   }
   .stage-label {
     font-size: 13px;
@@ -1650,15 +1653,18 @@ button:active,
   outline-color: #00687d;
 }
 
-/* Larger type needs room in the app viewer and compact navigation. */
+/* Keep the screen choices in one row as the app viewer narrows. */
 .screen-shell {
   max-width: 100%;
 }
 .screen-switcher {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .screen-switcher button {
+  min-width: 0;
+  white-space: nowrap;
+  padding-inline: 4px;
   min-height: 46px;
 }
 .stage-label {
@@ -1710,5 +1716,25 @@ button:active,
   }
   .menu-toggle {
     padding-inline: 10px;
+  }
+}
+
+@container (max-width: 380px) {
+  .screen-switcher svg {
+    display: none;
+  }
+}
+@container (max-width: 300px) {
+  .screen-switcher {
+    gap: 2px;
+  }
+  .screen-switcher button {
+    font-size: 14px;
+    padding-inline: 2px;
+  }
+}
+@media (max-width: 360px) {
+  .app-stage {
+    padding-inline: 12px;
   }
 }
