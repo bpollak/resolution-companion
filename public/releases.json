@@ -1,7 +1,7 @@
 [
   {
     "version": "1.4.1",
-    "status": "draft",
+    "status": "submitted",
     "title": "Resolution: Habit Tracker",
     "summary": "A clearer App Store listing for habit tracking, daily planning, and AI coaching.",
     "appStoreNotes": [
@@ -13,7 +13,8 @@
         "description": "Our updated App Store listing explains daily habit tracking, goal planning, and AI coaching.",
         "availability": "Available to everyone."
       }
-    ]
+    ],
+    "submittedAt": "2026-09-08"
   },
   {
     "version": "1.4.0",
