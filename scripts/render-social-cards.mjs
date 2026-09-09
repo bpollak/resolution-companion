@@ -11,15 +11,6 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const assets = path.join(root, "public/assets/website");
 const cards = [
   {
-    key: "home",
-    template: "landing-page",
-    label: "IDENTITY. ACTION. PROGRESS.",
-    heading: "Who you’re becoming.<br><em>One day at a time.</em>",
-    description: "Build a manageable plan.<br>Take the next small action.",
-    footer: "Free to begin · iPhone & iPad",
-    alt: "Resolution Companion: Who you’re becoming. One day at a time. A real app screen shows a reading habit and its two-minute alternative.",
-  },
-  {
     key: "release-notes",
     template: "release-notes",
     label: "PRODUCT UPDATES",
