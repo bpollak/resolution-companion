@@ -25,22 +25,19 @@ document.addEventListener("click", (event) => {
 });
 const screens = {
   today: {
-    caption: "Today: a clear next action.",
     alt: "Today screen with a sample reading plan and full and two-minute action controls",
   },
   journey: {
-    caption: "Journey: see how your plan fits.",
     alt: "Journey screen showing a sample reading habit, consistency, and calendar",
   },
   coach: {
-    caption: "Coach: talk through your next step.",
     alt: "Coach screen with a conversation entry point, monthly allowance, and weekly read",
   },
   plan: {
-    caption: "Plan: review your habits before you start.",
     alt: "Plan review showing a reading habit, daily schedule, two-minute alternative, and Start button",
   },
 };
+const screenStatus = document.getElementById("screen-status");
 let selection = 0;
 for (const button of document.querySelectorAll("[data-screen]"))
   button.addEventListener("click", async () => {
@@ -54,13 +51,17 @@ for (const button of document.querySelectorAll("[data-screen]"))
       if (token !== selection) return;
       document.getElementById("app-screen").src = src;
       document.getElementById("app-screen").alt = screens[key].alt;
-      document.getElementById("screen-caption").textContent =
-        screens[key].caption;
+      if (screenStatus) {
+        screenStatus.textContent = "";
+        screenStatus.hidden = true;
+      }
       for (const other of document.querySelectorAll("[data-screen]"))
         other.setAttribute("aria-pressed", String(other === button));
     } catch {
-      if (token === selection)
-        document.getElementById("screen-caption").textContent =
+      if (token === selection && screenStatus) {
+        screenStatus.textContent =
           "This screen could not load. Please try again.";
+        screenStatus.hidden = false;
+      }
     }
   });
