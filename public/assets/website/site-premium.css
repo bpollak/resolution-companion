@@ -81,8 +81,24 @@
   font-size: 20px;
   line-height: 1.7;
 }
+#inside .hero-actions {
+  gap: 14px;
+}
+#inside .hero-actions .btn,
+#inside .hero-actions .text-link {
+  min-height: 54px;
+}
 #inside .hero-actions .text-link {
   color: #ecf8fb;
+  padding: 12px 20px;
+  border: 1px solid #6d929e;
+  border-radius: 7px;
+  background: #092a35;
+  font-weight: 600;
+  line-height: 1.5;
+}
+#inside .hero-actions .text-link:hover {
+  background: #174653;
 }
 #inside .hero-fine {
   color: #c7dfe7 !important;
@@ -91,7 +107,18 @@
   color: #43e5f4;
 }
 #inside .feature-note {
-  border-top-color: #98c9d438;
+  display: block;
+  max-width: 450px;
+  margin-top: 28px;
+  padding: 17px 20px;
+  border: 0;
+  border-left: 2px solid #43e5f4;
+  border-radius: 0 8px 8px 0;
+  background: #08232fee;
+}
+#inside .feature-note strong {
+  display: inline-block;
+  margin-bottom: 3px;
 }
 #inside .feature-note p {
   color: #c7dfe7;
@@ -358,5 +385,30 @@
   #inside .stage-label {
     font-size: 11px;
     letter-spacing: 0.6px;
+  }
+}
+
+@media (max-width: 420px) {
+  #inside .hero-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  #inside .hero-actions .btn,
+  #inside .hero-actions .text-link {
+    font-size: 16px;
+    gap: 8px;
+    padding-inline: 10px;
+    justify-content: center;
+    white-space: nowrap;
+  }
+  #inside .hero-fine {
+    font-size: 15px;
+    line-height: 1.6;
+  }
+}
+@media (max-width: 360px) {
+  #inside .hero-actions {
+    grid-template-columns: 1fr;
   }
 }
