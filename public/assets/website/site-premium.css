@@ -306,6 +306,19 @@
     background: #123542;
     border-color: #4f7784;
   }
+  /* Keep the dropdown CTA's foreground and fill together in this layer. */
+  .site-nav .nav-download {
+    background: #43e5f4;
+    border-color: #43e5f4;
+    color: #06252b;
+    font-weight: 650;
+  }
+  .site-nav .nav-download:hover,
+  .site-nav .nav-download:focus-visible {
+    background: #90f4ff;
+    border-color: #90f4ff;
+    color: #06252b;
+  }
 }
 @media (max-width: 780px) {
   .hero-grid {
