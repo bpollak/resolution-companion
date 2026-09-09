@@ -1,0 +1,362 @@
+@font-face {
+  font-family: "Barlow Condensed";
+  src: url("./fonts/BarlowCondensed-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+:root {
+  --display: "Barlow Condensed", Impact, "Arial Narrow", sans-serif;
+}
+.site-header {
+  background: #10313c;
+  border-bottom-color: #ffffff18;
+}
+.site-header .brand {
+  letter-spacing: 0.1px;
+}
+.site-header .brand img {
+  box-shadow: 0 0 24px #00d9ff20;
+}
+.site-nav a {
+  color: #d4e4e9;
+}
+.site-nav .nav-download {
+  border-color: #5d8a97;
+  background: #ffffff06;
+}
+#inside.dark {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, #03151d99 0%, #03151d30 45%, #03151dc4 100%),
+    url("./hero-waves-v1.webp") center / cover no-repeat,
+    #031923;
+  color: #f7faf8;
+}
+#inside::before,
+.page-hero::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  background: url("./compass-watermark.svg") center / contain no-repeat;
+  width: 730px;
+  height: 730px;
+  right: 5%;
+  top: 75px;
+  opacity: 0.12;
+}
+.hero-grid {
+  padding-block: 60px 62px;
+  gap: 64px;
+}
+.hero-copy {
+  position: relative;
+  z-index: 1;
+}
+#inside .hero-copy h1 {
+  font-family: var(--display);
+  font-size: clamp(82px, 7.2vw, 104px);
+  font-weight: 700;
+  letter-spacing: -0.8px;
+  line-height: 0.95;
+  text-transform: uppercase;
+  margin-bottom: 30px;
+}
+#inside .hero-copy h1 span {
+  color: #43e5f4;
+  font-size: 0.79em;
+  display: inline-block;
+  line-height: 1.01;
+  margin-top: 9px;
+}
+#inside .hero-copy .eyebrow {
+  color: #9fdae6;
+  letter-spacing: 2.3px;
+}
+#inside .hero-intro {
+  color: #e0ebef;
+  font-size: 20px;
+  line-height: 1.7;
+}
+#inside .hero-actions .text-link {
+  color: #ecf8fb;
+}
+#inside .hero-fine {
+  color: #c7dfe7 !important;
+}
+#inside .hero-fine span {
+  color: #43e5f4;
+}
+#inside .feature-note {
+  border-top-color: #98c9d438;
+}
+#inside .feature-note p {
+  color: #c7dfe7;
+}
+#inside .feature-note strong {
+  color: #f5fafb;
+}
+#inside .note-icon {
+  color: #43e5f4;
+  border-color: #8ebdcb70;
+  background: #153c48;
+}
+#inside .app-stage {
+  background: transparent;
+  border: 0;
+  padding: 20px 24px 10px;
+  border-radius: 0;
+  perspective: 1400px;
+}
+#inside .stage-label {
+  color: #e4f1f5;
+  font-size: 13px;
+  letter-spacing: 1.7px;
+  margin-bottom: 30px;
+}
+#inside .stage-dot {
+  background: #43e5f4;
+  box-shadow: 0 0 12px #43e5f4;
+}
+#inside .screen-shell {
+  transform: rotateY(-8deg) rotateZ(4deg);
+  border: 2px solid #9dc3cc;
+  padding: 5px;
+  border-radius: 36px;
+  box-shadow:
+    2px 0 0 #e0f7fc,
+    8px 9px 0 #16303c,
+    20px 26px 32px #06182066,
+    0 0 70px #6fe8ff20;
+  margin: 8px 0 14px;
+}
+#inside .screen-shell img {
+  border-radius: 28px;
+}
+#inside .screen-switcher {
+  position: relative;
+  margin-top: 29px;
+  background: #0c2937;
+  border-color: #648f9d;
+  box-shadow: 0 7px 24px #051b3025;
+}
+#inside .screen-switcher button {
+  color: #d9eaf0;
+}
+#inside .screen-switcher button[aria-pressed="true"] {
+  color: #062832;
+  background: #43e5f4;
+}
+#inside .stage-caption {
+  color: #c7dfe7 !important;
+}
+#inside .stage-caption strong {
+  color: #eff9fb;
+}
+#inside :focus-visible {
+  outline-color: #90f4ff;
+}
+.btn-primary {
+  box-shadow: 0 5px 20px #00a5c41f;
+  border-radius: 7px;
+}
+.release-banner {
+  background: #e7f4f6;
+  border-bottom-color: #c7dee4;
+}
+.release-tag {
+  border-color: #8bbfc9;
+}
+.section h2,
+.page-hero h1,
+.closing h2 {
+  font-family: var(--display);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.3px;
+}
+.section h2 {
+  font-size: 54px;
+  line-height: 1.03;
+}
+.step-card,
+.price-card,
+.release,
+.legal-document {
+  border-color: #cddde2;
+  box-shadow: 0 8px 25px #173f4a06;
+}
+.step-card {
+  border-radius: 10px;
+  border-top: 3px solid #7aaeba;
+}
+.step-icon {
+  border: 1px solid #b6d6dd;
+  border-radius: 50%;
+  background: #edf7f8;
+}
+.step-top span {
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 700;
+  color: #456a77;
+}
+.price-card.premium {
+  border-color: #56aabc;
+  box-shadow: 0 8px 32px #007a910d;
+}
+.creator-band {
+  background: #e5eef1;
+  border-color: #ccdde3;
+}
+.creator-inner blockquote {
+  color: #244754;
+}
+.closing {
+  background:
+    radial-gradient(ellipse at right, #386b7a, transparent 65%), #12343f;
+  border-top: 1px solid #7198a2;
+}
+.closing h2 {
+  font-size: 44px;
+}
+.site-footer {
+  background: #10303a;
+  border-top-color: #62879544;
+}
+.page-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: linear-gradient(110deg, #153a47, #365f6e);
+  color: #f7faf8;
+  padding-block: 56px 62px;
+}
+.page-hero::before {
+  width: 470px;
+  height: 470px;
+  top: -70px;
+  right: 7%;
+  opacity: 0.11;
+}
+.page-hero h1 {
+  font-size: 72px;
+  line-height: 1.03;
+}
+.page-hero p {
+  color: #e0ecf1;
+  font-size: 20px;
+  max-width: 650px;
+}
+.page-hero .eyebrow {
+  color: #91e8f3;
+}
+.page-hero .updated {
+  color: #c5dfe8;
+}
+.release:first-child {
+  border-top-color: #16899f;
+}
+.content-nav a:hover {
+  background: #e3eff3;
+}
+@media (min-width: 781px) and (max-width: 1100px) {
+  .hero-grid {
+    gap: 36px;
+  }
+  #inside .hero-copy h1 {
+    font-size: 80px;
+  }
+  #inside .app-stage {
+    padding-inline: 16px;
+  }
+}
+@media (max-width: 1100px) {
+  .site-nav {
+    background: #123542;
+    border-color: #4f7784;
+  }
+}
+@media (max-width: 780px) {
+  .hero-grid {
+    gap: 38px;
+    padding-block: 42px 36px;
+  }
+  #inside.dark {
+    background:
+      linear-gradient(
+        180deg,
+        #041c26 0px,
+        #041c26 calc(100% - 940px),
+        #041c2640 calc(100% - 720px),
+        #041c2680 100%
+      ),
+      url("./hero-waves-v1.webp") right bottom / auto 1000px no-repeat,
+      #041c26;
+  }
+  #inside::before {
+    width: 560px;
+    height: 560px;
+    top: 600px;
+    right: -190px;
+    opacity: 0.13;
+  }
+  #inside .hero-copy h1 {
+    font-size: clamp(64px, 12vw, 90px);
+    line-height: 0.96;
+    letter-spacing: -0.4px;
+  }
+  #inside .hero-copy h1 span {
+    font-size: 0.82em;
+    max-width: 540px;
+  }
+  #inside .hero-intro {
+    font-size: 19px;
+  }
+  #inside .app-stage {
+    padding: 18px 16px 8px;
+  }
+  #inside .screen-shell {
+    transform: rotateZ(2deg);
+    margin-block: 8px 10px;
+  }
+  #inside .stage-label {
+    font-size: 12px;
+    letter-spacing: 1px;
+    margin-bottom: 22px;
+  }
+  .section h2 {
+    font-size: 44px;
+  }
+  .page-hero {
+    padding-block: 38px 43px;
+  }
+  .page-hero h1 {
+    font-size: 58px;
+  }
+  .page-hero p {
+    font-size: 19px;
+  }
+  .page-hero::before {
+    right: -170px;
+    opacity: 0.07;
+  }
+  .closing h2 {
+    font-size: 38px;
+  }
+}
+@media (max-width: 360px) {
+  #inside .hero-copy h1 {
+    font-size: 60px;
+  }
+  #inside .app-stage {
+    padding-inline: 12px;
+  }
+  #inside .stage-label {
+    font-size: 11px;
+    letter-spacing: 0.6px;
+  }
+}
