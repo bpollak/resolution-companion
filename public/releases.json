@@ -1,5 +1,35 @@
 [
   {
+    "version": "1.5.0",
+    "status": "draft",
+    "title": "Ready for your New Year",
+    "summary": "Say your resolution in your own words, plan it for January 1, and keep your real goal in view.",
+    "appStoreNotes": [
+      "Tell Coach your resolution in your own words, or tap a starter like Get fit or Save money.",
+      "Your plan keeps your real goal, like losing 15 pounds, right on Today.",
+      "Plan ahead: from mid-November you can start on January 1, with a countdown until then.",
+      "A clearer reminder setup, a roomier Coach that saves on its own, and a shareable card from your year.",
+      "Simpler words throughout, plus fixes to the calendar, the progress ring, and the launch screen."
+    ],
+    "highlights": [
+      {
+        "title": "Start with your resolution",
+        "description": "Coach starts from what you want this year and turns it into one small habit.",
+        "availability": "Available to everyone."
+      },
+      {
+        "title": "Plan it for January 1",
+        "description": "Set up your plan in December and start on New Year's Day. Nothing counts as missed before then.",
+        "availability": "Available to everyone from November 15."
+      },
+      {
+        "title": "Share your year",
+        "description": "Share a card of how often you showed up this year. The full story is part of Premium.",
+        "availability": "Opening card for everyone; full story with Premium."
+      }
+    ]
+  },
+  {
     "version": "1.4.1",
     "status": "submitted",
     "title": "Resolution: Habit Tracker",
