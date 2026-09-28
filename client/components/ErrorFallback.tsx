@@ -66,8 +66,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
         </ThemedText>
 
         <ThemedText type="body" style={styles.message}>
-          Your evolution journey hit an unexpected bump. Let&apos;s get you back
-          on track.
+          Something went wrong on our end. Let&apos;s get you back on track.
         </ThemedText>
 
         <Pressable

@@ -91,12 +91,12 @@ export default function ActionEditorScreen() {
     if (!isEditing && !canAddAction) {
       if (Platform.OS === "web") {
         window.alert(
-          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} actions per persona.`,
+          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} habits per plan.`,
         );
       } else {
         Alert.alert(
           "Action Limit Reached",
-          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} actions per persona.`,
+          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} habits per plan.`,
         );
       }
       navigation.goBack();
@@ -201,12 +201,9 @@ export default function ActionEditorScreen() {
 
     if (!canDeleteAction) {
       if (Platform.OS === "web") {
-        window.alert("Keep at least one action in each persona.");
+        window.alert("Keep at least one habit in each plan.");
       } else {
-        Alert.alert(
-          "Cannot Delete",
-          "Keep at least one action in each persona.",
-        );
+        Alert.alert("Cannot Delete", "Keep at least one habit in each plan.");
       }
       return;
     }
@@ -551,7 +548,7 @@ export default function ActionEditorScreen() {
                   },
                 ]}
               >
-                Keep at least one action in this persona
+                Keep at least one habit in this plan
               </ThemedText>
             ) : null}
           </View>

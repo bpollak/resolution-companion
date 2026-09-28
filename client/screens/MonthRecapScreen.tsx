@@ -196,7 +196,7 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
             </View>
           </View>
           <ThemedText style={styles.cardSub}>
-            You earned {recap.shieldsEarned} shield
+            You earned {recap.shieldsEarned} rest day
             {recap.shieldsEarned === 1 ? "" : "s"} by showing up: forgiveness as
             a reward, not an apology.
           </ThemedText>

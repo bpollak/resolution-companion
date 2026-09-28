@@ -135,7 +135,7 @@ function TomorrowLink({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`View ${count} ${count === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
+      accessibilityLabel={`View ${count} ${count === 1 ? "habit" : "habits"} planned for tomorrow in the calendar`}
       style={({ pressed }) => [
         styles.tomorrowLink,
         centered && styles.tomorrowLinkCentered,
@@ -144,7 +144,7 @@ function TomorrowLink({
     >
       <Feather name="calendar" size={16} color={theme.accent} />
       <ThemedText style={[styles.tomorrowLinkText, { color: theme.accent }]}>
-        {count} action{count !== 1 ? "s" : ""} tomorrow
+        {count} habit{count !== 1 ? "s" : ""} tomorrow
       </ThemedText>
       <Feather name="chevron-right" size={16} color={theme.accent} />
     </Pressable>
@@ -951,7 +951,7 @@ export default function TodayScreen() {
         ) {
           track("shield_used");
           setToastMessage(
-            "Your shield covered a missed day. Streak intact. That's what it was for. 🛡",
+            "An earned rest day covered a missed day. Your streak is safe.",
           );
           setToastVisible(true);
         } else if (
@@ -961,7 +961,7 @@ export default function TodayScreen() {
         ) {
           track("shield_earned");
           setToastMessage(
-            "Seven clean action-days earned you a shield. Grace, banked. 🛡",
+            "Seven days in a row earned you a rest day. Use it when life happens.",
           );
           setToastVisible(true);
         }
@@ -1328,7 +1328,7 @@ export default function TodayScreen() {
                 <ThemedText style={styles.noActionsText}>
                   {dailyLogs.length === 0
                     ? "Your plan is ready."
-                    : "No actions scheduled for today."}
+                    : "Nothing planned for today. Rest counts too."}
                 </ThemedText>
                 {nextDay ? (
                   <Pressable

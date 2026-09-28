@@ -79,11 +79,11 @@ const PROMPTS = {
 function originLabel(origin: CoachEntryOrigin): string {
   if (origin === "journey-discovery") return "Journey discovery";
   if (origin === "lapse-recovery") return "A gentler restart";
-  if (origin === "milestone") return "Milestone evidence";
+  if (origin === "milestone") return "Milestone progress";
   if (origin === "recap") return "Progress recap";
-  if (origin === "action") return "Action evidence";
+  if (origin === "action") return "Habit progress";
   if (origin === "today-signal") return "Today’s signal";
-  return "Your recent evidence";
+  return "Your recent progress";
 }
 
 function planFieldValue(
@@ -237,7 +237,7 @@ export default function CoachSheetScreen() {
             : completed === scheduled.length
               ? "Today’s plan is complete"
               : `${scheduled.length - completed} action${scheduled.length - completed === 1 ? "" : "s"} still available`,
-        detail: `${completed} of ${scheduled.length} scheduled actions completed today. This is evidence, not a grade.`,
+        detail: `${completed} of ${scheduled.length} scheduled actions completed today. It's a signal, not a grade.`,
         value: `${completed}/${scheduled.length}`,
         trend: "steady",
       };
@@ -264,7 +264,7 @@ export default function CoachSheetScreen() {
       headline:
         params.origin === "lapse-recovery"
           ? "The plan can bend"
-          : "Start with the evidence you already have",
+          : "Start from what you’ve already done",
       detail: `${persona?.name ?? "Who you’re becoming"} is at ${personaAlignment}% consistency this month. That number is a signal, not a grade.`,
       value: `${personaAlignment}%`,
       trend: "steady",

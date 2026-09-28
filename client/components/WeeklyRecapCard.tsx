@@ -33,7 +33,7 @@ export function WeeklyRecapCard({
   const scoreDelta = lastWeek.score - prevWeek.score;
 
   const streakLine = streak.shieldUsed
-    ? "Streak protected by your shield"
+    ? "Streak protected by an earned rest day"
     : streak.current > 0
       ? `${streak.current}-day streak alive`
       : "Fresh start this week";

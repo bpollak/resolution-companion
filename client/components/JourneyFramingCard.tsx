@@ -57,8 +57,8 @@ export function JourneyFramingCard({
         <Feather name="activity" size={20} color={theme.accent} />
       </View>
       <ThemedText style={[styles.explainer, { color: theme.textSecondary }]}>
-        Scheduled actions in the last 4 weeks. Your milestone progress stays
-        with you.
+        Planned days in the last 4 weeks. Your milestone progress stays with
+        you.
       </ThemedText>
       <View style={styles.rhythms}>
         {visibleRhythms.map((rhythm) => {

@@ -288,7 +288,7 @@ export function MilestoneCelebrationHost() {
   return (
     <MilestoneCompleteModal
       milestoneTitle={milestoneCelebration.title}
-      personaName={persona?.name ?? "your persona"}
+      personaName={persona?.name ?? "who you’re becoming"}
       rewardTitle={celebrationReward?.title}
       rewardDescription={celebrationReward?.description}
       proposal={proposal}

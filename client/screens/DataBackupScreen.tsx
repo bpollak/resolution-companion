@@ -189,9 +189,9 @@ export default function DataBackupScreen() {
           Your data, in your iCloud
         </ThemedText>
         <ThemedText style={[styles.body, { color: theme.textSecondary }]}>
-          Personas, actions, votes, and reflections are copied to your private
-          iCloud key-value store. Resolution Companion does not receive or read
-          the backup. Subscription and anonymous device identifiers are
+          Plans, habits, check-ins, and Coach sessions are copied to your
+          private iCloud key-value store. Resolution Companion does not receive
+          or read the backup. Subscription and anonymous device identifiers are
           excluded.
         </ThemedText>
       </View>

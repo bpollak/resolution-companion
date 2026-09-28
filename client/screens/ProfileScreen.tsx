@@ -510,20 +510,20 @@ export default function ProfileScreen() {
     if (personas.length <= 1) {
       if (Platform.OS === "web") {
         window.alert(
-          "You must have at least one persona. Create a new one first before deleting this one.",
+          "You need at least one plan. Create a new one before deleting this one.",
         );
       } else {
         Alert.alert(
           "Cannot Delete",
-          "You must have at least one persona. Create a new one first before deleting this one.",
+          "You need at least one plan. Create a new one before deleting this one.",
         );
       }
       return;
     }
 
     showAlert(
-      "Delete Persona",
-      `Delete "${name}"? This will also remove all benchmarks, actions, and logs for this persona.`,
+      "Delete plan",
+      `Delete "${name}"? This also removes its milestones, habits, and history.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -545,7 +545,7 @@ export default function ProfileScreen() {
   const handleClearData = () => {
     showAlert(
       "Clear All Data",
-      "This will permanently delete all your data including all personas, benchmarks, actions, and logs. This cannot be undone.",
+      "This will permanently delete all your data including all plans, milestones, habits, and history. This cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -722,7 +722,7 @@ export default function ProfileScreen() {
               <ThemedText
                 style={[styles.notOnboarded, { color: theme.textSecondary }]}
               >
-                Complete onboarding to define your persona
+                Make a plan to get started
               </ThemedText>
               <Pressable
                 onPress={() => navigation.navigate("Onboarding")}
@@ -749,15 +749,15 @@ export default function ProfileScreen() {
           {personas.length > 0 ? (
             <>
               <View style={styles.sectionHeader}>
-                <ThemedText style={styles.sectionTitle}>My Personas</ThemedText>
+                <ThemedText style={styles.sectionTitle}>My plans</ThemedText>
                 <Pressable
                   onPress={handleAddNewPersona}
                   hitSlop={10}
                   accessibilityRole="button"
                   accessibilityLabel={
                     canAddPersona()
-                      ? "Add a new persona"
-                      : "Upgrade to Premium to add more personas"
+                      ? "Add another plan"
+                      : "Premium lets you add more plans"
                   }
                   style={({ pressed }) => [
                     styles.addPersonaButton,
@@ -785,9 +785,9 @@ export default function ProfileScreen() {
                     onLongPress={() => handleDeletePersona(p.id, p.name)}
                     accessibilityRole="button"
                     accessibilityLabel={`${p.name}${
-                      p.id === persona?.id ? ", active persona" : ""
+                      p.id === persona?.id ? ", active plan" : ""
                     }`}
-                    accessibilityHint="Switches to this persona. Long press to delete."
+                    accessibilityHint="Switches to this plan. Long press to delete."
                     accessibilityState={{ selected: p.id === persona?.id }}
                     style={({ pressed }) => [
                       styles.personaItem,
@@ -841,7 +841,7 @@ export default function ProfileScreen() {
                         onPress={() => handleDeletePersona(p.id, p.name)}
                         hitSlop={14}
                         accessibilityRole="button"
-                        accessibilityLabel={`Delete persona ${p.name}`}
+                        accessibilityLabel={`Delete plan ${p.name}`}
                         style={({ pressed }) => [
                           { opacity: pressed ? 0.5 : 1 },
                         ]}

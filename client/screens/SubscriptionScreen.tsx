@@ -945,13 +945,13 @@ export default function SubscriptionScreen() {
             premium="Unlimited"
           />
           <CompareRow
-            title="Milestones per persona"
+            title="Milestones per plan"
             description="Add new milestones as your goals evolve"
             free="Starter set"
             premium="Unlimited"
           />
           <CompareRow
-            title="Streak shields"
+            title="Earned rest days"
             description="Rest days you've earned, so a miss doesn't break your run"
             free="1"
             premium="2"
@@ -969,7 +969,7 @@ export default function SubscriptionScreen() {
             premium="Included"
           />
           <CompareRow
-            title="Identity micro-reads"
+            title="Quick reads"
             description="60-second habit science, matched to your journey"
             free="Weekly"
             premium="Daily"

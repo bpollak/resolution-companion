@@ -423,9 +423,9 @@ export function reminderBody(hook: ReminderHook, options: ReminderOptions) {
       return `${actionLabel} moves ${goalLabel} forward today.`;
     }
     if (actionLabel && personaName) {
-      return `${actionLabel} is today's vote for ${personaName}.`;
+      return `${actionLabel} is today's step toward ${personaName}.`;
     }
-    if (actionLabel) return `${actionLabel} is today's next vote.`;
+    if (actionLabel) return `${actionLabel} is today's next step.`;
     if (personaName && monthlyConsistency !== undefined) {
       return `${personaName}: ${Math.round(monthlyConsistency)}% consistent this month. Today's next step is waiting.`;
     }

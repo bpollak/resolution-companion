@@ -168,7 +168,7 @@ export function DayCompleteCard({
         <Pressable
           onPress={onTomorrowPress}
           accessibilityRole="button"
-          accessibilityLabel={`View tomorrow's ${tomorrowCount} ${tomorrowCount === 1 ? "action" : "actions"} in the calendar`}
+          accessibilityLabel={`View tomorrow's ${tomorrowCount} ${tomorrowCount === 1 ? "habit" : "habits"} in the calendar`}
           style={({ pressed }) => [
             styles.tomorrowRow,
             { opacity: pressed ? 0.7 : 1 },
@@ -178,7 +178,7 @@ export function DayCompleteCard({
             style={[styles.tomorrowText, { color: theme.textSecondary }]}
             numberOfLines={1}
           >
-            Tomorrow: {tomorrowCount} action{tomorrowCount === 1 ? "" : "s"}
+            Tomorrow: {tomorrowCount} habit{tomorrowCount === 1 ? "" : "s"}
             {tomorrowFirstTitle ? ` · ${tomorrowFirstTitle}` : ""}
           </ThemedText>
           <Feather name="chevron-right" size={16} color={theme.accent} />

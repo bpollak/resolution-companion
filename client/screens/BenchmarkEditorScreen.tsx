@@ -219,12 +219,12 @@ export default function BenchmarkEditorScreen() {
     if (!canAddAction) {
       if (Platform.OS === "web") {
         window.alert(
-          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} actions per persona.`,
+          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} habits per plan.`,
         );
       } else {
         Alert.alert(
           "Action Limit Reached",
-          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} actions per persona.`,
+          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} habits per plan.`,
         );
       }
       return;
@@ -239,12 +239,9 @@ export default function BenchmarkEditorScreen() {
   const handleDeleteAction = (action: (typeof actions)[0]) => {
     if (!canDeleteAction) {
       if (Platform.OS === "web") {
-        window.alert("Keep at least one action in each persona.");
+        window.alert("Keep at least one habit in each plan.");
       } else {
-        Alert.alert(
-          "Cannot Delete",
-          "Keep at least one action in each persona.",
-        );
+        Alert.alert("Cannot Delete", "Keep at least one habit in each plan.");
       }
       return;
     }
@@ -453,7 +450,7 @@ export default function BenchmarkEditorScreen() {
                 accessibilityLabel={
                   canAddAction
                     ? "Add a new action"
-                    : "Action limit reached for this persona"
+                    : "Habit limit reached for this plan"
                 }
                 accessibilityState={{ disabled: !canAddAction }}
                 style={({ pressed }) => [
@@ -558,7 +555,7 @@ export default function BenchmarkEditorScreen() {
                       { color: theme.textSecondary },
                     ]}
                   >
-                    Keep at least one action in this persona
+                    Keep at least one habit in this plan
                   </ThemedText>
                 ) : null}
               </View>
@@ -632,8 +629,8 @@ export default function BenchmarkEditorScreen() {
               <ThemedText
                 style={[styles.minActionsHint, { color: theme.textSecondary }]}
               >
-                Keep at least one action in this persona. Add an action to
-                another milestone before deleting this one.
+                Keep at least one habit in this plan. Add an action to another
+                milestone before deleting this one.
               </ThemedText>
             ) : null}
           </View>

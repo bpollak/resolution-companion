@@ -212,7 +212,7 @@ function SelectedDateDetails({
         <ThemedText
           style={[styles.noActionsForDay, { color: theme.textSecondary }]}
         >
-          No actions scheduled
+          Nothing planned
         </ThemedText>
       ) : isFutureDate ? (
         <View style={styles.selectedDateActions}>
@@ -252,7 +252,7 @@ function SelectedDateDetails({
               { color: theme.textSecondary },
             ]}
           >
-            A look ahead. Log these actions on the day.
+            A look ahead. Check these off on the day.
           </ThemedText>
         </View>
       ) : (
@@ -278,8 +278,8 @@ function SelectedDateDetails({
                 accessibilityLabel={`${action.title}${benchmark ? `, ${benchmark.title}` : ""}`}
                 accessibilityHint={
                   completed
-                    ? "Marks this action as not done"
-                    : "Marks this action as done"
+                    ? "Marks this habit as not done"
+                    : "Marks this habit as done"
                 }
               >
                 <Feather
@@ -719,7 +719,7 @@ export default function JourneyScreen() {
         );
       }
     } catch {
-      showToast("Failed to update action", "warning");
+      showToast("Couldn’t update that habit. Try again.", "warning");
     }
   };
 
@@ -1074,7 +1074,7 @@ export default function JourneyScreen() {
                 <ThemedText
                   style={[styles.guideText, { color: theme.textSecondary }]}
                 >
-                  Each milestone now completes after 21 days of doing its action
+                  Each milestone now completes after 21 days of doing its habit
                   on schedule. Progress only fills up. It never goes backwards.
                 </ThemedText>
               </View>
@@ -1186,8 +1186,8 @@ export default function JourneyScreen() {
                 const statusLabel = !isAfterPersonaCreated
                   ? "before your plan started"
                   : dayInfo.totalCount === 0
-                    ? "no actions scheduled"
-                    : `${dayInfo.completedCount} of ${dayInfo.totalCount} action${dayInfo.totalCount === 1 ? "" : "s"} completed${isShielded ? ", streak protected by shield" : ""}`;
+                    ? "nothing planned"
+                    : `${dayInfo.completedCount} of ${dayInfo.totalCount} habit${dayInfo.totalCount === 1 ? "" : "s"} done${isShielded ? ", covered by an earned rest day" : ""}`;
 
                 return (
                   <Pressable
@@ -1325,7 +1325,7 @@ export default function JourneyScreen() {
                 <ThemedText
                   style={[styles.legendText, { color: theme.textSecondary }]}
                 >
-                  Shielded
+                  Covered
                 </ThemedText>
               </View>
             </View>
@@ -1380,7 +1380,7 @@ export default function JourneyScreen() {
               />
               <StatChip
                 icon={<Feather name="shield" size={14} color={theme.accent} />}
-                text={`${streak.shieldsAvailable}/${subscription.isPremium ? 2 : 1} shield${subscription.isPremium ? "s" : ""} ready`}
+                text={`${streak.shieldsAvailable}/${subscription.isPremium ? 2 : 1} rest day${subscription.isPremium ? "s" : ""} ready`}
               />
             </View>
 

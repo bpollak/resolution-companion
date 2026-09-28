@@ -300,7 +300,7 @@ export default function ReflectScreen() {
           <ThemedText
             style={[styles.scoreHint, { color: theme.textSecondary }]}
           >
-            Your coach starts with the evidence you have already recorded.
+            Coach starts from what you’ve already done.
           </ThemedText>
           <ThemedText style={[styles.sessionsCount, { color: theme.accent }]}>
             {subscription.isPremium
