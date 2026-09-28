@@ -92,7 +92,7 @@ Coach: "A ten-minute walk is a clear starting habit. Which days of the week fit 
 `
 }`;
 
-// The live API requires at least three proposals. Only the first is selected;
+// The live API requires exactly three proposals. Only the first is selected;
 // additional ideas stay optional until the person explicitly includes them.
 const EXTRACTION_PROMPT = `Based on this conversation, extract the user's goal and create their personalized action plan.
 
@@ -114,7 +114,7 @@ Return ONLY valid JSON in this exact format:
 }
 
 RULES:
-- Return between 3 and 5 benchmarks as required by the response schema. Put the user-chosen habit first; other suggestions are optional and unselected. Each is presented to the user as a milestone that completes once its action has been done on about 21 scheduled days, so make each a meaningful, achievable consistency target with ONE specific action.
+- Return exactly 3 benchmarks, as the response schema requires. Put the user-chosen habit first; other suggestions are optional and unselected. Each is presented to the user as a milestone that completes once its action has been done on about 21 scheduled days, so make each a meaningful, achievable consistency target with ONE specific action.
 - MILESTONE TITLES NAME PROGRESS, NOT THE ACTION AGAIN. Never repeat the action as the milestone title. Title the first milestone as the consistency target and, when the user named an outcome, tie it to that outcome with "toward": for example "21 evening walks toward losing 15 lb" or "21 nights of reading toward 20 books". Keep titles under 8 words and never promise the outcome itself.
 - "frequency" values MUST be exact weekday names from this set only: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday. Monthly or ordinal cadences ("First Thursday", "Last Tuesday", "every other week") are NOT supported. If a behavior would be occasional, schedule it weekly on one of the user's available days instead.
 - The user's explicit choices take priority over the assistant's suggestions or summaries. Keep their full action as the title; the small version belongs only in kickstartVersion, not as a replacement for the full action.

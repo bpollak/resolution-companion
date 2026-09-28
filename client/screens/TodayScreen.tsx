@@ -34,6 +34,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { useTheme } from "@/hooks/useTheme";
+import { useLocalDateKey } from "@/hooks/useLocalDateKey";
 import { useApp } from "@/context/AppContext";
 import {
   actionIsScheduledOnDate,
@@ -365,15 +366,16 @@ export default function TodayScreen() {
     answerReminderPrimer,
   } = useApp();
 
+  // Re-renders on a date change, so everything below that reads `today`
+  // follows it (including a January 1 plan flipping on at midnight).
+  const todayDateStr = useLocalDateKey();
   const today = new Date();
   // A plan set up ahead of time (for January 1) starts at its createdAt.
-  const planStartKey = getLocalDateString(today);
   const planStart = useMemo(() => {
     if (!persona?.createdAt) return null;
     const start = new Date(persona.createdAt);
-    // Keyed on today's date so an app left open overnight flips on Jan 1.
-    return getLocalDateString(start) > planStartKey ? start : null;
-  }, [persona?.createdAt, planStartKey]);
+    return getLocalDateString(start) > todayDateStr ? start : null;
+  }, [persona?.createdAt, todayDateStr]);
 
   const personaBenchmarkIds = useMemo(() => {
     return benchmarks
@@ -381,7 +383,6 @@ export default function TodayScreen() {
       .map((b) => b.id);
   }, [benchmarks, persona?.id]);
 
-  const todayDateStr = getLocalDateString(today);
   // Scheduled means the weekday matches AND the habit has started, so a plan
   // set up for January 1 shows nothing to check off (or miss) before then.
   const todayActions = useMemo(() => {

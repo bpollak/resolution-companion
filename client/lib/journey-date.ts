@@ -18,13 +18,25 @@ export function parseJourneyDate(value?: string): Date | null {
   return getLocalDateString(date) === value ? date : null;
 }
 
+// By index rather than toLocaleDateString(options), which Hermes on iOS can
+// return empty for when Intl data is absent — that would hide every habit.
+const WEEKDAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
+
 // Calendar history starts on the action's local creation day, including
 // a draft that was approved days after it was first written.
 export function actionIsScheduledOnDate(
   action: Pick<ElementalAction, "frequency" | "createdAt">,
   date: Date,
 ): boolean {
-  const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
+  const weekday = WEEKDAYS[date.getDay()];
   if (!action.frequency?.includes(weekday)) return false;
   const created = new Date(action.createdAt);
   return (
@@ -45,7 +57,7 @@ export function nextScheduledDay<
       now.getMonth(),
       now.getDate() + offset,
     );
-    const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
+    const weekday = WEEKDAYS[date.getDay()];
     const scheduled = actions.filter((action) =>
       action.createdAt
         ? actionIsScheduledOnDate(

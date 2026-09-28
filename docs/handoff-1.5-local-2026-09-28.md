@@ -55,6 +55,41 @@ tests pass. `npm run check:a11y` fails only on 5 website templates missing a
 skip link to `#main-content`; that already fails on `main`, is not in CI, and
 is not a 1.5 issue.
 
+## Review fixes on this branch (after the landing)
+
+A cloud review of the 1.5 changes, the client↔server seam, and the release
+tooling added one commit here:
+
+- **Today follows the date** (`client/hooks/useLocalDateKey.ts`): Today and
+  the tab bar now re-render at local midnight and when the app returns to the
+  foreground. Before, an app left in the background overnight kept
+  yesterday's date, so the morning's check-offs were logged to yesterday
+  (this bug is in live 1.4.1 too) and a January 1 plan didn't switch on until
+  something else re-rendered Today.
+- **Today tab badge** counts only habits that have started, so a January 1
+  plan doesn't show a badge in December.
+- **Journey → The Year You Became** opens last year in January only if it has
+  completed actions; a plan that started January 1 opens the current year
+  instead of an empty recap.
+- **Weekday lookup** in `lib/journey-date.ts` uses `getDay()` instead of
+  `toLocaleDateString(..., { weekday: "long" })`. 1.5's Today list now goes
+  through it, and Hermes can return an empty string there without Intl data,
+  which would hide every habit.
+- **Persona extraction prompt** asks for exactly 3 milestones, matching
+  `main`'s server schema, instead of "between 3 and 5".
+- **`sync-ios-build-number.mjs`** changes only the build number in `app.json`
+  instead of re-serializing it, which undid Prettier formatting and failed
+  `check:format` once committed.
+- Restored jest `roots` (so jest doesn't crawl `marketing/` and iCloud stubs),
+  removed the committed `qa/__pycache__/`, and fixed a stale widget comment.
+
+On the simulator, also check: the Today tab badge, and Journey → The Year You
+Became (it should open this year's story).
+
+Server-side fixes from the same review are in a separate draft PR against
+`main` (telemetry allowlist and anchorless plan tune-ups). They fix the live
+1.4.1 app too and don't block 1.5.
+
 ## Your next steps (Mac mini)
 
 1. **Work outside iCloud.** Clone fresh to `~/Developer/resolution-companion`
@@ -70,13 +105,23 @@ is not a 1.5 issue.
    reminder primer, one day-complete card, widget tip), Journey, the year card
    and teaser, the paywall (plans first), Coach (tall sheet, Done saves to Past
    Sessions). Compare with
-   `~/Documents/resolution-companion-1.5/build/verify-1.5/`. Maestro flows are
-   in `qa/`.
+   `~/Documents/resolution-companion-1.5/build/verify-1.5/`, which is inside
+   iCloud `~/Documents`: check it with `ls -lO` first, and copy it out (or
+   download it in Finder) if anything shows `dataless`, or reading it can hang
+   silently. Maestro flows are in `qa/`. The simulator build talks to the live
+   server (`EXPO_PUBLIC_DOMAIN=resolutioncompanion.com`), so its AI calls and
+   telemetry are real.
 4. Report to Brett, then **stop for his go** before step 5.
 5. **TestFlight (Brett's go only):** `npm run build:local:ios` then
-   `npm run submit:local:ios`. Note that `submit:local:ios` ends with
-   `release:mark-submitted`, which edits `public/releases.json`; commit that to
-   this branch, never `main`.
+   `npm run submit:local:ios`. `build:local:ios` bumps `ios.buildNumber` in
+   `app.json`; commit it to this branch. `submit:local:ios` ends with
+   `release:mark-submitted`, which marks 1.5.0 "submitted" in
+   `public/releases.json` and stamps `submittedAt` with today's date (it never
+   overwrites that date later). A TestFlight upload is not the App Review
+   submission (due Dec 5), so don't commit that change now:
+   `git checkout public/releases.json`. Run `npm run release:mark-submitted`
+   and commit it when 1.5 is actually submitted for review. Never commit to
+   `main`.
 
 ## Gates and don'ts
 

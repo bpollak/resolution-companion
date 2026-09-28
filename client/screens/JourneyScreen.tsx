@@ -737,6 +737,23 @@ export default function JourneyScreen() {
     [dailyLogs, personaActions],
   );
 
+  // In January the story worth sharing is the year just finished — unless
+  // there isn't one yet (a plan that started January 1), which would open an
+  // empty recap.
+  const recapYear = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    if (now.getMonth() !== 0) return year;
+    const actionIds = new Set(personaActions.map((a) => a.id));
+    const hadLastYear = dailyLogs.some(
+      (log) =>
+        log.status &&
+        actionIds.has(log.actionId) &&
+        log.logDate.startsWith(`${year - 1}-`),
+    );
+    return hadLastYear ? year - 1 : year;
+  }, [dailyLogs, personaActions]);
+
   const personaCreatedDate = useMemo(() => {
     if (!persona?.createdAt) return null;
     const date = new Date(persona.createdAt);
@@ -1432,18 +1449,13 @@ export default function JourneyScreen() {
                 title="The Year You Became"
                 subtitle={
                   subscription.isPremium
-                    ? `${new Date().getFullYear()} year-to-date story`
+                    ? recapYear === new Date().getFullYear()
+                      ? `${recapYear} year-to-date story`
+                      : `Your ${recapYear} story`
                     : "Your year so far, ready to share"
                 }
                 onPress={() =>
-                  navigation.navigate("YearRecap", {
-                    // In January the story worth sharing is the year just
-                    // finished, not the few days of the new one.
-                    year:
-                      new Date().getMonth() === 0
-                        ? new Date().getFullYear() - 1
-                        : new Date().getFullYear(),
-                  })
+                  navigation.navigate("YearRecap", { year: recapYear })
                 }
               />
               <JourneyTool

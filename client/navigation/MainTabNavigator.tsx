@@ -17,6 +17,8 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
+import { useLocalDateKey } from "@/hooks/useLocalDateKey";
+import { actionIsScheduledOnDate } from "@/lib/journey-date";
 import { Spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { ThemedText } from "@/components/ThemedText";
@@ -225,20 +227,20 @@ export default function MainTabNavigator() {
   // visible after the screen's own date header scrolls away. Formatted
   // manually rather than via toLocaleDateString(options), which Hermes on
   // iOS can return empty for when Intl data is absent.
+  const todayStr = useLocalDateKey();
   const todayLabel = useMemo(() => {
-    const now = new Date();
+    const now = new Date(`${todayStr}T12:00:00`);
     return `${DAYS_OF_WEEK[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}`;
-  }, []);
+  }, [todayStr]);
 
   // The badge is an invite, not a nag: it shows only before the first log of
   // the day, then hands off to the Today ring
   const { remainingTasksCount, hasLoggedToday } = useMemo(() => {
-    const today = new Date();
-    const dayOfWeek = DAYS_OF_WEEK[today.getDay()];
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-
+    // Same rule as Today: a habit that hasn't started (a January 1 plan set
+    // up in December) isn't due yet.
+    const today = new Date(`${todayStr}T12:00:00`);
     const todayActions = actions.filter((action) =>
-      action.frequency.includes(dayOfWeek),
+      actionIsScheduledOnDate(action, today),
     );
     const completedToday = dailyLogs.filter(
       (log) => log.logDate.split("T")[0] === todayStr && log.status,
@@ -255,7 +257,7 @@ export default function MainTabNavigator() {
         completedActionIds.has(action.id),
       ),
     };
-  }, [actions, dailyLogs]);
+  }, [actions, dailyLogs, todayStr]);
 
   const screenListeners = useMemo(
     () => ({
