@@ -18,11 +18,7 @@ import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { logger } from "@/lib/logger";
-import {
-  isHealthAvailable,
-  initHealth,
-  HEALTH_KIND_LABELS,
-} from "@/lib/health";
+import { initHealth, HEALTH_KIND_LABELS } from "@/lib/health";
 
 const DAYS = [
   "Monday",
@@ -411,10 +407,17 @@ export default function ActionEditorScreen() {
           </ThemedText>
         </View>
 
-        {isHealthAvailable() ? (
+        {Platform.OS === "ios" ? (
           <View style={styles.section}>
             <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
-              Auto-complete from Health
+              Apple Health
+            </ThemedText>
+            <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
+              Optional HealthKit integration. With your permission, Apple Health
+              activity can complete this habit when you open or return to the
+              app. Access is read-only; raw health records stay on this device
+              and are not sent to AI Coach. Select Off to disable it for this
+              habit.
             </ThemedText>
             <View style={styles.daysContainer}>
               {(
@@ -434,8 +437,8 @@ export default function ActionEditorScreen() {
                         const ok = await initHealth();
                         if (!ok) {
                           Alert.alert(
-                            "Health Unavailable",
-                            "Resolution Companion couldn't get access to Health data. You can grant access in Settings → Privacy → Health.",
+                            "Apple Health Unavailable",
+                            "Apple Health could not be opened on this device. You can manage this app's access in the Health app under your profile, Apps, then Resolution Companion. Manual habit tracking is always available.",
                           );
                           return;
                         }
@@ -446,8 +449,8 @@ export default function ActionEditorScreen() {
                     accessibilityState={{ selected }}
                     accessibilityLabel={
                       option.value === null
-                        ? "Health auto-complete off"
-                        : HEALTH_KIND_LABELS[option.value]
+                        ? "Apple Health auto-complete off"
+                        : `Apple Health: ${HEALTH_KIND_LABELS[option.value]}`
                     }
                     style={({ pressed }) => [
                       styles.dayButton,
@@ -475,8 +478,8 @@ export default function ActionEditorScreen() {
             </View>
             <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
               {healthAutoComplete
-                ? `${HEALTH_KIND_LABELS[healthAutoComplete]} completes this action automatically — the day is saved without opening the app.`
-                : "Let a workout, step total, or mindful session in Apple Health complete this action for you. Health data never leaves your phone."}
+                ? `${HEALTH_KIND_LABELS[healthAutoComplete]} today completes this habit on scheduled days when you open or return to the app.`
+                : "Off. This habit is completed by hand. You can change permissions in the Health app under your profile, Apps, then Resolution Companion."}
             </ThemedText>
           </View>
         ) : null}

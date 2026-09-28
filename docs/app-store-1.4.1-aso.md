@@ -1,5 +1,9 @@
 # App Store listing update: 1.4.1
 
+## September 9 resubmission
+
+The original build 95 was rejected under guideline 2.5.1. Build 98 fixes HealthKit discovery and identifies Apple Health in Settings and the habit editor. App Store Connect confirms the replacement is Waiting for Review with automatic release after approval. See [the rejection and resubmission record](app-store-1.4.1-healthkit-resubmission.md). The original September 8 submission record follows.
+
 Submitted September 8, 2026. App Store Connect confirms **1.4.1 Waiting for Review** and **1 Item Submitted**. Automatic release after approval is enabled.
 
 Review record: https://appstoreconnect.apple.com/apps/6757996708/distribution/reviewsubmissions/details/3b800ec2-3ef2-4c33-975c-34ee6f0aa23a

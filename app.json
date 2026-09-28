@@ -19,7 +19,7 @@
         ],
         "com.apple.developer.ubiquity-kvstore-identifier": "$(TeamIdentifierPrefix)com.resolutioncompanion.app"
       },
-      "buildNumber": "95",
+      "buildNumber": "98",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -97,7 +97,7 @@
       [
         "react-native-health",
         {
-          "healthSharePermission": "Resolution Companion reads workouts, steps, and mindful minutes — on this device only — to automatically complete matching daily actions so you never take a zero."
+          "healthSharePermission": "Resolution Companion reads workouts, steps, and mindful minutes \u2014 on this device only \u2014 to automatically complete matching daily actions so you never take a zero."
         }
       ],
       "./plugins/with-alternate-app-icons"
