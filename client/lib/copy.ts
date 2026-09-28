@@ -1,6 +1,17 @@
 // Small copy helpers shared by cards that stack a milestone label over a habit.
 
-const STOP = new Set(["a", "an", "the", "do", "to", "of", "and", "on", "for", "my"]);
+const STOP = new Set([
+  "a",
+  "an",
+  "the",
+  "do",
+  "to",
+  "of",
+  "and",
+  "on",
+  "for",
+  "my",
+]);
 
 function words(text: string): string[] {
   return text

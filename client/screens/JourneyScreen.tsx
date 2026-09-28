@@ -541,8 +541,8 @@ const MilestoneRow = React.memo(function MilestoneRow({
                         { color: theme.textSecondary },
                       ]}
                     >
-                      {formatScheduleDays(action.frequency)}. Each completed
-                      day fills this milestone
+                      {formatScheduleDays(action.frequency)}. Each completed day
+                      fills this milestone
                     </ThemedText>
                   </View>
                 </View>
@@ -1084,7 +1084,9 @@ export default function JourneyScreen() {
               <CircularProgress
                 progress={personaAlignment}
                 size={140}
-                label={new Date().toLocaleDateString("en-US", { month: "long" })}
+                label={new Date().toLocaleDateString("en-US", {
+                  month: "long",
+                })}
               />
               <ThemedText
                 style={[styles.alignmentHint, { color: theme.textSecondary }]}

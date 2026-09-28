@@ -11,8 +11,8 @@ describe("repeatsText", () => {
   });
 
   it("keeps a label that adds the real goal", () => {
-    expect(
-      repeatsText("Lose 15 lb", "Do a 20-minute walk after dinner"),
-    ).toBe(false);
+    expect(repeatsText("Lose 15 lb", "Do a 20-minute walk after dinner")).toBe(
+      false,
+    );
   });
 });

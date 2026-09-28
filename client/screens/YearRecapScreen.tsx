@@ -169,7 +169,10 @@ export default function YearRecapScreen() {
     await Share.share(
       Platform.OS === "ios"
         ? { url: uri }
-        : { url: uri, message: "The Year You Became, from Resolution Companion" },
+        : {
+            url: uri,
+            message: "The Year You Became, from Resolution Companion",
+          },
     );
     track("year_recap_shared");
   };

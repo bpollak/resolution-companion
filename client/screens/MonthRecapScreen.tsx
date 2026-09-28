@@ -197,8 +197,8 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
           </View>
           <ThemedText style={styles.cardSub}>
             You earned {recap.shieldsEarned} shield
-            {recap.shieldsEarned === 1 ? "" : "s"} by showing up: forgiveness
-            as a reward, not an apology.
+            {recap.shieldsEarned === 1 ? "" : "s"} by showing up: forgiveness as
+            a reward, not an apology.
           </ThemedText>
         </>
       );
@@ -311,7 +311,10 @@ export default function MonthRecapScreen() {
       await Share.share(
         Platform.OS === "ios"
           ? { url: uri }
-          : { message: "My month in review, from Resolution Companion", url: uri },
+          : {
+              message: "My month in review, from Resolution Companion",
+              url: uri,
+            },
       );
       track("recap_shared");
     } catch (error) {

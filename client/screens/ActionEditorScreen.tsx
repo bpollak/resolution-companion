@@ -406,8 +406,8 @@ export default function ActionEditorScreen() {
             maxLength={100}
           />
           <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
-            Attach this action to a habit you already have. Doing it right
-            after something automatic makes it far easier to remember
+            Attach this action to a habit you already have. Doing it right after
+            something automatic makes it far easier to remember
           </ThemedText>
         </View>
 
