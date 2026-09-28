@@ -377,7 +377,16 @@ export function OnboardingPlanReview({
               showIdeas
                 ? "Hide other ideas"
                 : `See ${optionalCount} other idea${optionalCount === 1 ? "" : "s"}`,
-              () => setShowIdeas(!showIdeas),
+              () => {
+                const opening = !showIdeas;
+                setShowIdeas(opening);
+                // The revealed ideas land below the fold; bring them into view.
+                if (opening)
+                  setTimeout(
+                    () => scrollRef.current?.scrollToEnd({ animated: true }),
+                    80,
+                  );
+              },
               showIdeas,
             )
           : null}

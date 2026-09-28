@@ -420,7 +420,7 @@ export default function ReflectScreen() {
               <ThemedText
                 style={[styles.microNoteHint, { color: theme.textSecondary }]}
               >
-                A new read every week — daily with Premium.
+                A new read every week, or daily with Premium.
               </ThemedText>
             ) : null}
           </>

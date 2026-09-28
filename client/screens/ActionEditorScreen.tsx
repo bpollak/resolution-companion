@@ -379,7 +379,7 @@ export default function ActionEditorScreen() {
           />
           <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
             On low-energy days, do this ~2-minute version instead of the full
-            action. It still counts — showing up is what builds the habit.
+            action. It still counts. Showing up is what builds the habit.
           </ThemedText>
         </View>
 
@@ -406,7 +406,7 @@ export default function ActionEditorScreen() {
             maxLength={100}
           />
           <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
-            Attach this action to a habit you already have — doing it right
+            Attach this action to a habit you already have. Doing it right
             after something automatic makes it far easier to remember
           </ThemedText>
         </View>
@@ -475,7 +475,7 @@ export default function ActionEditorScreen() {
             </View>
             <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
               {healthAutoComplete
-                ? `${HEALTH_KIND_LABELS[healthAutoComplete]} completes this action automatically — the day is saved without opening the app.`
+                ? `${HEALTH_KIND_LABELS[healthAutoComplete]} completes this action automatically, so the day is saved without opening the app.`
                 : "Let a workout, step total, or mindful session in Apple Health complete this action for you. Health data never leaves your phone."}
             </ThemedText>
           </View>

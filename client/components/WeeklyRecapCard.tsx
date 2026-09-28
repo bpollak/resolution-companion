@@ -40,7 +40,7 @@ export function WeeklyRecapCard({
 
   const identityLine =
     prevWeek.scheduled > 0 && scoreDelta < 0
-      ? `New week, fresh start — every completion builds evidence for ${personaName}.`
+      ? `New week, fresh start. Every day you show up counts for ${personaName}.`
       : `Another week of becoming ${personaName}.`;
 
   return (

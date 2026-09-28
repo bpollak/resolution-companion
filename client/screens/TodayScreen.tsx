@@ -770,7 +770,7 @@ export default function TodayScreen() {
           currentAlignment;
         const variants = [`${personaName} in action ✓`];
         if (delta > 0) variants.push(`Consistency +${delta}%`);
-        variants.push(`${remaining} to go — ring's filling up`);
+        variants.push(`${remaining} to go. The ring is filling up`);
         setToastMessage(variants[toastVariantRef.current % variants.length]);
         toastVariantRef.current += 1;
         setToastVisible(true);
@@ -877,7 +877,7 @@ export default function TodayScreen() {
       }
       Alert.prompt(
         currentNote ? "Edit your note" : "How did it go?",
-        "One line for future you — your coach reads these too.",
+        "One line for future you. Your coach reads these too.",
         [
           { text: "Cancel", style: "cancel" },
           { text: "Save", onPress: (text?: string) => save(text ?? "") },
@@ -941,7 +941,7 @@ export default function TodayScreen() {
         ) {
           track("shield_used");
           setToastMessage(
-            "Your shield covered a missed day — streak intact. That's what it was for. 🛡",
+            "Your shield covered a missed day. Streak intact. That's what it was for. 🛡",
           );
           setToastVisible(true);
         } else if (

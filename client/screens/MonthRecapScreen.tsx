@@ -152,7 +152,7 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
             {recap.comeback.gapDays} days away
           </ThemedText>
           <ThemedText style={styles.cardSub}>
-            Coming back is the whole skill. Streaks are easy — returns are rare.
+            Coming back is the whole skill. Streaks are easy. Returns are rare.
           </ThemedText>
         </>
       ) : (
@@ -197,7 +197,7 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
           </View>
           <ThemedText style={styles.cardSub}>
             You earned {recap.shieldsEarned} shield
-            {recap.shieldsEarned === 1 ? "" : "s"} by showing up — forgiveness
+            {recap.shieldsEarned === 1 ? "" : "s"} by showing up: forgiveness
             as a reward, not an apology.
           </ThemedText>
         </>
@@ -311,7 +311,7 @@ export default function MonthRecapScreen() {
       await Share.share(
         Platform.OS === "ios"
           ? { url: uri }
-          : { message: "My month in review — Resolution Companion", url: uri },
+          : { message: "My month in review, from Resolution Companion", url: uri },
       );
       track("recap_shared");
     } catch (error) {

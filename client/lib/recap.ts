@@ -234,11 +234,11 @@ export function buildMonthRecap(
 
   let closingLine: string;
   if (votesCast === 0) {
-    closingLine = `A quiet month. The slate is clean — any day can be day one.`;
+    closingLine = `A quiet month. The slate is clean. Any day can be day one.`;
   } else if (comeback) {
     closingLine = `You came back after ${comeback.gapDays} days away. That's the whole skill. Still becoming ${personaName}.`;
   } else if (consistency >= 80) {
-    closingLine = `${votesCast} actions completed at ${consistency}%. ${personaName} isn't a goal anymore — it's a habit.`;
+    closingLine = `${votesCast} actions completed at ${consistency}%. ${personaName} isn't a goal anymore. It's a habit.`;
   } else {
     closingLine = `${votesCast} actions completed for ${personaName}. Every one of them counted.`;
   }

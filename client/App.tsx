@@ -2,8 +2,11 @@ import React from "react";
 import { StyleSheet } from "react-native";
 import * as Linking from "expo-linking";
 import {
+  DarkTheme,
+  DefaultTheme,
   NavigationContainer,
   type LinkingOptions,
+  type Theme as NavigationTheme,
 } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -22,6 +25,48 @@ import { OfflineBanner } from "@/components/OfflineBanner";
 import { MilestoneCelebrationHost } from "@/components/MilestoneCompleteModal";
 import { AppProvider } from "@/context/AppContext";
 import { ThemeProvider, useThemeMode } from "@/context/ThemeContext";
+
+// Navigation's default theme paints a white background, which flashed on
+// launch before the first screen rendered on the dark-first app.
+function useNavigationTheme(): NavigationTheme {
+  const { theme, isDark } = useThemeMode();
+  return React.useMemo(() => {
+    const base = isDark ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        background: theme.backgroundRoot,
+        card: theme.backgroundRoot,
+        primary: theme.accent,
+      },
+    };
+  }, [isDark, theme]);
+}
+
+function ThemedRoot({ children }: { children: React.ReactNode }) {
+  const { theme } = useThemeMode();
+  return (
+    <GestureHandlerRootView
+      style={[styles.root, { backgroundColor: theme.backgroundRoot }]}
+    >
+      {children}
+    </GestureHandlerRootView>
+  );
+}
+
+function ThemedNavigation({ children }: { children: React.ReactNode }) {
+  const navigationTheme = useNavigationTheme();
+  return (
+    <NavigationContainer
+      ref={navigationRef}
+      linking={linking}
+      theme={navigationTheme}
+    >
+      {children}
+    </NavigationContainer>
+  );
+}
 
 function ThemedStatusBar() {
   const { isDark } = useThemeMode();
@@ -52,18 +97,18 @@ export default function App() {
         <ThemeProvider>
           <AppProvider>
             <SafeAreaProvider>
-              <GestureHandlerRootView style={styles.root}>
+              <ThemedRoot>
                 <KeyboardProvider>
-                  <NavigationContainer ref={navigationRef} linking={linking}>
+                  <ThemedNavigation>
                     <OfflineBanner />
                     <RootStackNavigator />
                     {/* Milestone celebrations overlay whichever screen the
                         completion flip happened on */}
                     <MilestoneCelebrationHost />
-                  </NavigationContainer>
+                  </ThemedNavigation>
                   <ThemedStatusBar />
                 </KeyboardProvider>
-              </GestureHandlerRootView>
+              </ThemedRoot>
             </SafeAreaProvider>
           </AppProvider>
         </ThemeProvider>

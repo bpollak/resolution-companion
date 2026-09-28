@@ -38,7 +38,7 @@ export function buildWitnessCelebration(
   consistency: number,
 ): string {
   const identity = persona?.name ?? "the person I'm becoming";
-  const greeting = witnessName.trim() ? `Hi ${witnessName.trim()} — ` : "";
+  const greeting = witnessName.trim() ? `Hi ${witnessName.trim()}, ` : "";
   const actionWord = votesCast === 1 ? "action" : "actions";
-  return `${greeting}a small celebration from Resolution Companion: I completed ${votesCast} ${actionWord} for ${identity} this week (${consistency}% consistency). No fixing needed — I just wanted someone in my corner to witness the progress.`;
+  return `${greeting}a small celebration from Resolution Companion: I completed ${votesCast} ${actionWord} for ${identity} this week (${consistency}% consistency). No fixing needed. I just wanted someone in my corner to witness the progress.`;
 }

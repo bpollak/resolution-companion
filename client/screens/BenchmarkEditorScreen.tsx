@@ -432,7 +432,7 @@ export default function BenchmarkEditorScreen() {
             </View>
           ) : (
             <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
-              A gentle aim, not a deadline — progress never resets
+              A gentle aim, not a deadline. Progress never resets
             </ThemedText>
           )}
         </View>

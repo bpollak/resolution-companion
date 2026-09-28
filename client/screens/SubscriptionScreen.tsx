@@ -60,15 +60,15 @@ const SOURCE_CONTEXT: Record<
   },
   "milestone-proposal": {
     icon: "flag",
-    text: "Your next milestone is ready — Premium lets you add it while keeping the full proposal visible first.",
+    text: "Your next milestone is ready. Premium lets you add it while keeping the full proposal visible first.",
   },
   "milestone-limit": {
     icon: "flag",
-    text: "Your starter milestones are set — Premium lets you add new ones as your goals evolve.",
+    text: "Your starter milestones are set. Premium lets you add new ones as your goals evolve.",
   },
   insights: {
     icon: "bar-chart-2",
-    text: "Insights show when you show up best and the one thing to protect — Premium unlocks the full panel.",
+    text: "Insights show when you show up best and the one thing to protect. Premium unlocks the full panel.",
   },
   "year-recap": {
     icon: "award",
@@ -952,7 +952,7 @@ export default function SubscriptionScreen() {
           />
           <CompareRow
             title="Streak shields"
-            description="Missed days bridged — extra grace, earned by consistency"
+            description="Rest days you've earned, so a miss doesn't break your run"
             free="1"
             premium="2"
           />
@@ -1098,7 +1098,7 @@ export default function SubscriptionScreen() {
             >
               {selectedPlan === "lifetime"
                 ? "Honest pricing, no dark patterns. One payment, no subscription, no automatic renewal."
-                : `Honest pricing, no dark patterns. Cancel anytime in ${Platform.OS === "ios" ? "Settings" : "Google Play"} — you keep Premium until your period ends.`}
+                : `Honest pricing, no dark patterns. Cancel anytime in ${Platform.OS === "ios" ? "Settings" : "Google Play"}. You keep Premium until your period ends.`}
             </ThemedText>
           </View>
         )}

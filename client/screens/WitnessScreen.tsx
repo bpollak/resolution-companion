@@ -102,7 +102,7 @@ export default function WitnessScreen() {
       <ThemedText style={[styles.intro, { color: theme.textSecondary }]}>
         Choose one trusted person who can celebrate progress with you. Nothing
         is sent automatically. There are no feeds, rankings, consequences, or
-        shared accounts—you choose every message in the system share sheet.
+        shared accounts. You choose every message in the system share sheet.
       </ThemedText>
 
       <ThemedText style={styles.label}>Witness name</ThemedText>

@@ -28,7 +28,7 @@ const DISCLOSURE_ITEMS: DisclosureItem[] = [
   {
     icon: "send",
     title: "What is shared",
-    text: "The messages you type in AI conversations — your goals, check-in answers, and replies — are sent to generate coaching responses.",
+    text: "The messages you type in AI conversations (your goals, check-in answers, and replies) are sent to generate coaching responses.",
   },
   {
     icon: "cpu",

@@ -129,11 +129,14 @@ export function computeTodaySignal(input: {
   }
   if (pending.length === 0) {
     const headline = `${personaName} showed up today`;
-    const detail = `You completed all ${todayActions.length} scheduled action${todayActions.length === 1 ? "" : "s"}. That is real evidence, banked.`;
+    const detail =
+      todayActions.length === 1
+        ? "You did today’s habit. That counts."
+        : `You did all ${todayActions.length} habits planned for today. That counts.`;
     return {
       id: `complete-${todayKey}`,
       kind: "complete",
-      eyebrow: "Today’s evidence",
+      eyebrow: "Done for today",
       headline,
       detail,
       coachPrompt: "Help me reflect on what made today work.",

@@ -413,7 +413,7 @@ export function reminderBody(hook: ReminderHook, options: ReminderOptions) {
     if (firstAction?.kickstartVersion) {
       return `Your ${goalLabel ? `${goalLabel} ` : ""}plan can bend: ${truncateReminderText(firstAction.kickstartVersion)} still counts today.`;
     }
-    return "Rough couple of days? Your plan can bend — the 2-minute version still counts.";
+    return "Rough couple of days? Your plan can bend. The 2-minute version still counts.";
   }
   if (hook === "momentum") {
     if (actionLabel && goalLabel && personaName) {
@@ -439,7 +439,7 @@ export function reminderBody(hook: ReminderHook, options: ReminderOptions) {
       const extra = remainingActions.length - 1;
       return `Coach's nudge${goalLabel ? ` for ${goalLabel}` : ""}: ${actionLabel}${extra > 0 ? ` and ${extra} more are` : " is"} still open.`;
     }
-    return "Two minutes with your coach keeps the plan honest — drop in whenever.";
+    return "Two minutes with your coach keeps the plan honest. Drop in whenever.";
   }
   if (actionLabel) {
     const extra = remainingActions.length - 1;

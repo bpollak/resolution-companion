@@ -465,7 +465,7 @@ const MilestoneRow = React.memo(function MilestoneRow({
             ]}
           >
             {completed
-              ? "Complete — habit locked in"
+              ? "Complete. Habit locked in"
               : `${daysDone} of ${target} days done${(() => {
                   const countdown = formatTargetCountdown(benchmark.targetDate);
                   return countdown ? ` · ${countdown}` : "";
@@ -541,7 +541,7 @@ const MilestoneRow = React.memo(function MilestoneRow({
                         { color: theme.textSecondary },
                       ]}
                     >
-                      {formatScheduleDays(action.frequency)} — each completed
+                      {formatScheduleDays(action.frequency)}. Each completed
                       day fills this milestone
                     </ThemedText>
                   </View>
@@ -1075,7 +1075,7 @@ export default function JourneyScreen() {
                   style={[styles.guideText, { color: theme.textSecondary }]}
                 >
                   Each milestone now completes after 21 days of doing its action
-                  on schedule. Progress only fills up — it never goes backwards.
+                  on schedule. Progress only fills up. It never goes backwards.
                 </ThemedText>
               </View>
             ) : null}
@@ -1084,13 +1084,13 @@ export default function JourneyScreen() {
               <CircularProgress
                 progress={personaAlignment}
                 size={140}
-                label={`${new Date().toLocaleDateString("en-US", { month: "long" })} Consistency`}
+                label={new Date().toLocaleDateString("en-US", { month: "long" })}
               />
               <ThemedText
                 style={[styles.alignmentHint, { color: theme.textSecondary }]}
               >
-                % of scheduled actions completed so far this month — fresh start
-                on the 1st
+                Share of this month&apos;s planned days you showed up. Fresh
+                start on the 1st.
               </ThemedText>
             </View>
 
@@ -1175,8 +1175,15 @@ export default function JourneyScreen() {
                   month: "long",
                   day: "numeric",
                 });
-                const statusLabel =
-                  dayInfo.totalCount === 0
+                // Days before the plan existed (and padding days from other
+                // months) are blank, not rest days: nothing was planned yet.
+                const isRestDay =
+                  dayInfo.totalCount === 0 &&
+                  dayInfo.isCurrentMonth &&
+                  isAfterPersonaCreated;
+                const statusLabel = !isAfterPersonaCreated
+                  ? "before your plan started"
+                  : dayInfo.totalCount === 0
                     ? "no actions scheduled"
                     : `${dayInfo.completedCount} of ${dayInfo.totalCount} action${dayInfo.totalCount === 1 ? "" : "s"} completed${isShielded ? ", streak protected by shield" : ""}`;
 
@@ -1243,7 +1250,7 @@ export default function JourneyScreen() {
                       isPartial ||
                       isMissed ||
                       isShielded ||
-                      dayInfo.totalCount === 0 ? (
+                      isRestDay ? (
                         <View
                           style={[
                             styles.shieldBadge,

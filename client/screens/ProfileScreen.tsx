@@ -425,7 +425,7 @@ export default function ProfileScreen() {
         const proceed = await new Promise<boolean>((resolve) => {
           Alert.alert(
             "Daily Reminders",
-            `Resolution Companion will send one reminder at ${resolved.label} on days you haven't finished your actions — it stays quiet once your day is complete. You can turn this off anytime.`,
+            `Resolution Companion will send one reminder at ${resolved.label} on days you haven't finished your habits. It stays quiet once your day is complete. You can turn this off anytime.`,
             [
               {
                 text: "Not Now",
@@ -608,12 +608,12 @@ export default function ProfileScreen() {
               await clearAllData();
               if (Platform.OS === "web") {
                 window.alert(
-                  "Local data deleted. Server data deletion may have failed — please contact support if needed.",
+                  "Local data deleted. Server data deletion may have failed. Please contact support if needed.",
                 );
               } else {
                 Alert.alert(
                   "Partial Deletion",
-                  "Local data deleted. Server data deletion may have failed — please contact support if needed.",
+                  "Local data deleted. Server data deletion may have failed. Please contact support if needed.",
                 );
               }
             }
@@ -930,7 +930,7 @@ export default function ProfileScreen() {
               onPress={() =>
                 Alert.alert(
                   "Log from your Home Screen",
-                  "Touch and hold your Home or Lock Screen, tap +, and search for Resolution Companion to add the “Take the Next Step” widget.\n\nSiri works too — try “Log my kickstart in Resolution Companion.”",
+                  "Touch and hold your Home or Lock Screen, tap +, and search for Resolution Companion to add the “Take the Next Step” widget.\n\nSiri works too. Try “Log my kickstart in Resolution Companion.”",
                   [{ text: "Got it" }],
                 )
               }
@@ -1030,7 +1030,7 @@ export default function ProfileScreen() {
                   : notificationsEnabled && reminderTime
                     ? `Personalized reminder at ${reminderTime.label}${
                         reminderTime.source === "routine"
-                          ? " — based on your routine"
+                          ? ", based on your routine"
                           : ""
                       } · quiet once your day is done`
                     : notificationsEnabled
@@ -1149,8 +1149,8 @@ export default function ProfileScreen() {
                 ]}
               >
                 {aiConsent
-                  ? "On — chat messages are sent to OpenAI"
-                  : "Off — AI coaching disabled"}
+                  ? "On. Chat messages are sent to OpenAI"
+                  : "Off. AI coaching is turned off"}
               </ThemedText>
             </View>
             <Switch
@@ -1219,7 +1219,7 @@ export default function ProfileScreen() {
             <ThemedText
               style={[styles.detailBody, { color: theme.textSecondary }]}
             >
-              Completed milestones unlock personalization rewards — a theme, an
+              Completed milestones unlock personalization rewards: a theme, an
               accent, a coach voice, celebrations, and an app icon.
             </ThemedText>
           </View>

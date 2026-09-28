@@ -169,7 +169,7 @@ export default function YearRecapScreen() {
     await Share.share(
       Platform.OS === "ios"
         ? { url: uri }
-        : { url: uri, message: "The Year You Became — Resolution Companion" },
+        : { url: uri, message: "The Year You Became, from Resolution Companion" },
     );
     track("year_recap_shared");
   };
@@ -213,8 +213,8 @@ export default function YearRecapScreen() {
           </View>
           <ThemedText style={styles.gateTitle}>A Premium story</ThemedText>
           <ThemedText style={[styles.gateBody, { color: theme.textSecondary }]}>
-            Your whole year of votes — the rhythm, the comebacks, the person
-            they add up to — told as a shareable story.
+            Your whole year of showing up: the rhythm, the comebacks, and the
+            person it all adds up to, told as a story you can share.
           </ThemedText>
           <Pressable
             onPress={() =>

@@ -16,6 +16,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import type { ElementalAction, DailyLog } from "@/lib/storage";
+import { repeatsText } from "@/lib/copy";
 
 const springConfig = {
   damping: 12,
@@ -116,7 +117,7 @@ export const ActionCard = React.memo(function ActionCard({
         },
       ]}
     >
-      {benchmarkTitle ? (
+      {benchmarkTitle && !repeatsText(benchmarkTitle, action.title) ? (
         <ThemedText style={[styles.benchmark, { color: theme.accent }]}>
           {benchmarkTitle}
         </ThemedText>

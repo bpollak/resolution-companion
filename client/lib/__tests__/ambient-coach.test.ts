@@ -113,3 +113,32 @@ describe("ambient coach signals", () => {
     ).toBe("next-action");
   });
 });
+
+describe("day-complete copy", () => {
+  const base = {
+    personaName: "Consistent Mover",
+    todayKey: "2026-09-28",
+    missedDays: 0,
+  };
+
+  it("speaks naturally about a single habit", () => {
+    const signal = computeTodaySignal({
+      ...base,
+      todayActions: [action("a")],
+      completedActionIds: new Set(["a"]),
+    });
+    expect(signal.detail).toBe("You did today’s habit. That counts.");
+    expect(signal.detail).not.toMatch(/all 1 /);
+  });
+
+  it("counts several habits in plain words", () => {
+    const signal = computeTodaySignal({
+      ...base,
+      todayActions: [action("a"), action("b")],
+      completedActionIds: new Set(["a", "b"]),
+    });
+    expect(signal.detail).toBe(
+      "You did all 2 habits planned for today. That counts.",
+    );
+  });
+});

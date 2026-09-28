@@ -156,9 +156,10 @@ export function DayCompleteCard({
           {new Date().toLocaleDateString("en-US", { month: "long" })}{" "}
           consistency: {momentum}%
         </ThemedText>
-        {momentumDelta > 0 ? (
+        {/* On the first day the whole score is today's, so a "+100" reads as noise. */}
+        {momentumDelta > 0 && momentumDelta < momentum ? (
           <ThemedText style={[styles.momentumDelta, { color: theme.success }]}>
-            +{momentumDelta} today
+            Up {momentumDelta} points today
           </ThemedText>
         ) : null}
       </View>
