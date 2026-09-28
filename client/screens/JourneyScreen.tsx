@@ -1161,7 +1161,9 @@ export default function JourneyScreen() {
                   dayInfo.isCurrentMonth &&
                   isAfterPersonaCreated;
                 const statusLabel = !isAfterPersonaCreated
-                  ? "before your plan started"
+                  ? dayInfo.date > new Date()
+                    ? "before your plan starts"
+                    : "before your plan started"
                   : dayInfo.totalCount === 0
                     ? "nothing planned"
                     : `${dayInfo.completedCount} of ${dayInfo.totalCount} habit${dayInfo.totalCount === 1 ? "" : "s"} done${isShielded ? ", covered by an earned rest day" : ""}`;
@@ -1435,7 +1437,12 @@ export default function JourneyScreen() {
                 }
                 onPress={() =>
                   navigation.navigate("YearRecap", {
-                    year: new Date().getFullYear(),
+                    // In January the story worth sharing is the year just
+                    // finished, not the few days of the new one.
+                    year:
+                      new Date().getMonth() === 0
+                        ? new Date().getFullYear() - 1
+                        : new Date().getFullYear(),
                   })
                 }
               />

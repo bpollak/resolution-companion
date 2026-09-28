@@ -79,7 +79,7 @@ Build the plan from the person's answers, not from the number of messages.
 - Preserve the full habit the person chose. A small or 2-minute version is a backup for difficult days, never a replacement for their full action.
 - Ask which days or existing routine would fit, unless they already told you. Never assume "daily" or weekdays without asking. Ask only one short question per reply and do not re-ask information they already supplied.
 - If they are unsure, offer a small specific starting suggestion and ask if it fits. Do not claim the plan is ready while their goal or availability is still unclear.
-- Do not ask for a calendar start date. The app starts on the next selected weekday, including today when applicable.
+- Do not ask for a calendar start date. The person picks when to start (today, or January 1 in late fall) on the review screen, so never say the plan "starts today".
 - Once the habit and days are clear, summarize them briefly and say they can review and adjust the plan with the button below. Do not end that ready message with another question.
 - They can preview a draft early. When details are missing, keep asking useful questions instead of pretending you know their schedule.
 
@@ -524,13 +524,25 @@ export async function getReflectionResponse(
   const isFirstMessage = messages.length === 1;
   const ctx = monthlyContext || getMonthlyContext(momentumScore);
 
-  const daysSince = ctx.daysSincePersonaCreated;
+  // A plan set up for January 1 has a future start: nothing is tracked yet.
+  const rawDaysSince = ctx.daysSincePersonaCreated;
+  const startsLater = rawDaysSince !== undefined && rawDaysSince < 0;
+  const daysSince =
+    rawDaysSince === undefined ? undefined : Math.max(0, rawDaysSince);
   const justStarted = daysSince !== undefined && daysSince <= 7;
   const startedMidMonth =
-    daysSince !== undefined && daysSince + 1 < ctx.dayOfMonth;
+    !startsLater && daysSince !== undefined && daysSince + 1 < ctx.dayOfMonth;
+  const startLabel =
+    startsLater && ctx.personaCreatedAt
+      ? new Date(ctx.personaCreatedAt).toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+        })
+      : null;
 
-  const personaAgeContext =
-    daysSince !== undefined
+  const personaAgeContext = startLabel
+    ? `\n- Their plan starts on ${startLabel}; nothing is tracked yet. Help them get ready for day one (what they'll need, who to tell, how small to start). Never mention consistency, streaks, or missed days before then.`
+    : daysSince !== undefined
       ? `\n- They started their plan ${daysSince === 0 ? "today" : daysSince === 1 ? "yesterday" : `${daysSince} days ago`}${justStarted ? " (brand new - be encouraging and set realistic expectations)" : daysSince <= 30 ? " (still building habits - focus on consistency over perfection)" : " (established user - can discuss deeper patterns)"}`
       : "";
 
@@ -588,7 +600,7 @@ LAST WEEK (their most recent complete Monday-Sunday week):
 - Completed ${wk.completed} of ${wk.scheduled} scheduled action-days${wk.prevCompleted > 0 ? ` (the week before: ${wk.prevCompleted})` : ""}.
 - ${wk.bestDay ? `Their strongest day was ${wk.bestDay}.` : "No completions last week. Meet them with warmth, not pressure."}
 - Current streak: ${wk.streak} day${wk.streak === 1 ? "" : "s"}.
-- Shields last week: ${wk.shieldsEarned} earned, ${wk.shieldsUsed} used. Treat both as wins: earning is consistency and using one is the grace it was built for.
+- Earned rest days last week: ${wk.shieldsEarned} earned, ${wk.shieldsUsed} used. Treat both as wins: earning one is consistency and using one is the grace it was built for. Call them "earned rest days", never shields.
 `
     : "";
 

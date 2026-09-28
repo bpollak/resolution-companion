@@ -35,7 +35,11 @@ import Animated, {
 
 import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
-import { tomorrowDateKey, nextScheduledDay } from "@/lib/journey-date";
+import {
+  actionIsScheduledOnDate,
+  tomorrowDateKey,
+  nextScheduledDay,
+} from "@/lib/journey-date";
 import { computeMomentumScore } from "@/lib/progress";
 import {
   suppressReminderForToday,
@@ -362,13 +366,14 @@ export default function TodayScreen() {
   } = useApp();
 
   const today = new Date();
-  const dayOfWeek = today.toLocaleDateString("en-US", { weekday: "long" });
   // A plan set up ahead of time (for January 1) starts at its createdAt.
+  const planStartKey = getLocalDateString(today);
   const planStart = useMemo(() => {
     if (!persona?.createdAt) return null;
     const start = new Date(persona.createdAt);
-    return start.getTime() > Date.now() ? start : null;
-  }, [persona?.createdAt]);
+    // Keyed on today's date so an app left open overnight flips on Jan 1.
+    return getLocalDateString(start) > planStartKey ? start : null;
+  }, [persona?.createdAt, planStartKey]);
 
   const personaBenchmarkIds = useMemo(() => {
     return benchmarks
@@ -376,13 +381,15 @@ export default function TodayScreen() {
       .map((b) => b.id);
   }, [benchmarks, persona?.id]);
 
+  const todayDateStr = getLocalDateString(today);
+  // Scheduled means the weekday matches AND the habit has started, so a plan
+  // set up for January 1 shows nothing to check off (or miss) before then.
   const todayActions = useMemo(() => {
+    const day = new Date(`${todayDateStr}T12:00:00`);
     return actions
       .filter((action) => personaBenchmarkIds.includes(action.benchmarkId))
-      .filter((action) => action.frequency.includes(dayOfWeek));
-  }, [actions, personaBenchmarkIds, dayOfWeek]);
-
-  const todayDateStr = getLocalDateString(today);
+      .filter((action) => actionIsScheduledOnDate(action, day));
+  }, [actions, personaBenchmarkIds, todayDateStr]);
   const nextDay = useMemo(
     () =>
       nextScheduledDay(
@@ -834,15 +841,15 @@ export default function TodayScreen() {
 
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowDayOfWeek = tomorrow.toLocaleDateString("en-US", {
-    weekday: "long",
-  });
 
   const tomorrowActions = useMemo(() => {
+    const day = new Date(
+      `${tomorrowDateKey(new Date(`${todayDateStr}T12:00:00`))}T12:00:00`,
+    );
     return actions
       .filter((action) => personaBenchmarkIds.includes(action.benchmarkId))
-      .filter((action) => action.frequency.includes(tomorrowDayOfWeek));
-  }, [actions, personaBenchmarkIds, tomorrowDayOfWeek]);
+      .filter((action) => actionIsScheduledOnDate(action, day));
+  }, [actions, personaBenchmarkIds, todayDateStr]);
 
   const todayRows = useMemo(
     () => [
@@ -1212,7 +1219,7 @@ export default function TodayScreen() {
 
             {/* On a finished day the DayCompleteCard carries the moment; a
                 second "done" card only pushed the widget tip off screen. */}
-            {todayActions.length > 0 && !dayComplete ? (
+            {todayActions.length > 0 && !dayComplete && !planStart ? (
               <TodaySignalCard
                 signal={todaySignal}
                 completed={completedTodayCount}
@@ -1304,11 +1311,7 @@ export default function TodayScreen() {
                 ) : null}
               </>
             ) : planStart ? (
-              <PlanCountdownCard
-                start={planStart}
-                firstAction={actions[0]}
-                resolution={persona.resolution}
-              />
+              <PlanCountdownCard start={planStart} firstAction={actions[0]} />
             ) : todayActions.length === 0 ? (
               <View
                 style={[

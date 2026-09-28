@@ -90,26 +90,51 @@ export function getPlanIssue(draft: OnboardingPlanDraft): PlanIssue | null {
   return null;
 }
 
-const RESOLUTION_LEADS =
-  /^(?:(?:um|so|well|ok|okay)[,\s]+)*(?:i\s+(?:really\s+)?(?:want|would like|'d like|need|hope|plan|am going|'m going)\s+to\s+|i\s+wanna\s+|my\s+(?:new year'?s\s+)?(?:resolution|goal)\s+(?:is|for\s+\S+\s+is)\s+(?:to\s+)?|to\s+)/i;
+const APOSTROPHE = "['’]";
+const RESOLUTION_LEADS = new RegExp(
+  "^(?:(?:um|so|well|ok|okay|honestly)[,\\s]+)*" +
+    "(?:" +
+    `i\\s*(?:really\\s+)?(?:want|would\\s+like|${APOSTROPHE}d\\s+like|need|hope|plan|am\\s+going|${APOSTROPHE}m\\s+going|will|${APOSTROPHE}ll)\\s+to\\s+` +
+    "|i\\s+wanna\\s+" +
+    `|my\\s+(?:new\\s+year${APOSTROPHE}?s\\s+)?(?:resolution|goal)\\s+(?:is|for\\s+\\S+\\s+is)\\s+(?:to\\s+)?` +
+    ")",
+  "i",
+);
+const GREETING = /^(?:hi|hey|hello|yo|sup|ok|okay|thanks|thank you)[.!]?$/i;
 
 /**
- * Turns the person's first answer into a short resolution line: "I want to get
- * in shape this year and lose about 15 pounds" -> "Get in shape this year and
+ * Turns the person's answer into a short resolution line: "I want to get in
+ * shape this year and lose about 15 pounds" -> "Get in shape this year and
  * lose about 15 pounds". Keeps their words; only trims the lead-in.
  */
 export function deriveResolution(message: string | undefined): string {
   const text = (message ?? "").replace(/\s+/g, " ").trim();
-  if (!text) return "";
-  const firstSentence = text.split(/(?<=[.!?])\s/)[0] ?? text;
+  if (!text || GREETING.test(text)) return "";
+  // Split only at a sentence end followed by a capital ("lbs. by March" stays).
+  const firstSentence = text.split(/(?<=[.!?])\s+(?=[A-Z])/)[0] ?? text;
   const trimmed = firstSentence
     .replace(RESOLUTION_LEADS, "")
-    .replace(/[.!?]+$/, "")
+    .replace(/[!?]+$/, "")
+    .replace(/(?<!\b[a-z]{2,4})\.$/i, "")
     .trim();
   if (!trimmed) return "";
   const clipped =
     trimmed.length > 90 ? `${trimmed.slice(0, 87).trimEnd()}...` : trimmed;
   return clipped.charAt(0).toUpperCase() + clipped.slice(1);
+}
+
+/**
+ * Which user message states the resolution. A one-tap starter ("Get fit")
+ * followed by a specific outcome ("lose 15 pounds by June") should keep the
+ * specific one.
+ */
+export function pickResolutionMessage(userMessages: string[]): string {
+  const [first = "", ...rest] = userMessages;
+  const isShort = first.trim().split(/\s+/).length <= 3;
+  const specific = rest
+    .slice(0, 2)
+    .find((message) => /\d/.test(message) && deriveResolution(message));
+  return isShort && specific ? specific : first;
 }
 
 /**

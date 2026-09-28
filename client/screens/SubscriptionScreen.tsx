@@ -72,7 +72,7 @@ const SOURCE_CONTEXT: Record<
   },
   "year-recap": {
     icon: "award",
-    text: "“The Year You Became” is a Premium story built from your whole year of showing up.",
+    text: "The full “The Year You Became” story is part of Premium: your rhythm, your comebacks, and how the year closes.",
   },
 };
 
@@ -1048,7 +1048,7 @@ export default function SubscriptionScreen() {
           </View>
 
           <CompareRow
-            title="Personas"
+            title="Plans"
             description={"Every identity you’re building, side by side"}
             free="1"
             premium="Unlimited"
@@ -1092,8 +1092,8 @@ export default function SubscriptionScreen() {
           <CompareRow
             title={"“The Year You Became”"}
             description="Your year, told as a story worth sharing"
-            free="—"
-            premium="Included"
+            free="1 card"
+            premium="Full story"
           />
           <CompareRow
             title="Daily action tracking"

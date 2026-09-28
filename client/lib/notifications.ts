@@ -383,8 +383,8 @@ export function reminderTitle(options: ReminderOptions): string {
   if (count > 1 && goalTitles.length > 1) {
     return `${count} steps toward your goals`;
   }
-  if (count === 1) return "One action left today";
-  if (count > 1) return `${count} actions left today`;
+  if (count === 1) return "One habit left today";
+  if (count > 1) return `${count} habits left today`;
   return "Resolution Companion";
 }
 
@@ -533,6 +533,16 @@ function reminderPlanSignature(
   });
 }
 
+/** Earliest habit start (ms), or null when there are no habits. */
+export function earliestActionStart(
+  actions: { createdAt?: string }[] | undefined,
+): number | null {
+  const starts = (actions ?? [])
+    .map((action) => new Date(action.createdAt ?? "").getTime())
+    .filter((time) => Number.isFinite(time));
+  return starts.length > 0 ? Math.min(...starts) : null;
+}
+
 export async function scheduleDailyReminder(
   options: ReminderOptions = {},
 ): Promise<string | null> {
@@ -551,7 +561,14 @@ export async function scheduleDailyReminder(
 
     if (options.actions && options.dailyLogs) {
       const now = new Date();
-      const firstDay = new Date(options.startDate ?? now);
+      // A plan set up ahead (January 1) has nothing to remind about until its
+      // habits start, so the rolling window opens on the earliest start.
+      const firstDay = new Date(
+        Math.max(
+          (options.startDate ?? now).getTime(),
+          earliestActionStart(options.actions) ?? 0,
+        ),
+      );
       firstDay.setHours(0, 0, 0, 0);
       for (let offset = 0; offset < REMINDER_HORIZON_DAYS; offset++) {
         const day = new Date(firstDay);

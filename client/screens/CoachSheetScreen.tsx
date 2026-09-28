@@ -144,6 +144,9 @@ export default function CoachSheetScreen() {
   const [saved, setSaved] = useState(false);
   const [detentIndex, setDetentIndex] = useState(1);
   const savedRef = useRef(false);
+  // After a failed save, closing again leaves without saving instead of
+  // retrying forever and trapping the sheet open.
+  const saveFailedRef = useRef(false);
   const countedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<ScrollView>(null);
@@ -638,8 +641,9 @@ export default function CoachSheetScreen() {
       navigation.goBack();
     } catch (error) {
       logger.warn("Coaching session could not be saved:", error);
+      saveFailedRef.current = true;
       setReplyError(
-        "Your conversation is still here. Saving failed; please tap Save to retry.",
+        "Couldn’t save this conversation. Tap Done to try again, or close to leave without saving.",
       );
     } finally {
       savingRef.current = false;
@@ -663,6 +667,11 @@ export default function CoachSheetScreen() {
         return;
       }
       if (savedRef.current || saved || messages.length === 0) return;
+      if (saveFailedRef.current) {
+        stopReply(true);
+        savedRef.current = true;
+        return;
+      }
       // Closing saves the conversation; asking Save/Discard/Keep talking was
       // one more decision at the moment someone just wanted to leave.
       event.preventDefault();

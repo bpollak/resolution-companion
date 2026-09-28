@@ -2,6 +2,7 @@ import {
   approvePlan,
   daysUntil,
   deriveResolution,
+  pickResolutionMessage,
   newYearStartOption,
   planStartInstant,
   type OnboardingPlanDraft,
@@ -50,6 +51,35 @@ describe("deriveResolution", () => {
     );
     expect(deriveResolution("x".repeat(200)).length).toBeLessThanOrEqual(90);
     expect(deriveResolution("   ")).toBe("");
+  });
+});
+
+describe("deriveResolution with everyday phrasing", () => {
+  it.each([
+    ["I'd like to read more", "Read more"],
+    ["I’d like to read more", "Read more"],
+    ["I'm going to run a 5k", "Run a 5k"],
+    ["My New Year’s resolution is to save $5,000", "Save $5,000"],
+    [
+      "To be honest, I want to sleep more",
+      "To be honest, I want to sleep more",
+    ],
+    ["Lose 15 lbs. by March", "Lose 15 lbs. by March"],
+    ["hi", ""],
+  ])("%s -> %s", (input, expected) => {
+    expect(deriveResolution(input)).toBe(expected);
+  });
+
+  it("prefers a specific outcome after a one-tap starter", () => {
+    expect(pickResolutionMessage(["Get fit", "Lose 15 pounds by June"])).toBe(
+      "Lose 15 pounds by June",
+    );
+    expect(
+      pickResolutionMessage(["I want to run a marathon", "3 days a week"]),
+    ).toBe("I want to run a marathon");
+    expect(pickResolutionMessage(["Save money", "Weekdays"])).toBe(
+      "Save money",
+    );
   });
 });
 

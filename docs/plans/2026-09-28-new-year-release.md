@@ -115,3 +115,25 @@ Android release, new premium features, pricing changes, account system.
   folder). The iCloud mirror hangs on read, so those are reconciled later from the work Mac.
 - Before any TestFlight build, Brett chooses the single source of truth and the branch is pushed to
   GitHub so the app code stops living only on one machine.
+
+## Review round 1 (2026-09-28, independent report-only review)
+
+No high-severity findings. Fixed:
+- Today only schedules habits that have started (a January 1 plan shows the countdown, not
+  checkable rows); tomorrow's list follows the same rule; countdown flips at local midnight.
+- Coach gets a "plan starts on X" context instead of a negative day count.
+- Reminders open their 14-day window on the plan's start, so a December-made plan still gets
+  its January 1 reminder.
+- A failed Coach save no longer traps the sheet: the next close leaves without saving.
+- Habits added before the start date start with the plan.
+- `deriveResolution` handles curly apostrophes, "I'd like to", "I'm going to", abbreviations,
+  greetings; a one-tap starter followed by a specific outcome keeps the specific one.
+- "Review my plan" appears only once Coach stops asking; "Something else" starter added.
+- Leftover jargon (paywall Plans row, Coach's rest-day wording, year card), January opens last
+  year's story, pricing cohort ignores future start dates.
+
+Decisions recorded:
+- "Not now" on the reminder primer is remembered (no nagging); Profile still turns reminders on.
+- The free year card is available all year (it's the person's own data), not only Dec to Jan.
+- Anchors keep a plain time cue when the person gave none (the server schema requires one).
+- Prompts ship inside the app binary, so the prompt gate is the TestFlight/App Store gate.

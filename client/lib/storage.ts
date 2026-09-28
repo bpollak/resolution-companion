@@ -510,12 +510,18 @@ export const storage = {
 
   async addElementalAction(
     action: Omit<ElementalAction, "id" | "createdAt">,
+    /** The plan's start; a habit added before it starts with the plan. */
+    planStartsAt?: string,
   ): Promise<ElementalAction> {
     const actions = await this.getElementalActions();
+    const now = Date.now();
+    const planStart = planStartsAt ? Date.parse(planStartsAt) : NaN;
     const newAction: ElementalAction = {
       ...action,
       id: generateId(),
-      createdAt: new Date().toISOString(),
+      createdAt: new Date(
+        Number.isFinite(planStart) && planStart > now ? planStart : now,
+      ).toISOString(),
     };
     actions.push(newAction);
     await this.setElementalActions(actions);

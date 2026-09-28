@@ -31,6 +31,7 @@ import {
 import {
   createPlanDraft,
   deriveResolution,
+  pickResolutionMessage,
   type OnboardingPlanDraft,
 } from "@/lib/onboarding-plan";
 import { storage } from "@/lib/storage";
@@ -54,6 +55,7 @@ const RESOLUTION_STARTERS = [
   "Less phone time",
   "Stress less",
   "Learn a skill",
+  "Something else",
 ];
 
 export default function OnboardingScreen() {
@@ -81,6 +83,7 @@ export default function OnboardingScreen() {
   const draftWrite = useRef(Promise.resolve());
   const touchedRef = useRef(false);
   const listRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
   const nearBottom = useRef(true);
 
   useEffect(() => {
@@ -284,7 +287,11 @@ export default function OnboardingScreen() {
       setDraft({
         ...createPlanDraft(proposal, true),
         resolution: deriveResolution(
-          messages.find((message) => message.role === "user")?.content,
+          pickResolutionMessage(
+            messages
+              .filter((message) => message.role === "user")
+              .map((message) => message.content),
+          ),
         ),
         sourceMessageId: messages
           .filter((message) => message.role === "user")
@@ -691,9 +698,17 @@ export default function OnboardingScreen() {
                     {RESOLUTION_STARTERS.map((starter) => (
                       <Pressable
                         key={starter}
-                        onPress={() => sendMessage(false, starter)}
+                        onPress={() =>
+                          starter === "Something else"
+                            ? inputRef.current?.focus()
+                            : sendMessage(false, starter)
+                        }
                         accessibilityRole="button"
-                        accessibilityLabel={`Send: ${starter}`}
+                        accessibilityLabel={
+                          starter === "Something else"
+                            ? "Type your own resolution"
+                            : `Send: ${starter}`
+                        }
                         hitSlop={6}
                         pressRetentionOffset={12}
                         style={({ pressed }) => [
@@ -714,7 +729,11 @@ export default function OnboardingScreen() {
                     ))}
                   </View>
                 ) : null}
-                {canPreview && messages.at(-1)?.role === "assistant" ? (
+                {/* Only once Coach stops asking: a clarifying question means
+                    the plan would have to guess the missing detail. */}
+                {canPreview &&
+                messages.at(-1)?.role === "assistant" &&
+                !messages.at(-1)?.content.trim().endsWith("?") ? (
                   <View style={styles.inlineReview}>
                     {button("Review my plan", previewPlan, true)}
                   </View>
@@ -772,6 +791,7 @@ export default function OnboardingScreen() {
           ) : null}
           <View style={[styles.composer, { borderTopColor: theme.border }]}>
             <TextInput
+              ref={inputRef}
               value={inputText}
               onChangeText={setInputText}
               editable={busy !== "extract"}

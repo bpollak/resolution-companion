@@ -515,11 +515,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addAction = useCallback(
     async (action: Omit<ElementalAction, "id" | "createdAt">) => {
-      const newAction = await storage.addElementalAction(action);
+      const newAction = await storage.addElementalAction(
+        action,
+        persona?.createdAt,
+      );
       setActionsState((prev) => [...prev, newAction]);
       return newAction;
     },
-    [],
+    [persona?.createdAt],
   );
 
   const updateAction = useCallback(
