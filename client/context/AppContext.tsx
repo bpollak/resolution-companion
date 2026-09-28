@@ -32,6 +32,8 @@ import {
 import {
   ensureReminderScheduled,
   enableDefaultPersonalizedReminders,
+  getReminderPrimerState,
+  recordReminderPrimerAnswer,
   registerReminderActions,
   recordOrganicAppOpen,
   recordReminderHookTap,
@@ -136,6 +138,9 @@ interface AppContextType {
   canUseReflection: () => boolean;
   canAddPersona: () => boolean;
   canAddBenchmark: () => boolean;
+  /** A new plan is waiting for the reminder primer on Today. */
+  reminderPrimerPending: boolean;
+  answerReminderPrimer: (accept: boolean) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -794,6 +799,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [benchmarks],
   );
   const defaultReminderInitializationStartedRef = useRef(false);
+  const [reminderPrimerPending, setReminderPrimerPending] = useState(false);
+  const answerReminderPrimer = useCallback(
+    async (accept: boolean) => {
+      setReminderPrimerPending(false);
+      await recordReminderPrimerAnswer(accept).catch(() => {});
+      if (!accept || !persona) return;
+      await enableDefaultPersonalizedReminders({
+        streakCount: computeStreak(actions, dailyLogs).current,
+        missedRun: computeLapse(actions, dailyLogs).missedDays,
+        personaName: persona.name,
+        monthlyConsistency: personaAlignment,
+        actions,
+        dailyLogs,
+        milestoneTitles: reminderMilestoneTitles,
+      }).catch((error) =>
+        logger.error("Failed to enable reminders from primer:", error),
+      );
+    },
+    [actions, dailyLogs, persona, personaAlignment, reminderMilestoneTitles],
+  );
   useEffect(() => {
     if (
       Platform.OS === "web" ||
@@ -806,17 +831,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
     defaultReminderInitializationStartedRef.current = true;
-    enableDefaultPersonalizedReminders({
-      streakCount: computeStreak(actions, dailyLogs).current,
-      missedRun: computeLapse(actions, dailyLogs).missedDays,
-      personaName: persona.name,
-      monthlyConsistency: personaAlignment,
-      actions,
-      dailyLogs,
-      milestoneTitles: reminderMilestoneTitles,
-    }).catch((error) =>
-      logger.error("Failed to initialize personalized reminders:", error),
-    );
+    // New plans ask through the Today primer first; iOS only prompts after
+    // the person taps Turn on. Earlier users keep their existing setting.
+    getReminderPrimerState()
+      .then((state) => {
+        if (state === "pending") {
+          setReminderPrimerPending(true);
+          return;
+        }
+        if (state === "declined") return;
+        return enableDefaultPersonalizedReminders({
+          streakCount: computeStreak(actions, dailyLogs).current,
+          missedRun: computeLapse(actions, dailyLogs).missedDays,
+          personaName: persona.name,
+          monthlyConsistency: personaAlignment,
+          actions,
+          dailyLogs,
+          milestoneTitles: reminderMilestoneTitles,
+        });
+      })
+      .catch((error) =>
+        logger.error("Failed to initialize personalized reminders:", error),
+      );
   }, [
     actions,
     dailyLogs,
@@ -1161,6 +1197,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       canUseReflection,
       canAddPersona,
       canAddBenchmark,
+      reminderPrimerPending,
+      answerReminderPrimer,
     }),
     [
       hasOnboarded,
@@ -1208,6 +1246,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       canUseReflection,
       canAddPersona,
       canAddBenchmark,
+      reminderPrimerPending,
+      answerReminderPrimer,
     ],
   );
 

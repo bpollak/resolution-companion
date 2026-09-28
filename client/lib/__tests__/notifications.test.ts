@@ -417,3 +417,47 @@ describe("default personalized reminders", () => {
     expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
   });
 });
+
+describe("reminder primer state", () => {
+  const { resolveReminderPrimerState } = jest.requireActual(
+    "@/lib/notifications",
+  ) as typeof import("@/lib/notifications");
+
+  it("asks new plans through the primer first", () => {
+    expect(
+      resolveReminderPrimerState({
+        primer: null,
+        initialized: null,
+        preference: null,
+      }),
+    ).toBe("pending");
+  });
+
+  it("leaves people who already answered iOS or Profile alone", () => {
+    expect(
+      resolveReminderPrimerState({
+        primer: null,
+        initialized: "true",
+        preference: null,
+      }),
+    ).toBe("legacy");
+    expect(
+      resolveReminderPrimerState({
+        primer: null,
+        initialized: null,
+        preference: "false",
+      }),
+    ).toBe("legacy");
+  });
+
+  it("remembers the primer answer", () => {
+    for (const primer of ["accepted", "declined"] as const)
+      expect(
+        resolveReminderPrimerState({
+          primer,
+          initialized: "true",
+          preference: "true",
+        }),
+      ).toBe(primer);
+  });
+});

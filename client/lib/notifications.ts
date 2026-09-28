@@ -647,6 +647,54 @@ export async function cancelDailyReminder(): Promise<void> {
   }
 }
 
+const REMINDER_PRIMER_KEY = "reminder_primer_answer";
+
+export type ReminderPrimerState =
+  | "pending"
+  | "accepted"
+  | "declined"
+  | "legacy";
+
+/**
+ * New plans see a one-card primer before iOS asks for notification permission.
+ * People who already answered the OS prompt (or chose in Profile) are "legacy"
+ * and keep their setting untouched.
+ */
+export function resolveReminderPrimerState(stored: {
+  primer: string | null;
+  initialized: string | null;
+  preference: string | null;
+}): ReminderPrimerState {
+  if (stored.primer === "accepted" || stored.primer === "declined")
+    return stored.primer;
+  if (stored.initialized === "true" || stored.preference !== null)
+    return "legacy";
+  return "pending";
+}
+
+export async function getReminderPrimerState(): Promise<ReminderPrimerState> {
+  if (Platform.OS === "web") return "legacy";
+  try {
+    const [primer, initialized, preference] = await Promise.all([
+      AsyncStorage.getItem(REMINDER_PRIMER_KEY),
+      AsyncStorage.getItem(DEFAULT_REMINDERS_INITIALIZED_KEY),
+      AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY),
+    ]);
+    return resolveReminderPrimerState({ primer, initialized, preference });
+  } catch {
+    return "legacy";
+  }
+}
+
+export async function recordReminderPrimerAnswer(
+  accepted: boolean,
+): Promise<void> {
+  await AsyncStorage.setItem(
+    REMINDER_PRIMER_KEY,
+    accepted ? "accepted" : "declined",
+  );
+}
+
 /**
  * Enables one personalized daily reminder by default the first time a user
  * has a plan. The operating-system permission prompt remains authoritative;

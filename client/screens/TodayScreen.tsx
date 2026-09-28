@@ -78,6 +78,7 @@ import {
   shouldOfferSecondPersona,
 } from "@/lib/persona-invitation";
 import { PlanCountdownCard } from "@/components/PlanCountdownCard";
+import { ReminderPrimerCard } from "@/components/ReminderPrimerCard";
 
 const FIRST_DAY_COMPLETE_KEY = "today_first_day_complete_seen";
 // {count, lastDate} of distinct fully-complete days, for timing the one-time
@@ -356,6 +357,8 @@ export default function TodayScreen() {
     toggleDailyLog,
     setDailyLogNote,
     canAddPersona,
+    reminderPrimerPending,
+    answerReminderPrimer,
   } = useApp();
 
   const today = new Date();
@@ -1193,6 +1196,19 @@ export default function TodayScreen() {
                 </ThemedText>
               ) : null}
             </View>
+
+            {reminderPrimerPending && actions.length > 0 ? (
+              <ReminderPrimerCard
+                actions={actions}
+                startLabel={planStart?.toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                })}
+                onAnswer={(accept) => {
+                  void answerReminderPrimer(accept);
+                }}
+              />
+            ) : null}
 
             {/* On a finished day the DayCompleteCard carries the moment; a
                 second "done" card only pushed the widget tip off screen. */}
