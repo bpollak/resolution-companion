@@ -891,7 +891,7 @@ export default function SubscriptionScreen() {
             <Feather name="zap" size={32} color={theme.buttonText} />
           </View>
           <ThemedText style={styles.heroTitle}>
-            Become who you&rsquo;re becoming &mdash; without limits
+            Become who you&rsquo;re becoming, without limits
           </ThemedText>
           <ThemedText
             style={[styles.heroSubtitle, { color: theme.textSecondary }]}
@@ -900,95 +900,7 @@ export default function SubscriptionScreen() {
           </ThemedText>
         </View>
 
-        <View
-          style={[
-            styles.compareCard,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundDefault
-                : Colors.light.backgroundDefault,
-            },
-          ]}
-        >
-          <View
-            style={styles.compareHeaderRow}
-            accessible
-            accessibilityLabel="Comparison of the Free and Premium plans"
-          >
-            <View style={styles.compareFeatureCol} />
-            <View style={styles.compareValueCol}>
-              <ThemedText
-                style={[styles.compareColLabel, { color: theme.textSecondary }]}
-              >
-                FREE
-              </ThemedText>
-            </View>
-            <View style={styles.compareValueCol}>
-              <ThemedText
-                style={[styles.compareColLabel, { color: theme.accent }]}
-              >
-                PREMIUM
-              </ThemedText>
-            </View>
-          </View>
-
-          <CompareRow
-            title="Personas"
-            description={"Every identity you’re building, side by side"}
-            free="1"
-            premium="Unlimited"
-          />
-          <CompareRow
-            title="AI coaching check-ins"
-            description="One conversation, including follow-up messages"
-            free="10/mo"
-            premium="Unlimited"
-          />
-          <CompareRow
-            title="Milestones per plan"
-            description="Add new milestones as your goals evolve"
-            free="Starter set"
-            premium="Unlimited"
-          />
-          <CompareRow
-            title="Earned rest days"
-            description="Rest days you've earned, so a miss doesn't break your run"
-            free="1"
-            premium="2"
-          />
-          <CompareRow
-            title="Insights"
-            description="When you show up, and the one thing to protect"
-            free="—"
-            premium="Included"
-          />
-          <CompareRow
-            title="Coach memory"
-            description="A coach that remembers your past sessions"
-            free="—"
-            premium="Included"
-          />
-          <CompareRow
-            title="Quick reads"
-            description="60-second habit science, matched to your journey"
-            free="Weekly"
-            premium="Daily"
-          />
-          <CompareRow
-            title={"“The Year You Became”"}
-            description="Your year, told as a story worth sharing"
-            free="—"
-            premium="Included"
-          />
-          <CompareRow
-            title="Daily action tracking"
-            description="Log actions and build momentum every day"
-            free={null}
-            premium={null}
-            isLast
-          />
-        </View>
-
+        {/* Plans first: people came here to choose one. */}
         {Platform.OS === "web" ? (
           <View
             style={[
@@ -1102,6 +1014,95 @@ export default function SubscriptionScreen() {
             </ThemedText>
           </View>
         )}
+
+        <View
+          style={[
+            styles.compareCard,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+            },
+          ]}
+        >
+          <View
+            style={styles.compareHeaderRow}
+            accessible
+            accessibilityLabel="Comparison of the Free and Premium plans"
+          >
+            <View style={styles.compareFeatureCol} />
+            <View style={styles.compareValueCol}>
+              <ThemedText
+                style={[styles.compareColLabel, { color: theme.textSecondary }]}
+              >
+                FREE
+              </ThemedText>
+            </View>
+            <View style={styles.compareValueCol}>
+              <ThemedText
+                style={[styles.compareColLabel, { color: theme.accent }]}
+              >
+                PREMIUM
+              </ThemedText>
+            </View>
+          </View>
+
+          <CompareRow
+            title="Personas"
+            description={"Every identity you’re building, side by side"}
+            free="1"
+            premium="Unlimited"
+          />
+          <CompareRow
+            title="AI coaching check-ins"
+            description="One conversation, including follow-up messages"
+            free="10/mo"
+            premium="Unlimited"
+          />
+          <CompareRow
+            title="Milestones per plan"
+            description="Add new milestones as your goals evolve"
+            free="Starter set"
+            premium="Unlimited"
+          />
+          <CompareRow
+            title="Earned rest days"
+            description="Rest days you've earned, so a miss doesn't break your run"
+            free="1"
+            premium="2"
+          />
+          <CompareRow
+            title="Insights"
+            description="When you show up, and the one thing to protect"
+            free="—"
+            premium="Included"
+          />
+          <CompareRow
+            title="Coach memory"
+            description="A coach that remembers your past sessions"
+            free="—"
+            premium="Included"
+          />
+          <CompareRow
+            title="Quick reads"
+            description="60-second habit science, matched to your journey"
+            free="Weekly"
+            premium="Daily"
+          />
+          <CompareRow
+            title={"“The Year You Became”"}
+            description="Your year, told as a story worth sharing"
+            free="—"
+            premium="Included"
+          />
+          <CompareRow
+            title="Daily action tracking"
+            description="Log actions and build momentum every day"
+            free={null}
+            premium={null}
+            isLast
+          />
+        </View>
 
         {storeReady && selectedProduct ? (
           <ThemedText

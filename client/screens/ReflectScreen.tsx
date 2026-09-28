@@ -348,7 +348,7 @@ export default function ReflectScreen() {
                 { color: theme.textSecondary },
               ]}
             >
-              They reset next month &mdash; Premium removes the cap
+              They reset next month. Premium removes the cap.
             </ThemedText>
           </View>
           <Feather name="chevron-right" size={20} color={theme.textSecondary} />

@@ -159,8 +159,8 @@ export function MilestoneCompleteModal({
           </ThemedText>
           <ThemedText style={styles.title}>{milestoneTitle}</ThemedText>
           <ThemedText style={[styles.body, { color: theme.textSecondary }]}>
-            You did the thing on {MILESTONE_TARGET_DAYS} scheduled days &mdash;
-            that&rsquo;s not a plan anymore, it&rsquo;s a habit. More proof
+            You did the thing on {MILESTONE_TARGET_DAYS} planned days.
+            That&rsquo;s not a plan anymore, it&rsquo;s a habit. More proof
             you&rsquo;re becoming {personaName}.
           </ThemedText>
 

@@ -24,7 +24,7 @@ describe("user-facing copy", () => {
         .split("\n")
         .forEach((line, index) => {
           const code = line.trim();
-          if (!code.includes("—")) return;
+          if (!code.includes("—") && !/&mdash;|\\u2014/.test(code)) return;
           if (/^(\/\/|\*|\/\*|\{\/\*)/.test(code)) return;
           if (/\/\/.*—/.test(code) && !/["'`][^"'`]*—/.test(code)) return;
           if (/free="—"/.test(code)) return;
