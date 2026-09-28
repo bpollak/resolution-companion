@@ -774,7 +774,6 @@ export default function JourneyScreen() {
     setExpandedBenchmarks(new Set(benchmarkIdsKey.split(",").filter(Boolean)));
   }, [benchmarkIdsKey]);
 
-  const [showGuide, setShowGuide] = useState(false);
   const [showMilestoneInfo, setShowMilestoneInfo] = useState(false);
 
   useEffect(() => {
@@ -783,22 +782,16 @@ export default function JourneyScreen() {
       AsyncStorage.getItem(MILESTONE_INFO_DISMISSED_KEY),
     ]).then(([guideDismissed, infoDismissed]) => {
       if (!guideDismissed) {
-        // New users learn the fill-only model inside the guide itself
-        setShowGuide(true);
+        // New plans never saw the old milestone rules, so the one-time
+        // change note isn't for them (the Next Steps guide was retired).
+        AsyncStorage.setItem(GUIDE_DISMISSED_KEY, "true");
+        AsyncStorage.setItem(MILESTONE_INFO_DISMISSED_KEY, "true");
       } else if (!infoDismissed) {
-        // Existing users get the one-time semantics-change note instead
+        // Existing users get the one-time semantics-change note
         setShowMilestoneInfo(true);
       }
     });
   }, []);
-
-  const dismissGuide = () => {
-    setShowGuide(false);
-    // The guide already explains fill-only milestones — don't show the
-    // change note right after
-    AsyncStorage.setItem(GUIDE_DISMISSED_KEY, "true");
-    AsyncStorage.setItem(MILESTONE_INFO_DISMISSED_KEY, "true");
-  };
 
   const dismissMilestoneInfo = () => {
     setShowMilestoneInfo(false);
@@ -1024,22 +1017,6 @@ export default function JourneyScreen() {
                 </ThemedText>
               ) : null}
             </View>
-
-            <JourneyFramingCard
-              actions={personaActions}
-              rhythms={actionRhythms}
-              onAdjust={(actionId) => {
-                const action = personaActions.find(
-                  (item) => item.id === actionId,
-                );
-                if (!action) return;
-                Haptics.selectionAsync();
-                navigation.navigate("ActionEditor", {
-                  actionId,
-                  benchmarkId: action.benchmarkId,
-                });
-              }}
-            />
 
             {showMilestoneInfo ? (
               <View
@@ -1384,65 +1361,6 @@ export default function JourneyScreen() {
               />
             </View>
 
-            {showGuide ? (
-              <View
-                style={[
-                  styles.guideCard,
-                  {
-                    backgroundColor: isDark
-                      ? Colors.dark.backgroundDefault
-                      : Colors.light.backgroundDefault,
-                  },
-                ]}
-              >
-                <View style={styles.guideHeader}>
-                  <Feather name="compass" size={18} color={theme.accent} />
-                  <ThemedText style={styles.guideTitle}>Next Steps</ThemedText>
-                  <Pressable
-                    onPress={dismissGuide}
-                    hitSlop={12}
-                    pressRetentionOffset={16}
-                    accessibilityRole="button"
-                    accessibilityLabel="Dismiss next steps"
-                    style={({ pressed }) => [
-                      styles.guideClose,
-                      { opacity: pressed ? 0.5 : 1 },
-                    ]}
-                  >
-                    <Feather name="x" size={18} color={theme.textSecondary} />
-                  </Pressable>
-                </View>
-                <ThemedText
-                  style={[styles.guideText, { color: theme.textSecondary }]}
-                >
-                  Each completed action builds its milestone. Progress stays
-                  with you, even after a break. Tap Edit below to adjust your
-                  plan.
-                </ThemedText>
-                <Pressable
-                  onPress={() => navigation.navigate("TodayTab")}
-                  accessibilityRole="button"
-                  accessibilityLabel="Go to Today tab"
-                  style={({ pressed }) => [
-                    styles.guideCta,
-                    { backgroundColor: theme.accent },
-                    { opacity: pressed ? 0.8 : 1 },
-                  ]}
-                >
-                  <ThemedText
-                    style={[styles.guideCtaText, { color: theme.buttonText }]}
-                  >
-                    Go to Today
-                  </ThemedText>
-                  <Feather
-                    name="arrow-right"
-                    size={16}
-                    color={theme.buttonText}
-                  />
-                </Pressable>
-              </View>
-            ) : null}
-
             <View style={styles.sectionHeader}>
               <ThemedText style={styles.sectionTitle}>Milestones</ThemedText>
               <Pressable
@@ -1477,6 +1395,23 @@ export default function JourneyScreen() {
         }
         ListFooterComponent={
           <>
+            {/* How the plan is fitting sits after the milestones: the month
+                ring, calendar and milestones lead; this is the tune-up. */}
+            <JourneyFramingCard
+              actions={personaActions}
+              rhythms={actionRhythms}
+              onAdjust={(actionId) => {
+                const action = personaActions.find(
+                  (item) => item.id === actionId,
+                );
+                if (!action) return;
+                Haptics.selectionAsync();
+                navigation.navigate("ActionEditor", {
+                  actionId,
+                  benchmarkId: action.benchmarkId,
+                });
+              }}
+            />
             <InsightsPanel
               actions={personaActions}
               dailyLogs={dailyLogs}
