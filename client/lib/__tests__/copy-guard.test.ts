@@ -19,7 +19,10 @@ function sourceFiles(dir: string): string[] {
 describe("user-facing copy", () => {
   it("has no em dashes outside comments", () => {
     const offenders: string[] = [];
-    for (const file of ROOTS.flatMap(sourceFiles)) {
+    // lib/copy.ts is the em-dash cleaner itself and has to match the glyph.
+    for (const file of ROOTS.flatMap(sourceFiles).filter(
+      (file) => !file.endsWith(path.join("lib", "copy.ts")),
+    )) {
       fs.readFileSync(file, "utf8")
         .split("\n")
         .forEach((line, index) => {

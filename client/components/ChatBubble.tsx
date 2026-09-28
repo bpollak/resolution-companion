@@ -8,6 +8,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { reportAIContent, type AIReportSurface } from "@/lib/ai-reporting";
 import { track } from "@/lib/telemetry";
+import { tidyCoachText } from "@/lib/copy";
 
 interface ChatBubbleProps {
   message: string;
@@ -22,6 +23,7 @@ export const ChatBubble = React.memo(function ChatBubble({
   isTyping,
   reportSurface,
 }: ChatBubbleProps) {
+  const shown = isUser ? message : tidyCoachText(message);
   const { theme, isDark } = useTheme();
   const [reportState, setReportState] = useState<
     "idle" | "submitting" | "reported"
@@ -116,7 +118,7 @@ export const ChatBubble = React.memo(function ChatBubble({
             { color: isUser ? theme.buttonText : theme.text },
           ]}
         >
-          {isTyping ? `${message}...` : message}
+          {isTyping ? `${shown}...` : shown}
         </ThemedText>
         {!isUser && !isTyping && reportSurface === "coach" ? (
           <View style={styles.responseActions}>

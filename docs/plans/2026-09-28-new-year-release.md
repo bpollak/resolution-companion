@@ -137,3 +137,22 @@ Decisions recorded:
 - The free year card is available all year (it's the person's own data), not only Dec to Jan.
 - Anchors keep a plain time cue when the person gave none (the server schema requires one).
 - Prompts ship inside the app binary, so the prompt gate is the TestFlight/App Store gate.
+
+## Simulator verification (2026-09-28, local build 1.5.0, fresh install, iPhone 17 Pro sim, iOS 26.5)
+
+Walked the New Year path end to end against the live API: resolution-first empty state and
+setup; starter chips; "Lose weight" -> Coach asks for a concrete outcome (review button hidden
+while it asks) -> "Lose 15 pounds by June..." -> inline Review my plan; plan review shows the
+resolution, milestone "21 evening walks toward losing 15 pounds", anchor "After dinner"; Today
+shows the resolution, the reminder primer (Turn on / Not now), one day-complete card and the
+widget/Siri/Health tip above the fold; Journey ring label fits, pre-start days blank, Next
+Steps gone; year card shares free with a Premium teaser; paywall leads with plans and the
+savings badge; Coach sheet opens tall, no "last week" prompt on day one, Done autosaves to
+Past Sessions with no alert. Screenshots: build/verify-1.5/.
+
+Fixed from the walkthrough: model still emitted em dashes (now cleaned at the source and on
+screen by tidyCoachText), "June." kept its period, straight quotes/apostrophes, "1 times" on the
+year card, persona description mentioning unpicked ideas.
+
+Not verifiable on the simulator (the Mac's date is September): the January 1 option and the
+countdown card. Covered by unit tests; check on a device in late November via TestFlight.

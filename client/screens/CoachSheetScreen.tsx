@@ -68,7 +68,7 @@ interface ChatMessage {
 }
 
 const PROMPTS = {
-  "start-today": "Help me get started with today’s next action.",
+  "start-today": "Help me get started with today’s habit.",
   "understand-pattern": "Help me understand what is making this pattern work.",
   "reduce-friction": "Help me make this plan easier without giving it up.",
   "review-week":

@@ -26,7 +26,7 @@ const cards: CardKind[] = ["opening", "rhythm", "resilience", "closing"];
 
 function cardAccessibilityLabel(recap: YearRecap, kind: CardKind): string {
   if (kind === "opening") {
-    return `${recap.yearLabel}. ${recap.votesCast} times you showed up as ${recap.personaName}, across ${recap.activeDays} active days.`;
+    return `${recap.yearLabel}. ${recap.votesCast} ${recap.votesCast === 1 ? "time" : "times"} you showed up as ${recap.personaName}, across ${recap.activeDays} active ${recap.activeDays === 1 ? "day" : "days"}.`;
   }
   if (kind === "rhythm") {
     return `${recap.consistency}% consistency across ${recap.activeMonths} active ${recap.activeMonths === 1 ? "month" : "months"}. ${recap.bestMonth ? `${recap.bestMonth.monthLabel} led the year with ${recap.bestMonth.votesCast} completed actions.` : "Your first action can still write the story."}`;
@@ -52,11 +52,13 @@ function YearCard({ recap, kind }: { recap: YearRecap; kind: CardKind }) {
           {recap.votesCast}
         </ThemedText>
         <ThemedText maxFontSizeMultiplier={1} style={styles.headline}>
-          times you showed up as {recap.personaName}
+          {recap.votesCast === 1 ? "time" : "times"} you showed up as{" "}
+          {recap.personaName}
         </ThemedText>
         <ThemedText maxFontSizeMultiplier={1} style={styles.sub}>
-          Across {recap.activeDays} active days, each one made it a little more
-          real.
+          Across {recap.activeDays} active{" "}
+          {recap.activeDays === 1 ? "day" : "days"}, each one made it a little
+          more real.
         </ThemedText>
       </>
     );

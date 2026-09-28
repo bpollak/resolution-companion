@@ -543,7 +543,7 @@ export default function OnboardingScreen() {
           >
             <Feather name="compass" size={44} color={theme.accent} />
             <ThemedText style={styles.heading} accessibilityRole="header">
-              What&apos;s your resolution?
+              What&rsquo;s your resolution?
             </ThemedText>
             <ThemedText style={{ color: theme.textSecondary }}>
               Say it in your own words. Coach turns it into one small habit that

@@ -115,7 +115,7 @@ export function deriveResolution(message: string | undefined): string {
   const trimmed = firstSentence
     .replace(RESOLUTION_LEADS, "")
     .replace(/[!?]+$/, "")
-    .replace(/(?<!\b[a-z]{2,4})\.$/i, "")
+    .replace(/(?<!\b(?:lbs?|oz|kg|mi|km|hrs?|mins?|wks?|mos?|etc))\.$/i, "")
     .trim();
   if (!trimmed) return "";
   const clipped =

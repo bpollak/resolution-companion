@@ -49,7 +49,7 @@ export function ReminderPrimerCard({
       </View>
       <ThemedText style={{ color: theme.textSecondary }}>
         One reminder at {time}
-        {routine ? `, around "${routine}"` : ""}, only on days your habit
+        {routine ? `, around “${routine}”` : ""}, only on days your habit
         isn&rsquo;t done yet. It stays quiet once you&rsquo;re done
         {startLabel ? `, and starts ${startLabel}` : ""}.
       </ThemedText>

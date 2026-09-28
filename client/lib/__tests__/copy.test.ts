@@ -16,3 +16,23 @@ describe("repeatsText", () => {
     );
   });
 });
+
+describe("tidyCoachText", () => {
+  const { tidyCoachText } =
+    jest.requireActual<typeof import("@/lib/copy")>("@/lib/copy");
+
+  it("replaces em dashes with commas", () => {
+    expect(tidyCoachText("Great goal, thanks — what's next?")).toBe(
+      "Great goal, thanks, what's next?",
+    );
+    expect(tidyCoachText("every scheduled action—that's a start")).toBe(
+      "every scheduled action, that's a start",
+    );
+  });
+
+  it("keeps hyphens and ranges", () => {
+    expect(tidyCoachText("A 20-minute walk, Monday–Friday.")).toBe(
+      "A 20-minute walk, Monday–Friday.",
+    );
+  });
+});

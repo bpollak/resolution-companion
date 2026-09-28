@@ -33,3 +33,15 @@ export function repeatsText(label: string, text: string): boolean {
   const shared = labelWords.filter((word) => textWords.has(word)).length;
   return shared / labelWords.length >= 0.7;
 }
+
+/**
+ * Coach models slip in em dashes despite the prompt; the app never shows one.
+ * "thanks — what's" -> "thanks, what's". Leaves hyphens and en dashes alone.
+ */
+export function tidyCoachText(text: string): string {
+  return text
+    .replace(/\s*—\s*/g, ", ")
+    .replace(/,\s*,/g, ",")
+    .replace(/,\s*([.!?])/g, "$1")
+    .replace(/^,\s*/, "");
+}

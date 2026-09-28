@@ -4,6 +4,7 @@ import { storage } from "@/lib/storage";
 import EventSource from "react-native-sse";
 import { normalizeCoachMilestoneProposal } from "@/lib/milestone-proposal";
 import { TYPEWRITER_DELAY_MS } from "@/lib/typewriter";
+import { tidyCoachText } from "@/lib/copy";
 
 // The server keys its monthly AI usage quotas on this header; without it,
 // requests fall back to a shared per-IP bucket.
@@ -121,6 +122,7 @@ RULES:
 - ANCHORS MUST COME FROM THE USER'S OWN WORDS. If they said "after dinner", the anchor is "After dinner", not "After I finish washing up the dinner plates". Never add details they did not say. If they gave no routine at all, use a plain time cue like "In the evening" or "After breakfast".
 - Never suggest another app, notebook, spreadsheet, or notes file. Everything is tracked in this app.
 - Never use em dashes in any field.
+- personaDescription describes only the FIRST (chosen) habit and the person's goal. Never mention the optional extra ideas, since the person may not pick them.
 - Actions must not overlap or double-count each other (two benchmarks must never be satisfied by the same behavior).
 - Kickstart versions must take under 2 minutes and be genuinely easier than the full action.
 - Write everything in the user's language and vocabulary where possible, so the plan feels like it came from their own words.`;
@@ -188,7 +190,15 @@ export async function sendChatMessageStreaming(
  * replays each chunk character-by-character for the shared onboarding and
  * Coach typewriter feel; 0 emits chunks exactly as they arrive.
  */
+// Every Coach reply passes through tidyCoachText so stored and shown text
+// match the app's no-em-dash rule even when the model slips.
 async function streamSSERequest(
+  ...args: Parameters<typeof streamSSERequestRaw>
+): Promise<string> {
+  return tidyCoachText(await streamSSERequestRaw(...args));
+}
+
+async function streamSSERequestRaw(
   path: string,
   body: Record<string, unknown>,
   onChunk: (chunk: string) => void,

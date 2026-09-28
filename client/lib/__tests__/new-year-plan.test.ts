@@ -65,6 +65,8 @@ describe("deriveResolution with everyday phrasing", () => {
       "To be honest, I want to sleep more",
     ],
     ["Lose 15 lbs. by March", "Lose 15 lbs. by March"],
+    ["Lose 15 pounds by June.", "Lose 15 pounds by June"],
+    ["Walk 3 mi.", "Walk 3 mi."],
     ["hi", ""],
   ])("%s -> %s", (input, expected) => {
     expect(deriveResolution(input)).toBe(expected);

@@ -1068,7 +1068,7 @@ export default function JourneyScreen() {
               <ThemedText
                 style={[styles.alignmentHint, { color: theme.textSecondary }]}
               >
-                Share of this month&apos;s planned days you showed up. Fresh
+                Share of this month&rsquo;s planned days you showed up. Fresh
                 start on the 1st.
               </ThemedText>
             </View>
