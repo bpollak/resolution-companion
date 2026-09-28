@@ -6,7 +6,6 @@ import React, {
   useState,
 } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -143,7 +142,7 @@ export default function CoachSheetScreen() {
     useState<PlanTuneUpSuggestion | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const [detentIndex, setDetentIndex] = useState(0);
+  const [detentIndex, setDetentIndex] = useState(1);
   const savedRef = useRef(false);
   const countedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -298,11 +297,20 @@ export default function CoachSheetScreen() {
                 : params.promptId === "reduce-friction"
                   ? [PROMPTS["reduce-friction"], PROMPTS["start-today"]]
                   : [PROMPTS["reflect-success"], PROMPTS["review-week"]];
-    return Array.from(new Set([first, ...originPrompts].filter(Boolean))).slice(
-      0,
-      2,
-    ) as string[];
-  }, [params.origin, params.promptId]);
+    // "Last week" has nothing to review in a plan's first week.
+    const planDays = persona?.createdAt
+      ? (Date.now() - new Date(persona.createdAt).getTime()) / 86_400_000
+      : Infinity;
+    const fitsPlanAge = (prompt: string | null) =>
+      planDays >= 7 || prompt !== PROMPTS["review-week"];
+    return Array.from(
+      new Set(
+        [first, ...originPrompts, PROMPTS["start-today"]]
+          .filter(Boolean)
+          .filter(fitsPlanAge),
+      ),
+    ).slice(0, 2) as string[];
+  }, [params.origin, params.promptId, persona?.createdAt]);
   // The lobby is a single entry point now, so plan tune-ups must also be
   // reachable from a plain "direct" conversation
   const showPlanAdjustment =
@@ -655,25 +663,10 @@ export default function CoachSheetScreen() {
         return;
       }
       if (savedRef.current || saved || messages.length === 0) return;
+      // Closing saves the conversation; asking Save/Discard/Keep talking was
+      // one more decision at the moment someone just wanted to leave.
       event.preventDefault();
-      Alert.alert(
-        "Save this conversation?",
-        "Keep this coaching session in your history.",
-        [
-          { text: "Keep talking", style: "cancel" },
-          {
-            text: "Discard",
-            style: "destructive",
-            onPress: () => {
-              stopReply(true);
-              savedRef.current = true;
-              setSaved(true);
-              navigation.dispatch(event.data.action);
-            },
-          },
-          { text: "Save", onPress: saveSession },
-        ],
-      );
+      void saveSession();
     });
     return unsubscribe;
   }, [messages.length, navigation, saveSession, saved, stopReply]);
@@ -771,7 +764,7 @@ export default function CoachSheetScreen() {
                 ]}
               >
                 <ThemedText style={[styles.saveText, { color: theme.accent }]}>
-                  {isSaving ? "Saving…" : isLoading ? "Stop & save" : "Save"}
+                  {isSaving ? "Saving…" : "Done"}
                 </ThemedText>
               </Pressable>
             </View>

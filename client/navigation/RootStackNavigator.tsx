@@ -148,7 +148,8 @@ export default function RootStackNavigator() {
           headerShown: false,
           presentation: "formSheet",
           sheetAllowedDetents: [0.55, 0.94],
-          sheetInitialDetentIndex: 0,
+          // Conversations open tall so replies are readable without dragging.
+          sheetInitialDetentIndex: 1,
           sheetGrabberVisible: true,
           sheetCornerRadius: 28,
           // Dim the screen behind at every detent — undimmed background text
