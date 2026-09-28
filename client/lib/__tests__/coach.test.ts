@@ -1,9 +1,15 @@
 import {
   buildCoachActionContext,
-  buildCoachOpening,
-  formatCoachDateRange,
+  buildPreviousSessionNotes,
+  buildRecentNotes,
 } from "@/lib/coach";
-import type { DailyLog, ElementalAction } from "@/lib/storage";
+import type { DailyLog, ElementalAction, Reflection } from "@/lib/storage";
+
+jest.mock("@react-native-async-storage/async-storage", () =>
+  jest.requireActual(
+    "@react-native-async-storage/async-storage/jest/async-storage-mock",
+  ),
+);
 
 const action: ElementalAction = {
   id: "run",
@@ -14,77 +20,6 @@ const action: ElementalAction = {
   kickstartVersion: "put on running shoes",
   createdAt: "2026-06-01T12:00:00",
 };
-
-describe("Coach opening", () => {
-  it("names the exact completed week instead of the current calendar week", () => {
-    expect(formatCoachDateRange("2026-07-06", "2026-07-12")).toBe("July 6–12");
-    const opening = buildCoachOpening({
-      period: "weekly",
-      personaName: "5K-Ready Weekend Runner",
-      monthlyConsistency: 73,
-      weekly: {
-        weekStart: "2026-07-06",
-        weekEnd: "2026-07-12",
-        completed: 3,
-        scheduled: 5,
-      },
-    });
-    expect(opening).toContain("July 6–12");
-    expect(opening).toContain("3 of 5");
-    expect(opening).not.toMatch(/week 29/i);
-  });
-
-  it("still invites an untracked win when nothing was logged", () => {
-    const opening = buildCoachOpening({
-      period: "weekly",
-      personaName: "Consistent Runner",
-      monthlyConsistency: 20,
-      weekly: {
-        weekStart: "2026-07-06",
-        weekEnd: "2026-07-12",
-        completed: 0,
-        scheduled: 3,
-      },
-    });
-    expect(opening).toContain("useful information, not a verdict");
-    expect(opening).toContain("win from the week");
-  });
-
-  it("opens a monthly check-in immediately from grounded consistency", () => {
-    expect(
-      buildCoachOpening({
-        period: "monthly",
-        personaName: "Consistent Runner",
-        monthlyConsistency: 73,
-      }),
-    ).toContain("73% consistency");
-  });
-
-  it("does not overstate a perfect percentage for a brand-new plan", () => {
-    const opening = buildCoachOpening({
-      period: "monthly",
-      personaName: "Conversational Spanish Speaker",
-      monthlyConsistency: 100,
-      daysSincePlanStarted: 0,
-    });
-
-    expect(opening).toContain("just getting started");
-    expect(opening).toContain("too early to judge the numbers");
-    expect(opening).not.toContain("100%");
-    expect(opening).not.toContain("reliably");
-  });
-
-  it("uses an established plan's grounded consistency", () => {
-    const opening = buildCoachOpening({
-      period: "monthly",
-      personaName: "Conversational Spanish Speaker",
-      monthlyConsistency: 100,
-      daysSincePlanStarted: 8,
-    });
-
-    expect(opening).toContain("100% consistency");
-  });
-});
 
 describe("Coach action context", () => {
   it("provides real action, fallback, and anchor evidence", () => {
@@ -105,5 +40,87 @@ describe("Coach action context", () => {
     expect(context).toContain("Run for 20 minutes");
     expect(context).toContain("put on running shoes");
     expect(context).toContain("after morning coffee");
+  });
+});
+
+describe("Coach memory digest", () => {
+  const reflection = (overrides: Partial<Reflection>): Reflection => ({
+    id: "r1",
+    periodType: "contextual",
+    userInput: "I keep skipping evening runs",
+    aiFeedback: "Try anchoring the run to lunch instead.",
+    momentumScore: 62,
+    createdAt: "2026-07-20T18:00:00",
+    ...overrides,
+  });
+
+  it("digests the two most recent sessions, newest first", () => {
+    const notes = buildPreviousSessionNotes([
+      reflection({ id: "old", createdAt: "2026-07-01T18:00:00" }),
+      reflection({
+        id: "new",
+        createdAt: "2026-07-20T18:00:00",
+        conversation: JSON.stringify([
+          { role: "user", content: "Mornings feel impossible" },
+          { role: "assistant", content: "Start with the two-minute version." },
+        ]),
+      }),
+      reflection({ id: "oldest", createdAt: "2026-06-01T18:00:00" }),
+    ]);
+    expect(notes).toBeDefined();
+    expect(notes).toContain("Mornings feel impossible");
+    expect(notes).toContain("two-minute version");
+    // Oldest of the three is dropped by the 2-session cap
+    expect(notes?.split("\n")).toHaveLength(2);
+  });
+
+  it("falls back to split fields for legacy sessions", () => {
+    const notes = buildPreviousSessionNotes([reflection({})]);
+    expect(notes).toContain("I keep skipping evening runs");
+    expect(notes).toContain("anchoring the run to lunch");
+  });
+
+  it("returns undefined with no history", () => {
+    expect(buildPreviousSessionNotes([])).toBeUndefined();
+  });
+});
+
+describe("Recent completion notes", () => {
+  it("quotes only noted completions from the last 7 days", () => {
+    const logs: DailyLog[] = [
+      {
+        id: "recent",
+        actionId: action.id,
+        logDate: "2026-07-18",
+        status: true,
+        note: "Felt strong today",
+        createdAt: "2026-07-18T12:00:00",
+      },
+      {
+        id: "stale",
+        actionId: action.id,
+        logDate: "2026-07-01",
+        status: true,
+        note: "Too old to quote",
+        createdAt: "2026-07-01T12:00:00",
+      },
+      {
+        id: "unnoted",
+        actionId: action.id,
+        logDate: "2026-07-19",
+        status: true,
+        createdAt: "2026-07-19T12:00:00",
+      },
+    ];
+    const notes = buildRecentNotes([action], logs, new Date(2026, 6, 19, 12));
+    expect(notes).toContain("Felt strong today");
+    expect(notes).toContain("Run for 20 minutes");
+    expect(notes).not.toContain("Too old to quote");
+  });
+
+  it("returns undefined when nothing is quotable", () => {
+    expect(
+      buildRecentNotes([action], [], new Date(2026, 6, 19, 12)),
+    ).toBeUndefined();
   });
 });

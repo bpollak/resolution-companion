@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   StyleSheet,
@@ -7,1212 +7,1022 @@ import {
   FlatList,
   ScrollView,
   ActivityIndicator,
-  Alert,
   Platform,
   KeyboardAvoidingView,
+  Keyboard,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-
 import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
-import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
+import { Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ChatBubble } from "@/components/ChatBubble";
 import { AIConsentModal } from "@/components/AIConsentModal";
+import { OnboardingPlanReview } from "@/components/OnboardingPlanReview";
 import {
   getOnboardingResponse,
   extractPersonaFromConversation,
-  AIMessage,
+  type AIMessage,
 } from "@/lib/ai";
-import { sortWeekdays } from "@/lib/progress";
+import {
+  createPlanDraft,
+  deriveResolution,
+  pickResolutionMessage,
+  type OnboardingPlanDraft,
+} from "@/lib/onboarding-plan";
 import { storage } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import { track } from "@/lib/telemetry";
-import {
-  STARTER_BENCHMARKS as DEFAULT_BENCHMARKS,
-  ensureDayScheduled,
-} from "@/lib/starter-plan";
-
-const MIN_ACTIONS_PER_PERSONA = 3;
-const MAX_ACTIONS_PER_PERSONA = 5;
-
-// The no-AI starter plan (also pads a sparse AI plan) lives in lib/starter-plan
-// so its "at least one action on every weekday" invariant can be unit-tested.
 
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
 }
+type Stage = "welcome" | "chat" | "review";
 
-const ACCENT_COLORS = {
-  cyan: "#00D9FF",
-  pink: "#FF6B9D",
-  purple: "#9B6BFF",
-  green: "#6BFFB8",
-  orange: "#FFB86B",
-};
-
-interface IntroPage {
-  icon: keyof typeof Feather.glyphMap;
-  title: string;
-  subtitle: string;
-  details?: {
-    icon: keyof typeof Feather.glyphMap;
-    text: string;
-    color: string;
-  }[];
-}
-
-const INTRO_PAGES: IntroPage[] = [
-  {
-    icon: "compass",
-    title: "Welcome to Resolution Companion",
-    subtitle:
-      "Build better habits and make real progress on your goals with personalized daily actions and AI-powered coaching.",
-    details: [
-      {
-        icon: "target",
-        text: "Daily habit tracking",
-        color: ACCENT_COLORS.cyan,
-      },
-      {
-        icon: "message-circle",
-        text: "AI coaching sessions",
-        color: ACCENT_COLORS.pink,
-      },
-      {
-        icon: "trending-up",
-        text: "Progress insights",
-        color: ACCENT_COLORS.purple,
-      },
-    ],
-  },
-  {
-    icon: "message-circle",
-    title: "Start with a Quick Chat",
-    subtitle:
-      "Answer a couple of questions about what you'd like to improve. We'll create a personalized plan just for you.",
-    details: [
-      {
-        icon: "clock",
-        text: "Takes about 2 minutes",
-        color: ACCENT_COLORS.cyan,
-      },
-      {
-        icon: "shield",
-        text: "AI powered by OpenAI — only with your consent",
-        color: ACCENT_COLORS.green,
-      },
-    ],
-  },
-  {
-    icon: "zap",
-    title: "Free vs Premium",
-    subtitle: "Get started for free, or unlock everything with Premium.",
-    details: [
-      {
-        icon: "user",
-        text: "Free: 1 plan, 10 coaching check-ins/month",
-        color: ACCENT_COLORS.cyan,
-      },
-      {
-        icon: "star",
-        text: "Premium: Unlimited plans & coaching",
-        color: ACCENT_COLORS.orange,
-      },
-      {
-        icon: "edit-2",
-        text: "Both: Full customization of your plan",
-        color: ACCENT_COLORS.green,
-      },
-    ],
-  },
-];
-
-const STEP_COLORS = [
-  ACCENT_COLORS.cyan,
-  ACCENT_COLORS.pink,
-  ACCENT_COLORS.purple,
+// One tap gets a New Year's user past the blank box; Coach narrows it down.
+const RESOLUTION_STARTERS = [
+  "Get fit",
+  "Lose weight",
+  "Save money",
+  "Read more",
+  "Sleep better",
+  "Less phone time",
+  "Stress less",
+  "Learn a skill",
+  "Something else",
 ];
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible());
   const navigation = useNavigation<any>();
-  const { theme, isDark } = useTheme();
-  const {
-    setHasOnboarded,
-    setPersona,
-    setBenchmarks,
-    setActions,
-    aiConsent,
-    setAiConsent,
-  } = useApp();
-
-  const [introPage, setIntroPage] = useState(0);
-  const [showIntro, setShowIntro] = useState(true);
-  const [showConsentModal, setShowConsentModal] = useState(false);
+  const { theme } = useTheme();
+  const { aiConsent, setAiConsent, refreshData } = useApp();
+  const [stage, setStage] = useState<Stage>("welcome");
+  const [draft, setDraft] = useState<OnboardingPlanDraft | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [conversationComplete, setConversationComplete] = useState(false);
-  const [isExtracting, setIsExtracting] = useState(false);
-  const [extractStage, setExtractStage] = useState(0);
-
-  const EXTRACT_STAGES = [
-    "Reading your goals...",
-    "Shaping who you're becoming...",
-    "Designing your milestones...",
-    "Scheduling your first week...",
-  ];
-
-  React.useEffect(() => {
-    track("onboarding_started");
-  }, []);
-
-  // Cycle staged copy while the plan is being built so the wait reads as
-  // craftsmanship rather than a stuck spinner
-  React.useEffect(() => {
-    if (!isExtracting) {
-      setExtractStage(0);
-      return;
-    }
-    const interval = setInterval(() => {
-      setExtractStage((prev) =>
-        prev < EXTRACT_STAGES.length - 1 ? prev + 1 : prev,
-      );
-    }, 4000);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isExtracting]);
   const [streamingText, setStreamingText] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [busy, setBusy] = useState<"reply" | "extract" | "save" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [failedRequest, setFailedRequest] = useState<
+    "reply" | "extract" | null
+  >(null);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [consentPaused, setConsentPaused] = useState(false);
+  const consentIntent = useRef<"start" | "send" | "retry" | "extract">("start");
+  const [ready, setReady] = useState(false);
+  const activeRequest = useRef<AbortController | null>(null);
+  const savingRef = useRef(false);
+  const draftWrite = useRef(Promise.resolve());
+  const touchedRef = useRef(false);
+  const listRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
+  const nearBottom = useRef(true);
 
-  const flatListRef = useRef<FlatList>(null);
-  const messageCount = useRef(0);
-
-  // Deferring to the next frame lets the freshly-swapped message finish
-  // layout first — a synchronous scrollToEnd computes a stale offset and
-  // lands short, tucking the last lines under the input (mirrors
-  // ReflectScreen's scrollToEndIfNeeded).
-  const scrollChatToEnd = React.useCallback(() => {
-    requestAnimationFrame(() => {
-      flatListRef.current?.scrollToEnd({ animated: false });
-    });
+  useEffect(() => {
+    const show = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => setKeyboardVisible(true),
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardVisible(false),
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
   }, []);
-  // Set when the user starts a fresh interview this session, so a slow
-  // transcript restore can't clobber a conversation already in progress
-  const startedFreshRef = useRef(false);
 
-  // Resume an interrupted AI interview: restore the saved transcript and
-  // skip the intro so an app switch or crash doesn't restart the interview.
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const stored = await storage.getOnboardingMessages();
-        if (stored.length === 0 || startedFreshRef.current) return;
+  useEffect(() => {
+    let mounted = true;
+    track("onboarding_started");
+    Promise.all([storage.getOnboardingDraft(), storage.getOnboardingMessages()])
+      .then(([savedDraft, transcript]) => {
+        if (!mounted || touchedRef.current) return;
         setMessages(
-          stored.map(({ id, role, content }) => ({ id, role, content })),
+          transcript.map(({ id, role, content }) => ({ id, role, content })),
         );
-        const userTurns = stored.filter((m) => m.role === "user").length;
-        messageCount.current = userTurns;
-        if (userTurns >= 2) setConversationComplete(true);
-        setShowIntro(false);
-      } catch {
-        // A failed restore just means starting fresh
-      }
-    })();
+        // Legacy manual drafts stay stored, but only Coach-created plans resume.
+        if (
+          savedDraft?.usesAI === true &&
+          Array.isArray(savedDraft.suggestions)
+        ) {
+          setDraft(savedDraft);
+          setStage("review");
+        } else if (transcript.length > 0) {
+          setStage("chat");
+          if (transcript.at(-1)?.role === "user") {
+            setError("Your last message is saved. Retry when you are ready.");
+            setFailedRequest("reply");
+          }
+        }
+      })
+      .catch((cause) => logger.warn("Onboarding restore unavailable:", cause))
+      .finally(() => {
+        if (mounted) setReady(true);
+      });
+    return () => {
+      mounted = false;
+      activeRequest.current?.abort();
+      activeRequest.current = null;
+    };
   }, []);
 
-  // Persist the transcript as it grows (fire-and-forget; cleared on success)
-  React.useEffect(() => {
-    if (messages.length === 0) return;
+  useEffect(() => {
+    if (!ready || !draft) return;
+    // Ordered writes prevent a slow keystroke save from restoring a cleared draft.
+    draftWrite.current = draftWrite.current
+      .catch(() => {})
+      .then(() => storage.setOnboardingDraft(draft));
+    draftWrite.current.catch((cause) =>
+      logger.warn("Plan draft save failed:", cause),
+    );
+  }, [draft, ready]);
+
+  useEffect(() => {
+    if (!ready || messages.length === 0) return;
     storage
       .setOnboardingMessages(
-        messages.map((m) => ({ ...m, createdAt: new Date().toISOString() })),
+        messages.map((message) => ({
+          ...message,
+          createdAt: new Date().toISOString(),
+        })),
       )
       .catch(() => {});
-  }, [messages]);
+  }, [messages, ready]);
 
-  // Follow the conversation after every commit — streaming growth, the
-  // final message swap, and the conversation-complete panel all move the
-  // bottom after the list's own callbacks have already fired
-  React.useEffect(() => {
-    scrollChatToEnd();
-  }, [
-    messages,
-    streamingText,
-    isStreaming,
-    conversationComplete,
-    scrollChatToEnd,
-  ]);
+  const scrollToEnd = useCallback(() => {
+    if (nearBottom.current)
+      requestAnimationFrame(() =>
+        listRef.current?.scrollToEnd({ animated: false }),
+      );
+  }, []);
+  useEffect(scrollToEnd, [messages, streamingText, busy, error, scrollToEnd]);
 
-  const handleBeginOnboarding = async () => {
+  const cancelRequest = () => {
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+    setBusy(null);
+    setStreamingText("");
+  };
+
+  const requestReply = async (conversation: ChatMessage[]) => {
+    if (activeRequest.current || savingRef.current) return;
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    setError(null);
+    setFailedRequest(null);
+    setBusy("reply");
+    setStreamingText("");
+    try {
+      const response = await getOnboardingResponse(
+        conversation,
+        (chunk) => {
+          if (activeRequest.current === controller)
+            setStreamingText((text) => text + chunk);
+        },
+        controller.signal,
+      );
+      if (activeRequest.current !== controller) return;
+      setMessages([
+        ...conversation,
+        { id: `${Date.now()}-assistant`, role: "assistant", content: response },
+      ]);
+    } catch (cause) {
+      if (activeRequest.current !== controller) return;
+      logger.warn("Onboarding reply unavailable:", cause);
+      setError(
+        conversation.length === 0
+          ? "Coach could not connect. Please retry when you are ready."
+          : "Coach could not finish that reply. Your message is saved.",
+      );
+      setFailedRequest("reply");
+    } finally {
+      if (activeRequest.current === controller) {
+        activeRequest.current = null;
+        setStreamingText("");
+        setBusy(null);
+      }
+    }
+  };
+
+  const stopRequest = () => {
+    const request = busy;
+    cancelRequest();
+    setFailedRequest(request === "extract" ? "extract" : "reply");
+    setError(
+      messages.length > 0
+        ? "Stopped. Your conversation is saved. Retry when you are ready."
+        : "Stopped. Retry when you are ready to begin.",
+    );
+  };
+
+  const beginChat = () => {
+    touchedRef.current = true;
+    setStage("chat");
+    if (messages.length === 0) void requestReply([]);
+    else if (messages.at(-1)?.role === "user") {
+      setError("Your last message is saved. Retry when you are ready.");
+      setFailedRequest("reply");
+    }
+  };
+  const chooseCoach = () => {
+    touchedRef.current = true;
+    setConsentPaused(false);
     if (!aiConsent) {
+      consentIntent.current = "start";
+      setShowConsentModal(true);
+    } else beginChat();
+  };
+  const sendMessage = (consentOverride = false, starter?: string) => {
+    const text = (starter ?? inputText).trim();
+    if (!text || busy) return;
+    if (!aiConsent && !consentOverride) {
+      if (starter) setInputText(starter);
+      consentIntent.current = "send";
       setShowConsentModal(true);
       return;
     }
-    await beginChat();
+    const conversation: ChatMessage[] = [
+      ...messages,
+      { id: `${Date.now()}-user`, role: "user", content: text },
+    ];
+    setMessages(conversation);
+    setInputText("");
+    nearBottom.current = true;
+    void requestReply(conversation);
   };
 
-  const beginChat = async () => {
-    startedFreshRef.current = true;
-    setShowIntro(false);
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-    await startConversation();
-  };
-
-  const handleConsentAgree = async () => {
-    setShowConsentModal(false);
-    await setAiConsent(true);
-    await beginChat();
-  };
-
-  const handleConsentDecline = () => {
-    setShowConsentModal(false);
-    const message =
-      "No problem — AI coaching stays off. You can start with a ready-made starter plan and enable AI coaching later in Profile.";
-    if (Platform.OS === "web") {
-      if (window.confirm(message)) {
-        createStarterPlan();
-      }
+  const reviewAIPlan = async (consentOverride = false) => {
+    if (inputText.trim()) {
+      setFailedRequest("extract");
+      setError("Send or clear your message before previewing your plan.");
       return;
     }
-    Alert.alert("Continue Without AI?", message, [
-      { text: "Go Back", style: "cancel" },
-      { text: "Use Starter Plan", onPress: () => createStarterPlan() },
-    ]);
-  };
-
-  // Builds a persona locally from the default benchmarks — no network calls,
-  // so declining AI consent still produces a fully working app.
-  const createStarterPlan = async () => {
-    setIsExtracting(true);
-    try {
-      const persona = await setPersona({
-        name: "Momentum Builder",
-        description: "Building better habits one small daily action at a time.",
-      });
-      await savePlan(persona.id, DEFAULT_BENCHMARKS);
-      await setHasOnboarded(true);
-      track("onboarding_declined_ai");
-      track("onboarding_completed");
-      storage.setOnboardingMessages([]).catch(() => {});
-
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-
-      // Land on Today so the first thing users see is the actions they can
-      // check off right now (the Progress tab shows the plan-review guide)
-      navigation.reset({
-        index: 0,
-        routes: [
-          {
-            name: "Main",
-            state: {
-              routes: [{ name: "TodayTab" }],
-            },
-          },
-        ],
-      });
-    } catch (error) {
-      logger.error("Failed to create starter plan:", error);
-      Alert.alert("Error", "We couldn't set up your plan. Please try again.");
-    } finally {
-      setIsExtracting(false);
+    if (!aiConsent && !consentOverride) {
+      consentIntent.current = "extract";
+      setShowConsentModal(true);
+      return;
     }
-  };
-
-  const VALID_DAYS = [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
-  ];
-
-  // The AI occasionally returns cadences the schedule model can't represent
-  // ("First Thursday", "Last Tuesday"). Keep only real weekday names; an
-  // action with none left falls back to the plan's most common weekdays so
-  // it can actually be scheduled (and its milestone can progress).
-  const sanitizeFrequency = (
-    frequency: string[],
-    fallback: string[],
-  ): string[] => {
-    const cleaned = (frequency || [])
-      .map((day) =>
-        VALID_DAYS.find(
-          (d) => d.toLowerCase() === String(day).trim().toLowerCase(),
+    if (activeRequest.current || savingRef.current) return;
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    setBusy("extract");
+    setError(null);
+    setFailedRequest(null);
+    try {
+      const proposal = await extractPersonaFromConversation(
+        messages as AIMessage[],
+        controller.signal,
+      );
+      if (activeRequest.current !== controller) return;
+      setDraft({
+        ...createPlanDraft(proposal, true),
+        resolution: deriveResolution(
+          pickResolutionMessage(
+            messages
+              .filter((message) => message.role === "user")
+              .map((message) => message.content),
+          ),
         ),
-      )
-      .filter((d): d is string => Boolean(d));
-    return sortWeekdays(cleaned.length > 0 ? [...new Set(cleaned)] : fallback);
-  };
-
-  const savePlan = async (
-    personaId: string,
-    benchmarksToUse: typeof DEFAULT_BENCHMARKS,
-  ) => {
-    const results = benchmarksToUse.map((b) => {
-      const benchmark = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2),
-        personaId,
-        title: b.title,
-        targetDate: null,
-        status: "active" as const,
-        createdAt: new Date().toISOString(),
-      };
-      return { benchmark, action: b.elementalAction };
-    });
-
-    // Fallback days = the most common valid weekdays across the plan, so a
-    // sanitized action lands on days the user actually said they're free
-    const dayCounts = new Map<string, number>();
-    for (const r of results) {
-      for (const day of r.action.frequency || []) {
-        const valid = VALID_DAYS.find(
-          (d) => d.toLowerCase() === String(day).trim().toLowerCase(),
-        );
-        if (valid) dayCounts.set(valid, (dayCounts.get(valid) || 0) + 1);
+        sourceMessageId: messages
+          .filter((message) => message.role === "user")
+          .at(-1)?.id,
+      });
+      Keyboard.dismiss();
+      setStage("review");
+    } catch (cause) {
+      if (activeRequest.current !== controller) return;
+      logger.warn("Plan proposal unavailable:", cause);
+      setError(
+        "Your conversation is saved. Please retry when you are ready to review your plan.",
+      );
+      setFailedRequest("extract");
+    } finally {
+      if (activeRequest.current === controller) {
+        activeRequest.current = null;
+        setBusy(null);
       }
     }
-    const fallbackDays =
-      dayCounts.size > 0
-        ? [[...dayCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]]
-        : ["Monday", "Wednesday", "Friday"];
-
-    const allBenchmarks = results.map((r) => r.benchmark);
-    const allActions = results.map((r, index) => ({
-      id: Date.now().toString() + index + Math.random().toString(36).substr(2),
-      benchmarkId: allBenchmarks[index].id,
-      title: r.action.title,
-      frequency: sanitizeFrequency(r.action.frequency, fallbackDays),
-      anchorLink: r.action.anchorLink,
-      kickstartVersion: r.action.kickstartVersion,
-      createdAt: new Date().toISOString(),
-    }));
-
-    // Activation guarantee: never land on an empty Today right after
-    // onboarding. If the plan doesn't schedule anything for the install
-    // weekday, add just that day to the first action (other days untouched).
-    const todayName = new Date().toLocaleDateString("en-US", {
-      weekday: "long",
-    });
-    const finalActions = ensureDayScheduled(allActions, todayName);
-
-    await setBenchmarks(allBenchmarks);
-    await setActions(finalActions);
   };
 
-  const startConversation = async () => {
-    setIsLoading(true);
-    setIsStreaming(true);
-    setStreamingText("");
-    try {
-      const response = await getOnboardingResponse([], (chunk) => {
-        setStreamingText((prev) => prev + chunk);
-      });
-
-      setIsStreaming(false);
-      const aiMessage: ChatMessage = {
-        id: Date.now().toString(),
-        role: "assistant",
-        content: response,
-      };
-      setMessages([aiMessage]);
-      setStreamingText("");
-    } catch (error) {
-      logger.error("Failed to start conversation:", error);
-      Alert.alert("Error", "Failed to connect to AI. Please try again.");
-      setIsStreaming(false);
-      setStreamingText("");
-    } finally {
-      setIsLoading(false);
+  const previewPlan = () => {
+    Keyboard.dismiss();
+    if (!draft) {
+      void reviewAIPlan();
+      return;
     }
-  };
-
-  const sendMessage = async () => {
-    if (!inputText.trim() || isLoading) return;
-
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      content: inputText.trim(),
+    const viewDraft = () => {
+      setError(null);
+      setStage("review");
     };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInputText("");
-    setIsLoading(true);
-    setIsStreaming(true);
-    setStreamingText("");
-    messageCount.current += 1;
-
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-
-    try {
-      const aiMessages: AIMessage[] = messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-      aiMessages.push({ role: "user", content: userMessage.content });
-
-      const response = await getOnboardingResponse(aiMessages, (chunk) => {
-        setStreamingText((prev) => prev + chunk);
-      });
-
-      setIsStreaming(false);
-      const aiMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: response,
-      };
-      setMessages((prev) => [...prev, aiMessage]);
-      setStreamingText("");
-
-      if (messageCount.current >= 2) {
-        setConversationComplete(true);
-      }
-    } catch (error) {
-      logger.error("Failed to send message:", error);
-      Alert.alert("Error", "Failed to get AI response. Please try again.");
-      setIsStreaming(false);
-      setStreamingText("");
-    } finally {
-      setIsLoading(false);
-    }
+    const lastUserMessage = messages
+      .filter((message) => message.role === "user")
+      .at(-1);
+    if (lastUserMessage && draft.sourceMessageId !== lastUserMessage.id) {
+      // Keep edited drafts intact unless the person chooses to replace them.
+      Alert.alert(
+        "Update your plan?",
+        "Use this conversation to create a new draft, or keep your current plan. Updating replaces any edits you made to the current plan.",
+        [
+          { text: "Update draft", onPress: () => void reviewAIPlan() },
+          { text: "View current draft", onPress: viewDraft },
+          { text: "Keep chatting", style: "cancel" },
+        ],
+      );
+    } else viewDraft();
   };
 
-  const finishOnboarding = async () => {
-    setIsExtracting(true);
+  const retryRequest = () => {
+    if (!aiConsent) {
+      consentIntent.current = failedRequest === "extract" ? "extract" : "retry";
+      setShowConsentModal(true);
+    } else if (failedRequest === "extract") void reviewAIPlan();
+    else void requestReply(messages);
+  };
+
+  const approve = async () => {
+    if (draft?.usesAI !== true || savingRef.current) return;
+    savingRef.current = true;
+    setBusy("save");
+    setError(null);
     try {
-      const aiMessages: AIMessage[] = messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-
-      const personaData = await extractPersonaFromConversation(aiMessages);
-
-      let benchmarksToUse = personaData.benchmarks;
-      while (benchmarksToUse.length < MIN_ACTIONS_PER_PERSONA) {
-        const nextDefault = DEFAULT_BENCHMARKS[benchmarksToUse.length];
-        if (nextDefault) {
-          benchmarksToUse.push(nextDefault);
-        } else {
-          break;
-        }
-      }
-      if (benchmarksToUse.length > MAX_ACTIONS_PER_PERSONA) {
-        benchmarksToUse = benchmarksToUse.slice(0, MAX_ACTIONS_PER_PERSONA);
-      }
-
-      const persona = await setPersona({
-        name: personaData.personaName,
-        description: personaData.personaDescription,
-      });
-
-      await savePlan(persona.id, benchmarksToUse);
-      await setHasOnboarded(true);
+      await draftWrite.current.catch(() => {});
+      await storage.setOnboardingDraft(draft);
+      await storage.commitOnboardingPlan(draft);
+      await storage.setOnboardingDraft(null);
+      await storage.setOnboardingMessages([]);
+      await refreshData();
       track("onboarding_completed");
-      storage.setOnboardingMessages([]).catch(() => {});
-
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-
-      // Land on Today so the first thing users see is the actions they can
-      // check off right now (the Progress tab shows the plan-review guide)
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
+        () => {},
+      );
       navigation.reset({
         index: 0,
-        routes: [
-          {
-            name: "Main",
-            state: {
-              routes: [{ name: "TodayTab" }],
-            },
-          },
-        ],
+        routes: [{ name: "Main", state: { routes: [{ name: "TodayTab" }] } }],
       });
-    } catch (error) {
-      logger.error("Failed to extract persona:", error);
-      if (Platform.OS === "web") {
-        if (
-          window.confirm(
-            "We couldn't create your plan. Check your internet connection and retry?",
-          )
-        ) {
-          setIsExtracting(false);
-          finishOnboarding();
-          return;
-        }
-      } else {
-        Alert.alert(
-          "Connection Issue",
-          "We couldn't create your plan. Please check your internet connection and try again.",
-          [
-            { text: "Not Now", style: "cancel" },
-            { text: "Retry", onPress: () => finishOnboarding() },
-          ],
-        );
-      }
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Your plan could not be saved. Please retry.",
+      );
     } finally {
-      setIsExtracting(false);
+      savingRef.current = false;
+      setBusy(null);
     }
   };
 
-  const renderMessage = ({ item }: { item: ChatMessage }) => (
-    <ChatBubble
-      message={item.content}
-      isUser={item.role === "user"}
-      reportSurface="onboarding"
-    />
+  const back = () => {
+    if (busy === "save") return;
+    Keyboard.dismiss();
+    cancelRequest();
+    setError(null);
+    if (stage === "welcome") navigation.goBack();
+    else if (stage === "review" && messages.length > 0) beginChat();
+    else setStage("welcome");
+  };
+  const button = (
+    label: string,
+    action: () => void,
+    primary = false,
+    disabled = false,
+  ) => (
+    <Pressable
+      onPress={action}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      hitSlop={8}
+      pressRetentionOffset={12}
+      style={({ pressed }) => [
+        styles.button,
+        {
+          backgroundColor: primary ? theme.accent : theme.backgroundSecondary,
+          borderColor: theme.border,
+          opacity: disabled ? 0.45 : pressed ? 0.65 : 1,
+        },
+      ]}
+    >
+      <ThemedText
+        style={{
+          color: primary ? theme.buttonText : theme.accent,
+          fontWeight: "600",
+          flexShrink: 1,
+        }}
+      >
+        {label}
+      </ThemedText>
+    </Pressable>
   );
 
-  const handleNextPage = () => {
-    if (introPage < INTRO_PAGES.length - 1) {
-      setIntroPage(introPage + 1);
-      if (Platform.OS !== "web") {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-    }
-  };
-
-  const handlePrevPage = () => {
-    if (introPage > 0) {
-      setIntroPage(introPage - 1);
-      if (Platform.OS !== "web") {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-    }
-  };
-
-  const currentIntroPage = INTRO_PAGES[introPage];
-  const isLastIntroPage = introPage === INTRO_PAGES.length - 1;
-
-  if (showIntro) {
-    return (
-      <View
-        style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
-      >
-        <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-          {navigation.canGoBack() ? (
-            <Pressable
-              onPress={() => navigation.goBack()}
-              hitSlop={4}
-              style={({ pressed }) => [
-                styles.closeButton,
-                { opacity: pressed ? 0.6 : 1 },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-            >
-              <Feather name="x" size={24} color={theme.text} />
-            </Pressable>
-          ) : (
-            <View style={styles.headerSpacer} />
-          )}
-          <View style={styles.headerSpacer} />
-        </View>
-
-        <ScrollView
-          delaysContentTouches={false}
-          style={styles.introScroll}
-          contentContainerStyle={styles.introPageContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.introHero}>
-            <View style={styles.heroLogoContainer}>
-              <View
-                style={[
-                  styles.heroGlowRing,
-                  { borderColor: STEP_COLORS[introPage] + "40" },
-                ]}
-              />
-              <View style={styles.heroLogoInner}>
-                <View
-                  style={[
-                    styles.heroLogoCore,
-                    { backgroundColor: STEP_COLORS[introPage] + "30" },
-                  ]}
-                >
-                  <Feather
-                    name={currentIntroPage.icon}
-                    size={40}
-                    color={STEP_COLORS[introPage]}
-                  />
-                </View>
-              </View>
-            </View>
-            <ThemedText style={styles.introTitle}>
-              {currentIntroPage.title}
-            </ThemedText>
-            <ThemedText
-              style={[styles.introSubtitle, { color: theme.textSecondary }]}
-            >
-              {currentIntroPage.subtitle}
-            </ThemedText>
-          </View>
-
-          {currentIntroPage.details ? (
-            <View style={styles.introDetailsContainer}>
-              {currentIntroPage.details.map((detail, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.introDetailRow,
-                    {
-                      backgroundColor: isDark
-                        ? Colors.dark.backgroundDefault
-                        : Colors.light.backgroundDefault,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.introDetailIcon,
-                      { backgroundColor: detail.color + "20" },
-                    ]}
-                  >
-                    <Feather
-                      name={detail.icon}
-                      size={18}
-                      color={detail.color}
-                    />
-                  </View>
-                  <ThemedText style={styles.introDetailText}>
-                    {detail.text}
-                  </ThemedText>
-                </View>
-              ))}
-            </View>
-          ) : null}
-        </ScrollView>
-
-        <View
-          style={[
-            styles.introFooter,
-            {
-              paddingBottom: Math.max(insets.bottom, 20) + Spacing.xl,
-              backgroundColor: theme.backgroundRoot,
-            },
-          ]}
-        >
-          <View style={styles.paginationDots}>
-            {INTRO_PAGES.map((_, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.paginationDot,
-                  {
-                    backgroundColor:
-                      index === introPage
-                        ? STEP_COLORS[introPage]
-                        : theme.backgroundTertiary,
-                    width: index === introPage ? 24 : 8,
-                  },
-                ]}
-              />
-            ))}
-          </View>
-
-          <View style={styles.introButtonRow}>
-            {introPage > 0 ? (
-              <Pressable
-                onPress={handlePrevPage}
-                accessibilityRole="button"
-                accessibilityLabel="Previous page"
-                style={({ pressed }) => [
-                  styles.backButton,
-                  {
-                    backgroundColor: isDark
-                      ? Colors.dark.backgroundDefault
-                      : Colors.light.backgroundDefault,
-                    opacity: pressed ? 0.8 : 1,
-                  },
-                ]}
-              >
-                <Feather name="arrow-left" size={20} color={theme.text} />
-              </Pressable>
-            ) : null}
-            <Pressable
-              onPress={isLastIntroPage ? handleBeginOnboarding : handleNextPage}
-              accessibilityRole="button"
-              accessibilityLabel={
-                isLastIntroPage ? "Let's get started" : "Continue"
-              }
-              style={({ pressed }) => [
-                styles.beginButton,
-                { backgroundColor: theme.accent },
-                { flex: 1, opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <ThemedText
-                style={[styles.beginButtonText, { color: theme.buttonText }]}
-              >
-                {isLastIntroPage ? "Let's Get Started" : "Continue"}
-              </ThemedText>
-              <Feather name="arrow-right" size={20} color={theme.buttonText} />
-            </Pressable>
-          </View>
-
-          {isLastIntroPage ? (
-            <ThemedText
-              style={[styles.introFooterNote, { color: theme.textSecondary }]}
-            >
-              Takes about 2 minutes
-            </ThemedText>
-          ) : null}
-        </View>
-
-        <AIConsentModal
-          visible={showConsentModal}
-          onAgree={handleConsentAgree}
-          onDecline={handleConsentDecline}
-        />
-      </View>
+  const requesting = busy === "reply" || busy === "extract";
+  const canPreview =
+    !busy &&
+    !inputText.trim() &&
+    Boolean(
+      draft || (messages.some((message) => message.role === "user") && !error),
     );
-  }
+  const step = stage === "review" ? 2 : 1;
+  const stepTitle = stage === "review" ? "Review your plan" : "Talk with Coach";
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.backgroundRoot,
+          paddingTop: insets.top,
+        },
+      ]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={0}
     >
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+      <View style={styles.header}>
         <Pressable
-          onPress={() => navigation.goBack()}
-          hitSlop={4}
-          style={({ pressed }) => [
-            styles.closeButton,
-            { opacity: pressed ? 0.6 : 1 },
-          ]}
+          onPress={back}
+          disabled={busy === "save"}
           accessibilityRole="button"
-          accessibilityLabel="Close"
+          accessibilityLabel={
+            stage === "welcome"
+              ? "Close onboarding"
+              : stage === "review" && messages.length > 0
+                ? "Back to Coach"
+                : "Back to onboarding"
+          }
+          hitSlop={12}
+          pressRetentionOffset={16}
+          style={({ pressed }) => ({
+            minWidth: 44,
+            minHeight: 44,
+            justifyContent: "center",
+            opacity: pressed ? 0.6 : 1,
+          })}
         >
-          <Feather name="x" size={24} color={theme.text} />
+          <Feather
+            name={stage === "welcome" ? "x" : "arrow-left"}
+            size={24}
+            color={theme.text}
+          />
         </Pressable>
-        <ThemedText style={styles.headerTitle}>Create Your Plan</ThemedText>
-        <View style={styles.headerSpacer} />
-      </View>
-
-      <View style={styles.progressBarContainer}>
-        <View style={styles.progressSteps}>
-          <View
-            style={[styles.progressStep, { backgroundColor: theme.accent }]}
-          />
-          <View
-            style={[
-              styles.progressStep,
-              {
-                backgroundColor:
-                  messageCount.current >= 1
-                    ? theme.accent
-                    : theme.backgroundTertiary,
-              },
-            ]}
-          />
-          <View
-            style={[
-              styles.progressStep,
-              {
-                backgroundColor: conversationComplete
-                  ? theme.accent
-                  : theme.backgroundTertiary,
-              },
-            ]}
-          />
-        </View>
-        <ThemedText
-          style={[styles.progressStepLabel, { color: theme.textSecondary }]}
-        >
-          {conversationComplete
-            ? "Step 3 of 3: Build your plan"
-            : messageCount.current >= 1
-              ? "Step 2 of 3: Tell us more"
-              : "Step 1 of 3: Share your vision"}
-        </ThemedText>
-      </View>
-
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.messageList}
-        onContentSizeChange={scrollChatToEnd}
-        // Re-anchor when the VIEWPORT shrinks, not just when content grows:
-        // the keyboard (KAV padding) and the "Create My Plan" panel both
-        // steal height after the last content change, leaving the final AI
-        // bubble cut off behind them (mirrors ReflectScreen's onLayout).
-        onLayout={scrollChatToEnd}
-        keyboardShouldPersistTaps="handled"
-        ListFooterComponent={
-          isStreaming && streamingText ? (
-            <ChatBubble message={streamingText} isUser={false} isTyping />
-          ) : isLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={theme.accent} />
-            </View>
-          ) : null
-        }
-      />
-
-      {conversationComplete && !isExtracting ? (
         <View
-          style={[
-            styles.finishContainer,
-            { paddingBottom: insets.bottom + Spacing.lg },
-          ]}
+          style={styles.headerCopy}
+          accessible
+          accessibilityRole="header"
+          accessibilityLabel={
+            stage === "welcome"
+              ? "Set up your plan"
+              : `Step ${step} of 2. ${stepTitle}`
+          }
+          accessibilityLiveRegion="polite"
         >
-          <View style={styles.progressIndicator}>
-            <Feather name="check-circle" size={16} color={theme.success} />
-            <ThemedText
-              style={[styles.progressText, { color: theme.textSecondary }]}
-            >
-              Your plan is ready to build
-            </ThemedText>
-          </View>
-          <Pressable
-            onPress={finishOnboarding}
-            accessibilityRole="button"
-            accessibilityLabel="Create my plan"
-            style={({ pressed }) => [
-              styles.finishButton,
-              { backgroundColor: theme.accent },
-              { opacity: pressed ? 0.8 : 1 },
-            ]}
-          >
-            <ThemedText
-              style={[styles.finishButtonText, { color: theme.buttonText }]}
-            >
-              Create My Plan
-            </ThemedText>
-            <Feather name="arrow-right" size={20} color={theme.buttonText} />
-          </Pressable>
-        </View>
-      ) : null}
-
-      {isExtracting ? (
-        <View
-          style={[
-            styles.extractingContainer,
-            { paddingBottom: insets.bottom + Spacing.lg },
-          ]}
-        >
-          <ActivityIndicator size="large" color={theme.accent} />
           <ThemedText
-            style={[styles.extractingText, { color: theme.textSecondary }]}
+            style={[styles.stepLabel, { color: theme.textSecondary }]}
           >
-            {EXTRACT_STAGES[extractStage]}
+            {stage === "welcome" ? "BEFORE YOU BEGIN" : `STEP ${step} OF 2`}
+          </ThemedText>
+          <ThemedText style={styles.headerTitle}>
+            {stage === "welcome" ? "Set up your plan" : stepTitle}
           </ThemedText>
         </View>
+        {stage === "chat" ? (
+          <Pressable
+            onPress={previewPlan}
+            disabled={!canPreview}
+            accessibilityRole="button"
+            accessibilityLabel="Preview my plan"
+            accessibilityHint="Opens step 2 to review your plan before starting"
+            accessibilityState={{ disabled: !canPreview }}
+            hitSlop={8}
+            pressRetentionOffset={12}
+            style={({ pressed }) => [
+              styles.headerAction,
+              { opacity: !canPreview ? 0.4 : pressed ? 0.6 : 1 },
+            ]}
+          >
+            <ThemedText style={{ color: theme.accent, fontWeight: "600" }}>
+              Preview
+            </ThemedText>
+            <Feather name="chevron-right" size={18} color={theme.accent} />
+          </Pressable>
+        ) : null}
+      </View>
+      {stage !== "welcome" ? (
+        <View
+          style={styles.progress}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          {[1, 2].map((item) => (
+            <View
+              key={item}
+              style={[
+                styles.progressSegment,
+                { backgroundColor: item <= step ? theme.accent : theme.border },
+              ]}
+            />
+          ))}
+        </View>
       ) : null}
-
-      {!conversationComplete && !isExtracting ? (
+      {!ready ? (
+        <ActivityIndicator color={theme.accent} />
+      ) : stage === "welcome" ? (
+        <>
+          <ScrollView
+            style={styles.scrollViewport}
+            contentContainerStyle={styles.welcome}
+            contentInsetAdjustmentBehavior="never"
+          >
+            <Feather name="compass" size={44} color={theme.accent} />
+            <ThemedText style={styles.heading} accessibilityRole="header">
+              What&rsquo;s your resolution?
+            </ThemedText>
+            <ThemedText style={{ color: theme.textSecondary }}>
+              Say it in your own words. Coach turns it into one small habit that
+              fits your life, and you decide when it starts.
+            </ThemedText>
+            <View style={styles.overview}>
+              {[
+                [
+                  "Talk with Coach",
+                  "Share your resolution and the days that fit.",
+                ],
+                [
+                  "Review your plan",
+                  "Check your habit and schedule. Start when it feels right.",
+                ],
+              ].map(([title, detail], index) => (
+                <View key={title} style={styles.overviewStep}>
+                  <View
+                    style={[
+                      styles.stepNumber,
+                      { backgroundColor: theme.backgroundSecondary },
+                    ]}
+                  >
+                    <ThemedText
+                      style={{ color: theme.accent, fontWeight: "600" }}
+                    >
+                      {index + 1}
+                    </ThemedText>
+                  </View>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <ThemedText style={{ fontWeight: "600" }}>
+                      {title}
+                    </ThemedText>
+                    <ThemedText style={{ color: theme.textSecondary }}>
+                      {detail}
+                    </ThemedText>
+                  </View>
+                </View>
+              ))}
+            </View>
+            <ThemedText style={{ color: theme.textSecondary }}>
+              Requires an internet connection and your permission to use AI.
+            </ThemedText>
+            {consentPaused ? (
+              <ThemedText
+                accessibilityLiveRegion="polite"
+                style={{ color: theme.textSecondary }}
+              >
+                Setup is paused. Start with Coach whenever you are ready to
+                allow AI coaching.
+              </ThemedText>
+            ) : null}
+            <ThemedText style={{ color: theme.textSecondary }}>
+              Free includes your first plan, daily tracking, and 10 Coach
+              conversations each month.
+            </ThemedText>
+          </ScrollView>
+          <View
+            style={[styles.welcomeFooter, { borderTopColor: theme.border }]}
+          >
+            {button(
+              draft
+                ? "Resume my plan review"
+                : messages.length > 0
+                  ? "Resume my conversation"
+                  : "Build a plan with Coach",
+              draft
+                ? () => {
+                    setError(null);
+                    setStage("review");
+                  }
+                : chooseCoach,
+              true,
+            )}
+          </View>
+        </>
+      ) : stage === "review" && draft ? (
+        <OnboardingPlanReview
+          draft={draft}
+          onChange={(next) => {
+            setDraft(next);
+            setError(null);
+          }}
+          onApprove={approve}
+          saving={busy === "save"}
+          error={error}
+        />
+      ) : (
+        <>
+          <ThemedText
+            style={[styles.chatGuidance, { color: theme.textSecondary }]}
+          >
+            {inputText.trim()
+              ? "Send your message before previewing your plan."
+              : "Share your resolution and the days that fit. You’ll review the plan before it starts."}
+          </ThemedText>
+          <FlatList
+            style={styles.scrollViewport}
+            ref={listRef}
+            data={messages}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <ChatBubble
+                message={item.content}
+                isUser={item.role === "user"}
+                reportSurface="onboarding"
+              />
+            )}
+            contentContainerStyle={styles.messages}
+            contentInsetAdjustmentBehavior="never"
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            onContentSizeChange={scrollToEnd}
+            onLayout={scrollToEnd}
+            onScroll={(event) => {
+              const { contentOffset, contentSize, layoutMeasurement } =
+                event.nativeEvent;
+              nearBottom.current =
+                contentSize.height -
+                  layoutMeasurement.height -
+                  contentOffset.y <
+                80;
+            }}
+            scrollEventThrottle={16}
+            ListFooterComponent={
+              <>
+                {streamingText ? (
+                  <ChatBubble message={streamingText} isUser={false} isTyping />
+                ) : busy ? (
+                  <View
+                    accessible
+                    accessibilityRole="text"
+                    accessibilityLiveRegion="polite"
+                    style={styles.wait}
+                  >
+                    <ActivityIndicator color={theme.accent} />
+                    <ThemedText>
+                      {busy === "extract"
+                        ? "Preparing a plan for you to review…"
+                        : "Coach is thinking…"}
+                    </ThemedText>
+                  </View>
+                ) : null}
+                {!busy &&
+                !error &&
+                messages.length > 0 &&
+                !messages.some((message) => message.role === "user") ? (
+                  <View
+                    style={styles.starters}
+                    accessibilityLabel="Resolution ideas"
+                  >
+                    {RESOLUTION_STARTERS.map((starter) => (
+                      <Pressable
+                        key={starter}
+                        onPress={() =>
+                          starter === "Something else"
+                            ? inputRef.current?.focus()
+                            : sendMessage(false, starter)
+                        }
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          starter === "Something else"
+                            ? "Type your own resolution"
+                            : `Send: ${starter}`
+                        }
+                        hitSlop={6}
+                        pressRetentionOffset={12}
+                        style={({ pressed }) => [
+                          styles.starter,
+                          {
+                            borderColor: theme.accent,
+                            backgroundColor: theme.backgroundSecondary,
+                            opacity: pressed ? 0.6 : 1,
+                          },
+                        ]}
+                      >
+                        <ThemedText
+                          style={{ color: theme.text, fontWeight: "600" }}
+                        >
+                          {starter}
+                        </ThemedText>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+                {/* Only once Coach stops asking: a clarifying question means
+                    the plan would have to guess the missing detail. */}
+                {canPreview &&
+                messages.at(-1)?.role === "assistant" &&
+                !messages.at(-1)?.content.trim().endsWith("?") ? (
+                  <View style={styles.inlineReview}>
+                    {button("Review my plan", previewPlan, true)}
+                  </View>
+                ) : null}
+              </>
+            }
+          />
+          {error ? (
+            <View
+              style={[
+                styles.recovery,
+                {
+                  borderTopColor: theme.border,
+                  backgroundColor: theme.backgroundSecondary,
+                },
+              ]}
+            >
+              <ThemedText
+                accessibilityRole="alert"
+                style={[styles.recoveryText, { color: theme.textSecondary }]}
+              >
+                {error}
+              </ThemedText>
+              <Pressable
+                onPress={retryRequest}
+                disabled={
+                  failedRequest === "extract" && Boolean(inputText.trim())
+                }
+                accessibilityRole="button"
+                accessibilityLabel="Retry"
+                accessibilityState={{
+                  disabled:
+                    failedRequest === "extract" && Boolean(inputText.trim()),
+                }}
+                hitSlop={8}
+                pressRetentionOffset={12}
+                style={({ pressed }) => [
+                  styles.headerAction,
+                  {
+                    opacity:
+                      failedRequest === "extract" && inputText.trim()
+                        ? 0.4
+                        : pressed
+                          ? 0.6
+                          : 1,
+                  },
+                ]}
+              >
+                <Feather name="rotate-cw" size={18} color={theme.accent} />
+                <ThemedText style={{ color: theme.accent, fontWeight: "600" }}>
+                  Retry
+                </ThemedText>
+              </Pressable>
+            </View>
+          ) : null}
+          <View style={[styles.composer, { borderTopColor: theme.border }]}>
+            <TextInput
+              ref={inputRef}
+              value={inputText}
+              onChangeText={setInputText}
+              editable={busy !== "extract"}
+              multiline
+              accessibilityLabel="Message your onboarding coach"
+              placeholder="Tell Coach what fits your life"
+              placeholderTextColor={theme.textSecondary}
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.backgroundSecondary,
+                },
+              ]}
+            />
+            <Pressable
+              onPress={requesting ? stopRequest : () => sendMessage()}
+              disabled={!requesting && !inputText.trim()}
+              accessibilityRole="button"
+              accessibilityLabel={
+                requesting ? "Stop Coach response" : "Send message"
+              }
+              accessibilityState={{
+                disabled: !requesting && !inputText.trim(),
+              }}
+              hitSlop={8}
+              pressRetentionOffset={12}
+              style={({ pressed }) => [
+                styles.send,
+                {
+                  backgroundColor: requesting
+                    ? theme.backgroundSecondary
+                    : theme.accent,
+                  borderWidth: requesting ? 1 : 0,
+                  borderColor: theme.border,
+                  opacity:
+                    !requesting && !inputText.trim() ? 0.4 : pressed ? 0.6 : 1,
+                },
+              ]}
+            >
+              <Feather
+                name={requesting ? "square" : "arrow-up"}
+                color={requesting ? theme.accent : theme.buttonText}
+                size={22}
+              />
+            </Pressable>
+          </View>
+        </>
+      )}
+      {keyboardVisible ? (
         <View
           style={[
-            styles.inputContainer,
+            styles.keyboardToolbar,
             {
-              paddingBottom: insets.bottom + Spacing.md,
-              backgroundColor: isDark
-                ? Colors.dark.backgroundDefault
-                : Colors.light.backgroundDefault,
+              borderTopColor: theme.border,
+              backgroundColor: theme.backgroundSecondary,
             },
           ]}
         >
-          <TextInput
-            accessibilityLabel="Message to your AI persona interviewer"
-            style={[
-              styles.input,
-              {
-                backgroundColor: isDark
-                  ? Colors.dark.backgroundSecondary
-                  : Colors.light.backgroundSecondary,
-                color: theme.text,
-              },
-            ]}
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Share your aspirations..."
-            placeholderTextColor={theme.textSecondary}
-            multiline
-            maxLength={500}
-            editable={!isLoading}
-          />
           <Pressable
-            onPress={sendMessage}
-            disabled={!inputText.trim() || isLoading}
+            onPress={Keyboard.dismiss}
             accessibilityRole="button"
-            accessibilityLabel="Send message"
-            accessibilityState={{ disabled: !inputText.trim() || isLoading }}
+            accessibilityLabel="Hide keyboard"
+            accessibilityHint="Keeps your text and closes the keyboard"
+            hitSlop={8}
+            pressRetentionOffset={12}
             style={({ pressed }) => [
-              styles.sendButton,
-              {
-                backgroundColor:
-                  inputText.trim() && !isLoading
-                    ? theme.accent
-                    : isDark
-                      ? Colors.dark.backgroundTertiary
-                      : Colors.light.backgroundTertiary,
-                opacity: pressed ? 0.8 : 1,
-              },
+              styles.keyboardDismiss,
+              { opacity: pressed ? 0.6 : 1 },
             ]}
           >
-            {isLoading ? (
-              <ActivityIndicator size="small" color={theme.text} />
-            ) : (
-              <Feather
-                name="send"
-                size={20}
-                color={inputText.trim() ? "#000000" : theme.textSecondary}
-              />
-            )}
+            <ThemedText style={styles.keyboardDismissText}>
+              Hide keyboard
+            </ThemedText>
+            <Feather name="chevron-down" size={18} color={theme.text} />
           </Pressable>
         </View>
       ) : null}
+      {/* Padding mode owns the parent's bottom padding, so safe area must be a child. */}
+      <View
+        pointerEvents="none"
+        style={{ height: keyboardVisible ? 0 : insets.bottom, flexShrink: 0 }}
+      />
+      <AIConsentModal
+        visible={showConsentModal}
+        onDecline={() => {
+          setShowConsentModal(false);
+          setConsentPaused(true);
+        }}
+        onAgree={async () => {
+          await setAiConsent(true);
+          setShowConsentModal(false);
+          if (consentIntent.current === "extract") void reviewAIPlan(true);
+          else if (consentIntent.current === "send") sendMessage(true);
+          else if (consentIntent.current === "retry")
+            void requestReply(messages);
+          else beginChat();
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  container: { flex: 1 },
+  scrollViewport: { flex: 1, minHeight: 0 },
+  keyboardToolbar: {
+    flexShrink: 0,
+    alignItems: "flex-end",
+    paddingHorizontal: Spacing.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
+  keyboardDismiss: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+  },
+  keyboardDismissText: { fontSize: 14, lineHeight: 20, fontWeight: "600" },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
-  },
-  closeButton: {
-    padding: Spacing.sm,
-  },
-  headerTitle: {
-    ...Typography.headline,
-    flex: 1,
-    textAlign: "center",
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  progressBarContainer: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
-    alignItems: "center",
-  },
-  progressSteps: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    marginBottom: Spacing.xs,
-  },
-  progressStep: {
-    width: 60,
-    height: 4,
-    borderRadius: 2,
-  },
-  progressStepLabel: {
-    ...Typography.small,
-  },
-  messageList: {
-    paddingTop: Spacing.lg,
-    // Match the Coach chat's breathing room: without it the last AI bubble
-    // sits flush against the input and reads as cut off mid-stream.
-    paddingBottom: 80,
-    flexGrow: 1,
-  },
-  loadingContainer: {
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.lg,
-    alignItems: "flex-start",
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
+    paddingVertical: Spacing.sm,
     gap: Spacing.sm,
   },
-  input: {
-    flex: 1,
+  headerCopy: { flex: 1, gap: 2 },
+  stepLabel: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "600",
+    letterSpacing: 0.8,
+  },
+  headerTitle: { fontSize: 18, lineHeight: 24, fontWeight: "600" },
+  headerAction: {
     minHeight: 44,
-    maxHeight: 120,
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    ...Typography.body,
-  },
-  sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  finishContainer: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-  },
-  progressIndicator: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
+    gap: 4,
+    flexShrink: 0,
   },
-  progressText: {
-    ...Typography.small,
-    fontWeight: "500",
-  },
-  finishButton: {
+  progress: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.dark.accent,
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.full,
     gap: Spacing.sm,
-  },
-  finishButtonText: {
-    ...Typography.headline,
-    color: "#000000",
-  },
-  extractingContainer: {
-    alignItems: "center",
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xl,
-    gap: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
-  extractingText: {
-    ...Typography.body,
-    textAlign: "center",
-  },
-  introHero: {
-    alignItems: "center",
-    paddingVertical: Spacing.xl,
-  },
-  heroLogoContainer: {
-    width: 100,
-    height: 100,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing.xl,
-  },
-  heroGlowRing: {
-    position: "absolute",
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 2,
-  },
-  heroLogoInner: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(0, 217, 255, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  heroLogoCore: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "rgba(0, 217, 255, 0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  introTitle: {
-    ...Typography.title,
-    textAlign: "center",
-    marginBottom: Spacing.sm,
-  },
-  introSubtitle: {
-    ...Typography.body,
-    textAlign: "center",
-    lineHeight: 24,
-  },
-  introFooter: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-  },
-  beginButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.dark.accent,
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.full,
-    gap: Spacing.sm,
-  },
-  beginButtonText: {
-    ...Typography.headline,
-    color: "#000000",
-  },
-  introFooterNote: {
-    ...Typography.caption,
-    textAlign: "center",
-    marginTop: Spacing.sm,
-  },
-  introScroll: {
-    flex: 1,
-  },
-  introPageContent: {
-    flexGrow: 1,
-    justifyContent: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.lg,
-  },
-  introDetailsContainer: {
-    marginTop: Spacing.xl,
-    gap: Spacing.sm,
-  },
-  introDetailRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-  },
-  introDetailIcon: {
+  progressSegment: { height: 3, borderRadius: 2, flex: 1 },
+  overview: { gap: Spacing.lg },
+  overviewStep: { flexDirection: "row", gap: Spacing.md },
+  stepNumber: {
     width: 36,
     height: 36,
-    borderRadius: BorderRadius.md,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: Spacing.md,
   },
-  introDetailText: {
+  welcomeFooter: {
+    flexShrink: 0,
+    padding: Spacing.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  heading: { fontSize: 28, fontWeight: "700", lineHeight: 34 },
+  welcome: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: 40 },
+  button: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  messages: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
+  starters: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    paddingTop: Spacing.sm,
+  },
+  starter: {
+    minHeight: 40,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    justifyContent: "center",
+  },
+  inlineReview: { paddingTop: Spacing.md },
+  wait: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    flexWrap: "wrap",
+  },
+  recovery: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  recoveryText: { flex: 1, fontSize: 14, lineHeight: 20 },
+  chatGuidance: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.xs,
+    paddingBottom: Spacing.md,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  composer: {
+    flexShrink: 0,
+    flexDirection: "row",
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    alignItems: "flex-end",
+  },
+  input: {
     ...Typography.body,
     flex: 1,
+    minHeight: 48,
+    maxHeight: 120,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
   },
-  paginationDots: {
-    flexDirection: "row",
-    justifyContent: "center",
+  send: {
+    minHeight: 48,
+    minWidth: 48,
     alignItems: "center",
-    gap: Spacing.sm,
-    marginBottom: Spacing.lg,
-  },
-  paginationDot: {
-    height: 8,
-    borderRadius: 4,
-  },
-  introButtonRow: {
-    flexDirection: "row",
-    gap: Spacing.md,
-  },
-  backButton: {
-    width: 52,
-    height: 52,
+    justifyContent: "center",
     borderRadius: BorderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
   },
 });

@@ -2,12 +2,13 @@
   "expo": {
     "name": "Resolution Companion AI",
     "slug": "evolve-app",
-    "version": "1.4.1",
+    "version": "1.5.0",
     "description": "AI-powered personal development app to define your goals, build daily habits, and track your progress with coaching.",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "resolutioncompanion",
     "userInterfaceStyle": "automatic",
+    "backgroundColor": "#000000",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
@@ -19,7 +20,7 @@
         ],
         "com.apple.developer.ubiquity-kvstore-identifier": "$(TeamIdentifierPrefix)com.resolutioncompanion.app"
       },
-      "buildNumber": "64",
+      "buildNumber": "95",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -86,12 +87,11 @@
           "color": "#00D9FF"
         }
       ],
-      "./plugins/with-extension-build-number",
       "@bacons/apple-targets",
       [
         "react-native-health",
         {
-          "healthSharePermission": "Resolution Companion reads workouts, steps, and mindful minutes \u2014 on this device only \u2014 to automatically complete matching daily actions so you never take a zero."
+          "healthSharePermission": "Resolution Companion reads workouts, steps, and mindful minutes — on this device only — to automatically complete matching daily actions so you never take a zero."
         }
       ],
       "./plugins/with-alternate-app-icons"

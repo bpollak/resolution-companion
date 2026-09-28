@@ -18,11 +18,7 @@ import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { logger } from "@/lib/logger";
-import {
-  isHealthAvailable,
-  initHealth,
-  HEALTH_KIND_LABELS,
-} from "@/lib/health";
+import { initHealth, HEALTH_KIND_LABELS } from "@/lib/health";
 
 const DAYS = [
   "Monday",
@@ -33,7 +29,7 @@ const DAYS = [
   "Saturday",
   "Sunday",
 ];
-const MIN_ACTIONS_PER_PERSONA = 3;
+const MIN_ACTIONS_PER_PERSONA = 1;
 const MAX_ACTIONS_PER_PERSONA = 5;
 
 type RouteParams = {
@@ -91,12 +87,12 @@ export default function ActionEditorScreen() {
     if (!isEditing && !canAddAction) {
       if (Platform.OS === "web") {
         window.alert(
-          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} actions per persona.`,
+          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} habits per plan.`,
         );
       } else {
         Alert.alert(
           "Action Limit Reached",
-          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} actions per persona.`,
+          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} habits per plan.`,
         );
       }
       navigation.goBack();
@@ -201,14 +197,9 @@ export default function ActionEditorScreen() {
 
     if (!canDeleteAction) {
       if (Platform.OS === "web") {
-        window.alert(
-          `You must have at least ${MIN_ACTIONS_PER_PERSONA} actions per persona.`,
-        );
+        window.alert("Keep at least one habit in each plan.");
       } else {
-        Alert.alert(
-          "Cannot Delete",
-          `You must have at least ${MIN_ACTIONS_PER_PERSONA} actions per persona.`,
-        );
+        Alert.alert("Cannot Delete", "Keep at least one habit in each plan.");
       }
       return;
     }
@@ -381,7 +372,7 @@ export default function ActionEditorScreen() {
           />
           <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
             On low-energy days, do this ~2-minute version instead of the full
-            action. It still counts — showing up is what builds the habit.
+            action. It still counts. Showing up is what builds the habit.
           </ThemedText>
         </View>
 
@@ -408,15 +399,22 @@ export default function ActionEditorScreen() {
             maxLength={100}
           />
           <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
-            Attach this action to a habit you already have — doing it right
-            after something automatic makes it far easier to remember
+            Attach this action to a habit you already have. Doing it right after
+            something automatic makes it far easier to remember
           </ThemedText>
         </View>
 
-        {isHealthAvailable() ? (
+        {Platform.OS === "ios" ? (
           <View style={styles.section}>
             <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
-              Auto-complete from Health
+              Apple Health
+            </ThemedText>
+            <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
+              Optional HealthKit integration. With your permission, Apple Health
+              activity can complete this habit when you open or return to the
+              app. Access is read-only; raw health records stay on this device
+              and are not sent to AI Coach. Select Off to disable it for this
+              habit.
             </ThemedText>
             <View style={styles.daysContainer}>
               {(
@@ -436,8 +434,8 @@ export default function ActionEditorScreen() {
                         const ok = await initHealth();
                         if (!ok) {
                           Alert.alert(
-                            "Health Unavailable",
-                            "Resolution Companion couldn't get access to Health data. You can grant access in Settings → Privacy → Health.",
+                            "Apple Health Unavailable",
+                            "Apple Health could not be opened on this device. You can manage this app's access in the Health app under your profile, Apps, then Resolution Companion. Manual habit tracking is always available.",
                           );
                           return;
                         }
@@ -448,8 +446,8 @@ export default function ActionEditorScreen() {
                     accessibilityState={{ selected }}
                     accessibilityLabel={
                       option.value === null
-                        ? "Health auto-complete off"
-                        : HEALTH_KIND_LABELS[option.value]
+                        ? "Apple Health auto-complete off"
+                        : `Apple Health: ${HEALTH_KIND_LABELS[option.value]}`
                     }
                     style={({ pressed }) => [
                       styles.dayButton,
@@ -477,14 +475,39 @@ export default function ActionEditorScreen() {
             </View>
             <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
               {healthAutoComplete
-                ? `${HEALTH_KIND_LABELS[healthAutoComplete]} casts this vote automatically — the day is saved without opening the app.`
-                : "Let a workout, step total, or mindful session in Apple Health cast this vote for you. Health data never leaves your phone."}
+                ? `${HEALTH_KIND_LABELS[healthAutoComplete]} today completes this habit on scheduled days when you open or return to the app.`
+                : "Off. This habit is completed by hand. You can change permissions in the Health app under your profile, Apps, then Resolution Companion."}
             </ThemedText>
           </View>
         ) : null}
 
         {isEditing ? (
           <View>
+            <Pressable
+              onPress={() =>
+                navigation.navigate("CoachSheet", {
+                  origin: "action",
+                  actionId: existingAction?.id,
+                  promptId: "reduce-friction",
+                })
+              }
+              accessibilityRole="button"
+              accessibilityLabel={`Ask Coach about ${existingAction?.title ?? "this action"}`}
+              style={({ pressed }) => [
+                styles.coachButton,
+                {
+                  borderColor: theme.accent,
+                  opacity: pressed ? 0.65 : 1,
+                },
+              ]}
+            >
+              <Feather name="message-circle" size={18} color={theme.accent} />
+              <ThemedText
+                style={[styles.coachButtonText, { color: theme.accent }]}
+              >
+                Ask Coach about this action
+              </ThemedText>
+            </Pressable>
             <Pressable
               onPress={handleDelete}
               disabled={!canDeleteAction}
@@ -528,7 +551,7 @@ export default function ActionEditorScreen() {
                   },
                 ]}
               >
-                Minimum {MIN_ACTIONS_PER_PERSONA} actions required per persona
+                Keep at least one habit in this plan
               </ThemedText>
             ) : null}
           </View>
@@ -607,6 +630,21 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     gap: Spacing.sm,
     marginTop: Spacing.xl,
+  },
+  coachButton: {
+    minHeight: 44,
+    marginTop: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+  },
+  coachButtonText: {
+    ...Typography.body,
+    fontWeight: "600",
   },
   deleteButtonText: {
     ...Typography.body,

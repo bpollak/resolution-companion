@@ -1,0 +1,126 @@
+appId: com.resolutioncompanion.app
+---
+# Stateful editor regression. Run after onboarding has created a persona with
+# at least one milestone and action; this preserves the plan so the same flow
+# can verify edits across navigation and a later cold relaunch.
+
+- extendedWaitUntil:
+    visible: "Today, .*"
+    timeout: 15000
+- waitForAnimationToEnd
+- tapOn: "Journey tab"
+- swipe:
+    direction: DOWN
+- swipe:
+    direction: DOWN
+- swipe:
+    direction: DOWN
+- swipe:
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      text: ".* milestone, .* days done"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+    visibilityPercentage: 60
+- tapOn: "Edit .* milestone"
+- assertVisible: "Edit Milestone"
+
+# Milestone field and target-date preset.
+- tapOn: "Milestone goal"
+- waitForAnimationToEnd
+- eraseText: 20
+- tapOn: "Milestone goal"
+- eraseText: 20
+- tapOn: "Milestone goal"
+- eraseText: 20
+- tapOn: "Milestone goal"
+- eraseText: 20
+- tapOn: "Milestone goal"
+- eraseText: 20
+- inputText: "Navigation confidence"
+- assertVisible: "Navigation confidence"
+- tapOn: "Set target date 3 months from now"
+
+# Action fields opened from the milestone's action list.
+- scrollUntilVisible:
+    element:
+      text: "Edit action .*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn: "Edit action .*"
+- assertVisible: "Edit Action"
+- tapOn: "Action title"
+- waitForAnimationToEnd
+- eraseText: 20
+- tapOn: "Action title"
+- eraseText: 20
+- tapOn: "Action title"
+- eraseText: 20
+- tapOn: "Action title"
+- eraseText: 20
+- tapOn: "Action title"
+- eraseText: 20
+- inputText: "Practice one map bearing"
+- assertVisible: "Practice one map bearing"
+- tapOn: "120-second kickstart"
+- waitForAnimationToEnd
+- eraseText: 20
+- tapOn: "120-second kickstart"
+- eraseText: 20
+- tapOn: "120-second kickstart"
+- eraseText: 20
+- tapOn: "120-second kickstart"
+- eraseText: 20
+- tapOn: "120-second kickstart"
+- eraseText: 20
+- tapOn: "120-second kickstart"
+- eraseText: 20
+- tapOn: "120-second kickstart"
+- eraseText: 20
+- tapOn: "120-second kickstart"
+- eraseText: 20
+- inputText: "Plot one quick bearing"
+- assertVisible: "Plot one quick bearing"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "Anchor link"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn: "Anchor link"
+- waitForAnimationToEnd
+- eraseText: 20
+- tapOn: "Anchor link"
+- eraseText: 20
+- tapOn: "Anchor link"
+- eraseText: 20
+- tapOn: "Anchor link"
+- eraseText: 20
+- tapOn: "Anchor link"
+- eraseText: 20
+- inputText: "After breakfast"
+- assertVisible: "After breakfast"
+- hideKeyboard
+- tapOn: "Save action"
+
+# The edited action must immediately propagate to its milestone editor.
+- extendedWaitUntil:
+    visible: "Practice one map bearing"
+    timeout: 10000
+- tapOn: "Save milestone"
+
+# The renamed milestone and action must propagate to Today and Journey.
+- tapOn: "Today tab"
+- extendedWaitUntil:
+    visible: ".*Practice one map bearing.*"
+    timeout: 15000
+- tapOn: "Journey tab"
+- extendedWaitUntil:
+    visible: ".*Navigation confidence.*"
+    timeout: 15000
+- assertVisible: ".*Practice one map bearing.*"
+# Cold-relaunch persistence is asserted by qa/maestro-editors-relaunch.yaml.

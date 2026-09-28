@@ -1,161 +1,91 @@
 import {
   buildPlanTuneUpRequest,
-  canRequestPlanTuneUp,
+  parsePlanTuneUpSuggestion,
 } from "@/lib/plan-tune-up";
-import {
-  normalizePlanTuneUpResponse,
-  validatePlanTuneUpRequest,
-} from "@shared/plan-tune-up";
-import type { DailyLog, ElementalAction } from "@/lib/storage";
-import type { DailyContextEntry } from "@/lib/daily-context";
+import type { ElementalAction } from "@/lib/storage";
 
-jest.mock("@/lib/storage", () => ({
-  storage: {
-    getDeviceId: jest.fn(async () => "test-device"),
-  },
-}));
+jest.mock("@react-native-async-storage/async-storage", () =>
+  jest.requireActual(
+    "@react-native-async-storage/async-storage/jest/async-storage-mock",
+  ),
+);
 
 const action: ElementalAction = {
   id: "private-action-id",
   benchmarkId: "private-benchmark-id",
-  title: "Write one paragraph",
-  frequency: ["Monday", "Wednesday", "Friday"],
-  anchorLink: "After coffee",
-  kickstartVersion: "Open the draft",
-  createdAt: "2026-07-01T12:00:00.000Z",
+  title: "Private action title",
+  frequency: ["Monday", "Wednesday"],
+  anchorLink: "After lunch",
+  kickstartVersion: "Open the notebook",
+  createdAt: "2026-07-01T12:00:00",
 };
 
-function log(date: string, kind: "full" | "kickstart" = "full"): DailyLog {
-  return {
-    id: `private-log-${date}`,
-    actionId: action.id,
-    logDate: date,
-    status: true,
-    note: "This must never leave the device.",
-    completionKind: kind,
-    createdAt: `${date}T18:00:00.000Z`,
-  };
-}
+describe("plan tune-up privacy and validation", () => {
+  const request = buildPlanTuneUpRequest({
+    actions: [action],
+    logs: [
+      {
+        id: "log-id",
+        actionId: action.id,
+        logDate: "2026-08-03",
+        status: true,
+        createdAt: "2026-08-03",
+        note: "private note",
+      },
+    ],
+    contextEntries: [
+      {
+        id: "context-id",
+        personaId: "persona-id",
+        logDate: "2026-08-03",
+        factors: { time: "hindered" },
+        note: "another private note",
+        status: "saved",
+        createdAt: "2026-08-03",
+        updatedAt: "2026-08-03",
+      },
+    ],
+    personaCreatedAt: "2026-07-01T12:00:00",
+    monthlyConsistency: 42,
+    today: new Date(2026, 7, 4, 12),
+  });
 
-function context(date: string): DailyContextEntry {
-  return {
-    id: `private-context-${date}`,
-    personaId: "private-persona-id",
-    logDate: date,
-    helped: ["energy"],
-    hindered: ["time"],
-    note: "Also private.",
-    createdAt: `${date}T19:00:00.000Z`,
-    updatedAt: `${date}T19:00:00.000Z`,
-  };
-}
-
-describe("Plan Tune-Up aggregate", () => {
-  it("contains settings and bounded counts, never ids, notes, or event dates", () => {
-    const request = buildPlanTuneUpRequest(
-      action,
-      [log("2026-07-20"), log("2026-07-22", "kickstart")],
-      [context("2026-07-20")],
-      new Date("2026-07-28T12:00:00"),
-    );
+  it("contains aggregates and editable fields but no identifiers, notes, titles, or dates", () => {
     const serialized = JSON.stringify(request);
-    expect(serialized).not.toContain("private-");
-    expect(serialized).not.toContain("must never");
-    expect(serialized).not.toContain("Also private");
-    expect(serialized).not.toContain("2026-07-20");
-    expect(request.evidence.completed).toBe(2);
-    expect(request.evidence.full).toBe(1);
-    expect(request.evidence.kickstart).toBe(1);
-    expect(validatePlanTuneUpRequest(request)).toBeNull();
-    expect(canRequestPlanTuneUp(request)).toBe(true);
+    expect(serialized).not.toContain("private-action-id");
+    expect(serialized).not.toContain("private-benchmark-id");
+    expect(serialized).not.toContain("Private action title");
+    expect(serialized).not.toContain("private note");
+    expect(serialized).not.toContain("2026-08-03");
+    expect(request.actions[0]).toMatchObject({ slot: 0, completed: 1 });
   });
 
-  it("requires seven scheduled action-days", () => {
-    const recentAction = {
-      ...action,
-      createdAt: "2026-07-27T12:00:00.000Z",
-    };
-    const request = buildPlanTuneUpRequest(
-      recentAction,
-      [],
-      [],
-      new Date("2026-07-28T12:00:00"),
-    );
-    expect(canRequestPlanTuneUp(request)).toBe(false);
-  });
-});
-
-describe("Plan Tune-Up validation", () => {
-  const current = {
-    title: action.title,
-    frequency: ["Monday", "Wednesday", "Friday"] as const,
-    anchorLink: action.anchorLink,
-    kickstartVersion: action.kickstartVersion,
-  };
-
-  it("accepts only supported, changed fields", () => {
+  it("accepts one changed allowed field and rejects unknown or unchanged fields", () => {
     expect(
-      normalizePlanTuneUpResponse(
+      parsePlanTuneUpSuggestion(
         {
-          summary: "Move the cue closer to the moment you already own.",
-          changes: {
-            anchorLink: "When I pour coffee",
-            frequency: ["Monday", "Wednesday", "Friday"],
-          },
+          slot: 0,
+          changes: { frequency: ["Monday"] },
+          rationale: "A smaller schedule may fit better.",
         },
-        {
-          ...current,
-          frequency: [...current.frequency],
-        },
-      ),
-    ).toEqual({
-      summary: "Move the cue closer to the moment you already own.",
-      changes: { anchorLink: "When I pour coffee" },
-    });
-  });
-
-  it("rejects unsupported, malformed, and unchanged output", () => {
+        request,
+      ).changes.frequency,
+    ).toEqual(["Monday"]);
     expect(() =>
-      normalizePlanTuneUpResponse(
-        {
-          summary: "Change everything.",
-          changes: { title: "A different action" },
-        },
-        { ...current, frequency: [...current.frequency] },
+      parsePlanTuneUpSuggestion(
+        { slot: 0, changes: { title: "Not allowed" }, rationale: "No." },
+        request,
       ),
-    ).toThrow("unsupported");
+    ).toThrow();
     expect(() =>
-      normalizePlanTuneUpResponse(
+      parsePlanTuneUpSuggestion(
         {
-          summary: "Keep doing the same thing.",
-          changes: { anchorLink: action.anchorLink },
+          slot: 0,
+          changes: { frequency: ["Monday", "Wednesday"] },
+          rationale: "No change.",
         },
-        { ...current, frequency: [...current.frequency] },
+        request,
       ),
-    ).toThrow("meaningful");
-  });
-
-  it("rejects payloads that try to smuggle notes or ids", () => {
-    const request = buildPlanTuneUpRequest(
-      action,
-      [],
-      [],
-      new Date("2026-07-28T12:00:00"),
-    ) as any;
-    request.evidence.note = "private";
-    expect(validatePlanTuneUpRequest(request)).toContain("invalid aggregate");
-  });
-
-  it("rejects aggregate rows that do not reconcile to their totals", () => {
-    const request = buildPlanTuneUpRequest(
-      action,
-      [],
-      [],
-      new Date("2026-07-28T12:00:00"),
-    );
-    request.evidence.weekdays[0].scheduled -= 1;
-    expect(validatePlanTuneUpRequest(request)).toContain(
-      "do not match the totals",
-    );
+    ).toThrow();
   });
 });

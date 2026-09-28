@@ -60,3 +60,6 @@ app-example
 
 # Local EAS build artifacts (eas build --local output)
 /build/
+
+# Python bytecode from the qa/ seed scripts
+__pycache__/

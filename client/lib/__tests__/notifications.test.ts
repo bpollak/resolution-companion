@@ -19,6 +19,7 @@ import {
   reminderTitle,
   getRemainingReminderActions,
   scheduleDailyReminder,
+  earliestActionStart,
   enableDefaultPersonalizedReminders,
   REMINDER_BUCKETS,
   type ReminderHookStats,
@@ -218,10 +219,10 @@ describe("reminderBody", () => {
         monthlyConsistency: 72.4,
       }),
     ).toBe(
-      "Consistent Runner: 72% consistent this month. Today's vote is waiting.",
+      "Consistent Runner: 72% consistent this month. Today's next step is waiting.",
     );
     expect(reminderBody("momentum", { personaName: "Writer" })).toContain(
-      "vote for Writer",
+      "step toward Writer",
     );
   });
 
@@ -251,7 +252,7 @@ describe("reminderBody", () => {
         },
       ],
     };
-    expect(reminderTitle(options)).toBe("One action left today");
+    expect(reminderTitle(options)).toBe("One habit left today");
     expect(reminderBody("momentum", options)).toContain("Run for 20 minutes");
     expect(reminderBody("momentum", options)).toContain(
       "5K-Ready Weekend Runner",
@@ -370,13 +371,60 @@ describe("personalized reminder plan", () => {
     expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(2);
     const first = jest.mocked(Notifications.scheduleNotificationAsync).mock
       .calls[0][0];
-    expect(first.content.title).toBe("One action left today");
+    expect(first.content.title).toBe("One habit left today");
     expect(first.content.body).toContain("Run for 20 minutes");
     expect(first.content.data).toMatchObject({
       dateKey: "2026-07-19",
       actionIds: ["run"],
     });
     expect(first.trigger).toMatchObject({ type: "date" });
+  });
+});
+
+describe("plans that start later", () => {
+  beforeEach(async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 11, 1, 18, 0));
+    await AsyncStorage.clear();
+    jest
+      .mocked(Notifications.scheduleNotificationAsync)
+      .mockReset()
+      .mockResolvedValue("id");
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("opens the reminder window on January 1, not today", async () => {
+    const walk: ElementalAction = {
+      id: "walk",
+      benchmarkId: "benchmark",
+      title: "Walk 20 minutes after dinner",
+      frequency: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      anchorLink: "After dinner",
+      kickstartVersion: "Step outside for 2 minutes",
+      createdAt: new Date(2027, 0, 1).toISOString(),
+    };
+
+    await scheduleDailyReminder({ actions: [walk], dailyLogs: [] });
+
+    const dateKeys = jest
+      .mocked(Notifications.scheduleNotificationAsync)
+      .mock.calls.map((call) => call[0].content.data?.dateKey as string);
+    expect(dateKeys.length).toBeGreaterThan(0);
+    expect(dateKeys[0]).toBe("2027-01-01");
+    expect(dateKeys.every((key) => key >= "2027-01-01")).toBe(true);
+  });
+
+  it("finds the earliest habit start", () => {
+    expect(earliestActionStart(undefined)).toBeNull();
+    expect(
+      earliestActionStart([
+        { createdAt: "2027-01-01T08:00:00.000Z" },
+        { createdAt: "2026-12-01T08:00:00.000Z" },
+      ]),
+    ).toBe(Date.parse("2026-12-01T08:00:00.000Z"));
   });
 });
 
@@ -415,5 +463,49 @@ describe("default personalized reminders", () => {
       await enableDefaultPersonalizedReminders({ personaName: "Writer" }),
     ).toBe(false);
     expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe("reminder primer state", () => {
+  const { resolveReminderPrimerState } = jest.requireActual(
+    "@/lib/notifications",
+  ) as typeof import("@/lib/notifications");
+
+  it("asks new plans through the primer first", () => {
+    expect(
+      resolveReminderPrimerState({
+        primer: null,
+        initialized: null,
+        preference: null,
+      }),
+    ).toBe("pending");
+  });
+
+  it("leaves people who already answered iOS or Profile alone", () => {
+    expect(
+      resolveReminderPrimerState({
+        primer: null,
+        initialized: "true",
+        preference: null,
+      }),
+    ).toBe("legacy");
+    expect(
+      resolveReminderPrimerState({
+        primer: null,
+        initialized: null,
+        preference: "false",
+      }),
+    ).toBe("legacy");
+  });
+
+  it("remembers the primer answer", () => {
+    for (const primer of ["accepted", "declined"] as const)
+      expect(
+        resolveReminderPrimerState({
+          primer,
+          initialized: "true",
+          preference: "true",
+        }),
+      ).toBe(primer);
   });
 });

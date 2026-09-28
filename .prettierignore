@@ -1,2 +1,7 @@
 # Standalone Remotion project with its own deps and toolchain
 marketing/
+
+# Generated build artifacts are validated by their own release/build checks.
+build/
+server_dist/
+static-build/

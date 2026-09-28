@@ -383,8 +383,8 @@ export function reminderTitle(options: ReminderOptions): string {
   if (count > 1 && goalTitles.length > 1) {
     return `${count} steps toward your goals`;
   }
-  if (count === 1) return "One action left today";
-  if (count > 1) return `${count} actions left today`;
+  if (count === 1) return "One habit left today";
+  if (count > 1) return `${count} habits left today`;
   return "Resolution Companion";
 }
 
@@ -413,7 +413,7 @@ export function reminderBody(hook: ReminderHook, options: ReminderOptions) {
     if (firstAction?.kickstartVersion) {
       return `Your ${goalLabel ? `${goalLabel} ` : ""}plan can bend: ${truncateReminderText(firstAction.kickstartVersion)} still counts today.`;
     }
-    return "Rough couple of days? Your plan can bend — the 2-minute version still counts.";
+    return "Rough couple of days? Your plan can bend. The 2-minute version still counts.";
   }
   if (hook === "momentum") {
     if (actionLabel && goalLabel && personaName) {
@@ -423,14 +423,14 @@ export function reminderBody(hook: ReminderHook, options: ReminderOptions) {
       return `${actionLabel} moves ${goalLabel} forward today.`;
     }
     if (actionLabel && personaName) {
-      return `${actionLabel} is today's vote for ${personaName}.`;
+      return `${actionLabel} is today's step toward ${personaName}.`;
     }
-    if (actionLabel) return `${actionLabel} is today's next vote.`;
+    if (actionLabel) return `${actionLabel} is today's next step.`;
     if (personaName && monthlyConsistency !== undefined) {
-      return `${personaName}: ${Math.round(monthlyConsistency)}% consistent this month. Today's vote is waiting.`;
+      return `${personaName}: ${Math.round(monthlyConsistency)}% consistent this month. Today's next step is waiting.`;
     }
     if (personaName) {
-      return `A 2-minute vote for ${personaName} still counts today.`;
+      return `A 2-minute step toward ${personaName} still counts today.`;
     }
     // fall through to the streak framing below
   }
@@ -439,7 +439,7 @@ export function reminderBody(hook: ReminderHook, options: ReminderOptions) {
       const extra = remainingActions.length - 1;
       return `Coach's nudge${goalLabel ? ` for ${goalLabel}` : ""}: ${actionLabel}${extra > 0 ? ` and ${extra} more are` : " is"} still open.`;
     }
-    return "Two minutes with your coach keeps the plan honest — drop in whenever.";
+    return "Two minutes with your coach keeps the plan honest. Drop in whenever.";
   }
   if (actionLabel) {
     const extra = remainingActions.length - 1;
@@ -533,6 +533,16 @@ function reminderPlanSignature(
   });
 }
 
+/** Earliest habit start (ms), or null when there are no habits. */
+export function earliestActionStart(
+  actions: { createdAt?: string }[] | undefined,
+): number | null {
+  const starts = (actions ?? [])
+    .map((action) => new Date(action.createdAt ?? "").getTime())
+    .filter((time) => Number.isFinite(time));
+  return starts.length > 0 ? Math.min(...starts) : null;
+}
+
 export async function scheduleDailyReminder(
   options: ReminderOptions = {},
 ): Promise<string | null> {
@@ -551,7 +561,14 @@ export async function scheduleDailyReminder(
 
     if (options.actions && options.dailyLogs) {
       const now = new Date();
-      const firstDay = new Date(options.startDate ?? now);
+      // A plan set up ahead (January 1) has nothing to remind about until its
+      // habits start, so the rolling window opens on the earliest start.
+      const firstDay = new Date(
+        Math.max(
+          (options.startDate ?? now).getTime(),
+          earliestActionStart(options.actions) ?? 0,
+        ),
+      );
       firstDay.setHours(0, 0, 0, 0);
       for (let offset = 0; offset < REMINDER_HORIZON_DAYS; offset++) {
         const day = new Date(firstDay);
@@ -645,6 +662,54 @@ export async function cancelDailyReminder(): Promise<void> {
   } catch (error) {
     logger.error("Failed to cancel notification:", error);
   }
+}
+
+const REMINDER_PRIMER_KEY = "reminder_primer_answer";
+
+export type ReminderPrimerState =
+  | "pending"
+  | "accepted"
+  | "declined"
+  | "legacy";
+
+/**
+ * New plans see a one-card primer before iOS asks for notification permission.
+ * People who already answered the OS prompt (or chose in Profile) are "legacy"
+ * and keep their setting untouched.
+ */
+export function resolveReminderPrimerState(stored: {
+  primer: string | null;
+  initialized: string | null;
+  preference: string | null;
+}): ReminderPrimerState {
+  if (stored.primer === "accepted" || stored.primer === "declined")
+    return stored.primer;
+  if (stored.initialized === "true" || stored.preference !== null)
+    return "legacy";
+  return "pending";
+}
+
+export async function getReminderPrimerState(): Promise<ReminderPrimerState> {
+  if (Platform.OS === "web") return "legacy";
+  try {
+    const [primer, initialized, preference] = await Promise.all([
+      AsyncStorage.getItem(REMINDER_PRIMER_KEY),
+      AsyncStorage.getItem(DEFAULT_REMINDERS_INITIALIZED_KEY),
+      AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY),
+    ]);
+    return resolveReminderPrimerState({ primer, initialized, preference });
+  } catch {
+    return "legacy";
+  }
+}
+
+export async function recordReminderPrimerAnswer(
+  accepted: boolean,
+): Promise<void> {
+  await AsyncStorage.setItem(
+    REMINDER_PRIMER_KEY,
+    accepted ? "accepted" : "declined",
+  );
 }
 
 /**
