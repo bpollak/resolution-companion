@@ -57,7 +57,7 @@ export interface PendingVote {
 // Duolingo widget lesson) while staying deterministic for a given day.
 const COPY_VARIANTS: ((personaName: string, remaining: number) => string)[] = [
   (name, remaining) =>
-    `${remaining} small ${remaining === 1 ? "vote" : "votes"} for ${name} today`,
+    `${remaining} small ${remaining === 1 ? "action" : "actions"} for ${name} today`,
   (name) => `${name} is one small action away`,
   () => "2 minutes still counts today",
 ];
@@ -119,7 +119,7 @@ export function buildWidgetData(
   if (scheduledActions.length === 0) {
     copyLine = "Rest is part of becoming.";
   } else if (remaining === 0) {
-    copyLine = "Every vote cast today ✓";
+    copyLine = "Every action complete today ✓";
   } else {
     let hash = 0;
     for (let i = 0; i < dateStr.length; i++) hash += dateStr.charCodeAt(i);

@@ -16,6 +16,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import type { ElementalAction, DailyLog } from "@/lib/storage";
+import { repeatsText } from "@/lib/copy";
 
 const springConfig = {
   damping: 12,
@@ -26,7 +27,7 @@ const springConfig = {
 interface ActionCardProps {
   action: ElementalAction;
   log: DailyLog | null;
-  onToggle: (actionId: string) => void;
+  onToggle: (actionId: string, kind?: "full" | "kickstart") => void;
   benchmarkTitle?: string;
 }
 
@@ -106,7 +107,7 @@ export const ActionCard = React.memo(function ActionCard({
   }));
 
   return (
-    <Animated.View
+    <View
       style={[
         styles.container,
         {
@@ -114,101 +115,130 @@ export const ActionCard = React.memo(function ActionCard({
             ? Colors.dark.backgroundDefault
             : Colors.light.backgroundDefault,
         },
-        isCompleted ? glowStyle : undefined,
       ]}
     >
-      <View style={styles.voteHeader}>
-        <View style={styles.voteCopy}>
-          {benchmarkTitle ? (
-            <ThemedText style={[styles.benchmark, { color: theme.accent }]}>
-              {benchmarkTitle}
-            </ThemedText>
-          ) : null}
-          <ThemedText style={styles.title}>{action.title}</ThemedText>
-        </View>
-        <Pressable
-          onPress={handlePress}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          hitSlop={8}
-          pressRetentionOffset={20}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: isCompleted }}
-          accessibilityLabel={
-            isCompleted
-              ? `${action.title} completed. Tap to undo`
-              : `Cast today's vote for ${action.title}`
-          }
-        >
-          <Animated.View
-            style={[
-              styles.voteButton,
-              {
-                backgroundColor: isCompleted
-                  ? theme.success
-                  : isDark
-                    ? Colors.dark.backgroundTertiary
-                    : Colors.light.backgroundTertiary,
-                borderColor: isCompleted ? "transparent" : theme.accent,
-              },
-              buttonAnimatedStyle,
-            ]}
-          >
-            <Animated.View style={checkAnimatedStyle}>
-              <Feather
-                name={isCompleted ? "check" : "circle"}
-                size={18}
-                color={isCompleted ? theme.buttonText : theme.accent}
-              />
-            </Animated.View>
-            <ThemedText
-              style={[
-                styles.voteButtonText,
-                { color: isCompleted ? theme.buttonText : theme.accent },
-              ]}
-            >
-              {isCompleted ? "Cast" : "Vote"}
-            </ThemedText>
-          </Animated.View>
-        </Pressable>
-      </View>
-
-      {action.anchorLink ? (
-        <View style={styles.detailRow}>
-          <Feather name="link" size={13} color={theme.accent} />
-          <ThemedText
-            style={[styles.detailText, { color: theme.textSecondary }]}
-            numberOfLines={2}
-          >
-            {action.anchorLink}
-          </ThemedText>
-        </View>
+      {benchmarkTitle && !repeatsText(benchmarkTitle, action.title) ? (
+        <ThemedText style={[styles.benchmark, { color: theme.accent }]}>
+          {benchmarkTitle}
+        </ThemedText>
       ) : null}
 
-      <View
-        style={[
-          styles.kickstartRow,
-          {
-            backgroundColor: isDark
-              ? Colors.dark.backgroundSecondary
-              : Colors.light.backgroundSecondary,
-          },
-        ]}
+      <ThemedText style={styles.title}>{action.title}</ThemedText>
+
+      <Pressable
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        hitSlop={8}
+        pressRetentionOffset={20}
+        accessibilityRole="button"
+        accessibilityState={{ selected: isCompleted }}
+        accessibilityLabel={
+          isCompleted
+            ? `${action.title} completed. Tap to undo`
+            : `Mark ${action.title} complete`
+        }
       >
-        <Feather name="zap" size={13} color={theme.warning} />
-        <ThemedText
-          style={[styles.kickstartText, { color: theme.textSecondary }]}
-          numberOfLines={2}
+        <Animated.View
+          style={[
+            styles.toggleButton,
+            {
+              backgroundColor: isCompleted
+                ? theme.success
+                : isDark
+                  ? Colors.dark.backgroundTertiary
+                  : Colors.light.backgroundTertiary,
+              borderColor: isCompleted ? "transparent" : theme.accent,
+            },
+            buttonAnimatedStyle,
+            isCompleted ? glowStyle : undefined,
+          ]}
         >
+          <Animated.View style={checkAnimatedStyle}>
+            <Feather
+              name={isCompleted ? "check" : "circle"}
+              size={24}
+              color={isCompleted ? theme.buttonText : theme.accent}
+            />
+          </Animated.View>
           <ThemedText
-            style={[styles.kickstartPrefix, { color: theme.warning }]}
+            style={[
+              styles.toggleText,
+              { color: isCompleted ? theme.buttonText : theme.accent },
+            ]}
           >
-            2-minute version:{" "}
+            {isCompleted ? "Completed" : "Mark Complete"}
           </ThemedText>
-          {action.kickstartVersion}
-        </ThemedText>
+        </Animated.View>
+      </Pressable>
+
+      <View style={styles.kickstartContainer}>
+        <Feather
+          name="zap"
+          size={16}
+          color={theme.warning}
+          style={styles.zapIcon}
+        />
+        <View style={styles.kickstartContent}>
+          <ThemedText style={[styles.kickstartLabel, { color: theme.warning }]}>
+            Too busy? Just:
+          </ThemedText>
+          <ThemedText style={styles.kickstart}>
+            {action.kickstartVersion}
+          </ThemedText>
+        </View>
       </View>
-    </Animated.View>
+
+      {!isCompleted && action.kickstartVersion ? (
+        <Pressable
+          onPress={() => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            onToggle(action.id, "kickstart");
+          }}
+          hitSlop={8}
+          pressRetentionOffset={16}
+          accessibilityRole="button"
+          accessibilityLabel={`I did the 2-minute version of ${action.title}`}
+          style={({ pressed }) => ({
+            minHeight: 44,
+            justifyContent: "center",
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <ThemedText style={{ color: theme.accent }}>
+            I did the 2-minute version
+          </ThemedText>
+        </Pressable>
+      ) : null}
+
+      {action.anchorLink ? (
+        <View
+          style={[
+            styles.anchorContainer,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundSecondary
+                : Colors.light.backgroundSecondary,
+            },
+          ]}
+        >
+          <Feather
+            name="link"
+            size={14}
+            color={theme.accent}
+            style={styles.anchorIcon}
+          />
+          <View style={styles.anchorContent}>
+            <ThemedText style={[styles.anchorLabel, { color: theme.accent }]}>
+              When:
+            </ThemedText>
+            <ThemedText style={[styles.anchor, { color: theme.textSecondary }]}>
+              {action.anchorLink}
+            </ThemedText>
+          </View>
+        </View>
+      ) : null}
+    </View>
   );
 });
 
@@ -253,9 +283,9 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
 
   const completionBadge =
     log.completionSource === "health"
-      ? { icon: "heart" as const, label: "Health auto-vote" }
+      ? { icon: "heart" as const, label: "Completed by Health" }
       : log.completionKind === "kickstart"
-        ? { icon: "zap" as const, label: "2-minute vote" }
+        ? { icon: "zap" as const, label: "2-minute version" }
         : null;
 
   return (
@@ -276,7 +306,7 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
           pressRetentionOffset={20}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: true }}
-          accessibilityLabel={`${action.title}${completionBadge ? `, ${completionBadge.label}` : ""}`}
+          accessibilityLabel={`${action.title} completed. Undo${completionBadge ? `, ${completionBadge.label}` : ""}`}
           accessibilityHint="Marks this action as not done"
           style={({ pressed }) => [
             styles.compactMain,
@@ -318,6 +348,9 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
               </ThemedText>
             ) : null}
           </View>
+          <ThemedText style={[styles.compactUndo, { color: theme.accent }]}>
+            Undo
+          </ThemedText>
         </Pressable>
         {onNotePress ? (
           <Pressable
@@ -350,61 +383,8 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
 const styles = StyleSheet.create({
   container: {
     borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  voteHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-  },
-  voteCopy: {
-    flex: 1,
-  },
-  voteButton: {
-    minWidth: 70,
-    minHeight: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.xs,
-    borderWidth: 1.5,
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.md,
-  },
-  voteButtonText: {
-    ...Typography.small,
-    fontWeight: "700",
-  },
-  detailRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.sm,
-    marginTop: Spacing.sm,
-    paddingHorizontal: Spacing.xs,
-  },
-  detailText: {
-    ...Typography.small,
-    lineHeight: 18,
-    flex: 1,
-  },
-  kickstartRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.sm,
-    borderRadius: BorderRadius.sm,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    marginTop: Spacing.sm,
-  },
-  kickstartText: {
-    ...Typography.small,
-    lineHeight: 18,
-    flex: 1,
-  },
-  kickstartPrefix: {
-    ...Typography.small,
-    fontWeight: "700",
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   compactRow: {
     flexDirection: "row",
@@ -432,6 +412,11 @@ const styles = StyleSheet.create({
   compactTextCol: {
     flex: 1,
   },
+  compactUndo: {
+    ...Typography.caption,
+    fontWeight: "700",
+    marginLeft: Spacing.sm,
+  },
   compactTitle: {
     ...Typography.body,
     textDecorationLine: "line-through",
@@ -458,11 +443,69 @@ const styles = StyleSheet.create({
   benchmark: {
     ...Typography.caption,
     fontWeight: "600",
-    marginBottom: 2,
+    marginBottom: Spacing.xs,
     textTransform: "uppercase",
     letterSpacing: 1,
   },
   title: {
     ...Typography.headline,
+    marginBottom: Spacing.sm,
+  },
+  kickstartContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: Spacing.sm,
+  },
+  zapIcon: {
+    marginRight: Spacing.xs,
+    marginTop: 2,
+  },
+  kickstartContent: {
+    flex: 1,
+  },
+  kickstartLabel: {
+    ...Typography.caption,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  kickstart: {
+    ...Typography.kickstart,
+    lineHeight: 27,
+  },
+  anchorContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.lg,
+  },
+  anchorIcon: {
+    marginRight: Spacing.sm,
+    marginTop: 2,
+  },
+  anchorContent: {
+    flex: 1,
+  },
+  anchorLabel: {
+    ...Typography.caption,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  anchor: {
+    ...Typography.small,
+    lineHeight: 20,
+  },
+  toggleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1.5,
+    gap: Spacing.sm,
+  },
+  toggleText: {
+    ...Typography.body,
+    fontWeight: "600",
   },
 });

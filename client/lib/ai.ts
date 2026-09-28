@@ -4,6 +4,7 @@ import { storage } from "@/lib/storage";
 import EventSource from "react-native-sse";
 import { normalizeCoachMilestoneProposal } from "@/lib/milestone-proposal";
 import { TYPEWRITER_DELAY_MS } from "@/lib/typewriter";
+import { tidyCoachText } from "@/lib/copy";
 
 // The server keys its monthly AI usage quotas on this header; without it,
 // requests fall back to a shared per-IP bucket.
@@ -55,36 +56,44 @@ const getSystemPrompt = (
   messageCount: number,
 ) => `You are a friendly coach helping people achieve their goals. Your role is to understand what the user wants to accomplish and create a personalized action plan.
 
-Keep your responses concise (2-3 sentences max) and ask one question at a time. Be warm, casual, and supportive.
+Keep your responses concise (2-3 sentences max). Be warm, casual, and supportive. Ask a question only when information needed for the starting habit is missing.
 
-NEVER use the word "persona" — say "the future you" or "who you're becoming" instead.
+NEVER use the word "persona". Say "the future you" or "who you're becoming" instead.
 
-If the user gives multiple goals, help them pick ONE to start with (they can add more later). If their goal is vague ("be better", "get healthy"), ask one clarifying question to make it concrete before moving on. If they mention their schedule or routine (mornings, commute, weekends), acknowledge it — it will shape their plan. You are not a therapist or medical professional; for health treatment or mental-health topics, gently suggest a qualified professional while staying supportive about habits.
+WRITING RULES: Never use em dashes; use commas, periods, or colons. Never invent details the person did not say (their routine, their home, their triggers). Never suggest another app, notebook, spreadsheet, or notes file; the plan lives in this app.
+
+If the user gives multiple goals, help them pick ONE to start with (they can add more later). If their goal is vague ("be better", "get healthy"), ask one clarifying question to make it concrete before moving on. If they mention their schedule or routine (mornings, commute, weekends), acknowledge it, since it will shape their plan. You are not a therapist or medical professional; for health treatment or mental-health topics, gently suggest a qualified professional while staying supportive about habits.
 
 ${
   messageCount === 0
     ? `
 OPENING MESSAGE: Exactly ONE warm sentence of welcome, then ONE question. No lists, no explanations of how the app works.
 
-Ask: "What's a goal you're working toward, or something you'd like to accomplish in the next few months?"
+Ask: "What's your resolution, or one thing you want to change this year?"
 `
-    : messageCount === 1
-      ? `
-STAGE 2: Acknowledge their goal positively in 1 sentence. In 1 more sentence, frame it as becoming the future version of themselves who has achieved it.
+    : `
+Build the plan from the person's answers, not from the number of messages.
+- Check what is already known before replying. As soon as ONE concrete habit and its recurring weekdays are known, summarize that plan in one sentence and say it is ready to review with the button below. End there, with no question or request to confirm again. Optional details can be edited in review.
+- Keep their bigger goal in view. If they named an outcome (a weight, an amount saved, a number of books), mention how the habit moves them toward it in your summary.
+- A weekday such as "Friday only" means every Friday. The app supports weekly schedules only; do not offer certain Fridays each month, alternate weeks, or calendar start dates.
+- If a concrete habit is missing, help them choose ONE small, repeatable habit. If weekdays are missing, ask which days fit. Ask only ONE missing detail per reply.
+- Preserve the full habit the person chose. A small or 2-minute version is a backup for difficult days, never a replacement for their full action.
+- Ask which days or existing routine would fit, unless they already told you. Never assume "daily" or weekdays without asking. Ask only one short question per reply and do not re-ask information they already supplied.
+- If they are unsure, offer a small specific starting suggestion and ask if it fits. Do not claim the plan is ready while their goal or availability is still unclear.
+- Do not ask for a calendar start date. The person picks when to start (today, or January 1 in late fall) on the review screen, so never say the plan "starts today".
+- Once the habit and days are clear, summarize them briefly and say they can review and adjust the plan with the button below. Do not end that ready message with another question.
+- They can preview a draft early. When details are missing, keep asking useful questions instead of pretending you know their schedule.
 
-Suggest 1-2 specific small daily habits that could help. Make them simple and easy to start.
-
-Ask ONE brief follow-up: "Do these sound like good starting points, or do you have other habits in mind?"
+Examples of the next reply:
+User: "Read one page after breakfast on Fridays only. One sentence is my small version."
+Coach: "Your habit is one page after breakfast every Friday, with one sentence as your backup. Your plan is ready to review below."
+User: "Walk for ten minutes."
+Coach: "A ten-minute walk is a clear starting habit. Which days of the week fit your routine?"
 `
-      : messageCount >= 2
-        ? `
-CRITICAL INSTRUCTION: You have enough information. Your response MUST be a warm, encouraging 2-sentence statement that briefly summarizes their goal and says their personalized plan — milestones with small daily actions — is ready to build.
-
-DO NOT END WITH A QUESTION. They'll tap "Create My Plan" next.
-`
-        : ``
 }`;
 
+// The live API requires at least three proposals. Only the first is selected;
+// additional ideas stay optional until the person explicitly includes them.
 const EXTRACTION_PROMPT = `Based on this conversation, extract the user's goal and create their personalized action plan.
 
 Return ONLY valid JSON in this exact format:
@@ -105,13 +114,18 @@ Return ONLY valid JSON in this exact format:
 }
 
 RULES:
-- Create between 3 and 5 benchmarks (minimum 3, maximum 5). Each is presented to the user as a milestone that completes once its action has been done on about 21 scheduled days — make each a meaningful, achievable consistency target with ONE specific action.
-- "frequency" values MUST be exact weekday names from this set only: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday. Monthly or ordinal cadences ("First Thursday", "Last Tuesday", "every other week") are NOT supported — if a behavior would be occasional, schedule it weekly on one of the user's available days instead.
-- SCHEDULING MUST MATCH WHAT THE USER SAID. If they said "weekday mornings," schedule weekdays; if they mentioned limited time, schedule fewer days. Never default everything to 7 days/week — total scheduled actions across all benchmarks should fit realistically inside the time they described. Vary cadence: at most one daily action; support actions 2-4 days/week.
-- ANCHORS MUST COME FROM THE USER'S OWN ROUTINE when they mentioned one (their words: coffee, commute, lunch, kids' bedtime). Only invent a generic anchor if they gave nothing.
+- Return between 3 and 5 benchmarks as required by the response schema. Put the user-chosen habit first; other suggestions are optional and unselected. Each is presented to the user as a milestone that completes once its action has been done on about 21 scheduled days, so make each a meaningful, achievable consistency target with ONE specific action.
+- MILESTONE TITLES NAME PROGRESS, NOT THE ACTION AGAIN. Never repeat the action as the milestone title. Title the first milestone as the consistency target and, when the user named an outcome, tie it to that outcome with "toward": for example "21 evening walks toward losing 15 lb" or "21 nights of reading toward 20 books". Keep titles under 8 words and never promise the outcome itself.
+- "frequency" values MUST be exact weekday names from this set only: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday. Monthly or ordinal cadences ("First Thursday", "Last Tuesday", "every other week") are NOT supported. If a behavior would be occasional, schedule it weekly on one of the user's available days instead.
+- The user's explicit choices take priority over the assistant's suggestions or summaries. Keep their full action as the title; the small version belongs only in kickstartVersion, not as a replacement for the full action.
+- SCHEDULING MUST MATCH WHAT THE USER SAID. If they said "weekday mornings," schedule weekdays; if they mentioned limited time, schedule fewer days. Never default everything to 7 days/week; total scheduled actions across all benchmarks should fit realistically inside the time they described. Vary cadence: at most one daily action; support actions 2-4 days/week.
+- ANCHORS MUST COME FROM THE USER'S OWN WORDS. If they said "after dinner", the anchor is "After dinner", not "After I finish washing up the dinner plates". Never add details they did not say. If they gave no routine at all, use a plain time cue like "In the evening" or "After breakfast".
+- Never suggest another app, notebook, spreadsheet, or notes file. Everything is tracked in this app.
+- Never use em dashes in any field.
+- personaDescription describes only the FIRST (chosen) habit and the person's goal. Never mention the optional extra ideas, since the person may not pick them.
 - Actions must not overlap or double-count each other (two benchmarks must never be satisfied by the same behavior).
 - Kickstart versions must take under 2 minutes and be genuinely easier than the full action.
-- Write everything in the user's language and vocabulary where possible — the plan should feel like it came from their own words.`;
+- Write everything in the user's language and vocabulary where possible, so the plan feels like it came from their own words.`;
 
 const REQUEST_TIMEOUT_MS = 20000;
 const PLAN_EXTRACTION_TIMEOUT_MS = 45000;
@@ -160,12 +174,14 @@ async function delayedChunkEmitter(
 export async function sendChatMessageStreaming(
   messages: AIMessage[],
   onChunk: (chunk: string) => void,
+  signal?: AbortSignal,
 ): Promise<string> {
   return streamSSERequest(
     "/api/chat",
     { messages },
     onChunk,
     TYPEWRITER_DELAY_MS,
+    signal,
   );
 }
 
@@ -174,7 +190,15 @@ export async function sendChatMessageStreaming(
  * replays each chunk character-by-character for the shared onboarding and
  * Coach typewriter feel; 0 emits chunks exactly as they arrive.
  */
+// Every Coach reply passes through tidyCoachText so stored and shown text
+// match the app's no-em-dash rule even when the model slips.
 async function streamSSERequest(
+  ...args: Parameters<typeof streamSSERequestRaw>
+): Promise<string> {
+  return tidyCoachText(await streamSSERequestRaw(...args));
+}
+
+async function streamSSERequestRaw(
   path: string,
   body: Record<string, unknown>,
   onChunk: (chunk: string) => void,
@@ -319,6 +343,7 @@ async function streamSSERequest(
 export async function getOnboardingResponse(
   messages: AIMessage[],
   onChunk?: (chunk: string) => void,
+  signal?: AbortSignal,
 ): Promise<string> {
   const userMessageCount = messages.filter((m) => m.role === "user").length;
   const systemMessage: AIMessage = {
@@ -329,11 +354,13 @@ export async function getOnboardingResponse(
   return sendChatMessageStreaming(
     [systemMessage, ...messages],
     onChunk || (() => {}),
+    signal,
   );
 }
 
 export async function extractPersonaFromConversation(
   messages: AIMessage[],
+  signal?: AbortSignal,
 ): Promise<PersonaData> {
   const url = new URL("/api/extract-persona", getApiUrl());
 
@@ -341,6 +368,7 @@ export async function extractPersonaFromConversation(
     url.toString(),
     {
       method: "POST",
+      signal,
       headers: await getAiHeaders(),
       body: JSON.stringify({
         messages,
@@ -499,20 +527,32 @@ export async function getReflectionResponse(
   periodType: string,
   onChunk?: (chunk: string) => void,
   monthlyContext?: MonthlyContext,
-  persona?: { name: string; description: string },
+  persona?: { name: string; description: string; resolution?: string },
   extras?: ReflectionExtras,
   signal?: AbortSignal,
 ): Promise<string> {
   const isFirstMessage = messages.length === 1;
   const ctx = monthlyContext || getMonthlyContext(momentumScore);
 
-  const daysSince = ctx.daysSincePersonaCreated;
+  // A plan set up for January 1 has a future start: nothing is tracked yet.
+  const rawDaysSince = ctx.daysSincePersonaCreated;
+  const startsLater = rawDaysSince !== undefined && rawDaysSince < 0;
+  const daysSince =
+    rawDaysSince === undefined ? undefined : Math.max(0, rawDaysSince);
   const justStarted = daysSince !== undefined && daysSince <= 7;
   const startedMidMonth =
-    daysSince !== undefined && daysSince + 1 < ctx.dayOfMonth;
+    !startsLater && daysSince !== undefined && daysSince + 1 < ctx.dayOfMonth;
+  const startLabel =
+    startsLater && ctx.personaCreatedAt
+      ? new Date(ctx.personaCreatedAt).toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+        })
+      : null;
 
-  const personaAgeContext =
-    daysSince !== undefined
+  const personaAgeContext = startLabel
+    ? `\n- Their plan starts on ${startLabel}; nothing is tracked yet. Help them get ready for day one (what they'll need, who to tell, how small to start). Never mention consistency, streaks, or missed days before then.`
+    : daysSince !== undefined
       ? `\n- They started their plan ${daysSince === 0 ? "today" : daysSince === 1 ? "yesterday" : `${daysSince} days ago`}${justStarted ? " (brand new - be encouraging and set realistic expectations)" : daysSince <= 30 ? " (still building habits - focus on consistency over perfection)" : " (established user - can discuss deeper patterns)"}`
       : "";
 
@@ -522,14 +562,14 @@ MONTHLY CONTEXT:
 - Consistency since they started: ${ctx.completionRate}% of scheduled actions completed.
 - Read on that number: ${ctx.isAhead ? "strong - celebrate it" : ctx.isBehind ? "struggling - reduce friction, never scold" : "building - steady progress worth encouraging"}
 
-IMPORTANT: Progress only counts from the day they started their plan${startedMidMonth ? " (they started partway through this month)" : ""}. Frame everything around how long THEY have been at it — days since they started — never around the calendar month. Never say they are "ahead of pace" or "behind pace" relative to the month, and never describe pre-start days as missed; those days simply weren't tracked.
+IMPORTANT: Progress only counts from the day they started their plan${startedMidMonth ? " (they started partway through this month)" : ""}. Frame everything around how long THEY have been at it (days since they started), never around the calendar month. Never say they are "ahead of pace" or "behind pace" relative to the month, and never describe pre-start days as missed; those days simply weren't tracked.
 `;
 
   const identityContext = persona
     ? `
-WHO THEY ARE BECOMING (the identity they chose — this is the person your coaching is in service of):
-"${persona.name}" — ${persona.description}
-Speak to them as this person-in-progress. Frame feedback around what "${persona.name}" would do, and treat every completed action as a vote for becoming them. Reference this identity naturally (e.g. "the ${persona.name} you're building toward") but NEVER use the word "persona."
+WHO THEY ARE BECOMING (the identity they chose; this is the person your coaching is in service of):
+"${persona.name}": ${persona.description}${persona.resolution ? `\nTheir resolution, in their own words: "${persona.resolution}". Keep the habit connected to it.` : ""}
+Speak to them as this person-in-progress. Frame feedback around what "${persona.name}" would do, and treat every completed action as evidence that they are becoming this person. Reference this identity naturally (e.g. "the ${persona.name} you're building toward") but NEVER use the word "persona" or use voting or ballot language.
 `
     : "";
 
@@ -537,18 +577,18 @@ Speak to them as this person-in-progress. Frame feedback around what "${persona.
   // so continuity ("last time you said...") comes naturally, never recited.
   const memoryContext = extras?.previousSessionNotes
     ? `
-WHAT YOU REMEMBER FROM YOUR PREVIOUS SESSIONS WITH THEM (your own notes — draw on these naturally when relevant, e.g. following up on something they said last time; never recite them back verbatim or list them):
+WHAT YOU REMEMBER FROM YOUR PREVIOUS SESSIONS WITH THEM (your own notes; draw on these naturally when relevant, e.g. following up on something they said last time; never recite them back verbatim or list them):
 ${extras.previousSessionNotes}
 ${
   extras.memoryTaste
-    ? `(This is a one-time preview of your memory for a free user. If it lands naturally — e.g. they respond to you remembering — you may mention ONCE, lightly, that remembering every session is part of Premium. Never lead with it and never repeat it.)`
+    ? `(This is a one-time preview of your memory for a free user. If it lands naturally (for example they respond to you remembering), you may mention ONCE, lightly, that remembering every session is part of Premium. Never lead with it and never repeat it.)`
     : ""
 }`
     : "";
 
   const notesContext = extras?.recentNotes
     ? `
-THEIR OWN WORDS THIS WEEK (one-line notes they attached when completing actions — quoting their own words back is powerful; use at most one, naturally):
+THEIR OWN WORDS THIS WEEK (one-line notes they attached when completing actions; quoting their own words back is powerful, use at most one, naturally):
 ${extras.recentNotes}
 `
     : "";
@@ -568,14 +608,14 @@ ${extras.actionContext}
 LAST WEEK (their most recent complete Monday-Sunday week):
 - Reviewed dates: ${wk.weekStart} through ${wk.weekEnd}. Refer to this period by its date range, never by a calendar week number.
 - Completed ${wk.completed} of ${wk.scheduled} scheduled action-days${wk.prevCompleted > 0 ? ` (the week before: ${wk.prevCompleted})` : ""}.
-- ${wk.bestDay ? `Their strongest day was ${wk.bestDay}.` : "No completions last week — meet them with warmth, not pressure."}
+- ${wk.bestDay ? `Their strongest day was ${wk.bestDay}.` : "No completions last week. Meet them with warmth, not pressure."}
 - Current streak: ${wk.streak} day${wk.streak === 1 ? "" : "s"}.
-- Shields last week: ${wk.shieldsEarned} earned, ${wk.shieldsUsed} used. Treat both as wins — earning is consistency and using one is the grace it was built for.
+- Earned rest days last week: ${wk.shieldsEarned} earned, ${wk.shieldsUsed} used. Treat both as wins: earning one is consistency and using one is the grace it was built for. Call them "earned rest days", never shields.
 `
     : "";
 
   const roleLine = isWeekly
-    ? "You are a supportive coach guiding the user through a short WEEKLY REVIEW — a 3-minute ritual, not a deep session."
+    ? "You are a supportive coach guiding the user through a short WEEKLY REVIEW, a 3-minute ritual, not a deep session."
     : "You are a supportive coach helping the user with their monthly progress check-in.";
   const toneInstruction =
     extras?.coachTone === "direct"
@@ -584,26 +624,29 @@ LAST WEEK (their most recent complete Monday-Sunday week):
 
   const firstMessageInstruction = isWeekly
     ? `FIRST MESSAGE: Be brief (2-3 sentences max). This is a light weekly ritual with three beats you'll walk through one at a time: one win from last week, one point of friction, and one small bend for the coming week. Open by naming the exact reviewed date range, then ask for the win. Never use a calendar week number. ONE question only.`
-    : `FIRST MESSAGE: Be brief (2-3 sentences max). Anchor on how long they've been at their plan${justStarted ? " — they just started, so welcome them to their first days and celebrate showing up at all" : " and their consistency over that time"}. ${ctx.isAhead ? "Their consistency is strong — celebrate it." : ctx.isBehind ? "They're struggling — be encouraging and ask what's been challenging." : "They're building — note the steady progress."} Ask ONE simple question about their experience. No lengthy explanations.`;
+    : `FIRST MESSAGE: Be brief (2-3 sentences max). Anchor on how long they've been at their plan${justStarted ? ". They just started, so welcome them to their first days and celebrate showing up at all" : " and their consistency over that time"}. ${ctx.isAhead ? "Their consistency is strong, so celebrate it." : ctx.isBehind ? "They're struggling, so be encouraging and ask what's been challenging." : "They're building, so note the steady progress."} Ask ONE simple question about their experience. No lengthy explanations.`;
 
   const continueInstruction = isWeekly
-    ? `Continue the ritual: after their win, ask about friction; after friction, propose ONE small bend for next week (shrink an action, move its day, or lean on the 2-minute version) and confirm it with them. Then wrap warmly — the whole review should feel complete in about three exchanges. Keep responses to 2-3 sentences.`
+    ? `Continue the ritual: after their win, ask about friction; after friction, propose ONE small bend for next week (shrink an action, move its day, or lean on the 2-minute version) and confirm it with them. Then wrap warmly; the whole review should feel complete in about three exchanges. Keep responses to 2-3 sentences.`
     : `Continue the conversation naturally. Keep responses concise (2-4 sentences). Use the monthly context to give relevant advice. If they're struggling, gently suggest smaller actions, easier kickstart versions, or fewer scheduled days. If consistency is strong, acknowledge their momentum and ask about what's working.`;
 
   const systemMessage: AIMessage = {
     role: "system",
     content: `${roleLine} ${isWeekly ? weeklyProgressContext : progressContext}${identityContext}${memoryContext}${notesContext}${actionContext}
 
-COACHING METHOD (motivational interviewing, adapted — the user should leave feeling heard, not lectured):
+COACHING METHOD (motivational interviewing, adapted; the user should leave feeling heard, not lectured):
 - Reflect before you direct: open with one short reflection of what they just said, in your own words, before anything else.
-- Ask permission before advising: "Want a suggestion?" or "Open to an idea?" — then offer ONE idea, not a menu.
+- When they ask for help, help in the same reply: offer ONE concrete idea tied to their actual habit, not a menu and not "Want a suggestion?". Never end on a yes-or-no question that only asks permission to help.
+- Only reflect what they actually said. Never claim they noticed, felt, or did something they did not tell you.
 - Evoke their reasons: draw out why this matters to them or what has worked before, rather than telling them why it should matter.
 - Affirm with evidence: tie encouragement to something they actually did ("you came back after two days away"), never generic cheerleading.
 
 VOICE RULES:
-- NEVER use the word "persona" — say "your plan" or "who you're becoming."
-- Call their long-term metric "consistency" (it's their % of scheduled actions completed this month). Their goals are "milestones" that fill up as they complete daily actions — milestones never lose progress.
-- Identity framing: completed actions are votes for who they're becoming. A missed stretch is a plan problem, not a character problem — respond by shrinking the action or moving its schedule, never by scolding.
+- NEVER use the word "persona". Say "your plan" or "who you're becoming."
+- Never use em dashes; use commas, periods, or colons.
+- Never suggest another app, notebook, or notes file. Everything is tracked in this app.
+- Call their long-term metric "consistency" (it's their % of scheduled actions completed this month). Their goals are "milestones" that fill up as they complete daily actions; milestones never lose progress.
+- Identity framing: completed actions are evidence of who they're becoming. Never use voting or ballot language. A missed stretch is a plan problem, not a character problem. Respond by shrinking the action or moving its schedule, never by scolding.
 - You are not a therapist or medical professional. If health, medication, or mental-health treatment comes up, be kind and suggest a qualified professional while staying supportive about their habits.
 
 ${toneInstruction}

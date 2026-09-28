@@ -18,6 +18,7 @@ import * as WebBrowser from "expo-web-browser";
 
 import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
+import { getCoachQuotaMessage } from "@/lib/coach-quota";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
@@ -37,7 +38,42 @@ import { getSubscriptionPlanLabel } from "@/lib/subscription";
 type PlanType = "monthly" | "yearly" | "lifetime";
 
 type SubscriptionRouteParams = {
-  Subscription: { source?: "coach-limit" | "milestone-proposal" } | undefined;
+  Subscription: { source?: SubscriptionSource } | undefined;
+};
+
+type SubscriptionSource =
+  | "coach-limit"
+  | "milestone-proposal"
+  | "milestone-limit"
+  | "insights"
+  | "year-recap";
+
+// "Here's what you just hit" — every gated entry point names the cap so the
+// paywall never opens as a generic ad
+const SOURCE_CONTEXT: Record<
+  SubscriptionSource,
+  { icon: keyof typeof Feather.glyphMap; text: string }
+> = {
+  "coach-limit": {
+    icon: "message-circle",
+    text: "",
+  },
+  "milestone-proposal": {
+    icon: "flag",
+    text: "Your next milestone is ready. Premium lets you add it while keeping the full proposal visible first.",
+  },
+  "milestone-limit": {
+    icon: "flag",
+    text: "Your starter milestones are set. Premium lets you add new ones as your goals evolve.",
+  },
+  insights: {
+    icon: "bar-chart-2",
+    text: "Insights show when you show up best and the one thing to protect. Premium unlocks the full panel.",
+  },
+  "year-recap": {
+    icon: "award",
+    text: "The full “The Year You Became” story is part of Premium: your rhythm, your comebacks, and how the year closes.",
+  },
 };
 
 // Fallback expiry estimate when the server didn't return a store-validated date
@@ -249,17 +285,25 @@ export default function SubscriptionScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<SubscriptionRouteParams, "Subscription">>();
-  // Presentation-only framing: arriving from the coach 10/10 gate explains
-  // which cap was hit before the generic hero
-  const fromCoachLimit = route.params?.source === "coach-limit";
-  const fromMilestoneProposal = route.params?.source === "milestone-proposal";
+  // Presentation-only framing: arriving from a gate explains which cap was
+  // hit before the generic hero
   const { theme, isDark } = useTheme();
   const {
     subscription,
     subscriptionVerificationStatus,
     refreshData,
     verifySubscription,
+    monthlyReflectionCount,
   } = useApp();
+  const sourceContext = route.params?.source
+    ? {
+        ...SOURCE_CONTEXT[route.params.source],
+        text:
+          route.params.source === "coach-limit"
+            ? getCoachQuotaMessage(monthlyReflectionCount)
+            : SOURCE_CONTEXT[route.params.source].text,
+      }
+    : null;
   const [selectedPlan, setSelectedPlan] = useState<PlanType>("yearly");
   const [isLoading, setIsLoading] = useState(false);
   const [iapProducts, setIapProducts] = useState<IAPProduct[]>([]);
@@ -389,6 +433,18 @@ export default function SubscriptionScreen() {
                   "Approval Pending",
                   "Your purchase is awaiting approval (such as Ask to Buy). Once approved, your subscription will activate automatically.",
                 );
+                return;
+              }
+
+              // Subscribing while already entitled (StoreKit reports the
+              // existing transaction as a duplicate) is a restore, not a
+              // failure — run it instead of alarming the subscriber.
+              if (
+                errorMessage.includes("Duplicate purchase") ||
+                errorMessage.includes("ALREADY_OWNED") ||
+                errorMessage.includes("already owned")
+              ) {
+                handleRestorePurchases();
                 return;
               }
 
@@ -812,7 +868,7 @@ export default function SubscriptionScreen() {
           </View>
         ) : null}
 
-        {fromCoachLimit || fromMilestoneProposal ? (
+        {sourceContext ? (
           <View
             style={[
               styles.contextCard,
@@ -823,11 +879,9 @@ export default function SubscriptionScreen() {
               },
             ]}
           >
-            <Feather name="message-circle" size={20} color={theme.accent} />
+            <Feather name={sourceContext.icon} size={20} color={theme.accent} />
             <ThemedText style={styles.contextCardText}>
-              {fromCoachLimit
-                ? "You’ve used all 10 free check-ins this month — Premium removes the cap."
-                : "Your next milestone is ready — Premium lets you add it while keeping the full proposal visible first."}
+              {sourceContext.text}
             </ThemedText>
           </View>
         ) : null}
@@ -837,7 +891,7 @@ export default function SubscriptionScreen() {
             <Feather name="zap" size={32} color={theme.buttonText} />
           </View>
           <ThemedText style={styles.heroTitle}>
-            Become who you&rsquo;re becoming &mdash; without limits
+            Become who you&rsquo;re becoming, without limits
           </ThemedText>
           <ThemedText
             style={[styles.heroSubtitle, { color: theme.textSecondary }]}
@@ -846,77 +900,7 @@ export default function SubscriptionScreen() {
           </ThemedText>
         </View>
 
-        <View
-          style={[
-            styles.compareCard,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundDefault
-                : Colors.light.backgroundDefault,
-            },
-          ]}
-        >
-          <View
-            style={styles.compareHeaderRow}
-            accessible
-            accessibilityLabel="Comparison of the Free and Premium plans"
-          >
-            <View style={styles.compareFeatureCol} />
-            <View style={styles.compareValueCol}>
-              <ThemedText
-                style={[styles.compareColLabel, { color: theme.textSecondary }]}
-              >
-                FREE
-              </ThemedText>
-            </View>
-            <View style={styles.compareValueCol}>
-              <ThemedText
-                style={[styles.compareColLabel, { color: theme.accent }]}
-              >
-                PREMIUM
-              </ThemedText>
-            </View>
-          </View>
-
-          <CompareRow
-            title="Personas"
-            description={"Every identity you’re building, side by side"}
-            free="1"
-            premium="Unlimited"
-          />
-          <CompareRow
-            title="AI coaching check-ins"
-            description="Reflect with your coach as often as you need"
-            free="10/mo"
-            premium="Unlimited"
-          />
-          <CompareRow
-            title="Milestones per persona"
-            description="Add new milestones as your goals evolve"
-            free="Starter set"
-            premium="Unlimited"
-          />
-          <CompareRow
-            title="Streak shields"
-            description="Missed days bridged — extra grace, earned by consistency"
-            free="1"
-            premium="2"
-          />
-          <CompareRow
-            title="Insights"
-            description="When you show up, and the one thing to protect"
-            free="—"
-            premium="Included"
-          />
-          <CompareRow
-            title="Daily action tracking"
-            description="Log actions and build momentum every day"
-            free={null}
-            premium={null}
-            isLast
-          />
-        </View>
-
+        {/* Plans first: people came here to choose one. */}
         {Platform.OS === "web" ? (
           <View
             style={[
@@ -1026,10 +1010,99 @@ export default function SubscriptionScreen() {
             >
               {selectedPlan === "lifetime"
                 ? "Honest pricing, no dark patterns. One payment, no subscription, no automatic renewal."
-                : `Honest pricing, no dark patterns. Cancel anytime in ${Platform.OS === "ios" ? "Settings" : "Google Play"} — you keep Premium until your period ends.`}
+                : `Honest pricing, no dark patterns. Cancel anytime in ${Platform.OS === "ios" ? "Settings" : "Google Play"}. You keep Premium until your period ends.`}
             </ThemedText>
           </View>
         )}
+
+        <View
+          style={[
+            styles.compareCard,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+            },
+          ]}
+        >
+          <View
+            style={styles.compareHeaderRow}
+            accessible
+            accessibilityLabel="Comparison of the Free and Premium plans"
+          >
+            <View style={styles.compareFeatureCol} />
+            <View style={styles.compareValueCol}>
+              <ThemedText
+                style={[styles.compareColLabel, { color: theme.textSecondary }]}
+              >
+                FREE
+              </ThemedText>
+            </View>
+            <View style={styles.compareValueCol}>
+              <ThemedText
+                style={[styles.compareColLabel, { color: theme.accent }]}
+              >
+                PREMIUM
+              </ThemedText>
+            </View>
+          </View>
+
+          <CompareRow
+            title="Plans"
+            description={"Every identity you’re building, side by side"}
+            free="1"
+            premium="Unlimited"
+          />
+          <CompareRow
+            title="AI coaching check-ins"
+            description="One conversation, including follow-up messages"
+            free="10/mo"
+            premium="Unlimited"
+          />
+          <CompareRow
+            title="Milestones per plan"
+            description="Add new milestones as your goals evolve"
+            free="Starter set"
+            premium="Unlimited"
+          />
+          <CompareRow
+            title="Earned rest days"
+            description="Rest days you've earned, so a miss doesn't break your run"
+            free="1"
+            premium="2"
+          />
+          <CompareRow
+            title="Insights"
+            description="When you show up, and the one thing to protect"
+            free="—"
+            premium="Included"
+          />
+          <CompareRow
+            title="Coach memory"
+            description="A coach that remembers your past sessions"
+            free="—"
+            premium="Included"
+          />
+          <CompareRow
+            title="Quick reads"
+            description="60-second habit science, matched to your journey"
+            free="Weekly"
+            premium="Daily"
+          />
+          <CompareRow
+            title={"“The Year You Became”"}
+            description="Your year, told as a story worth sharing"
+            free="1 card"
+            premium="Full story"
+          />
+          <CompareRow
+            title="Daily action tracking"
+            description="Log actions and build momentum every day"
+            free={null}
+            premium={null}
+            isLast
+          />
+        </View>
 
         {storeReady && selectedProduct ? (
           <ThemedText

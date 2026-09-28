@@ -23,8 +23,9 @@ import {
   getLocalDateString,
 } from "@/lib/progress";
 import { logger } from "@/lib/logger";
+import { canDeleteMilestone } from "@/lib/plan-editing";
 
-const MIN_ACTIONS_PER_PERSONA = 3;
+const MIN_ACTIONS_PER_PERSONA = 1;
 const MAX_ACTIONS_PER_PERSONA = 5;
 
 /** Relative presets keep the picker dependency-free and the tone gentle. */
@@ -85,6 +86,8 @@ export default function BenchmarkEditorScreen() {
   const personaActionsCount = actions.filter((a) =>
     personaBenchmarkIds.includes(a.benchmarkId),
   ).length;
+  const canDeleteBenchmark =
+    !!benchmarkId && canDeleteMilestone(benchmarkId, benchmarks, actions);
   const canAddAction = personaActionsCount < MAX_ACTIONS_PER_PERSONA;
 
   React.useEffect(() => {
@@ -103,7 +106,7 @@ export default function BenchmarkEditorScreen() {
       navigation.goBack();
     }
     if (!isEditing && !canAddBenchmark()) {
-      navigation.navigate("Subscription");
+      navigation.navigate("Subscription", { source: "milestone-limit" });
     }
   }, [isEditing, existingBenchmark, persona, navigation, canAddBenchmark]);
 
@@ -159,7 +162,7 @@ export default function BenchmarkEditorScreen() {
   };
 
   const handleDelete = () => {
-    if (!isEditing || !existingBenchmark) return;
+    if (!isEditing || !existingBenchmark || !canDeleteBenchmark) return;
 
     const doDelete = async () => {
       try {
@@ -216,12 +219,12 @@ export default function BenchmarkEditorScreen() {
     if (!canAddAction) {
       if (Platform.OS === "web") {
         window.alert(
-          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} actions per persona.`,
+          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} habits per plan.`,
         );
       } else {
         Alert.alert(
           "Action Limit Reached",
-          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} actions per persona.`,
+          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} habits per plan.`,
         );
       }
       return;
@@ -236,14 +239,9 @@ export default function BenchmarkEditorScreen() {
   const handleDeleteAction = (action: (typeof actions)[0]) => {
     if (!canDeleteAction) {
       if (Platform.OS === "web") {
-        window.alert(
-          `You must have at least ${MIN_ACTIONS_PER_PERSONA} actions per persona.`,
-        );
+        window.alert("Keep at least one habit in each plan.");
       } else {
-        Alert.alert(
-          "Cannot Delete",
-          `You must have at least ${MIN_ACTIONS_PER_PERSONA} actions per persona.`,
-        );
+        Alert.alert("Cannot Delete", "Keep at least one habit in each plan.");
       }
       return;
     }
@@ -431,7 +429,7 @@ export default function BenchmarkEditorScreen() {
             </View>
           ) : (
             <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
-              A gentle aim, not a deadline — progress never resets
+              A gentle aim, not a deadline. Progress never resets
             </ThemedText>
           )}
         </View>
@@ -452,7 +450,7 @@ export default function BenchmarkEditorScreen() {
                 accessibilityLabel={
                   canAddAction
                     ? "Add a new action"
-                    : "Action limit reached for this persona"
+                    : "Habit limit reached for this plan"
                 }
                 accessibilityState={{ disabled: !canAddAction }}
                 style={({ pressed }) => [
@@ -557,7 +555,7 @@ export default function BenchmarkEditorScreen() {
                       { color: theme.textSecondary },
                     ]}
                   >
-                    Minimum {MIN_ACTIONS_PER_PERSONA} actions required
+                    Keep at least one habit in this plan
                   </ThemedText>
                 ) : null}
               </View>
@@ -603,27 +601,39 @@ export default function BenchmarkEditorScreen() {
         )}
 
         {isEditing ? (
-          <Pressable
-            onPress={handleDelete}
-            accessibilityRole="button"
-            accessibilityLabel="Delete milestone"
-            style={({ pressed }) => [
-              styles.deleteButton,
-              {
-                backgroundColor: isDark
-                  ? Colors.dark.backgroundDefault
-                  : Colors.light.backgroundDefault,
-                opacity: pressed ? 0.8 : 1,
-              },
-            ]}
-          >
-            <Feather name="trash-2" size={20} color={theme.error} />
-            <ThemedText
-              style={[styles.deleteButtonText, { color: theme.error }]}
+          <View>
+            <Pressable
+              onPress={handleDelete}
+              disabled={!canDeleteBenchmark}
+              accessibilityState={{ disabled: !canDeleteBenchmark }}
+              accessibilityRole="button"
+              accessibilityLabel="Delete milestone"
+              style={({ pressed }) => [
+                styles.deleteButton,
+                {
+                  backgroundColor: isDark
+                    ? Colors.dark.backgroundDefault
+                    : Colors.light.backgroundDefault,
+                  opacity: !canDeleteBenchmark ? 0.4 : pressed ? 0.8 : 1,
+                },
+              ]}
             >
-              Delete Milestone
-            </ThemedText>
-          </Pressable>
+              <Feather name="trash-2" size={20} color={theme.error} />
+              <ThemedText
+                style={[styles.deleteButtonText, { color: theme.error }]}
+              >
+                Delete Milestone
+              </ThemedText>
+            </Pressable>
+            {!canDeleteBenchmark ? (
+              <ThemedText
+                style={[styles.minActionsHint, { color: theme.textSecondary }]}
+              >
+                Keep at least one habit in this plan. Add an action to another
+                milestone before deleting this one.
+              </ThemedText>
+            ) : null}
+          </View>
         ) : null}
       </KeyboardAwareScrollViewCompat>
     </View>

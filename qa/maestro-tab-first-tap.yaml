@@ -1,0 +1,21 @@
+appId: com.resolutioncompanion.app
+---
+# Run against an already launched, onboarded app. Each first tap must switch
+# immediately; a second tap is intentionally not used as a recovery.
+- extendedWaitUntil:
+    visible: "Today, .*"
+    timeout: 15000
+- waitForAnimationToEnd
+- tapOn: "Journey tab"
+- extendedWaitUntil:
+    visible: "Journey, .*"
+    timeout: 10000
+- tapOn: "Coach tab"
+- extendedWaitUntil:
+    # The Coach tab now carries the same two-line header as Today/Journey
+    visible: "Coach, .*"
+    timeout: 10000
+- tapOn: "Today tab"
+- extendedWaitUntil:
+    visible: "Today, .*"
+    timeout: 10000

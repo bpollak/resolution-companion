@@ -72,11 +72,22 @@ domain `resolutioncompanion.com`.
 
 - **Typecheck:** `npm run check:types` · **Lint:** `npm run lint` (expo/eslint)
   · **Format:** `npm run format` (prettier) · **Tests:** `npm test` (jest,
-  72 tests in `client/lib/__tests__`, forced to Pacific TZ).
+  ~247 tests in `client/lib/__tests__`, forced to Pacific TZ).
 - **Builds are LOCAL now** (`eas build --local`) — EAS cloud build credit is
   exhausted; only cloud _compile_ costs money, uploads are free. Toolchain
   (Xcode 26.6 + CocoaPods + Fastlane, all via Homebrew) is installed. See the
   `local-builds` memory for the full setup. `/build/` is gitignored.
+  - **LANDMINE: iCloud-evicted files hang builds silently.** This repo lives
+    under iCloud-synced Documents and this Mac's iCloud sync is broken, so
+    "dataless" stub files (metadata only, content evicted) hang ANY process
+    that reads them — the EAS archiver freezes forever at "Compressing project
+    files" with 0% CPU and no error. Detect: `ls -lO <file>` shows `dataless`.
+    Fix: restore content from a materialized twin or the git pack
+    (`git show HEAD:path > path`); verify with `git hash-object`. Thousands of
+    dataless stubs remain in `marketing/`, `ios/`, `android/`, and `.git`
+    loose objects — any tool that walks those can hang the same way. (Node 22
+    remains the regression baseline; prefer
+    `PATH=/opt/homebrew/opt/node@22/bin:$PATH` since brew's default is now 25.)
   - **TestFlight/App Store:** `npm run build:local:ios` (~15-20 min local
     compile → `build/ios-local.ipa`) then `npm run submit:local:ios` (uploads).
   - **Simulator (visual verification):** `npm run build:local:sim` →

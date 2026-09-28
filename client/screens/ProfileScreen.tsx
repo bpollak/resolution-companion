@@ -84,7 +84,7 @@ interface SettingsRowProps {
   destructive?: boolean;
 }
 
-type ProfilePanel = "main" | "reminders" | "privacy" | "about";
+type ProfilePanel = "main" | "reminders" | "appearance" | "privacy" | "about";
 
 function SettingsRow({
   icon,
@@ -229,11 +229,13 @@ export default function ProfileScreen() {
     const title =
       activePanel === "reminders"
         ? "Daily Reminder"
-        : activePanel === "privacy"
-          ? "Privacy & Data"
-          : activePanel === "about"
-            ? "About"
-            : "Profile";
+        : activePanel === "appearance"
+          ? "Appearance"
+          : activePanel === "privacy"
+            ? "Privacy & Data"
+            : activePanel === "about"
+              ? "About"
+              : "Profile";
     const isMain = activePanel === "main";
 
     navigation.setOptions({
@@ -269,8 +271,8 @@ export default function ProfileScreen() {
     return () => cancelAnimationFrame(frame);
   }, [activePanel]);
 
-  // Dawn theme: a milestone reward — the Appearance row only exists once
-  // it has been earned
+  // Milestone rewards live in the Appearance panel; each row appears only
+  // once its reward has been earned
   const {
     mode: themeMode,
     setMode: setThemeMode,
@@ -423,7 +425,7 @@ export default function ProfileScreen() {
         const proceed = await new Promise<boolean>((resolve) => {
           Alert.alert(
             "Daily Reminders",
-            `Resolution Companion will send one reminder at ${resolved.label} on days you haven't finished your actions — it stays quiet once your day is complete. You can turn this off anytime.`,
+            `Resolution Companion will send one reminder at ${resolved.label} on days you haven't finished your habits. It stays quiet once your day is complete. You can turn this off anytime.`,
             [
               {
                 text: "Not Now",
@@ -508,20 +510,20 @@ export default function ProfileScreen() {
     if (personas.length <= 1) {
       if (Platform.OS === "web") {
         window.alert(
-          "You must have at least one persona. Create a new one first before deleting this one.",
+          "You need at least one plan. Create a new one before deleting this one.",
         );
       } else {
         Alert.alert(
           "Cannot Delete",
-          "You must have at least one persona. Create a new one first before deleting this one.",
+          "You need at least one plan. Create a new one before deleting this one.",
         );
       }
       return;
     }
 
     showAlert(
-      "Delete Persona",
-      `Delete "${name}"? This will also remove all benchmarks, actions, and logs for this persona.`,
+      "Delete plan",
+      `Delete "${name}"? This also removes its milestones, habits, and history.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -543,7 +545,7 @@ export default function ProfileScreen() {
   const handleClearData = () => {
     showAlert(
       "Clear All Data",
-      "This will permanently delete all your data including all personas, benchmarks, actions, and logs. This cannot be undone.",
+      "This will permanently delete all your data including all plans, milestones, habits, and history. This cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -606,12 +608,12 @@ export default function ProfileScreen() {
               await clearAllData();
               if (Platform.OS === "web") {
                 window.alert(
-                  "Local data deleted. Server data deletion may have failed — please contact support if needed.",
+                  "Local data deleted. Server data deletion may have failed. Please contact support if needed.",
                 );
               } else {
                 Alert.alert(
                   "Partial Deletion",
-                  "Local data deleted. Server data deletion may have failed — please contact support if needed.",
+                  "Local data deleted. Server data deletion may have failed. Please contact support if needed.",
                 );
               }
             }
@@ -720,7 +722,7 @@ export default function ProfileScreen() {
               <ThemedText
                 style={[styles.notOnboarded, { color: theme.textSecondary }]}
               >
-                Complete onboarding to define your persona
+                Make a plan to get started
               </ThemedText>
               <Pressable
                 onPress={() => navigation.navigate("Onboarding")}
@@ -747,15 +749,15 @@ export default function ProfileScreen() {
           {personas.length > 0 ? (
             <>
               <View style={styles.sectionHeader}>
-                <ThemedText style={styles.sectionTitle}>My Personas</ThemedText>
+                <ThemedText style={styles.sectionTitle}>My plans</ThemedText>
                 <Pressable
                   onPress={handleAddNewPersona}
                   hitSlop={10}
                   accessibilityRole="button"
                   accessibilityLabel={
                     canAddPersona()
-                      ? "Add a new persona"
-                      : "Upgrade to Premium to add more personas"
+                      ? "Add another plan"
+                      : "Premium lets you add more plans"
                   }
                   style={({ pressed }) => [
                     styles.addPersonaButton,
@@ -783,9 +785,9 @@ export default function ProfileScreen() {
                     onLongPress={() => handleDeletePersona(p.id, p.name)}
                     accessibilityRole="button"
                     accessibilityLabel={`${p.name}${
-                      p.id === persona?.id ? ", active persona" : ""
+                      p.id === persona?.id ? ", active plan" : ""
                     }`}
-                    accessibilityHint="Switches to this persona. Long press to delete."
+                    accessibilityHint="Switches to this plan. Long press to delete."
                     accessibilityState={{ selected: p.id === persona?.id }}
                     style={({ pressed }) => [
                       styles.personaItem,
@@ -839,7 +841,7 @@ export default function ProfileScreen() {
                         onPress={() => handleDeletePersona(p.id, p.name)}
                         hitSlop={14}
                         accessibilityRole="button"
-                        accessibilityLabel={`Delete persona ${p.name}`}
+                        accessibilityLabel={`Delete plan ${p.name}`}
                         style={({ pressed }) => [
                           { opacity: pressed ? 0.5 : 1 },
                         ]}
@@ -912,6 +914,28 @@ export default function ProfileScreen() {
             }
             onPress={() => setActivePanel("reminders")}
           />
+
+          <SettingsRow
+            icon="sunrise"
+            title="Appearance"
+            subtitle="Themes, accents, and earned rewards"
+            onPress={() => setActivePanel("appearance")}
+          />
+
+          {Platform.OS === "ios" ? (
+            <SettingsRow
+              icon="grid"
+              title="Widget & Siri"
+              subtitle="Log actions without opening the app"
+              onPress={() =>
+                Alert.alert(
+                  "Log from your Home Screen",
+                  "Touch and hold your Home or Lock Screen, tap +, and search for Resolution Companion to add the “Take the Next Step” widget.\n\nSiri works too. Try “Log my kickstart in Resolution Companion.”",
+                  [{ text: "Got it" }],
+                )
+              }
+            />
+          ) : null}
 
           <SettingsRow
             icon="shield"
@@ -1006,7 +1030,7 @@ export default function ProfileScreen() {
                   : notificationsEnabled && reminderTime
                     ? `Personalized reminder at ${reminderTime.label}${
                         reminderTime.source === "routine"
-                          ? " — based on your routine"
+                          ? ", based on your routine"
                           : ""
                       } · quiet once your day is done`
                     : notificationsEnabled
@@ -1125,8 +1149,8 @@ export default function ProfileScreen() {
                 ]}
               >
                 {aiConsent
-                  ? "On — chat messages are sent to OpenAI"
-                  : "Off — AI coaching disabled"}
+                  ? "On. Chat messages are sent to OpenAI"
+                  : "Off. AI coaching is turned off"}
               </ThemedText>
             </View>
             <Switch
@@ -1184,6 +1208,21 @@ export default function ProfileScreen() {
               small action at a time.
             </ThemedText>
           </View>
+        </>
+      ) : null}
+
+      {activePanel === "appearance" ? (
+        <>
+          <View style={styles.detailIntro}>
+            <Feather name="sunrise" size={28} color={theme.accent} />
+            <ThemedText style={styles.detailTitle}>Make it yours</ThemedText>
+            <ThemedText
+              style={[styles.detailBody, { color: theme.textSecondary }]}
+            >
+              Completed milestones unlock personalization rewards: a theme, an
+              accent, a coach voice, celebrations, and an app icon.
+            </ThemedText>
+          </View>
 
           {dawnUnlocked ||
           violetAccentUnlocked ||
@@ -1195,7 +1234,40 @@ export default function ProfileScreen() {
             >
               Earned Personalization
             </ThemedText>
-          ) : null}
+          ) : (
+            <View
+              style={[
+                styles.settingsRow,
+                {
+                  backgroundColor: isDark
+                    ? Colors.dark.backgroundDefault
+                    : Colors.light.backgroundDefault,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.settingsIcon,
+                  { backgroundColor: "rgba(255, 184, 0, 0.1)" },
+                ]}
+              >
+                <Feather name="lock" size={20} color={theme.textSecondary} />
+              </View>
+              <View style={styles.settingsContent}>
+                <ThemedText style={styles.settingsTitle}>
+                  Nothing unlocked yet
+                </ThemedText>
+                <ThemedText
+                  style={[
+                    styles.settingsSubtitle,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Your first completed milestone unlocks the Dawn theme
+                </ThemedText>
+              </View>
+            </View>
+          )}
 
           {dawnUnlocked ? (
             <View
@@ -1461,6 +1533,31 @@ export default function ProfileScreen() {
                 thumbColor="#FFFFFF"
               />
             </View>
+          ) : null}
+        </>
+      ) : null}
+
+      {activePanel === "about" ? (
+        <>
+          {Platform.OS === "ios" ? (
+            <>
+              <ThemedText
+                style={[styles.sectionTitle, { marginTop: Spacing.xl }]}
+              >
+                Support
+              </ThemedText>
+
+              <SettingsRow
+                icon="star"
+                title="Rate Resolution Companion"
+                subtitle="Share your experience on the App Store"
+                onPress={() =>
+                  Linking.openURL(
+                    "https://apps.apple.com/app/id6757996708?action=write-review",
+                  )
+                }
+              />
+            </>
           ) : null}
 
           <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
