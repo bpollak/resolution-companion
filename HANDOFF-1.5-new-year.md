@@ -8,17 +8,16 @@ session that works from GitHub). Owner: Brett.
   release, and this file. Its history is unrelated to `main` (the 1.4.1 source was a snapshot).
 - `main`: the server, the marketing website, and older (July) app code. Railway deploys `main`.
 
-**Also true:** the Mac mini checkout `~/Documents/resolution-companion` has 4 local commits not
-yet on GitHub (website 1.4.1 rename work and an `app.json` version bump, 2026-09-28). You can't
-see them; don't recreate them. Brett or the Mac mini session pushes them separately.
+**Also true:** GitHub `main` already has today's website 1.4.1 rename work and the `app.json`
+1.4.1 bump (latest `a5b9a2a`, 2026-09-28). The Mac mini checkout has the same changes under
+different commit IDs; treat GitHub `main` as current.
 
 Your job: land the 1.5 app on top of `main`'s server and website on a branch, verify what can be
 verified off the Mac, and stop at Brett's gates.
 
 ## 0. Read this first: `main`'s app code is not the live app
 
-`client/` on `main` is the **July 29 app code** (and the Mac mini's local `main` now labels it
-1.4.1 in `app.json`). The App Store's 1.4.1 (build 95) was built from a different, never-committed tree on
+`client/` on `main` is the **July 29 app code** (and `app.json` there now labels it 1.4.1). The App Store's 1.4.1 (build 95) was built from a different, never-committed tree on
 the work Mac (`/Users/bpollak/Documents/resolution-companion`, branch
 `codex/ux-review-improvements`, base `2988352`), snapshotted with source hashes into
 `~/Documents/resolution-release-1.4.1` on the Mac mini. `main`'s `client/` differs from that live
@@ -77,7 +76,7 @@ Then reconcile by hand, in this order:
    changes live in `client/lib/ai.ts` and ship in the app binary, so no server deploy is needed.
    Do confirm the extraction request still fits the server's strict JSON schema
    (`server/persona-extraction.ts`): 1.5 did not add fields.
-2. **`public/`: keep `main`** (the Mac mini's pending website commits also land there), then add the 1.5.0 entry
+2. **`public/`: keep `main`** (it has today's website and 1.4.1 rename work), then add the 1.5.0 entry
    from the release branch's `public/releases.json` at the top. It is `draft`, but the website
    shows draft entries (labeled Draft, `server/index.ts`) and serves `/releases.json` publicly,
    so this entry must not reach `main` until Brett wants 1.5 announced.
