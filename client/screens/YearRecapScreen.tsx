@@ -26,15 +26,15 @@ const cards: CardKind[] = ["opening", "rhythm", "resilience", "closing"];
 
 function cardAccessibilityLabel(recap: YearRecap, kind: CardKind): string {
   if (kind === "opening") {
-    return `${recap.yearLabel}. ${recap.votesCast} votes for ${recap.personaName} across ${recap.activeDays} active days. Every vote made the identity a little more real.`;
+    return `${recap.yearLabel}. ${recap.votesCast} times you showed up as ${recap.personaName}, across ${recap.activeDays} active days.`;
   }
   if (kind === "rhythm") {
     return `${recap.consistency}% consistency across ${recap.activeMonths} active ${recap.activeMonths === 1 ? "month" : "months"}. ${recap.bestMonth ? `${recap.bestMonth.monthLabel} led the year with ${recap.bestMonth.votesCast} completed actions.` : "Your first action can still write the story."}`;
   }
   if (kind === "resilience") {
-    return `The plan bent with you. ${recap.kickstartVotes} floor saves, ${recap.comebacks} comebacks, ${recap.healthVotes} Health auto-votes, ${recap.shieldsEarned} shields earned, and ${recap.shieldedDays} days protected.`;
+    return `The plan bent with you. ${recap.kickstartVotes} 2-minute saves, ${recap.comebacks} comebacks, ${recap.healthVotes} Apple Health check-offs, ${recap.shieldsEarned} rest days earned, and ${recap.shieldedDays} days protected.`;
   }
-  return `${recap.yearLabel}, still becoming. ${recap.closingLine} No rankings. No perfect year required. Just evidence that you returned.`;
+  return `${recap.yearLabel}, still becoming. ${recap.closingLine} No rankings. No perfect year required. Just proof that you kept coming back.`;
 }
 
 function YearCard({ recap, kind }: { recap: YearRecap; kind: CardKind }) {
@@ -52,11 +52,11 @@ function YearCard({ recap, kind }: { recap: YearRecap; kind: CardKind }) {
           {recap.votesCast}
         </ThemedText>
         <ThemedText maxFontSizeMultiplier={1} style={styles.headline}>
-          votes for {recap.personaName}
+          times you showed up as {recap.personaName}
         </ThemedText>
         <ThemedText maxFontSizeMultiplier={1} style={styles.sub}>
-          Across {recap.activeDays} active days, every vote made the identity a
-          little more real.
+          Across {recap.activeDays} active days, each one made it a little more
+          real.
         </ThemedText>
       </>
     );
@@ -98,7 +98,7 @@ function YearCard({ recap, kind }: { recap: YearRecap; kind: CardKind }) {
               {recap.kickstartVotes}
             </ThemedText>
             <ThemedText maxFontSizeMultiplier={1} style={styles.sub}>
-              floor saves
+              2-minute saves
             </ThemedText>
           </View>
           <View style={styles.stat}>
@@ -114,8 +114,8 @@ function YearCard({ recap, kind }: { recap: YearRecap; kind: CardKind }) {
           </View>
         </View>
         <ThemedText maxFontSizeMultiplier={1} style={styles.sub}>
-          {recap.healthVotes} Health auto-votes · {recap.shieldsEarned} shields
-          earned · {recap.shieldedDays} days protected
+          {recap.healthVotes} Apple Health check-offs · {recap.shieldsEarned}{" "}
+          rest days earned · {recap.shieldedDays} days protected
         </ThemedText>
       </>
     );
@@ -133,7 +133,8 @@ function YearCard({ recap, kind }: { recap: YearRecap; kind: CardKind }) {
         {recap.closingLine}
       </ThemedText>
       <ThemedText maxFontSizeMultiplier={1} style={styles.sub}>
-        No rankings. No perfect year required. Just evidence that you returned.
+        No rankings. No perfect year required. Just proof that you kept coming
+        back.
       </ThemedText>
     </>
   );
@@ -176,72 +177,9 @@ export default function YearRecapScreen() {
     );
     track("year_recap_shared");
   };
-  // A visible gate, not a silent redirect: the user sees what the story is
-  // and why it's locked before deciding on the paywall
-  if (!subscription.isPremium) {
-    return (
-      <View
-        style={[
-          styles.container,
-          {
-            backgroundColor: theme.backgroundRoot,
-            paddingTop: insets.top + Spacing.lg,
-            paddingBottom: insets.bottom + Spacing.lg,
-          },
-        ]}
-      >
-        <View style={styles.header}>
-          <ThemedText accessibilityRole="header" style={styles.title}>
-            The Year You Became
-          </ThemedText>
-          <Pressable
-            onPress={() => navigation.goBack()}
-            hitSlop={12}
-            pressRetentionOffset={16}
-            accessibilityRole="button"
-            accessibilityLabel="Close year recap"
-            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-          >
-            <Feather name="x" size={22} color={theme.text} />
-          </Pressable>
-        </View>
-        <View style={styles.gateContainer}>
-          <View
-            style={[
-              styles.gateIcon,
-              { backgroundColor: theme.backgroundSecondary },
-            ]}
-          >
-            <Feather name="lock" size={28} color={theme.textSecondary} />
-          </View>
-          <ThemedText style={styles.gateTitle}>A Premium story</ThemedText>
-          <ThemedText style={[styles.gateBody, { color: theme.textSecondary }]}>
-            Your whole year of showing up: the rhythm, the comebacks, and the
-            person it all adds up to, told as a story you can share.
-          </ThemedText>
-          <Pressable
-            onPress={() =>
-              (navigation as any).navigate("Subscription", {
-                source: "year-recap",
-              })
-            }
-            accessibilityRole="button"
-            accessibilityLabel="See Premium plans"
-            style={({ pressed }) => [
-              styles.gateButton,
-              { backgroundColor: theme.accent, opacity: pressed ? 0.8 : 1 },
-            ]}
-          >
-            <ThemedText
-              style={[styles.gateButtonText, { color: theme.buttonText }]}
-            >
-              See Premium plans
-            </ThemedText>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
+  // Everyone gets their own opening card to share (the New Year loop);
+  // the rest of the story is Premium, shown as a teaser, not a dead end.
+  const visibleCards: CardKind[] = subscription.isPremium ? cards : ["opening"];
   return (
     <View
       style={[
@@ -270,7 +208,7 @@ export default function YearRecapScreen() {
       </View>
       <FlatList
         delaysContentTouches={false}
-        data={cards}
+        data={visibleCards}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
@@ -281,7 +219,7 @@ export default function YearRecapScreen() {
         onMomentumScrollEnd={(event) =>
           setIndex(
             Math.min(
-              cards.length - 1,
+              visibleCards.length - 1,
               Math.max(
                 0,
                 Math.round(
@@ -322,7 +260,7 @@ export default function YearRecapScreen() {
       />
       <View style={styles.footer}>
         <View style={styles.dots}>
-          {cards.map((card, cardIndex) => (
+          {visibleCards.map((card, cardIndex) => (
             <View
               key={card}
               style={[
@@ -351,6 +289,32 @@ export default function YearRecapScreen() {
             Share this card
           </ThemedText>
         </Pressable>
+        {!subscription.isPremium ? (
+          <Pressable
+            onPress={() =>
+              (navigation as any).navigate("Subscription", {
+                source: "year-recap",
+              })
+            }
+            accessibilityRole="button"
+            accessibilityLabel="See the full year story with Premium"
+            style={({ pressed }) => [
+              styles.teaser,
+              {
+                borderColor: theme.border,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <Feather name="lock" size={16} color={theme.textSecondary} />
+            <ThemedText
+              style={[styles.teaserText, { color: theme.textSecondary }]}
+            >
+              3 more cards with Premium: your rhythm, your comebacks, and how
+              the year closes.
+            </ThemedText>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -410,38 +374,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   shareText: { ...Typography.headline },
-  gateContainer: {
-    flex: 1,
+  teaser: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: Spacing["3xl"],
-    gap: Spacing.md,
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginHorizontal: Spacing["3xl"],
   },
-  gateIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: BorderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing.sm,
-  },
-  gateTitle: {
-    ...Typography.title,
-    textAlign: "center",
-  },
-  gateBody: {
-    ...Typography.body,
-    lineHeight: 23,
-    textAlign: "center",
-  },
-  gateButton: {
-    marginTop: Spacing.lg,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing["2xl"],
-    borderRadius: BorderRadius.full,
-  },
-  gateButtonText: {
-    ...Typography.body,
-    fontWeight: "700",
-  },
+  teaserText: { ...Typography.small, flex: 1 },
 });

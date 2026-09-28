@@ -1265,7 +1265,7 @@ export default function TodayScreen() {
                     <View style={styles.widgetHintHeader}>
                       <Feather name="grid" size={18} color={theme.accent} />
                       <ThemedText style={styles.widgetHintTitle}>
-                        Log without opening the app
+                        Check off without opening the app
                       </ThemedText>
                     </View>
                     <ThemedText
@@ -1275,9 +1275,11 @@ export default function TodayScreen() {
                       ]}
                     >
                       Add the &ldquo;Take the Next Step&rdquo; widget to your
-                      Home or Lock Screen to log tomorrow&rsquo;s actions with
-                      one tap. Siri works too: &ldquo;Log my kickstart in
-                      Resolution Companion.&rdquo;
+                      Home or Lock Screen to check off tomorrow&rsquo;s habit
+                      with one tap. Siri works too: &ldquo;Log my kickstart in
+                      Resolution Companion.&rdquo; Walks and workouts can even
+                      check themselves off with Apple Health: turn it on when
+                      you edit a habit.
                     </ThemedText>
                     <Pressable
                       onPress={dismissWidgetHint}

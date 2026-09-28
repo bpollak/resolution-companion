@@ -1496,7 +1496,7 @@ export default function JourneyScreen() {
                 subtitle={
                   subscription.isPremium
                     ? `${new Date().getFullYear()} year-to-date story`
-                    : "Premium annual story"
+                    : "Your year so far, ready to share"
                 }
                 onPress={() =>
                   navigation.navigate("YearRecap", {
