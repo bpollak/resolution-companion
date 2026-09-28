@@ -409,7 +409,11 @@ export default function CoachSheetScreen() {
           params.promptId === "review-week" ? "weekly" : "contextual",
           buffer.append,
           getMonthlyContext(personaAlignment, persona.createdAt),
-          { name: persona.name, description: persona.description },
+          {
+            name: persona.name,
+            description: persona.description,
+            resolution: persona.resolution,
+          },
           {
             actionContext: buildCoachActionContext(actions, dailyLogs),
             coachTone: await getCoachTone(),

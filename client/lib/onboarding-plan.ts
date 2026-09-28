@@ -9,6 +9,10 @@ export interface OnboardingPlanDraft {
   description: string;
   usesAI: boolean;
   sourceMessageId?: string;
+  /** The resolution in the person's own words, shown above the plan. */
+  resolution?: string;
+  /** Local YYYY-MM-DD the plan starts; absent means today. */
+  startDate?: string;
   suggestions: (PersonaData["benchmarks"][number] & { selected: boolean })[];
 }
 
@@ -86,9 +90,62 @@ export function getPlanIssue(draft: OnboardingPlanDraft): PlanIssue | null {
   return null;
 }
 
+const RESOLUTION_LEADS =
+  /^(?:(?:um|so|well|ok|okay)[,\s]+)*(?:i\s+(?:really\s+)?(?:want|would like|'d like|need|hope|plan|am going|'m going)\s+to\s+|i\s+wanna\s+|my\s+(?:new year'?s\s+)?(?:resolution|goal)\s+(?:is|for\s+\S+\s+is)\s+(?:to\s+)?|to\s+)/i;
+
+/**
+ * Turns the person's first answer into a short resolution line: "I want to get
+ * in shape this year and lose about 15 pounds" -> "Get in shape this year and
+ * lose about 15 pounds". Keeps their words; only trims the lead-in.
+ */
+export function deriveResolution(message: string | undefined): string {
+  const text = (message ?? "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  const firstSentence = text.split(/(?<=[.!?])\s/)[0] ?? text;
+  const trimmed = firstSentence
+    .replace(RESOLUTION_LEADS, "")
+    .replace(/[.!?]+$/, "")
+    .trim();
+  if (!trimmed) return "";
+  const clipped =
+    trimmed.length > 90 ? `${trimmed.slice(0, 87).trimEnd()}...` : trimmed;
+  return clipped.charAt(0).toUpperCase() + clipped.slice(1);
+}
+
+/**
+ * From Nov 15 through Dec 31 people plan for the new year, so the plan review
+ * offers January 1 as a start date. Returns that date (YYYY-MM-DD) or null.
+ */
+export function newYearStartOption(now = new Date()): string | null {
+  const month = now.getMonth();
+  const day = now.getDate();
+  if (month === 11 || (month === 10 && day >= 15))
+    return `${now.getFullYear() + 1}-01-01`;
+  return null;
+}
+
+/** Whole days from today's midnight to the start day's midnight. */
+export function daysUntil(start: Date, now = new Date()): number {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const day = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  return Math.round((day.getTime() - today.getTime()) / 86_400_000);
+}
+
+/** Start of the draft's start day in local time, or null to start now. */
+export function planStartInstant(
+  draft: Pick<OnboardingPlanDraft, "startDate">,
+  now = new Date(),
+): Date | null {
+  if (!draft.startDate || !/^\d{4}-\d{2}-\d{2}$/.test(draft.startDate))
+    return null;
+  const [year, month, day] = draft.startDate.split("-").map(Number);
+  const start = new Date(year, month - 1, day);
+  return start.getTime() > now.getTime() ? start : null;
+}
+
 export function approvePlan(
   draft: OnboardingPlanDraft,
-  acceptedAt = new Date().toISOString(),
+  acceptedAt = (planStartInstant(draft) ?? new Date()).toISOString(),
 ): {
   persona: Persona;
   benchmarks: Benchmark[];
@@ -101,6 +158,9 @@ export function approvePlan(
     createdAt: acceptedAt,
     name: draft.name.trim(),
     description: draft.description.trim(),
+    ...(draft.resolution?.trim()
+      ? { resolution: draft.resolution.trim() }
+      : {}),
   };
   const benchmarks: Benchmark[] = [];
   const actions: ElementalAction[] = [];

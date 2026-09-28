@@ -77,6 +77,7 @@ import {
   SECOND_PERSONA_INVITE_SEEN_KEY,
   shouldOfferSecondPersona,
 } from "@/lib/persona-invitation";
+import { PlanCountdownCard } from "@/components/PlanCountdownCard";
 
 const FIRST_DAY_COMPLETE_KEY = "today_first_day_complete_seen";
 // {count, lastDate} of distinct fully-complete days, for timing the one-time
@@ -313,7 +314,7 @@ function AnimatedStartButton({ onPress }: { onPress: () => void }) {
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       accessibilityRole="button"
-      accessibilityLabel="Start your journey"
+      accessibilityLabel="Make my plan"
     >
       <Animated.View
         style={[
@@ -325,7 +326,7 @@ function AnimatedStartButton({ onPress }: { onPress: () => void }) {
         <ThemedText
           style={[styles.startButtonText, { color: theme.buttonText }]}
         >
-          Start Your Journey
+          Make my plan
         </ThemedText>
         <Animated.View style={arrowStyle}>
           <Feather name="arrow-right" size={20} color={theme.buttonText} />
@@ -359,6 +360,12 @@ export default function TodayScreen() {
 
   const today = new Date();
   const dayOfWeek = today.toLocaleDateString("en-US", { weekday: "long" });
+  // A plan set up ahead of time (for January 1) starts at its createdAt.
+  const planStart = useMemo(() => {
+    if (!persona?.createdAt) return null;
+    const start = new Date(persona.createdAt);
+    return start.getTime() > Date.now() ? start : null;
+  }, [persona?.createdAt]);
 
   const personaBenchmarkIds = useMemo(() => {
     return benchmarks
@@ -1133,10 +1140,12 @@ export default function TodayScreen() {
         decelerationRate="fast"
       >
         <StylizedAppLogo />
-        <ThemedText style={styles.emptyTitle}>Begin Your Evolution</ThemedText>
+        <ThemedText style={styles.emptyTitle}>
+          What&rsquo;s your resolution?
+        </ThemedText>
         <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
-          Define who you are becoming and build the habits that will get you
-          there.
+          Turn it into one small habit, with a coach that keeps you going past
+          January.
         </ThemedText>
         <AnimatedStartButton
           onPress={() => navigation.navigate("Onboarding")}
@@ -1175,9 +1184,19 @@ export default function TodayScreen() {
                 Becoming
               </ThemedText>
               <ThemedText style={styles.personaName}>{persona.name}</ThemedText>
+              {persona.resolution ? (
+                <ThemedText
+                  style={[styles.resolution, { color: theme.textSecondary }]}
+                  numberOfLines={2}
+                >
+                  Resolution: {persona.resolution}
+                </ThemedText>
+              ) : null}
             </View>
 
-            {todayActions.length > 0 ? (
+            {/* On a finished day the DayCompleteCard carries the moment; a
+                second "done" card only pushed the widget tip off screen. */}
+            {todayActions.length > 0 && !dayComplete ? (
               <TodaySignalCard
                 signal={todaySignal}
                 completed={completedTodayCount}
@@ -1266,6 +1285,12 @@ export default function TodayScreen() {
                   </View>
                 ) : null}
               </>
+            ) : planStart ? (
+              <PlanCountdownCard
+                start={planStart}
+                firstAction={actions[0]}
+                resolution={persona.resolution}
+              />
             ) : todayActions.length === 0 ? (
               <View
                 style={[
@@ -1385,6 +1410,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: Spacing["2xl"],
   },
+  resolution: { marginTop: Spacing.xs },
   emptyTitle: {
     ...Typography.title,
     textAlign: "center",

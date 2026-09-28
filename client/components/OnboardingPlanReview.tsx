@@ -15,6 +15,8 @@ import { WEEKDAY_ORDER, getLocalDateString } from "@/lib/progress";
 import { nextScheduledDay } from "@/lib/journey-date";
 import {
   getPlanIssue,
+  newYearStartOption,
+  planStartInstant,
   type OnboardingPlanDraft,
   type PlanIssue,
 } from "@/lib/onboarding-plan";
@@ -35,6 +37,8 @@ export function OnboardingPlanReview({
   const { theme } = useTheme();
   const [editing, setEditing] = useState<number | null>(null);
   const [editingName, setEditingName] = useState(false);
+  const [editingResolution, setEditingResolution] = useState(false);
+  const newYearStart = newYearStartOption();
   const [showIdeas, setShowIdeas] = useState(false);
   const [issue, setIssue] = useState<PlanIssue | null>(null);
   const scrollRef = useRef<ScrollView>(null);
@@ -114,12 +118,20 @@ export function OnboardingPlanReview({
       borderColor: theme.border,
     },
   ];
+  const plannedStart = planStartInstant(draft);
   const firstDay = nextScheduledDay(
     draft.suggestions
       .filter((item) => item.selected)
-      .map((item) => item.elementalAction),
+      .map((item) => ({
+        ...item.elementalAction,
+        createdAt: plannedStart?.toISOString(),
+      })),
+    plannedStart ?? undefined,
   );
   const startsToday = firstDay?.dateKey === getLocalDateString(new Date());
+  const approveLabel = plannedStart
+    ? `Plan it for ${plannedStart.toLocaleDateString("en-US", { month: "long", day: "numeric" })}`
+    : `Start with ${count} habit${count === 1 ? "" : "s"}`;
   const optionalCount = draft.suggestions.filter(
     (item) => !item.selected,
   ).length;
@@ -137,6 +149,34 @@ export function OnboardingPlanReview({
           One habit is enough. Check that this fits your life, then start. You
           can edit it later in Journey.
         </ThemedText>
+        {draft.resolution !== undefined ? (
+          <View style={styles.identity}>
+            <ThemedText style={styles.label}>Your resolution</ThemedText>
+            {editingResolution ? (
+              <TextInput
+                value={draft.resolution}
+                onChangeText={(resolution) =>
+                  onChange({ ...draft, resolution })
+                }
+                accessibilityLabel="Your resolution"
+                placeholder="e.g., Lose 15 pounds"
+                placeholderTextColor={theme.textSecondary}
+                style={inputStyle}
+                editable={!saving}
+                maxLength={90}
+              />
+            ) : (
+              <ThemedText style={styles.identityName}>
+                {draft.resolution.trim() || "Add your resolution"}
+              </ThemedText>
+            )}
+            {editButton(
+              editingResolution ? "Done editing resolution" : "Edit resolution",
+              () => setEditingResolution(!editingResolution),
+              editingResolution,
+            )}
+          </View>
+        ) : null}
         <View style={styles.identity}>
           <ThemedText style={styles.label}>Who you are becoming</ThemedText>
           {editingName ? (
@@ -455,7 +495,53 @@ export function OnboardingPlanReview({
           >
             Choose at least one habit to start.
           </ThemedText>
-        ) : firstDay ? (
+        ) : null}
+        {!(issue || error) && count > 0 && newYearStart ? (
+          <View
+            style={styles.startChoice}
+            accessibilityRole="radiogroup"
+            accessibilityLabel="When your plan starts"
+          >
+            {[
+              { key: undefined, label: "Start today" },
+              { key: newYearStart, label: "Start January 1" },
+            ].map((option) => {
+              const selected = draft.startDate === option.key;
+              return (
+                <Pressable
+                  key={option.label}
+                  onPress={() => onChange({ ...draft, startDate: option.key })}
+                  disabled={saving}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected, disabled: saving }}
+                  accessibilityLabel={option.label}
+                  hitSlop={6}
+                  pressRetentionOffset={12}
+                  style={({ pressed }) => [
+                    styles.startOption,
+                    {
+                      borderColor: selected ? theme.accent : theme.border,
+                      backgroundColor: selected
+                        ? theme.backgroundSecondary
+                        : "transparent",
+                      opacity: pressed ? 0.6 : 1,
+                    },
+                  ]}
+                >
+                  <ThemedText
+                    style={{
+                      color: selected ? theme.accent : theme.text,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {option.label}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+        {issue || error || count === 0 ? null : firstDay ? (
           <ThemedText
             style={{ color: theme.textSecondary, textAlign: "center" }}
           >
@@ -469,7 +555,7 @@ export function OnboardingPlanReview({
           disabled={saving || count === 0}
           accessibilityRole="button"
           accessibilityState={{ disabled: saving || count === 0, busy: saving }}
-          accessibilityLabel={`Start with ${count} habit${count === 1 ? "" : "s"}`}
+          accessibilityLabel={approveLabel}
           hitSlop={8}
           pressRetentionOffset={12}
           style={({ pressed }) => [
@@ -481,9 +567,7 @@ export function OnboardingPlanReview({
           ]}
         >
           <ThemedText style={{ color: theme.buttonText, fontWeight: "700" }}>
-            {saving
-              ? "Saving your plan…"
-              : `Start with ${count} habit${count === 1 ? "" : "s"}`}
+            {saving ? "Saving your plan…" : approveLabel}
           </ThemedText>
         </Pressable>
       </View>
@@ -492,6 +576,15 @@ export function OnboardingPlanReview({
 }
 const styles = StyleSheet.create({
   identity: { gap: Spacing.xs },
+  startChoice: { flexDirection: "row", gap: Spacing.sm },
+  startOption: {
+    flex: 1,
+    minHeight: 44,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   identityName: { fontSize: 22, lineHeight: 28, fontWeight: "600" },
   actionTitle: { fontSize: 22, lineHeight: 28, fontWeight: "600" },
   summary: { gap: Spacing.sm },

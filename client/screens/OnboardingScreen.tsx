@@ -30,6 +30,7 @@ import {
 } from "@/lib/ai";
 import {
   createPlanDraft,
+  deriveResolution,
   type OnboardingPlanDraft,
 } from "@/lib/onboarding-plan";
 import { storage } from "@/lib/storage";
@@ -42,6 +43,18 @@ interface ChatMessage {
   content: string;
 }
 type Stage = "welcome" | "chat" | "review";
+
+// One tap gets a New Year's user past the blank box; Coach narrows it down.
+const RESOLUTION_STARTERS = [
+  "Get fit",
+  "Lose weight",
+  "Save money",
+  "Read more",
+  "Sleep better",
+  "Less phone time",
+  "Stress less",
+  "Learn a skill",
+];
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
@@ -226,16 +239,18 @@ export default function OnboardingScreen() {
       setShowConsentModal(true);
     } else beginChat();
   };
-  const sendMessage = (consentOverride = false) => {
-    if (!inputText.trim() || busy) return;
+  const sendMessage = (consentOverride = false, starter?: string) => {
+    const text = (starter ?? inputText).trim();
+    if (!text || busy) return;
     if (!aiConsent && !consentOverride) {
+      if (starter) setInputText(starter);
       consentIntent.current = "send";
       setShowConsentModal(true);
       return;
     }
     const conversation: ChatMessage[] = [
       ...messages,
-      { id: `${Date.now()}-user`, role: "user", content: inputText.trim() },
+      { id: `${Date.now()}-user`, role: "user", content: text },
     ];
     setMessages(conversation);
     setInputText("");
@@ -268,6 +283,9 @@ export default function OnboardingScreen() {
       if (activeRequest.current !== controller) return;
       setDraft({
         ...createPlanDraft(proposal, true),
+        resolution: deriveResolution(
+          messages.find((message) => message.role === "user")?.content,
+        ),
         sourceMessageId: messages
           .filter((message) => message.role === "user")
           .at(-1)?.id,
@@ -518,16 +536,17 @@ export default function OnboardingScreen() {
           >
             <Feather name="compass" size={44} color={theme.accent} />
             <ThemedText style={styles.heading} accessibilityRole="header">
-              Who would you like to become?
+              What&apos;s your resolution?
             </ThemedText>
             <ThemedText style={{ color: theme.textSecondary }}>
-              Start small. Coach will help you find a habit that fits your life.
+              Say it in your own words. Coach turns it into one small habit that
+              fits your life, and you decide when it starts.
             </ThemedText>
             <View style={styles.overview}>
               {[
                 [
                   "Talk with Coach",
-                  "Share what you want to work on and the days that fit.",
+                  "Share your resolution and the days that fit.",
                 ],
                 [
                   "Review your plan",
@@ -612,7 +631,7 @@ export default function OnboardingScreen() {
           >
             {inputText.trim()
               ? "Send your message before previewing your plan."
-              : "Share a habit and the days that fit. Preview when you’re ready."}
+              : "Share your resolution and the days that fit. You’ll review the plan before it starts."}
           </ThemedText>
           <FlatList
             style={styles.scrollViewport}
@@ -659,6 +678,45 @@ export default function OnboardingScreen() {
                         ? "Preparing a plan for you to review…"
                         : "Coach is thinking…"}
                     </ThemedText>
+                  </View>
+                ) : null}
+                {!busy &&
+                !error &&
+                messages.length > 0 &&
+                !messages.some((message) => message.role === "user") ? (
+                  <View
+                    style={styles.starters}
+                    accessibilityLabel="Resolution ideas"
+                  >
+                    {RESOLUTION_STARTERS.map((starter) => (
+                      <Pressable
+                        key={starter}
+                        onPress={() => sendMessage(false, starter)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Send: ${starter}`}
+                        hitSlop={6}
+                        pressRetentionOffset={12}
+                        style={({ pressed }) => [
+                          styles.starter,
+                          {
+                            borderColor: theme.accent,
+                            backgroundColor: theme.backgroundSecondary,
+                            opacity: pressed ? 0.6 : 1,
+                          },
+                        ]}
+                      >
+                        <ThemedText
+                          style={{ color: theme.text, fontWeight: "600" }}
+                        >
+                          {starter}
+                        </ThemedText>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+                {canPreview && messages.at(-1)?.role === "assistant" ? (
+                  <View style={styles.inlineReview}>
+                    {button("Review my plan", previewPlan, true)}
                   </View>
                 ) : null}
               </>
@@ -888,6 +946,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   messages: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
+  starters: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    paddingTop: Spacing.sm,
+  },
+  starter: {
+    minHeight: 40,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    justifyContent: "center",
+  },
+  inlineReview: { paddingTop: Spacing.md },
   wait: {
     flexDirection: "row",
     gap: Spacing.sm,

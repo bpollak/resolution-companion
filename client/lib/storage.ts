@@ -2,7 +2,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
 import { logger } from "@/lib/logger";
 import { computeMomentumScore } from "@/lib/progress";
-import { approvePlan, type OnboardingPlanDraft } from "@/lib/onboarding-plan";
+import {
+  approvePlan,
+  planStartInstant,
+  type OnboardingPlanDraft,
+} from "@/lib/onboarding-plan";
 
 const STORAGE_KEYS = {
   HAS_ONBOARDED: "hasOnboarded",
@@ -29,6 +33,8 @@ export interface Persona {
   name: string;
   description: string;
   createdAt: string;
+  /** The resolution in the person's own words ("Lose 15 pounds"). */
+  resolution?: string;
 }
 
 export interface Benchmark {
@@ -200,7 +206,7 @@ export const storage = {
     const prior = personas.find((item) => item.id === draft.id);
     const plan = approvePlan(
       draft,
-      prior?.createdAt ?? new Date().toISOString(),
+      prior?.createdAt ?? (planStartInstant(draft) ?? new Date()).toISOString(),
     );
     if (
       personas.some(
