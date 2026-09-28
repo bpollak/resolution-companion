@@ -346,7 +346,7 @@ function renderRelease(release: Release): string {
         ${release.media ? renderReleaseMedia(release.media, anchor) : ""}
 
         <div class="release-actions">
-          <a href="https://apps.apple.com/us/app/resolution-companion-ai/id6757996708" target="_blank" rel="noopener">View on the App Store</a>
+          <a href="https://apps.apple.com/us/app/resolution-habit-tracker/id6757996708" target="_blank" rel="noopener">View on the App Store</a>
           <a class="secondary" href="#${anchor}">Link to this release</a>
         </div>
       </div>
@@ -358,11 +358,12 @@ function releaseJsonLd(releases: Release[]): string {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     name: "Resolution Companion",
-    applicationCategory: "LifestyleApplication",
+    applicationCategory: "HealthAndFitnessApplication",
+    alternateName: "Resolution: Habit Tracker",
     operatingSystem: "iOS",
     url: `${SITE_URL}/release-notes`,
     downloadUrl:
-      "https://apps.apple.com/us/app/resolution-companion-ai/id6757996708",
+      "https://apps.apple.com/us/app/resolution-habit-tracker/id6757996708",
     softwareVersion: releases[0]?.version,
     releaseNotes: `${SITE_URL}/release-notes#${releaseAnchor(releases[0]?.version || "latest")}`,
   };

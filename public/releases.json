@@ -1,5 +1,29 @@
 [
   {
+    "version": "1.4.1",
+    "status": "released",
+    "title": "A new name and a stronger Apple Health connection",
+    "summary": "Resolution Companion is now Resolution: Habit Tracker on the App Store, and habits can connect to Apple Health with clearer permissions and controls.",
+    "appStoreNotes": [
+      "New App Store name: Resolution: Habit Tracker. Same app, same identity-first method, a name that is easier to find.",
+      "Improved Apple Health connectivity, with clearer permissions, activity rules, and controls for each habit in Settings."
+    ],
+    "highlights": [
+      {
+        "title": "Easier to find",
+        "description": "The App Store listing now leads with habit tracking, daily planning, and AI coaching, the words people actually search for.",
+        "availability": "Available to everyone."
+      },
+      {
+        "title": "Apple Health, on your terms",
+        "description": "Connect a habit to Apple Health or leave it untracked. Permissions and activity rules are spelled out per habit in Settings.",
+        "availability": "Available to everyone."
+      }
+    ],
+    "submittedAt": "2026-09-09",
+    "releasedAt": "2026-09-10"
+  },
+  {
     "version": "1.4.0",
     "status": "released",
     "title": "Start small, with a plan you choose",
