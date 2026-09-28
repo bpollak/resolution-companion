@@ -8,6 +8,19 @@ an AI interview, set **Core Benchmarks** (milestones), and log daily
 Bundle `com.resolutioncompanion.app` · ASC app ID `6757996708` ·
 domain `resolutioncompanion.com`.
 
+## Where the code lives (never iCloud)
+
+- **GitHub (`bpollak/resolution-companion`) is the only source of truth.**
+  One local checkout per machine; agent sessions use `git worktree`s off it.
+- **No copy of this repo, or its untracked assets, may live in iCloud Drive**,
+  including a `~/Documents` or `~/Desktop` that has "Desktop & Documents"
+  sync on. iCloud evicts files (git, npm, and Metro hang), creates `" 2"`
+  duplicate refs, and hid build 98's HealthKit fix: that shipped 1.4.1
+  source lived only as uncommitted edits in an iCloud checkout until
+  2026-09-28 (recovered to `salvage/build-98-healthkit-from-icloud`).
+- Commit and push before a build is uploaded; never ship from uncommitted
+  edits. Don't make side-copies of the repo for a release; use a branch.
+
 ## Repo layout
 
 - `client/` — Expo / React Native app (the product). See its own section below.
