@@ -68,6 +68,7 @@ import {
   supportsAlternateAppIcons,
   type AppIconStyle,
 } from "@/lib/app-icon";
+import { HEALTH_KIND_LABELS, HEALTH_STEPS_THRESHOLD } from "@/lib/health";
 import { platformCapabilities } from "@/lib/platform-capabilities";
 
 const springConfig = {
@@ -84,7 +85,13 @@ interface SettingsRowProps {
   destructive?: boolean;
 }
 
-type ProfilePanel = "main" | "reminders" | "appearance" | "privacy" | "about";
+type ProfilePanel =
+  | "main"
+  | "reminders"
+  | "appearance"
+  | "privacy"
+  | "about"
+  | "health";
 
 function SettingsRow({
   icon,
@@ -227,15 +234,17 @@ export default function ProfileScreen() {
 
   useLayoutEffect(() => {
     const title =
-      activePanel === "reminders"
-        ? "Daily Reminder"
-        : activePanel === "appearance"
-          ? "Appearance"
-          : activePanel === "privacy"
-            ? "Privacy & Data"
-            : activePanel === "about"
-              ? "About"
-              : "Profile";
+      activePanel === "health"
+        ? "Apple Health"
+        : activePanel === "reminders"
+          ? "Daily Reminder"
+          : activePanel === "appearance"
+            ? "Appearance"
+            : activePanel === "privacy"
+              ? "Privacy & Data"
+              : activePanel === "about"
+                ? "About"
+                : "Profile";
     const isMain = activePanel === "main";
 
     navigation.setOptions({
@@ -902,6 +911,15 @@ export default function ProfileScreen() {
             }}
           />
 
+          {Platform.OS === "ios" ? (
+            <SettingsRow
+              icon="heart"
+              title="Apple Health"
+              subtitle="Optional HealthKit integration for your habits"
+              onPress={() => setActivePanel("health")}
+            />
+          ) : null}
+
           <SettingsRow
             icon="bell"
             title="Daily Reminder"
@@ -954,6 +972,141 @@ export default function ProfileScreen() {
             subtitle={`Version ${Constants.expoConfig?.version || "1.0.0"}`}
             onPress={() => setActivePanel("about")}
           />
+        </>
+      ) : null}
+
+      {activePanel === "health" ? (
+        <>
+          <View style={styles.detailIntro}>
+            <Feather name="heart" size={28} color={theme.accent} />
+            <ThemedText style={styles.detailTitle}>Apple Health</ThemedText>
+            <ThemedText
+              style={[
+                styles.detailBody,
+                {
+                  color: theme.textSecondary,
+                  textAlign: "left",
+                  maxWidth: "100%",
+                },
+              ]}
+            >
+              Resolution Companion uses HealthKit to read activity from Apple
+              Health and complete habits you choose. This is optional and off
+              for each habit until you turn it on.
+            </ThemedText>
+          </View>
+          <ThemedText
+            style={[
+              styles.sectionTitle,
+              { marginTop: Spacing.lg, marginBottom: Spacing.sm },
+            ]}
+          >
+            What it reads
+          </ThemedText>
+          <ThemedText
+            style={[
+              styles.detailBody,
+              {
+                color: theme.textSecondary,
+                textAlign: "left",
+                maxWidth: "100%",
+              },
+            ]}
+          >
+            Workouts: any workout recorded today. Steps: at least{" "}
+            {HEALTH_STEPS_THRESHOLD.toLocaleString()} steps today. Mindful
+            sessions: any session recorded today.
+          </ThemedText>
+          <ThemedText
+            style={[
+              styles.sectionTitle,
+              { marginTop: Spacing.lg, marginBottom: Spacing.sm },
+            ]}
+          >
+            How it works
+          </ThemedText>
+          <ThemedText
+            style={[
+              styles.detailBody,
+              {
+                color: theme.textSecondary,
+                textAlign: "left",
+                maxWidth: "100%",
+              },
+            ]}
+          >
+            Choose a habit below, then select Workout, Steps, or Mindful under
+            Apple Health. Review Apple&apos;s permission prompt and save the
+            habit. When you open or return to the app, matching activity
+            completes that habit on its scheduled days. Choose Off in the habit
+            to stop.
+          </ThemedText>
+          <ThemedText
+            style={[
+              styles.sectionTitle,
+              { marginTop: Spacing.lg, marginBottom: Spacing.sm },
+            ]}
+          >
+            Your permission and privacy
+          </ThemedText>
+          <ThemedText
+            style={[
+              styles.detailBody,
+              {
+                color: theme.textSecondary,
+                textAlign: "left",
+                maxWidth: "100%",
+              },
+            ]}
+          >
+            HealthKit access is read-only. Raw health records stay on this
+            device and are not sent to AI Coach. You can change access in the
+            Health app under your profile, Apps, then Resolution Companion.
+            Without access or matching data, you can still complete habits by
+            hand.
+          </ThemedText>
+          <ThemedText
+            style={[
+              styles.sectionTitle,
+              { marginTop: Spacing.lg, marginBottom: Spacing.sm },
+            ]}
+          >
+            Choose a habit
+          </ThemedText>
+          {actions.length ? (
+            actions.map((action) => (
+              <SettingsRow
+                key={action.id}
+                icon="activity"
+                title={action.title}
+                subtitle={
+                  action.healthAutoComplete
+                    ? `Apple Health: ${HEALTH_KIND_LABELS[action.healthAutoComplete]}`
+                    : "Apple Health: Off"
+                }
+                onPress={() =>
+                  navigation.navigate("ActionEditor", {
+                    actionId: action.id,
+                    benchmarkId: action.benchmarkId,
+                  })
+                }
+              />
+            ))
+          ) : (
+            <ThemedText
+              style={[
+                styles.detailBody,
+                {
+                  color: theme.textSecondary,
+                  textAlign: "left",
+                  maxWidth: "100%",
+                },
+              ]}
+            >
+              Create your plan first. Then return here to choose a habit, or
+              open a habit from Journey and tap Edit habit.
+            </ThemedText>
+          )}
         </>
       ) : null}
 
