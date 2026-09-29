@@ -13,10 +13,10 @@ appId: com.resolutioncompanion.app
 
 # --- Empty Today state → onboarding entry ---
 - extendedWaitUntil:
-    visible: "Start your journey.*"
+    visible: "Make my plan"
     timeout: 20000
 - takeScreenshot: 00-empty-today
-- tapOn: "Start your journey.*"
+- tapOn: "Make my plan"
 
 # --- Coach creates one daily habit; approval follows a readable preview ---
 - assertNotVisible: "Start with one habit"
@@ -25,7 +25,7 @@ appId: com.resolutioncompanion.app
 - extendedWaitUntil:
     notVisible: "Stop Coach response"
     timeout: 60000
-- tapOn: "Message your onboarding coach"
+- tapOn: "Message your onboarding coach.*"
 - inputText: "I want to become a consistent reader. My one habit is read one page every day, Monday through Sunday, after breakfast. The small version is one sentence."
 - tapOn: "Send message"
 - extendedWaitUntil:
@@ -46,17 +46,15 @@ appId: com.resolutioncompanion.app
     timeout: 20000
 - takeScreenshot: 03-today-fresh
 - tapOn: "Mark .* complete"
-- extendedWaitUntil:
-    visible: ".* completed. Undo.*"
-    timeout: 10000
-- takeScreenshot: 04-today-actions-done
-- extendedWaitUntil:
-    visible: "Keep the streak alive?.*"
-    timeout: 10000
-    optional: true
 - tapOn:
     text: "Not now.*"
     optional: true
+- scrollUntilVisible:
+    element:
+      text: ".* completed. Undo.*"
+    direction: DOWN
+    timeout: 20000
+- takeScreenshot: 04-today-actions-done
 
 # --- Journey: fresh-plan identity and support surface ---
 - extendedWaitUntil:
@@ -136,4 +134,4 @@ appId: com.resolutioncompanion.app
 # Run with: JAVA_HOME=/opt/homebrew/opt/openjdk@17 PATH="$JAVA_HOME/bin:$PATH:$HOME/.maestro/bin" \
 #   DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer maestro test qa/maestro-regression.yaml
 # (build + install first: npm run build:local:sim → tar -xzf → xcrun simctl install)
-# Updated for the AI-only 1.4.0 flow. Native run evidence is documented separately; this YAML has not been executed.
+# Updated for the 1.5 entry. Native run evidence is recorded in docs/plans/2026-09-28-native-regression.md.

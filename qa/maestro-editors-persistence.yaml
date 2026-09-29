@@ -27,17 +27,18 @@ appId: com.resolutioncompanion.app
 - tapOn: "Edit .* milestone"
 - assertVisible: "Edit Milestone"
 
+# Case-sensitive matching distinguishes input labels from uppercase headings.
 # Milestone field and target-date preset.
-- tapOn: "Milestone goal"
+- tapOn: "(?-i)Milestone goal"
 - waitForAnimationToEnd
 - eraseText: 20
-- tapOn: "Milestone goal"
+- tapOn: "(?-i)Milestone goal"
 - eraseText: 20
-- tapOn: "Milestone goal"
+- tapOn: "(?-i)Milestone goal"
 - eraseText: 20
-- tapOn: "Milestone goal"
+- tapOn: "(?-i)Milestone goal"
 - eraseText: 20
-- tapOn: "Milestone goal"
+- tapOn: "(?-i)Milestone goal"
 - eraseText: 20
 - inputText: "Navigation confidence"
 - assertVisible: "Navigation confidence"
@@ -52,55 +53,55 @@ appId: com.resolutioncompanion.app
     centerElement: true
 - tapOn: "Edit action .*"
 - assertVisible: "Edit Action"
-- tapOn: "Action title"
+- tapOn: "(?-i)Action title"
 - waitForAnimationToEnd
 - eraseText: 20
-- tapOn: "Action title"
+- tapOn: "(?-i)Action title"
 - eraseText: 20
-- tapOn: "Action title"
+- tapOn: "(?-i)Action title"
 - eraseText: 20
-- tapOn: "Action title"
+- tapOn: "(?-i)Action title"
 - eraseText: 20
-- tapOn: "Action title"
+- tapOn: "(?-i)Action title"
 - eraseText: 20
 - inputText: "Practice one map bearing"
 - assertVisible: "Practice one map bearing"
-- tapOn: "120-second kickstart"
+- tapOn: "(?-i)120-second kickstart"
 - waitForAnimationToEnd
 - eraseText: 20
-- tapOn: "120-second kickstart"
+- tapOn: "(?-i)120-second kickstart"
 - eraseText: 20
-- tapOn: "120-second kickstart"
+- tapOn: "(?-i)120-second kickstart"
 - eraseText: 20
-- tapOn: "120-second kickstart"
+- tapOn: "(?-i)120-second kickstart"
 - eraseText: 20
-- tapOn: "120-second kickstart"
+- tapOn: "(?-i)120-second kickstart"
 - eraseText: 20
-- tapOn: "120-second kickstart"
+- tapOn: "(?-i)120-second kickstart"
 - eraseText: 20
-- tapOn: "120-second kickstart"
+- tapOn: "(?-i)120-second kickstart"
 - eraseText: 20
-- tapOn: "120-second kickstart"
+- tapOn: "(?-i)120-second kickstart"
 - eraseText: 20
 - inputText: "Plot one quick bearing"
 - assertVisible: "Plot one quick bearing"
 - hideKeyboard
 - scrollUntilVisible:
     element:
-      text: "Anchor link"
+      text: "(?-i)Anchor link"
     direction: DOWN
     timeout: 15000
     centerElement: true
-- tapOn: "Anchor link"
+- tapOn: "(?-i)Anchor link"
 - waitForAnimationToEnd
 - eraseText: 20
-- tapOn: "Anchor link"
+- tapOn: "(?-i)Anchor link"
 - eraseText: 20
-- tapOn: "Anchor link"
+- tapOn: "(?-i)Anchor link"
 - eraseText: 20
-- tapOn: "Anchor link"
+- tapOn: "(?-i)Anchor link"
 - eraseText: 20
-- tapOn: "Anchor link"
+- tapOn: "(?-i)Anchor link"
 - eraseText: 20
 - inputText: "After breakfast"
 - assertVisible: "After breakfast"

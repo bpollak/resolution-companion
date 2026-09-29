@@ -1,0 +1,59 @@
+appId: com.resolutioncompanion.app
+name: coach-session-regression
+---
+# Onboard first. Uses a real synthetic Coach conversation, with no report sent.
+- runFlow: _reset-to-today.yaml
+- tapOn:
+    id: "tab-coach"
+- tapOn: "Start a conversation with Coach"
+- extendedWaitUntil:
+    visible: "Help me name what made today work.*"
+    timeout: 15000
+- tapOn: "Help me name what made today work.*"
+- extendedWaitUntil:
+    visible: "AI coach: .+"
+    timeout: 90000
+- extendedWaitUntil:
+    notVisible: "Stop Coach response"
+    timeout: 90000
+- assertVisible: "Copy coach response"
+- assertVisible: "Mark coach response helpful"
+- assertVisible: "Report this AI response"
+- tapOn: "Copy coach response"
+- tapOn: "Mark coach response helpful"
+- tapOn: "(Message Coach|Write to Coach).*"
+- inputText: "I made reading easier by putting the book beside my breakfast bowl."
+- tapOn: "Send message to Coach"
+- extendedWaitUntil:
+    visible: "You: .*breakfast bowl.*"
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible: "Stop Coach response"
+    timeout: 90000
+- takeScreenshot: coach-followup
+
+# Closing now saves automatically. Verify the saved transcript, then isolation.
+- tapOn: "Close Coach"
+- extendedWaitUntil:
+    visible: "Start a conversation with Coach"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: "Open check-in from .*"
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    text: "Open check-in from .*"
+    index: 0
+- assertVisible: ".*breakfast bowl.*"
+- takeScreenshot: coach-saved-session
+- tapOn: "Back to check-in list"
+- scrollUntilVisible:
+    element:
+      text: "Start a conversation with Coach"
+    direction: UP
+    timeout: 20000
+- tapOn: "Start a conversation with Coach"
+- assertVisible: "Help me name what made today work.*"
+- assertNotVisible: "You: .*breakfast bowl.*"
+- tapOn: "Close Coach"

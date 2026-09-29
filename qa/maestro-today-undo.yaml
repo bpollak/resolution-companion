@@ -31,6 +31,7 @@ appId: com.resolutioncompanion.app
 - tapOn: "Mark .* complete"
 - scrollUntilVisible:
     element:
-      text: "1 of 1 actions done today.*"
+      # 1.5 replaces the progress signal with the completion card at 100%.
+      text: "Day complete."
     direction: UP
     timeout: 15000

@@ -5,13 +5,13 @@ name: accessibility-large-text-orientation
 - launchApp:
     clearState: true
 - setOrientation: PORTRAIT
-- assertVisible: "Start your journey.*"
+- assertVisible: "Make my plan"
 - takeScreenshot: a11y-00-large-text-portrait
-- tapOn: "Start your journey.*"
-- assertVisible: "Who would you like to become?"
+- tapOn: "Make my plan"
+- assertVisible: "What.s your resolution.*"
 - takeScreenshot: a11y-01-onboarding-portrait
 - setOrientation: LANDSCAPE_LEFT
-- assertVisible: "Who would you like to become?"
+- assertVisible: "What.s your resolution.*"
 - takeScreenshot: a11y-02-onboarding-landscape
 - setOrientation: PORTRAIT
 - assertNotVisible: "Start with one habit"
@@ -21,7 +21,11 @@ name: accessibility-large-text-orientation
 - assertVisible: "Not now"
 - takeScreenshot: a11y-03-consent
 - tapOn: "Not now"
-- assertVisible: "Setup is paused.*"
+- scrollUntilVisible:
+    element:
+      text: "Setup is paused.*"
+    direction: DOWN
+    timeout: 20000
 - assertNotVisible: "Your starting plan"
 - takeScreenshot: a11y-04-setup-paused
 # Plan preview, editing, and its pinned Start control are checked by the AI

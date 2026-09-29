@@ -1,0 +1,40 @@
+appId: com.resolutioncompanion.app
+name: health-disclosure
+---
+# Verify the recovered build 98 disclosure and editor entry without granting
+# Health permissions or relying on real records in the simulator.
+- runFlow: _reset-to-today.yaml
+- tapOn: "Open profile and settings.*"
+- scrollUntilVisible:
+    element:
+      text: "Apple Health.*Optional HealthKit.*"
+    direction: DOWN
+    timeout: 20000
+- tapOn: "Apple Health.*Optional HealthKit.*"
+- assertVisible: "Resolution Companion uses HealthKit.*"
+- scrollUntilVisible:
+    element:
+      text: "HealthKit access is read-only.*"
+    direction: DOWN
+    timeout: 20000
+- assertVisible: "HealthKit access is read-only.*"
+- scrollUntilVisible:
+    element:
+      text: ".*Apple Health: Off.*"
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    text: ".*Apple Health: Off.*"
+    index: 0
+- assertVisible: "Edit Action"
+- scrollUntilVisible:
+    element:
+      text: "Apple Health auto-complete off"
+    direction: DOWN
+    timeout: 20000
+- assertVisible: "Apple Health: .*steps"
+- assertVisible: "Apple Health: Any workout logged in Health"
+- assertVisible: "Apple Health: Any mindful session"
+- takeScreenshot: health-editor-options
+- tapOn: "Apple Health auto-complete off"
+- tapOn: "Save action"

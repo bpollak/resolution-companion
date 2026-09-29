@@ -4,9 +4,11 @@ appId: com.resolutioncompanion.app
 # The stateful flows (tab-first-tap, today-undo, editors-*) assume this as
 # their starting point instead of launching themselves.
 - launchApp
-- tapOn:
-    text: "Dismiss milestone celebration.*"
-    optional: true
+- runFlow:
+    when:
+      visible: "Dismiss milestone celebration.*"
+    commands:
+      - tapOn: "Dismiss milestone celebration.*"
 - tapOn:
     id: "tab-today"
 - extendedWaitUntil:
