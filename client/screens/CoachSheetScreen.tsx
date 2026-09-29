@@ -6,6 +6,7 @@ import React, {
   useState,
 } from "react";
 import {
+  Keyboard,
   KeyboardAvoidingView,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -143,6 +144,21 @@ export default function CoachSheetScreen() {
   const [planError, setPlanError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [detentIndex, setDetentIndex] = useState(1);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    const show = Keyboard.addListener("keyboardWillShow", () =>
+      setKeyboardVisible(true),
+    );
+    const hide = Keyboard.addListener("keyboardWillHide", () =>
+      setKeyboardVisible(false),
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
   const savedRef = useRef(false);
   // After a failed save, closing again leaves without saving instead of
   // retrying forever and trapping the sheet open.
@@ -697,193 +713,171 @@ export default function CoachSheetScreen() {
   }, [planSuggestion]);
 
   const suggestionAction = planSuggestion ? actions[planSuggestion.slot] : null;
+  // iOS expands a form sheet to the safe-area top for the keyboard without
+  // emitting a detent change. Match that frame, then restore the chosen detent.
   const sheetHeight = Math.round(
     (windowHeight - (Platform.OS === "ios" ? insets.top : 0)) *
-      (detentIndex === 0 ? 0.55 : 0.94),
+      (keyboardVisible ? 1 : detentIndex === 0 ? 0.55 : 0.94),
   );
   const composerClearance =
     44 + Spacing.sm + Math.max(insets.bottom, Spacing.md) + Spacing.lg;
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    <View
+      style={[
+        styles.container,
+        { height: sheetHeight, backgroundColor: theme.backgroundRoot },
+      ]}
     >
-      <View
-        style={[
-          styles.sheetContent,
-          { height: sheetHeight, backgroundColor: theme.backgroundRoot },
-        ]}
+      <KeyboardAvoidingView
+        style={styles.sheetContent}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={
+          Platform.OS === "ios" ? windowHeight - sheetHeight : 0
+        }
       >
-        <ScrollView
-          ref={scrollRef}
-          stickyHeaderIndices={[0]}
-          delaysContentTouches={false}
-          style={styles.scroll}
-          contentContainerStyle={{ paddingBottom: composerClearance }}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={
-            Platform.OS === "ios" ? "interactive" : "on-drag"
-          }
-          contentInsetAdjustmentBehavior="never"
-          onScroll={updateScroll}
-          scrollEventThrottle={16}
-          decelerationRate="fast"
+        <View
+          style={[
+            styles.sheetContent,
+            { backgroundColor: theme.backgroundRoot },
+          ]}
         >
-          <View style={{ backgroundColor: theme.backgroundRoot }}>
-            <View
-              style={[
-                styles.header,
-                {
-                  backgroundColor: theme.backgroundRoot,
-                  borderBottomColor: theme.border,
-                },
-              ]}
-            >
-              <Pressable
-                onPress={() => navigation.goBack()}
-                disabled={isSaving}
-                accessibilityState={{ disabled: isSaving }}
-                hitSlop={12}
-                accessibilityRole="button"
-                accessibilityLabel="Close Coach"
-                style={({ pressed }) => [
-                  styles.headerButton,
-                  { opacity: pressed ? 0.55 : 1 },
+          <ScrollView
+            ref={scrollRef}
+            stickyHeaderIndices={[0]}
+            delaysContentTouches={false}
+            style={styles.scroll}
+            contentContainerStyle={{ paddingBottom: composerClearance }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={
+              Platform.OS === "ios" ? "interactive" : "on-drag"
+            }
+            contentInsetAdjustmentBehavior="never"
+            onScroll={updateScroll}
+            scrollEventThrottle={16}
+            decelerationRate="fast"
+          >
+            <View style={{ backgroundColor: theme.backgroundRoot }}>
+              <View
+                style={[
+                  styles.header,
+                  {
+                    backgroundColor: theme.backgroundRoot,
+                    borderBottomColor: theme.border,
+                  },
                 ]}
               >
-                <Feather name="x" size={23} color={theme.text} />
-              </Pressable>
-              <ThemedText style={styles.headerTitle}>Coach</ThemedText>
-              <Pressable
-                onPress={saveSession}
-                disabled={isSaving}
-                hitSlop={12}
-                pressRetentionOffset={12}
-                accessibilityState={{ disabled: isSaving, busy: isSaving }}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  isLoading
-                    ? "Stop response and save coaching session, including partial text"
-                    : "Save coaching session"
-                }
-                style={({ pressed }) => [
-                  styles.headerButton,
-                  { opacity: pressed ? 0.55 : 1 },
-                ]}
-              >
-                <ThemedText style={[styles.saveText, { color: theme.accent }]}>
-                  {isSaving ? "Saving…" : "Done"}
-                </ThemedText>
-              </Pressable>
-            </View>
-          </View>
-          <CoachEvidenceCard evidence={evidence} />
-          {messages.length === 0 ? (
-            <View style={styles.chips}>
-              {suggestionChips.map((prompt, index) => (
                 <Pressable
-                  key={prompt}
-                  onPress={() => sendOrAskConsent(prompt)}
+                  onPress={() => navigation.goBack()}
+                  disabled={isSaving}
+                  accessibilityState={{ disabled: isSaving }}
+                  hitSlop={12}
                   accessibilityRole="button"
-                  accessibilityLabel={prompt}
+                  accessibilityLabel="Close Coach"
                   style={({ pressed }) => [
-                    styles.chip,
-                    {
-                      borderColor: index === 0 ? theme.accent : theme.border,
-                      backgroundColor:
-                        index === 0
-                          ? `${theme.accent}1A`
-                          : isDark
-                            ? Colors.dark.backgroundSecondary
-                            : Colors.light.backgroundSecondary,
-                      opacity: pressed ? 0.65 : 1,
-                    },
+                    styles.headerButton,
+                    { opacity: pressed ? 0.55 : 1 },
                   ]}
                 >
-                  <ThemedText style={styles.chipText}>{prompt}</ThemedText>
+                  <Feather name="x" size={23} color={theme.text} />
                 </Pressable>
-              ))}
-              {showPlanAdjustment ? (
+                <ThemedText style={styles.headerTitle}>Coach</ThemedText>
                 <Pressable
-                  onPress={() => requestTuneUp()}
+                  onPress={saveSession}
+                  disabled={isSaving}
+                  hitSlop={12}
+                  pressRetentionOffset={12}
+                  accessibilityState={{ disabled: isSaving, busy: isSaving }}
                   accessibilityRole="button"
-                  accessibilityLabel="Request a previewed plan adjustment"
+                  accessibilityLabel={
+                    isLoading
+                      ? "Stop response and save coaching session, including partial text"
+                      : "Save coaching session"
+                  }
                   style={({ pressed }) => [
-                    styles.chip,
-                    { borderColor: theme.accent, opacity: pressed ? 0.65 : 1 },
+                    styles.headerButton,
+                    { opacity: pressed ? 0.55 : 1 },
                   ]}
                 >
-                  <Feather name="repeat" size={15} color={theme.accent} />
                   <ThemedText
-                    style={[styles.chipText, { color: theme.accent }]}
+                    style={[styles.saveText, { color: theme.accent }]}
                   >
-                    Adjust my plan · Preview first
+                    {isSaving ? "Saving…" : "Done"}
                   </ThemedText>
                 </Pressable>
-              ) : null}
+              </View>
             </View>
-          ) : null}
-          {messages.map((message) => (
-            <ChatBubble
-              key={message.id}
-              message={message.content}
-              isUser={message.role === "user"}
-              reportSurface="coach"
-            />
-          ))}
-          {streamingText ? (
-            <ChatBubble message={streamingText} isUser={false} isTyping />
-          ) : null}
-          {isLoading ? (
-            <View style={styles.planCard}>
-              <ThemedText accessibilityLiveRegion="polite">
-                {streamingText ? "Coach is responding…" : "Coach is thinking…"}
-              </ThemedText>
-              <Pressable
-                onPress={() => stopReply()}
-                accessibilityRole="button"
-                accessibilityLabel="Stop Coach response"
-                hitSlop={8}
-                pressRetentionOffset={12}
-                style={({ pressed }) => ({
-                  minHeight: 44,
-                  justifyContent: "center",
-                  opacity: pressed ? 0.6 : 1,
-                })}
-              >
-                <ThemedText style={{ color: theme.accent }}>
-                  Stop response
+            <CoachEvidenceCard evidence={evidence} />
+            {messages.length === 0 ? (
+              <View style={styles.chips}>
+                {suggestionChips.map((prompt, index) => (
+                  <Pressable
+                    key={prompt}
+                    onPress={() => sendOrAskConsent(prompt)}
+                    accessibilityRole="button"
+                    accessibilityLabel={prompt}
+                    style={({ pressed }) => [
+                      styles.chip,
+                      {
+                        borderColor: index === 0 ? theme.accent : theme.border,
+                        backgroundColor:
+                          index === 0
+                            ? `${theme.accent}1A`
+                            : isDark
+                              ? Colors.dark.backgroundSecondary
+                              : Colors.light.backgroundSecondary,
+                        opacity: pressed ? 0.65 : 1,
+                      },
+                    ]}
+                  >
+                    <ThemedText style={styles.chipText}>{prompt}</ThemedText>
+                  </Pressable>
+                ))}
+                {showPlanAdjustment ? (
+                  <Pressable
+                    onPress={() => requestTuneUp()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Request a previewed plan adjustment"
+                    style={({ pressed }) => [
+                      styles.chip,
+                      {
+                        borderColor: theme.accent,
+                        opacity: pressed ? 0.65 : 1,
+                      },
+                    ]}
+                  >
+                    <Feather name="repeat" size={15} color={theme.accent} />
+                    <ThemedText
+                      style={[styles.chipText, { color: theme.accent }]}
+                    >
+                      Adjust my plan · Preview first
+                    </ThemedText>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+            {messages.map((message) => (
+              <ChatBubble
+                key={message.id}
+                message={message.content}
+                isUser={message.role === "user"}
+                reportSurface="coach"
+              />
+            ))}
+            {streamingText ? (
+              <ChatBubble message={streamingText} isUser={false} isTyping />
+            ) : null}
+            {isLoading ? (
+              <View style={styles.planCard}>
+                <ThemedText accessibilityLiveRegion="polite">
+                  {streamingText
+                    ? "Coach is responding…"
+                    : "Coach is thinking…"}
                 </ThemedText>
-              </Pressable>
-            </View>
-          ) : null}
-          {replyError ? (
-            <View style={styles.planCard}>
-              <ThemedText
-                accessibilityRole="alert"
-                accessibilityLiveRegion="polite"
-                style={{ color: theme.textSecondary }}
-              >
-                {replyError}
-              </ThemedText>
-              {retryRef.current ? (
                 <Pressable
-                  onPress={() => {
-                    const conversation = retryRef.current;
-                    if (!conversation) return;
-                    if (!aiConsent) {
-                      setPendingText("__retry_reply__");
-                      setShowConsent(true);
-                    } else
-                      void requestReply(
-                        conversation.at(-1)?.content ?? "",
-                        conversation,
-                      );
-                  }}
-                  disabled={isLoading || isSaving}
+                  onPress={() => stopReply()}
                   accessibilityRole="button"
-                  accessibilityLabel="Retry Coach response"
+                  accessibilityLabel="Stop Coach response"
                   hitSlop={8}
                   pressRetentionOffset={12}
                   style={({ pressed }) => ({
@@ -893,173 +887,229 @@ export default function CoachSheetScreen() {
                   })}
                 >
                   <ThemedText style={{ color: theme.accent }}>
-                    Retry reply
-                  </ThemedText>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-          {planSuggestion && suggestionAction ? (
-            <View
-              onLayout={() =>
-                scrollRef.current?.scrollToEnd({ animated: true })
-              }
-              style={[
-                styles.planCard,
-                {
-                  borderColor: theme.accent,
-                  backgroundColor: isDark
-                    ? Colors.dark.backgroundDefault
-                    : Colors.light.backgroundDefault,
-                },
-              ]}
-            >
-              <ThemedText style={[styles.planEyebrow, { color: theme.accent }]}>
-                Preview changes
-              </ThemedText>
-              <ThemedText style={styles.planTitle}>
-                {suggestionAction.title}
-              </ThemedText>
-              {Object.entries(planSuggestion.changes).map(([field, value]) => (
-                <View key={field} style={styles.diffRow}>
-                  <ThemedText
-                    style={[styles.diffLabel, { color: theme.textSecondary }]}
-                  >
-                    {field === "frequency"
-                      ? "Days"
-                      : field === "anchorLink"
-                        ? "When"
-                        : "2-minute version"}
-                  </ThemedText>
-                  <View style={styles.diffValues}>
-                    <ThemedText
-                      style={[
-                        styles.beforeValue,
-                        { color: theme.textSecondary },
-                      ]}
-                    >
-                      Before: {planFieldValue(suggestionAction, field)}
-                    </ThemedText>
-                    <ThemedText style={styles.diffValue}>
-                      After: {Array.isArray(value) ? value.join(", ") : value}
-                    </ThemedText>
-                  </View>
-                </View>
-              ))}
-              <ThemedText
-                style={[styles.rationale, { color: theme.textSecondary }]}
-              >
-                {planSuggestion.rationale}
-              </ThemedText>
-              <View style={styles.planActions}>
-                <Pressable
-                  onPress={dismissSuggestion}
-                  accessibilityRole="button"
-                  accessibilityLabel="Keep current plan"
-                  style={({ pressed }) => [
-                    styles.secondaryButton,
-                    { borderColor: theme.border, opacity: pressed ? 0.6 : 1 },
-                  ]}
-                >
-                  <ThemedText style={styles.secondaryText}>
-                    Keep current
-                  </ThemedText>
-                </Pressable>
-                <Pressable
-                  onPress={applySuggestion}
-                  accessibilityRole="button"
-                  accessibilityLabel="Apply previewed plan changes"
-                  style={({ pressed }) => [
-                    styles.applyButton,
-                    {
-                      backgroundColor: theme.accent,
-                      opacity: pressed ? 0.75 : 1,
-                    },
-                  ]}
-                >
-                  <ThemedText
-                    style={[styles.applyText, { color: theme.buttonText }]}
-                  >
-                    Apply changes
+                    Stop response
                   </ThemedText>
                 </Pressable>
               </View>
-            </View>
-          ) : null}
-          {planError ? (
-            <ThemedText style={[styles.error, { color: theme.error }]}>
-              {planError}
-            </ThemedText>
-          ) : null}
-        </ScrollView>
-        <View
-          style={[
-            styles.composer,
-            {
-              paddingBottom: Math.max(insets.bottom, Spacing.md),
-              borderTopColor: theme.border,
-              // Opaque bar — chat text must never show through the composer
-              backgroundColor: theme.backgroundRoot,
-            },
-          ]}
-        >
-          <TextInput
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Write to Coach"
-            placeholderTextColor={theme.textSecondary}
-            multiline
-            editable={!isLoading && !isSaving}
-            accessibilityLabel="Message Coach"
+            ) : null}
+            {replyError ? (
+              <View style={styles.planCard}>
+                <ThemedText
+                  accessibilityRole="alert"
+                  accessibilityLiveRegion="polite"
+                  style={{ color: theme.textSecondary }}
+                >
+                  {replyError}
+                </ThemedText>
+                {retryRef.current ? (
+                  <Pressable
+                    onPress={() => {
+                      const conversation = retryRef.current;
+                      if (!conversation) return;
+                      if (!aiConsent) {
+                        setPendingText("__retry_reply__");
+                        setShowConsent(true);
+                      } else
+                        void requestReply(
+                          conversation.at(-1)?.content ?? "",
+                          conversation,
+                        );
+                    }}
+                    disabled={isLoading || isSaving}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry Coach response"
+                    hitSlop={8}
+                    pressRetentionOffset={12}
+                    style={({ pressed }) => ({
+                      minHeight: 44,
+                      justifyContent: "center",
+                      opacity: pressed ? 0.6 : 1,
+                    })}
+                  >
+                    <ThemedText style={{ color: theme.accent }}>
+                      Retry reply
+                    </ThemedText>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+            {planSuggestion && suggestionAction ? (
+              <View
+                onLayout={() =>
+                  scrollRef.current?.scrollToEnd({ animated: true })
+                }
+                style={[
+                  styles.planCard,
+                  {
+                    borderColor: theme.accent,
+                    backgroundColor: isDark
+                      ? Colors.dark.backgroundDefault
+                      : Colors.light.backgroundDefault,
+                  },
+                ]}
+              >
+                <ThemedText
+                  style={[styles.planEyebrow, { color: theme.accent }]}
+                >
+                  Preview changes
+                </ThemedText>
+                <ThemedText style={styles.planTitle}>
+                  {suggestionAction.title}
+                </ThemedText>
+                {Object.entries(planSuggestion.changes).map(
+                  ([field, value]) => (
+                    <View key={field} style={styles.diffRow}>
+                      <ThemedText
+                        style={[
+                          styles.diffLabel,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
+                        {field === "frequency"
+                          ? "Days"
+                          : field === "anchorLink"
+                            ? "When"
+                            : "2-minute version"}
+                      </ThemedText>
+                      <View style={styles.diffValues}>
+                        <ThemedText
+                          style={[
+                            styles.beforeValue,
+                            { color: theme.textSecondary },
+                          ]}
+                        >
+                          Before: {planFieldValue(suggestionAction, field)}
+                        </ThemedText>
+                        <ThemedText style={styles.diffValue}>
+                          After:{" "}
+                          {Array.isArray(value) ? value.join(", ") : value}
+                        </ThemedText>
+                      </View>
+                    </View>
+                  ),
+                )}
+                <ThemedText
+                  style={[styles.rationale, { color: theme.textSecondary }]}
+                >
+                  {planSuggestion.rationale}
+                </ThemedText>
+                <View style={styles.planActions}>
+                  <Pressable
+                    onPress={dismissSuggestion}
+                    accessibilityRole="button"
+                    accessibilityLabel="Keep current plan"
+                    style={({ pressed }) => [
+                      styles.secondaryButton,
+                      { borderColor: theme.border, opacity: pressed ? 0.6 : 1 },
+                    ]}
+                  >
+                    <ThemedText style={styles.secondaryText}>
+                      Keep current
+                    </ThemedText>
+                  </Pressable>
+                  <Pressable
+                    onPress={applySuggestion}
+                    accessibilityRole="button"
+                    accessibilityLabel="Apply previewed plan changes"
+                    style={({ pressed }) => [
+                      styles.applyButton,
+                      {
+                        backgroundColor: theme.accent,
+                        opacity: pressed ? 0.75 : 1,
+                      },
+                    ]}
+                  >
+                    <ThemedText
+                      style={[styles.applyText, { color: theme.buttonText }]}
+                    >
+                      Apply changes
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+            {planError ? (
+              <ThemedText style={[styles.error, { color: theme.error }]}>
+                {planError}
+              </ThemedText>
+            ) : null}
+          </ScrollView>
+          <View
             style={[
-              styles.input,
-              { color: theme.text, backgroundColor: theme.backgroundSecondary },
-            ]}
-          />
-          <Pressable
-            onPress={() => sendOrAskConsent(inputText)}
-            disabled={!inputText.trim() || isLoading || isSaving}
-            accessibilityRole="button"
-            accessibilityLabel="Send message to Coach"
-            style={({ pressed }) => [
-              styles.send,
+              styles.composer,
               {
-                backgroundColor: inputText.trim() ? theme.accent : theme.border,
-                opacity: pressed ? 0.7 : 1,
+                paddingBottom: Math.max(insets.bottom, Spacing.md),
+                borderTopColor: theme.border,
+                // Opaque bar — chat text must never show through the composer
+                backgroundColor: theme.backgroundRoot,
               },
             ]}
           >
-            <Feather name="arrow-up" size={20} color={theme.buttonText} />
-          </Pressable>
+            <TextInput
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="Write to Coach"
+              placeholderTextColor={theme.textSecondary}
+              multiline
+              editable={!isLoading && !isSaving}
+              accessibilityLabel="Message Coach"
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.backgroundSecondary,
+                },
+              ]}
+            />
+            <Pressable
+              onPress={() => sendOrAskConsent(inputText)}
+              disabled={!inputText.trim() || isLoading || isSaving}
+              accessibilityRole="button"
+              accessibilityLabel="Send message to Coach"
+              style={({ pressed }) => [
+                styles.send,
+                {
+                  backgroundColor: inputText.trim()
+                    ? theme.accent
+                    : theme.border,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Feather name="arrow-up" size={20} color={theme.buttonText} />
+            </Pressable>
+          </View>
         </View>
-      </View>
-      <AIConsentModal
-        visible={showConsent}
-        onDecline={() => {
-          setShowConsent(false);
-          setPendingText(null);
-        }}
-        onAgree={async () => {
-          await setAiConsent(true);
-          setShowConsent(false);
-          const pending = pendingText;
-          setPendingText(null);
-          if (pending === "__retry_reply__" && retryRef.current)
-            requestReply(
-              retryRef.current.at(-1)?.content ?? "",
-              retryRef.current,
-            );
-          else if (pending === "__plan_tune_up__") requestTuneUp(true);
-          else if (pending) requestReply(pending);
-        }}
-      />
-    </KeyboardAvoidingView>
+        <AIConsentModal
+          visible={showConsent}
+          onDecline={() => {
+            setShowConsent(false);
+            setPendingText(null);
+          }}
+          onAgree={async () => {
+            await setAiConsent(true);
+            setShowConsent(false);
+            const pending = pendingText;
+            setPendingText(null);
+            if (pending === "__retry_reply__" && retryRef.current)
+              requestReply(
+                retryRef.current.at(-1)?.content ?? "",
+                retryRef.current,
+              );
+            else if (pending === "__plan_tune_up__") requestTuneUp(true);
+            else if (pending) requestReply(pending);
+          }}
+        />
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, width: "100%", justifyContent: "flex-end" },
-  sheetContent: { width: "100%" },
+  // Keep native detent sizing outside keyboard avoidance. Its flex children
+  // can shrink, and clipping prevents chat text bleeding under the composer.
+  container: { width: "100%", overflow: "hidden" },
+  sheetContent: { flex: 1, width: "100%", overflow: "hidden" },
   header: {
     minHeight: 56,
     flexDirection: "row",

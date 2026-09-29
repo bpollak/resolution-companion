@@ -16,13 +16,18 @@ name: coach-session-regression
 - extendedWaitUntil:
     notVisible: "Stop Coach response"
     timeout: 90000
-- assertVisible: "Copy coach response"
+- scrollUntilVisible:
+    element:
+      text: "Copy coach response"
+    direction: DOWN
+    timeout: 20000
 - assertVisible: "Mark coach response helpful"
 - assertVisible: "Report this AI response"
 - tapOn: "Copy coach response"
 - tapOn: "Mark coach response helpful"
 - tapOn: "(Message Coach|Write to Coach).*"
 - inputText: "I made reading easier by putting the book beside my breakfast bowl."
+- takeScreenshot: coach-keyboard-open
 - tapOn: "Send message to Coach"
 - extendedWaitUntil:
     visible: "You: .*breakfast bowl.*"
@@ -45,8 +50,17 @@ name: coach-session-regression
 - tapOn:
     text: "Open check-in from .*"
     index: 0
-- assertVisible: ".*breakfast bowl.*"
+- scrollUntilVisible:
+    element:
+      text: ".*breakfast bowl.*"
+    direction: DOWN
+    timeout: 20000
 - takeScreenshot: coach-saved-session
+- scrollUntilVisible:
+    element:
+      text: "Back to check-in list"
+    direction: UP
+    timeout: 20000
 - tapOn: "Back to check-in list"
 - scrollUntilVisible:
     element:
