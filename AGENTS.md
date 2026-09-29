@@ -1,5 +1,11 @@
 # Resolution Companion AI — Codebase Guide
 
+Current local checkout (2026-09-28): version 1.5.0 on
+`codex/consolidate-local-2026-09-28` combines PR #24 (including build 98's
+HealthKit fix), PR #25's server fixes, and PR #26's checkout guidance.
+See `docs/plans/2026-09-28-local-consolidation.md` for verification and scope.
+This supersedes the historical July status below; consolidation is local only.
+
 Identity-based behavior-change app. Users define a **Target Persona** through
 an AI interview, set **Core Benchmarks** (milestones), and log daily
 **Elemental Actions**. The thesis is identity transformation over goal-setting:

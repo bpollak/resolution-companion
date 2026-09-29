@@ -10,6 +10,8 @@ module.exports = defineConfig([
     // Generated bundles are large minified files; linting them makes the
     // standard Expo command appear hung without checking any authored code.
     ignores: [
+      // Nested worktrees have their own source roots and dependency installs.
+      ".claude/worktrees/**",
       "dist/**",
       "server_dist/**",
       "static-build/**",

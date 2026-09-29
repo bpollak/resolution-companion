@@ -1,5 +1,11 @@
 # Handoff: 1.5 "New Year" release, cloud landing → local Mac mini session
 
+Follow-up: the requested primary local directory now contains the combined
+app, HealthKit, and server changes. See
+[`plans/2026-09-28-local-consolidation.md`](plans/2026-09-28-local-consolidation.md).
+The build 98 HealthKit work listed as missing below was subsequently imported
+by `2e9d861`. This document otherwise preserves the original handoff context.
+
 From: the cloud Claude Code session that landed 1.5 (2026-09-28). To: the local
 Claude Code session on Brett's Mac mini that takes it from here. Owner: Brett.
 

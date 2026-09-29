@@ -35,3 +35,38 @@ by PR #24's `2e9d861` adaptation. Both existing local worktrees are clean.
 No new product behavior is designed in this consolidation. Native simulator
 and physical-device release verification remain separate from source and
 automated-check verification.
+
+## Result
+
+All integrations completed without conflicts:
+
+- `05abab9`: merge PR #24 through `2e9d861`.
+- `9186ab3`: merge PR #25 through `e47936e`.
+- `0d220e1`: apply PR #26's distinct documentation change.
+
+The integrated app paths are byte-identical to PR #24, and `server/` is
+byte-identical to PR #25. Website templates, website assets, and discovery
+text files match freshly fetched `origin/main` (`a5b9a2a`). The 1.5 draft
+release entry is retained. Existing worktrees had no uncommitted changes.
+
+Installed dependencies with `npm ci` using Node 22.23.1. Verification:
+
+- Typecheck: passed.
+- Jest: 45 suites, 319 tests passed under `America/Los_Angeles`.
+- Lint: passed with no warnings after excluding `.claude/worktrees/**`.
+  The initial run incorrectly linted the two nested checkouts against this
+  checkout's dependencies and aliases; the narrow exclusion fixes that scope.
+- Formatting and `git diff --check`: passed.
+- Release check: passed for 1.5.0, draft status, five App Store notes.
+- Server bundle: passed.
+- Accessibility: five existing failures, one missing skip link in each of
+  landing-page, release-notes, feedback, privacy, and terms templates.
+  Both those templates and the accessibility checker are unchanged from main.
+
+No native build or simulator run was performed during this source-consolidation
+task. Remote branches, open PRs, production, and Apple submissions were not
+changed. The branch remains local, with main still at `a5b9a2a`.
+
+The leading status notes in AGENTS.md, CLAUDE.md, and the previous handoff now
+point here so older July status and the resolved missing-HealthKit note do not
+misdirect the next session. The user-requested directory is the active checkout.
