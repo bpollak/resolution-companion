@@ -23,7 +23,7 @@ export const REWARDS: Reward[] = [
     id: "dawn-theme",
     title: "Dawn theme",
     description:
-      "A light look for the app — unlocked by your first completed milestone. Switch anytime in Profile → Appearance.",
+      "A light look for the app, unlocked by your first completed milestone. Switch anytime in Profile → Appearance.",
     kind: "theme",
     milestonesRequired: 1,
   },

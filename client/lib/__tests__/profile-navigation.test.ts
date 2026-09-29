@@ -4,20 +4,23 @@ import path from "path";
 const screensDirectory = path.resolve(__dirname, "../../screens");
 
 describe("profile information architecture", () => {
-  test("keeps the main settings list to four clear choices", () => {
+  test("keeps the main settings list to seven clear choices including Apple Health", () => {
     const profileSource = fs.readFileSync(
       path.join(screensDirectory, "ProfileScreen.tsx"),
       "utf8",
     );
     const mainPanelStart = profileSource.indexOf('{activePanel === "main" ? (');
     const mainPanelEnd = profileSource.indexOf(
-      '{activePanel === "privacy" ? (',
+      '{activePanel === "health" ? (',
       mainPanelStart,
     );
     const mainPanel = profileSource.slice(mainPanelStart, mainPanelEnd);
 
-    expect(mainPanel.match(/<SettingsRow/g)).toHaveLength(4);
+    expect(mainPanel.match(/<SettingsRow/g)).toHaveLength(7);
+    expect(mainPanel).toContain('title="Apple Health"');
     expect(mainPanel).toContain('title="Daily Reminder"');
+    expect(mainPanel).toContain('title="Appearance"');
+    expect(mainPanel).toContain('title="Widget & Siri"');
     expect(mainPanel).toContain('title="Privacy & Data"');
     expect(mainPanel).toContain('title="About"');
     expect(mainPanel).not.toContain('title="The Year You Became"');

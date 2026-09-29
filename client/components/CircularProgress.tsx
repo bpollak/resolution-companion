@@ -134,7 +134,16 @@ export function CircularProgress({
             color={progressColor}
           />
         )}
-        {label ? <ThemedText style={styles.label}>{label}</ThemedText> : null}
+        {label ? (
+          <ThemedText
+            style={[styles.label, { maxWidth: size * 0.62 }]}
+            numberOfLines={2}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+          >
+            {label}
+          </ThemedText>
+        ) : null}
       </View>
     </Animated.View>
   );
@@ -194,5 +203,6 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     marginTop: 4,
     opacity: 0.7,
+    textAlign: "center",
   },
 });

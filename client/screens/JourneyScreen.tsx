@@ -1,10 +1,21 @@
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
 import { View, FlatList, StyleSheet, Pressable, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useNavigation } from "@react-navigation/native";
+import {
+  useNavigation,
+  useRoute,
+  useIsFocused,
+  RouteProp,
+} from "@react-navigation/native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
@@ -24,9 +35,12 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { StatChip } from "@/components/StatChip";
 import { Toast } from "@/components/Toast";
 import { InsightsPanel } from "@/components/InsightsPanel";
-import { DailyContextCard } from "@/components/DailyContextCard";
+import { JourneyFramingCard } from "@/components/JourneyFramingCard";
 import { getMainTabHeaderClearance } from "@/navigation/tab-bar-layout";
-import { isWithinDailyContextBackfill } from "@/lib/daily-context";
+import { categorizeActionRhythms } from "@/lib/ambient-coach";
+
+import type { MainTabParamList } from "@/navigation/MainTabNavigator";
+import { parseJourneyDate, actionIsScheduledOnDate } from "@/lib/journey-date";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -131,7 +145,6 @@ function SelectedDateDetails({
   onToggleAction,
 }: SelectedDateDetailsProps) {
   const dateStr = getLocalDateString(date);
-  const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
   const formattedDate = date.toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
@@ -144,8 +157,8 @@ function SelectedDateDetails({
   selectedDateNormalized.setHours(0, 0, 0, 0);
   const isFutureDate = selectedDateNormalized > today;
 
-  const dayActions = actions.filter(
-    (a) => a.frequency && a.frequency.includes(dayOfWeek),
+  const dayActions = actions.filter((action) =>
+    actionIsScheduledOnDate(action, date),
   );
 
   const actionStatuses = dayActions.map((action) => {
@@ -188,23 +201,60 @@ function SelectedDateDetails({
           <ThemedText
             style={[styles.selectedDateSummary, { color: theme.textSecondary }]}
           >
-            {completedCount}/{dayActions.length} done
+            {isFutureDate
+              ? `${dayActions.length} scheduled`
+              : `${completedCount}/${dayActions.length} done`}
           </ThemedText>
         ) : null}
       </View>
 
-      {isFutureDate ? (
+      {dayActions.length === 0 ? (
         <ThemedText
           style={[styles.noActionsForDay, { color: theme.textSecondary }]}
         >
-          Future dates cannot be logged
+          Nothing planned
         </ThemedText>
-      ) : dayActions.length === 0 ? (
-        <ThemedText
-          style={[styles.noActionsForDay, { color: theme.textSecondary }]}
-        >
-          No actions scheduled
-        </ThemedText>
+      ) : isFutureDate ? (
+        <View style={styles.selectedDateActions}>
+          {dayActions.map((action) => (
+            <View key={action.id} style={styles.selectedDateAction}>
+              <Feather name="calendar" size={18} color={theme.accent} />
+              <View style={styles.selectedDateActionInfo}>
+                <ThemedText style={styles.selectedDateActionTitle}>
+                  {action.title}
+                </ThemedText>
+                {action.kickstartVersion ? (
+                  <ThemedText
+                    style={[
+                      styles.selectedDateBenchmark,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Small version: {action.kickstartVersion}
+                  </ThemedText>
+                ) : null}
+                {action.anchorLink ? (
+                  <ThemedText
+                    style={[
+                      styles.selectedDateBenchmark,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    {action.anchorLink}
+                  </ThemedText>
+                ) : null}
+              </View>
+            </View>
+          ))}
+          <ThemedText
+            style={[
+              styles.selectedDateBenchmark,
+              { color: theme.textSecondary },
+            ]}
+          >
+            A look ahead. Check these off on the day.
+          </ThemedText>
+        </View>
       ) : (
         <View style={styles.selectedDateActions}>
           {actionStatuses.map(
@@ -228,8 +278,8 @@ function SelectedDateDetails({
                 accessibilityLabel={`${action.title}${benchmark ? `, ${benchmark.title}` : ""}`}
                 accessibilityHint={
                   completed
-                    ? "Marks this action as not done"
-                    : "Marks this action as done"
+                    ? "Marks this habit as not done"
+                    : "Marks this habit as done"
                 }
               >
                 <Feather
@@ -275,8 +325,8 @@ function SelectedDateDetails({
                         ]}
                       >
                         {completionSource === "health"
-                          ? "Health auto-vote"
-                          : "2-minute vote"}
+                          ? "Completed by Health"
+                          : "2-minute fallback"}
                       </ThemedText>
                     </View>
                   ) : null}
@@ -314,6 +364,7 @@ interface MilestoneRowProps {
   theme: any;
   onToggle: (benchmarkId: string) => void;
   onEdit: (benchmarkId: string) => void;
+  onAskMilestone: (benchmarkId: string) => void;
 }
 
 const MilestoneRow = React.memo(function MilestoneRow({
@@ -323,6 +374,7 @@ const MilestoneRow = React.memo(function MilestoneRow({
   theme,
   onToggle,
   onEdit,
+  onAskMilestone,
 }: MilestoneRowProps) {
   const {
     benchmark,
@@ -335,68 +387,74 @@ const MilestoneRow = React.memo(function MilestoneRow({
 
   return (
     <View>
-      <Pressable
-        onPress={() => onToggle(benchmark.id)}
-        accessibilityRole="button"
-        accessibilityState={{ expanded }}
-        accessibilityLabel={`${benchmark.title} milestone, ${daysDone} of ${target} days done`}
-        accessibilityHint="Shows the daily actions for this milestone"
-        style={({ pressed }) => [
+      <View
+        style={[
           styles.benchmarkCard,
           {
             backgroundColor: isDark
               ? Colors.dark.backgroundDefault
               : Colors.light.backgroundDefault,
-            opacity: pressed ? 0.9 : 1,
           },
           completed && styles.benchmarkCardCompleted,
         ]}
       >
-        <View style={styles.benchmarkHeader}>
-          <View style={styles.benchmarkTitleCol}>
-            <View style={styles.benchmarkTitleRow}>
-              <Feather
-                name={completed ? "check-circle" : "circle"}
-                size={16}
-                color={completed ? theme.success : theme.accent}
-                style={styles.milestoneStatusIcon}
-              />
-              <ThemedText style={styles.benchmarkTitle}>
-                {benchmark.title}
-              </ThemedText>
+        <Pressable
+          onPress={() => onToggle(benchmark.id)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+          accessibilityLabel={`${benchmark.title} milestone, ${daysDone} of ${target} days done`}
+          accessibilityHint="Shows the daily actions for this milestone"
+          style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}
+        >
+          <View style={styles.benchmarkHeader}>
+            <View style={styles.benchmarkTitleCol}>
+              <View style={styles.benchmarkTitleRow}>
+                <Feather
+                  name={completed ? "check-circle" : "circle"}
+                  size={16}
+                  color={completed ? theme.success : theme.accent}
+                  style={styles.milestoneStatusIcon}
+                />
+                <ThemedText style={styles.benchmarkTitle}>
+                  {benchmark.title}
+                </ThemedText>
+              </View>
+              {actionProgress[0]?.action.frequency ? (
+                <ThemedText
+                  style={[
+                    styles.frequencyBadge,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  {actionProgress[0].action.frequency.length >= 7
+                    ? "Daily"
+                    : `${actionProgress[0].action.frequency.length}×/week`}
+                </ThemedText>
+              ) : null}
             </View>
-            {actionProgress[0]?.action.frequency ? (
+            <View style={styles.benchmarkMeta}>
               <ThemedText
-                style={[styles.frequencyBadge, { color: theme.textSecondary }]}
+                style={[
+                  styles.benchmarkDays,
+                  {
+                    color: completed ? theme.success : theme.accent,
+                  },
+                ]}
               >
-                {actionProgress[0].action.frequency.length >= 7
-                  ? "Daily"
-                  : `${actionProgress[0].action.frequency.length}×/week`}
+                {daysDone}/{target}
               </ThemedText>
-            ) : null}
+              <Feather
+                name={expanded ? "chevron-up" : "chevron-down"}
+                size={20}
+                color={theme.textSecondary}
+              />
+            </View>
           </View>
-          <View style={styles.benchmarkMeta}>
-            <ThemedText
-              style={[
-                styles.benchmarkDays,
-                {
-                  color: completed ? theme.success : theme.accent,
-                },
-              ]}
-            >
-              {daysDone}/{target}
-            </ThemedText>
-            <Feather
-              name={expanded ? "chevron-up" : "chevron-down"}
-              size={20}
-              color={theme.textSecondary}
-            />
-          </View>
-        </View>
-        <ProgressBar
-          progress={progress}
-          color={completed ? theme.success : theme.accent}
-        />
+          <ProgressBar
+            progress={progress}
+            color={completed ? theme.success : theme.accent}
+          />
+        </Pressable>
         <View style={styles.benchmarkFooter}>
           <ThemedText
             style={[
@@ -407,7 +465,7 @@ const MilestoneRow = React.memo(function MilestoneRow({
             ]}
           >
             {completed
-              ? "Complete — habit locked in"
+              ? "Complete. Habit locked in"
               : `${daysDone} of ${target} days done${(() => {
                   const countdown = formatTargetCountdown(benchmark.targetDate);
                   return countdown ? ` · ${countdown}` : "";
@@ -434,7 +492,7 @@ const MilestoneRow = React.memo(function MilestoneRow({
             </ThemedText>
           </Pressable>
         </View>
-      </Pressable>
+      </View>
 
       {expanded && actionProgress.length > 0 ? (
         <View style={styles.actionsContainer}>
@@ -483,8 +541,8 @@ const MilestoneRow = React.memo(function MilestoneRow({
                         { color: theme.textSecondary },
                       ]}
                     >
-                      {formatScheduleDays(action.frequency)} — each completed
-                      day fills this milestone
+                      {formatScheduleDays(action.frequency)}. Each completed day
+                      fills this milestone
                     </ThemedText>
                   </View>
                 </View>
@@ -543,6 +601,24 @@ const MilestoneRow = React.memo(function MilestoneRow({
               </View>
             </View>
           ))}
+          <Pressable
+            onPress={() => onAskMilestone(benchmark.id)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={`Ask Coach about ${benchmark.title} milestone`}
+            style={({ pressed }) => [
+              styles.contextCoachButton,
+              styles.milestoneCoachButton,
+              { borderColor: theme.accent, opacity: pressed ? 0.65 : 1 },
+            ]}
+          >
+            <Feather name="target" size={14} color={theme.accent} />
+            <ThemedText
+              style={[styles.contextCoachText, { color: theme.accent }]}
+            >
+              Ask Coach about this milestone
+            </ThemedText>
+          </Pressable>
         </View>
       ) : null}
     </View>
@@ -555,6 +631,24 @@ export default function JourneyScreen() {
   const headerClearance = getMainTabHeaderClearance(Platform.OS, headerHeight);
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<any>();
+  const route = useRoute<RouteProp<MainTabParamList, "JourneyTab">>();
+  const isFocused = useIsFocused();
+  const listRef = useRef<FlatList>(null);
+  const detailsOffset = useRef<number | null>(null);
+  const pendingDateScroll = useRef(false);
+  const scrollToRequestedDate = useCallback(() => {
+    if (
+      !pendingDateScroll.current ||
+      !isFocused ||
+      detailsOffset.current === null
+    )
+      return;
+    pendingDateScroll.current = false;
+    listRef.current?.scrollToOffset({
+      offset: detailsOffset.current,
+      animated: false,
+    });
+  }, [isFocused]);
   const { theme, isDark } = useTheme();
   const {
     hasOnboarded,
@@ -562,36 +656,37 @@ export default function JourneyScreen() {
     benchmarks,
     actions,
     dailyLogs,
-    dailyContexts,
     personaAlignment,
     progressSnapshot,
     toggleDailyLog,
-    upsertDailyContext,
-    deleteDailyContext,
     canAddBenchmark,
     subscription,
-    aiConsent,
   } = useApp();
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+  useEffect(() => {
+    if (!isFocused) return;
+    const requested = parseJourneyDate(route.params?.date);
+    if (!requested) return;
+    setCurrentDate(requested);
+    setSelectedDate(requested);
+    pendingDateScroll.current = true;
+    navigation.setParams({ date: undefined, intentId: undefined });
+    requestAnimationFrame(scrollToRequestedDate);
+  }, [
+    isFocused,
+    navigation,
+    route.params?.date,
+    route.params?.intentId,
+    scrollToRequestedDate,
+  ]);
+
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState<"success" | "info" | "warning">(
     "info",
   );
-  const selectedDateKey = selectedDate
-    ? getLocalDateString(selectedDate)
-    : null;
-  const selectedDailyContext = selectedDateKey
-    ? dailyContexts.find((entry) => entry.logDate === selectedDateKey)
-    : undefined;
-  const canEditSelectedContext =
-    selectedDateKey !== null &&
-    isWithinDailyContextBackfill(
-      selectedDateKey,
-      getLocalDateString(new Date()),
-    );
 
   const showToast = (
     message: string,
@@ -624,7 +719,7 @@ export default function JourneyScreen() {
         );
       }
     } catch {
-      showToast("Failed to update action", "warning");
+      showToast("Couldn’t update that habit. Try again.", "warning");
     }
   };
 
@@ -636,6 +731,28 @@ export default function JourneyScreen() {
     const personaBenchmarkIds = personaBenchmarks.map((b) => b.id);
     return actions.filter((a) => personaBenchmarkIds.includes(a.benchmarkId));
   }, [actions, personaBenchmarks]);
+
+  const actionRhythms = useMemo(
+    () => categorizeActionRhythms(personaActions, dailyLogs),
+    [dailyLogs, personaActions],
+  );
+
+  // In January the story worth sharing is the year just finished — unless
+  // there isn't one yet (a plan that started January 1), which would open an
+  // empty recap.
+  const recapYear = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    if (now.getMonth() !== 0) return year;
+    const actionIds = new Set(personaActions.map((a) => a.id));
+    const hadLastYear = dailyLogs.some(
+      (log) =>
+        log.status &&
+        actionIds.has(log.actionId) &&
+        log.logDate.startsWith(`${year - 1}-`),
+    );
+    return hadLastYear ? year - 1 : year;
+  }, [dailyLogs, personaActions]);
 
   const personaCreatedDate = useMemo(() => {
     if (!persona?.createdAt) return null;
@@ -674,7 +791,6 @@ export default function JourneyScreen() {
     setExpandedBenchmarks(new Set(benchmarkIdsKey.split(",").filter(Boolean)));
   }, [benchmarkIdsKey]);
 
-  const [showGuide, setShowGuide] = useState(false);
   const [showMilestoneInfo, setShowMilestoneInfo] = useState(false);
 
   useEffect(() => {
@@ -683,22 +799,16 @@ export default function JourneyScreen() {
       AsyncStorage.getItem(MILESTONE_INFO_DISMISSED_KEY),
     ]).then(([guideDismissed, infoDismissed]) => {
       if (!guideDismissed) {
-        // New users learn the fill-only model inside the guide itself
-        setShowGuide(true);
+        // New plans never saw the old milestone rules, so the one-time
+        // change note isn't for them (the Next Steps guide was retired).
+        AsyncStorage.setItem(GUIDE_DISMISSED_KEY, "true");
+        AsyncStorage.setItem(MILESTONE_INFO_DISMISSED_KEY, "true");
       } else if (!infoDismissed) {
-        // Existing users get the one-time semantics-change note instead
+        // Existing users get the one-time semantics-change note
         setShowMilestoneInfo(true);
       }
     });
   }, []);
-
-  const dismissGuide = () => {
-    setShowGuide(false);
-    // The guide already explains fill-only milestones — don't show the
-    // change note right after
-    AsyncStorage.setItem(GUIDE_DISMISSED_KEY, "true");
-    AsyncStorage.setItem(MILESTONE_INFO_DISMISSED_KEY, "true");
-  };
 
   const dismissMilestoneInfo = () => {
     setShowMilestoneInfo(false);
@@ -734,11 +844,10 @@ export default function JourneyScreen() {
     while (statsCursor <= lastDay) {
       const date = new Date(statsCursor);
       const dateStr = getLocalDateString(date);
-      const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
       let total = 0;
       let completed = 0;
       for (const action of personaActions) {
-        if (!action.frequency.includes(dayOfWeek)) continue;
+        if (!actionIsScheduledOnDate(action, date)) continue;
         total++;
         if (progressSnapshot.logIndex.get(`${action.id}|${dateStr}`)?.status) {
           completed++;
@@ -826,6 +935,17 @@ export default function JourneyScreen() {
     [navigation],
   );
 
+  const askCoachAboutMilestone = useCallback(
+    (benchmarkId: string) => {
+      navigation.navigate("CoachSheet", {
+        origin: "milestone",
+        benchmarkId,
+        promptId: "reflect-success",
+      });
+    },
+    [navigation],
+  );
+
   const renderMilestoneRow = useCallback(
     ({ item }: { item: MilestoneProgressResult }) => (
       <MilestoneRow
@@ -835,9 +955,17 @@ export default function JourneyScreen() {
         theme={theme}
         onToggle={toggleExpand}
         onEdit={editBenchmark}
+        onAskMilestone={askCoachAboutMilestone}
       />
     ),
-    [editBenchmark, expandedBenchmarks, isDark, theme, toggleExpand],
+    [
+      askCoachAboutMilestone,
+      editBenchmark,
+      expandedBenchmarks,
+      isDark,
+      theme,
+      toggleExpand,
+    ],
   );
 
   if (!hasOnboarded || !persona) {
@@ -867,6 +995,8 @@ export default function JourneyScreen() {
   return (
     <>
       <FlatList
+        ref={listRef}
+        onContentSizeChange={scrollToRequestedDate}
         data={milestoneProgress}
         renderItem={renderMilestoneRow}
         keyExtractor={(item) => item.benchmark.id}
@@ -884,147 +1014,26 @@ export default function JourneyScreen() {
         windowSize={7}
         ListHeaderComponent={
           <>
-            <View
-              style={[
-                styles.personaCard,
-                {
-                  backgroundColor: isDark
-                    ? Colors.dark.backgroundDefault
-                    : Colors.light.backgroundDefault,
-                },
-              ]}
-            >
-              <View style={styles.personaHeader}>
-                <View style={styles.personaIcon}>
-                  <Feather name="target" size={24} color={theme.accent} />
-                </View>
-                <View style={styles.personaInfo}>
-                  <ThemedText
-                    style={[styles.personaLabel, { color: theme.accent }]}
-                  >
-                    Becoming
-                  </ThemedText>
-                  <ThemedText style={styles.personaName}>
-                    {persona.name}
-                  </ThemedText>
-                </View>
-              </View>
+            {/* The tab header already pins the persona name; here a compact
+                line keeps the description without a full card of chrome */}
+            <View style={styles.personaIntro}>
+              <ThemedText
+                style={[styles.personaLabel, { color: theme.accent }]}
+              >
+                Becoming {persona.name}
+              </ThemedText>
               {persona.description ? (
                 <ThemedText
                   style={[
                     styles.personaDescription,
                     { color: theme.textSecondary },
                   ]}
+                  numberOfLines={2}
                 >
                   {persona.description}
                 </ThemedText>
               ) : null}
             </View>
-
-            <View style={styles.journeyToolsSection}>
-              <ThemedText style={styles.journeyToolsHeading}>
-                Stories &amp; Support
-              </ThemedText>
-              <JourneyTool
-                icon="book-open"
-                title="Story Archive"
-                subtitle="Every Month in Votes · newest first"
-                onPress={() => navigation.navigate("StoryArchive")}
-              />
-              <JourneyTool
-                icon="clock"
-                title="Evidence Timeline"
-                subtitle="Context, notes, milestones, comebacks, and tune-ups"
-                onPress={() => navigation.navigate("EvidenceTimeline")}
-              />
-              <JourneyTool
-                icon="award"
-                title="The Year You Became"
-                subtitle={
-                  subscription.isPremium
-                    ? `${new Date().getFullYear()} year-to-date story`
-                    : "Premium annual story"
-                }
-                onPress={() =>
-                  subscription.isPremium
-                    ? navigation.navigate("YearRecap", {
-                        year: new Date().getFullYear(),
-                      })
-                    : navigation.navigate("Subscription")
-                }
-              />
-              <JourneyTool
-                icon="users"
-                title="Someone in Your Corner"
-                subtitle="One trusted witness · you choose every share"
-                onPress={() => navigation.navigate("Witness")}
-              />
-            </View>
-
-            {showGuide ? (
-              <View
-                style={[
-                  styles.guideCard,
-                  {
-                    backgroundColor: isDark
-                      ? Colors.dark.backgroundDefault
-                      : Colors.light.backgroundDefault,
-                  },
-                ]}
-              >
-                <View style={styles.guideHeader}>
-                  <Feather name="compass" size={18} color={theme.accent} />
-                  <ThemedText style={styles.guideTitle}>Next Steps</ThemedText>
-                  <Pressable
-                    onPress={dismissGuide}
-                    hitSlop={12}
-                    pressRetentionOffset={16}
-                    accessibilityRole="button"
-                    accessibilityLabel="Dismiss next steps"
-                    style={({ pressed }) => [
-                      styles.guideClose,
-                      { opacity: pressed ? 0.5 : 1 },
-                    ]}
-                  >
-                    <Feather name="x" size={18} color={theme.textSecondary} />
-                  </Pressable>
-                </View>
-                <ThemedText
-                  style={[styles.guideText, { color: theme.textSecondary }]}
-                >
-                  1. {aiConsent ? "Your AI coach" : "Your starter plan"} created
-                  the milestones below — steps on the way to becoming who you
-                  chose. Tap Edit to adjust one or change which days it repeats.
-                  {"\n"}
-                  2. Each milestone comes with one small daily action on its
-                  scheduled days.{"\n"}
-                  3. Check off your actions in the Today tab — each completed
-                  day fills a milestone. Milestones only fill up, they never go
-                  backwards.
-                </ThemedText>
-                <Pressable
-                  onPress={() => navigation.navigate("TodayTab")}
-                  accessibilityRole="button"
-                  accessibilityLabel="Go to Today tab"
-                  style={({ pressed }) => [
-                    styles.guideCta,
-                    { backgroundColor: theme.accent },
-                    { opacity: pressed ? 0.8 : 1 },
-                  ]}
-                >
-                  <ThemedText
-                    style={[styles.guideCtaText, { color: theme.buttonText }]}
-                  >
-                    Log today&rsquo;s actions
-                  </ThemedText>
-                  <Feather
-                    name="arrow-right"
-                    size={16}
-                    color={theme.buttonText}
-                  />
-                </Pressable>
-              </View>
-            ) : null}
 
             {showMilestoneInfo ? (
               <View
@@ -1059,8 +1068,8 @@ export default function JourneyScreen() {
                 <ThemedText
                   style={[styles.guideText, { color: theme.textSecondary }]}
                 >
-                  Each milestone now completes after 21 days of doing its action
-                  on schedule. Progress only fills up — it never goes backwards.
+                  Each milestone now completes after 21 days of doing its habit
+                  on schedule. Progress only fills up. It never goes backwards.
                 </ThemedText>
               </View>
             ) : null}
@@ -1069,13 +1078,15 @@ export default function JourneyScreen() {
               <CircularProgress
                 progress={personaAlignment}
                 size={140}
-                label={`${new Date().toLocaleDateString("en-US", { month: "long" })} Consistency`}
+                label={new Date().toLocaleDateString("en-US", {
+                  month: "long",
+                })}
               />
               <ThemedText
                 style={[styles.alignmentHint, { color: theme.textSecondary }]}
               >
-                % of scheduled actions completed so far this month — fresh start
-                on the 1st
+                Share of this month&rsquo;s planned days you showed up. Fresh
+                start on the 1st.
               </ThemedText>
             </View>
 
@@ -1160,10 +1171,19 @@ export default function JourneyScreen() {
                   month: "long",
                   day: "numeric",
                 });
-                const statusLabel =
-                  dayInfo.totalCount === 0
-                    ? "no actions scheduled"
-                    : `${dayInfo.completedCount} of ${dayInfo.totalCount} action${dayInfo.totalCount === 1 ? "" : "s"} completed${isShielded ? ", streak protected by shield" : ""}`;
+                // Days before the plan existed (and padding days from other
+                // months) are blank, not rest days: nothing was planned yet.
+                const isRestDay =
+                  dayInfo.totalCount === 0 &&
+                  dayInfo.isCurrentMonth &&
+                  isAfterPersonaCreated;
+                const statusLabel = !isAfterPersonaCreated
+                  ? dayInfo.date > new Date()
+                    ? "before your plan starts"
+                    : "before your plan started"
+                  : dayInfo.totalCount === 0
+                    ? "nothing planned"
+                    : `${dayInfo.completedCount} of ${dayInfo.totalCount} habit${dayInfo.totalCount === 1 ? "" : "s"} done${isShielded ? ", covered by an earned rest day" : ""}`;
 
                 return (
                   <Pressable
@@ -1224,12 +1244,36 @@ export default function JourneyScreen() {
                       >
                         {dayInfo.date.getDate()}
                       </ThemedText>
-                      {isShielded ? (
-                        <View style={styles.shieldBadge}>
+                      {isComplete ||
+                      isPartial ||
+                      isMissed ||
+                      isShielded ||
+                      isRestDay ? (
+                        <View
+                          style={[
+                            styles.shieldBadge,
+                            {
+                              backgroundColor: theme.backgroundRoot,
+                              borderRadius: 8,
+                              padding: 2,
+                            },
+                          ]}
+                        >
                           <Feather
-                            name="shield"
+                            name={
+                              isShielded
+                                ? "shield"
+                                : isComplete
+                                  ? "check"
+                                  : isPartial
+                                    ? "minus"
+                                    : isMissed
+                                      ? "x"
+                                      : "moon"
+                            }
                             size={12}
-                            color={theme.accent}
+                            color={theme.text}
+                            accessible={false}
                           />
                         </View>
                       ) : null}
@@ -1241,9 +1285,15 @@ export default function JourneyScreen() {
 
             <View style={styles.legendContainer}>
               <View style={styles.legendItem}>
-                <View
-                  style={[styles.legendDot, { backgroundColor: theme.success }]}
-                />
+                <Feather name="moon" size={12} color={theme.textSecondary} />
+                <ThemedText
+                  style={[styles.legendText, { color: theme.textSecondary }]}
+                >
+                  Rest
+                </ThemedText>
+              </View>
+              <View style={styles.legendItem}>
+                <Feather name="check" size={14} color={theme.success} />
                 <ThemedText
                   style={[styles.legendText, { color: theme.textSecondary }]}
                 >
@@ -1251,9 +1301,7 @@ export default function JourneyScreen() {
                 </ThemedText>
               </View>
               <View style={styles.legendItem}>
-                <View
-                  style={[styles.legendDot, { backgroundColor: theme.warning }]}
-                />
+                <Feather name="minus" size={14} color={theme.warning} />
                 <ThemedText
                   style={[styles.legendText, { color: theme.textSecondary }]}
                 >
@@ -1261,16 +1309,7 @@ export default function JourneyScreen() {
                 </ThemedText>
               </View>
               <View style={styles.legendItem}>
-                <View
-                  style={[
-                    styles.legendDot,
-                    {
-                      backgroundColor: "transparent",
-                      borderWidth: 2,
-                      borderColor: theme.error,
-                    },
-                  ]}
-                />
+                <Feather name="x" size={14} color={theme.error} />
                 <ThemedText
                   style={[styles.legendText, { color: theme.textSecondary }]}
                 >
@@ -1282,13 +1321,18 @@ export default function JourneyScreen() {
                 <ThemedText
                   style={[styles.legendText, { color: theme.textSecondary }]}
                 >
-                  Shielded
+                  Covered
                 </ThemedText>
               </View>
             </View>
 
-            {selectedDate ? (
-              <>
+            <View
+              onLayout={(event) => {
+                detailsOffset.current = event.nativeEvent.layout.y;
+                scrollToRequestedDate();
+              }}
+            >
+              {selectedDate ? (
                 <SelectedDateDetails
                   date={selectedDate}
                   actions={personaActions}
@@ -1298,25 +1342,8 @@ export default function JourneyScreen() {
                   theme={theme}
                   onToggleAction={handleToggleAction}
                 />
-                {canEditSelectedContext || selectedDailyContext ? (
-                  <DailyContextCard
-                    logDate={selectedDateKey!}
-                    entry={selectedDailyContext}
-                    editable={canEditSelectedContext}
-                    title={`What shaped ${selectedDate.toLocaleDateString(
-                      "en-US",
-                      { month: "short", day: "numeric" },
-                    )}?`}
-                    onSave={upsertDailyContext}
-                    onDelete={
-                      canEditSelectedContext && selectedDailyContext
-                        ? () => deleteDailyContext(selectedDateKey!)
-                        : undefined
-                    }
-                  />
-                ) : null}
-              </>
-            ) : null}
+              ) : null}
+            </View>
 
             <View style={styles.streakStatsRow}>
               <StatChip
@@ -1349,7 +1376,7 @@ export default function JourneyScreen() {
               />
               <StatChip
                 icon={<Feather name="shield" size={14} color={theme.accent} />}
-                text={`${streak.shieldsAvailable}/${subscription.isPremium ? 2 : 1} shield${subscription.isPremium ? "s" : ""} ready`}
+                text={`${streak.shieldsAvailable}/${subscription.isPremium ? 2 : 1} rest day${subscription.isPremium ? "s" : ""} ready`}
               />
             </View>
 
@@ -1379,7 +1406,7 @@ export default function JourneyScreen() {
                 <ThemedText
                   style={[styles.addButtonText, { color: theme.buttonText }]}
                 >
-                  Add milestone
+                  {canAddBenchmark() ? "Add milestone" : "Add · Premium"}
                 </ThemedText>
               </Pressable>
             </View>
@@ -1387,13 +1414,57 @@ export default function JourneyScreen() {
         }
         ListFooterComponent={
           <>
+            {/* How the plan is fitting sits after the milestones: the month
+                ring, calendar and milestones lead; this is the tune-up. */}
+            <JourneyFramingCard
+              actions={personaActions}
+              rhythms={actionRhythms}
+              onAdjust={(actionId) => {
+                const action = personaActions.find(
+                  (item) => item.id === actionId,
+                );
+                if (!action) return;
+                Haptics.selectionAsync();
+                navigation.navigate("ActionEditor", {
+                  actionId,
+                  benchmarkId: action.benchmarkId,
+                });
+              }}
+            />
             <InsightsPanel
               actions={personaActions}
               dailyLogs={dailyLogs}
-              dailyContexts={dailyContexts}
               personaName={persona?.name ?? "Future You"}
-              onTuneUp={() => navigation.navigate("PlanTuneUp")}
+              isPremium={subscription.isPremium}
+              onUpgrade={() =>
+                navigation.navigate("Subscription", { source: "insights" })
+              }
             />
+            <View style={styles.journeyToolsSection}>
+              <ThemedText style={styles.journeyToolsHeading}>
+                Stories &amp; Support
+              </ThemedText>
+              <JourneyTool
+                icon="award"
+                title="The Year You Became"
+                subtitle={
+                  subscription.isPremium
+                    ? recapYear === new Date().getFullYear()
+                      ? `${recapYear} year-to-date story`
+                      : `Your ${recapYear} story`
+                    : "Your year so far, ready to share"
+                }
+                onPress={() =>
+                  navigation.navigate("YearRecap", { year: recapYear })
+                }
+              />
+              <JourneyTool
+                icon="users"
+                title="Someone in Your Corner"
+                subtitle="One trusted witness · you choose every share"
+                onPress={() => navigation.navigate("Witness")}
+              />
+            </View>
             {!subscription.isPremium ? (
               <Pressable
                 onPress={() => navigation.navigate("Subscription")}
@@ -1475,26 +1546,9 @@ const styles = StyleSheet.create({
     ...Typography.body,
     textAlign: "center",
   },
-  personaCard: {
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.md,
+  personaIntro: {
     marginBottom: Spacing.xl,
-  },
-  personaHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  personaIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.full,
-    backgroundColor: "rgba(0, 217, 255, 0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.lg,
-  },
-  personaInfo: {
-    flex: 1,
+    gap: Spacing.xs,
   },
   personaLabel: {
     ...Typography.caption,
@@ -1503,12 +1557,9 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: Spacing.xs,
   },
-  personaName: {
-    ...Typography.headline,
-  },
   personaDescription: {
-    ...Typography.body,
-    marginTop: Spacing.md,
+    ...Typography.small,
+    lineHeight: 20,
   },
   journeyToolsSection: {
     marginBottom: Spacing.xl,
@@ -1899,6 +1950,28 @@ const styles = StyleSheet.create({
     // as one clipped line; an explicit width forces wrap on the first pass
     width: "100%",
     flexShrink: 1,
+  },
+  contextCoachButton: {
+    minHeight: 44,
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+  },
+  milestoneCoachButton: {
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    borderWidth: 0,
+    alignSelf: "flex-start",
+  },
+  contextCoachText: {
+    ...Typography.small,
+    fontWeight: "600",
   },
   frequencyTags: {
     flexDirection: "row",

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Seed 5 weeks of completed-action history into the simulator's AsyncStorage.
 
-Backdates the persona/benchmarks/actions to June 1 and completes every
-scheduled day from June 15 through July 16 for all three starter actions.
+Backdates the persona/benchmarks/actions and completes every scheduled day in
+the trailing 32 days for all three starter actions.
 On next launch this exercises, with real production code paths:
   - milestone auto-completion (daily action reaches 21+ scheduled days)
   - the reward unlock (Dawn theme) + celebration reveal
@@ -11,12 +11,32 @@ On next launch this exercises, with real production code paths:
 The weekly-recap card is marked seen so the observation card gets the slot.
 """
 
+import hashlib
 import json
 import sys
 import uuid
 from datetime import date, timedelta
+from pathlib import Path
 
 MANIFEST = sys.argv[1]
+
+
+def load_value(manifest, key):
+    value = manifest[key]
+    if value is not None:
+        return value
+    sidecar = Path(MANIFEST).parent / hashlib.md5(key.encode()).hexdigest()
+    return sidecar.read_text(encoding="utf-8")
+
+
+def store_value(manifest, key, value):
+    sidecar = Path(MANIFEST).parent / hashlib.md5(key.encode()).hexdigest()
+    if len(value.encode()) > 1024:
+        sidecar.write_text(value, encoding="utf-8")
+        manifest[key] = None
+    else:
+        manifest[key] = value
+        sidecar.unlink(missing_ok=True)
 
 WEEKDAYS = {
     "Monday": 0,
@@ -31,12 +51,15 @@ WEEKDAYS = {
 with open(MANIFEST) as f:
     manifest = json.load(f)
 
-personas = json.loads(manifest["personas"])
-benchmarks = json.loads(manifest["benchmarks"])
-actions = json.loads(manifest["elementalActions"])
-logs = json.loads(manifest.get("dailyLogs", "[]"))
+personas = json.loads(load_value(manifest, "personas"))
+benchmarks = json.loads(load_value(manifest, "benchmarks"))
+actions = json.loads(load_value(manifest, "elementalActions"))
+logs = json.loads(load_value(manifest, "dailyLogs"))
 
-BACKDATE = "2026-06-01T08:00:00.000Z"
+today = date.today()
+start = today - timedelta(days=33)
+end = today - timedelta(days=1)
+BACKDATE = f"{(start - timedelta(days=14)).isoformat()}T08:00:00.000Z"
 for entity in personas + benchmarks + actions:
     entity["createdAt"] = BACKDATE
 persona = json.loads(manifest["persona"])
@@ -45,8 +68,6 @@ manifest["persona"] = json.dumps(persona)
 
 existing = {(l["actionId"], l["logDate"].split("T")[0]) for l in logs}
 
-start = date(2026, 6, 15)
-end = date(2026, 7, 16)
 added = 0
 day = start
 while day <= end:
@@ -69,12 +90,14 @@ while day <= end:
         added += 1
     day += timedelta(days=1)
 
-manifest["personas"] = json.dumps(personas)
-manifest["benchmarks"] = json.dumps(benchmarks)
-manifest["elementalActions"] = json.dumps(actions)
-manifest["dailyLogs"] = json.dumps(logs)
+store_value(manifest, "personas", json.dumps(personas))
+store_value(manifest, "benchmarks", json.dumps(benchmarks))
+store_value(manifest, "elementalActions", json.dumps(actions))
+store_value(manifest, "dailyLogs", json.dumps(logs))
 # Give the Today card slot to the coach observation
-manifest["today_weekly_recap_seen_week"] = "2026-07-13"
+manifest["today_weekly_recap_seen_week"] = (
+    today - timedelta(days=today.weekday())
+).isoformat()
 
 with open(MANIFEST, "w") as f:
     json.dump(manifest, f)

@@ -1,0 +1,67 @@
+appId: com.resolutioncompanion.app
+---
+# Marketing screenshot run. Requires qa/seed_marketing.py applied first.
+# Captures at the running device's native resolution.
+
+- launchApp
+# Seeded 21-day milestones fire completion celebrations on first launch
+- repeat:
+    times: 4
+    commands:
+      - tapOn:
+          text: "Dismiss milestone celebration.*"
+          optional: true
+      - waitForAnimationToEnd
+- tapOn:
+    id: "tab-today"
+- repeat:
+    times: 3
+    commands:
+      - swipe:
+          direction: DOWN
+          duration: 300
+- extendedWaitUntil:
+    visible: "Confident Spanish Speaker.*"
+    timeout: 20000
+- takeScreenshot: mk-01-today
+
+- tapOn:
+    id: "tab-journey"
+- extendedWaitUntil:
+    visible: "Becoming Confident Spanish Speaker.*"
+    timeout: 15000
+- takeScreenshot: mk-02-journey-rhythm
+- scrollUntilVisible:
+    element:
+      text: ".*Consistency.*"
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- takeScreenshot: mk-03-journey-calendar
+- scrollUntilVisible:
+    element:
+      text: "Milestones.*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- takeScreenshot: mk-04-milestones
+
+- tapOn:
+    id: "tab-coach"
+- extendedWaitUntil:
+    visible: "What do you need help with?.*"
+    timeout: 15000
+- takeScreenshot: mk-05-coach
+
+- tapOn: "Start a conversation with Coach"
+- extendedWaitUntil:
+    visible: "Help me name what made today work.*"
+    timeout: 15000
+- tapOn: "Help me name what made today work.*"
+- tapOn:
+    text: "Agree and continue.*"
+    optional: true
+- extendedWaitUntil:
+    visible: "AI coach: .+\\?.*"
+    timeout: 90000
+- takeScreenshot: mk-06-chat

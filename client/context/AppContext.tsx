@@ -17,13 +17,11 @@ import {
   Benchmark,
   ElementalAction,
   DailyLog,
-  DailyContextEntry,
-  DailyContextInput,
   PlanAdjustment,
+  PlanAdjustmentChanges,
   Reflection,
   Subscription,
 } from "@/lib/storage";
-import type { PlanTuneUpResponse } from "@shared/plan-tune-up";
 import {
   buildProgressSnapshot,
   computeLapse,
@@ -34,6 +32,8 @@ import {
 import {
   ensureReminderScheduled,
   enableDefaultPersonalizedReminders,
+  getReminderPrimerState,
+  recordReminderPrimerAnswer,
   registerReminderActions,
   recordOrganicAppOpen,
   recordReminderHookTap,
@@ -41,8 +41,8 @@ import {
 } from "@/lib/notifications";
 import * as Notifications from "expo-notifications";
 import { logger } from "@/lib/logger";
+import { navigationRef } from "@/navigation/navigationRef";
 import { track, flushTelemetry } from "@/lib/telemetry";
-import { inferBenchmarkCompletedAt } from "@/lib/evidence";
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { syncWidgetData, consumePendingVotes } from "@/lib/widget";
 import { unlockRewardsForMilestoneCount, Reward } from "@/lib/rewards";
@@ -54,6 +54,7 @@ import {
   type SubscriptionVerificationStatus,
 } from "@/lib/subscription";
 import { iapService } from "@/lib/iap";
+import { canDeleteMilestone } from "@/lib/plan-editing";
 import {
   createPrivateBackup,
   getPrivateBackupEnabled,
@@ -67,7 +68,6 @@ interface AppContextType {
   benchmarks: Benchmark[];
   actions: ElementalAction[];
   dailyLogs: DailyLog[];
-  dailyContexts: DailyContextEntry[];
   planAdjustments: PlanAdjustment[];
   reflections: Reflection[];
   momentumScore: number;
@@ -118,12 +118,16 @@ interface AppContextType {
     date: string,
     note: string,
   ) => Promise<void>;
-  upsertDailyContext: (input: DailyContextInput) => Promise<DailyContextEntry>;
-  deleteDailyContext: (logDate: string) => Promise<void>;
-  applyPlanTuneUp: (
+  applyPlanAdjustment: (
     actionId: string,
-    proposal: PlanTuneUpResponse,
-  ) => Promise<PlanAdjustment>;
+    changes: PlanAdjustmentChanges,
+    rationale: string,
+  ) => Promise<PlanAdjustment | null>;
+  dismissPlanAdjustment: (
+    actionId: string,
+    changes: PlanAdjustmentChanges,
+    rationale: string,
+  ) => Promise<PlanAdjustment | null>;
   addReflection: (
     reflection: Omit<Reflection, "id" | "createdAt">,
   ) => Promise<Reflection>;
@@ -134,6 +138,9 @@ interface AppContextType {
   canUseReflection: () => boolean;
   canAddPersona: () => boolean;
   canAddBenchmark: () => boolean;
+  /** A new plan is waiting for the reminder primer on Today. */
+  reminderPrimerPending: boolean;
+  answerReminderPrimer: (accept: boolean) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -151,9 +158,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [benchmarks, setBenchmarksState] = useState<Benchmark[]>([]);
   const [actions, setActionsState] = useState<ElementalAction[]>([]);
   const [dailyLogs, setDailyLogsState] = useState<DailyLog[]>([]);
-  const [dailyContexts, setDailyContextsState] = useState<DailyContextEntry[]>(
-    [],
-  );
   const [planAdjustments, setPlanAdjustmentsState] = useState<PlanAdjustment[]>(
     [],
   );
@@ -201,7 +205,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         benchmarksData,
         actionsData,
         logsData,
-        dailyContextsData,
         planAdjustmentsData,
         reflectionsData,
         subscriptionData,
@@ -214,7 +217,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         storage.getBenchmarks(),
         storage.getElementalActions(),
         storage.getDailyLogs(),
-        storage.getDailyContexts(),
         storage.getPlanAdjustments(),
         storage.getReflections(),
         storage.getSubscription(),
@@ -246,24 +248,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setBenchmarksState(personaBenchmarks);
         setActionsState(personaActions);
         setDailyLogsState(personaLogs);
-        setDailyContextsState(
-          dailyContextsData.filter(
-            (entry) => entry.personaId === personaData.id,
-          ),
-        );
         setPlanAdjustmentsState(
           planAdjustmentsData.filter(
             (entry) => entry.personaId === personaData.id,
+          ),
+        );
+        setReflectionsState(
+          reflectionsData.filter(
+            (entry) => !entry.personaId || entry.personaId === personaData.id,
           ),
         );
       } else {
         setBenchmarksState([]);
         setActionsState([]);
         setDailyLogsState([]);
-        setDailyContextsState([]);
         setPlanAdjustmentsState([]);
+        setReflectionsState([]);
       }
-      setReflectionsState(reflectionsData);
     } catch (error) {
       logger.error("Error refreshing data:", error);
     } finally {
@@ -386,7 +387,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     benchmarks,
     actions,
     dailyLogs,
-    dailyContexts,
     planAdjustments,
     reflections,
     aiConsent,
@@ -456,8 +456,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setBenchmarksState([]);
       setActionsState([]);
       setDailyLogsState([]);
-      setDailyContextsState([]);
-      setPlanAdjustmentsState([]);
       await storage.deletePersona(id);
       await refreshData();
     },
@@ -497,7 +495,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteBenchmark = useCallback(async (id: string) => {
     // Read actions from storage rather than the closure so the id list is
     // never stale (this callback is intentionally dependency-free)
-    const currentActions = await storage.getElementalActions();
+    const [currentActions, currentBenchmarks] = await Promise.all([
+      storage.getElementalActions(),
+      storage.getBenchmarks(),
+    ]);
+    if (!canDeleteMilestone(id, currentBenchmarks, currentActions)) {
+      throw new Error("Keep at least one action in this persona.");
+    }
     const actionIdsToDelete = currentActions
       .filter((a) => a.benchmarkId === id)
       .map((a) => a.id);
@@ -507,20 +511,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDailyLogsState((prev) =>
       prev.filter((l) => !actionIdsToDelete.includes(l.actionId)),
     );
-    setPlanAdjustmentsState((previous) =>
-      previous.filter(
-        (adjustment) => !actionIdsToDelete.includes(adjustment.actionId),
-      ),
-    );
   }, []);
 
   const addAction = useCallback(
     async (action: Omit<ElementalAction, "id" | "createdAt">) => {
-      const newAction = await storage.addElementalAction(action);
+      const newAction = await storage.addElementalAction(
+        action,
+        persona?.createdAt,
+      );
       setActionsState((prev) => [...prev, newAction]);
       return newAction;
     },
-    [],
+    [persona?.createdAt],
   );
 
   const updateAction = useCallback(
@@ -541,9 +543,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await storage.deleteElementalAction(id);
     setActionsState((prev) => prev.filter((a) => a.id !== id));
     setDailyLogsState((prev) => prev.filter((l) => l.actionId !== id));
-    setPlanAdjustmentsState((previous) =>
-      previous.filter((adjustment) => adjustment.actionId !== id),
-    );
   }, []);
 
   const setActions = useCallback(async (actionsData: ElementalAction[]) => {
@@ -637,57 +636,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [refreshData],
   );
 
-  const upsertDailyContext = useCallback(
-    async (input: DailyContextInput) => {
-      if (!persona) {
-        throw new Error("Choose an active identity before adding context.");
-      }
-      const entry = await storage.upsertDailyContext(persona.id, input);
-      setDailyContextsState((previous) => {
-        const existing = previous.some((item) => item.id === entry.id);
-        return existing
-          ? previous.map((item) => (item.id === entry.id ? entry : item))
-          : [...previous, entry];
-      });
-      track("daily_context_saved");
-      return entry;
-    },
-    [persona],
-  );
-
-  const deleteDailyContext = useCallback(
-    async (logDate: string) => {
-      if (!persona) return;
-      await storage.deleteDailyContext(persona.id, logDate);
-      setDailyContextsState((previous) =>
-        previous.filter((entry) => entry.logDate !== logDate),
-      );
-    },
-    [persona],
-  );
-
-  const applyPlanTuneUp = useCallback(
-    async (actionId: string, proposal: PlanTuneUpResponse) => {
-      if (!persona) {
-        throw new Error("Choose an active identity before tuning a plan.");
-      }
-      const result = await storage.applyPlanTuneUp(
-        persona.id,
-        actionId,
-        proposal,
-      );
-      setActionsState((previous) =>
-        previous.map((action) =>
-          action.id === result.action.id ? result.action : action,
-        ),
-      );
-      setPlanAdjustmentsState((previous) => [...previous, result.adjustment]);
-      track("plan_tune_up_applied");
-      return result.adjustment;
-    },
-    [persona],
-  );
-
   const addReflection = useCallback(
     async (reflection: Omit<Reflection, "id" | "createdAt">) => {
       const newReflection = await storage.addReflection(reflection);
@@ -695,6 +643,64 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return newReflection;
     },
     [],
+  );
+
+  const applyPlanAdjustment = useCallback(
+    async (
+      actionId: string,
+      changes: PlanAdjustmentChanges,
+      rationale: string,
+    ) => {
+      if (!persona) return null;
+      const result = await storage.applyPlanAdjustment(
+        actionId,
+        persona.id,
+        changes,
+        rationale,
+      );
+      if (!result) return null;
+      setActionsState((previous) =>
+        previous.map((action) =>
+          action.id === result.action.id ? result.action : action,
+        ),
+      );
+      setPlanAdjustmentsState((previous) => [...previous, result.adjustment]);
+      track("plan_tuneup_applied");
+      return result.adjustment;
+    },
+    [persona],
+  );
+
+  const dismissPlanAdjustment = useCallback(
+    async (
+      actionId: string,
+      changes: PlanAdjustmentChanges,
+      rationale: string,
+    ) => {
+      if (!persona) return null;
+      const action = actions.find((candidate) => candidate.id === actionId);
+      if (!action) return null;
+      const before: PlanAdjustmentChanges = {};
+      for (const key of [
+        "frequency",
+        "anchorLink",
+        "kickstartVersion",
+      ] as const) {
+        if (changes[key] !== undefined) before[key] = action[key] as never;
+      }
+      const adjustment = await storage.recordPlanAdjustment({
+        personaId: persona.id,
+        actionId,
+        before,
+        after: changes,
+        rationale: rationale.trim().slice(0, 500),
+        status: "dismissed",
+      });
+      setPlanAdjustmentsState((previous) => [...previous, adjustment]);
+      track("plan_tuneup_dismissed");
+      return adjustment;
+    },
+    [actions, persona],
   );
 
   const clearAllData = useCallback(async () => {
@@ -706,7 +712,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setBenchmarksState([]);
     setActionsState([]);
     setDailyLogsState([]);
-    setDailyContextsState([]);
     setPlanAdjustmentsState([]);
     setReflectionsState([]);
     setSubscriptionState({
@@ -735,31 +740,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isLoading) return;
     for (const benchmark of benchmarks) {
-      if (benchmark.status === "completed") {
-        if (
-          !benchmark.completedAt &&
-          !milestoneFlipsInFlight.current.has(benchmark.id)
-        ) {
-          const inferred = inferBenchmarkCompletedAt(
-            benchmark,
-            actions,
-            dailyLogs,
-          );
-          if (inferred) {
-            milestoneFlipsInFlight.current.add(benchmark.id);
-            updateBenchmark(benchmark.id, { completedAt: inferred }).catch(
-              (error) => {
-                milestoneFlipsInFlight.current.delete(benchmark.id);
-                logger.error(
-                  "Failed to infer milestone completion date:",
-                  error,
-                );
-              },
-            );
-          }
-        }
-        continue;
-      }
+      if (benchmark.status === "completed") continue;
       const completed =
         progressSnapshot.milestoneProgressByBenchmarkId.get(benchmark.id)
           ?.completed ?? false;
@@ -769,12 +750,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       milestoneFlipsInFlight.current.add(benchmark.id);
       track("milestone_complete");
       (async () => {
-        const completedAt =
-          inferBenchmarkCompletedAt(benchmark, actions, dailyLogs) ??
-          new Date().toISOString();
         const updated = await updateBenchmark(benchmark.id, {
           status: "completed",
-          completedAt,
         });
         // Dedup FIRST: if this milestone was already celebrated, bail before
         // unlocking/persisting a reward — otherwise an edge-triggered re-flip
@@ -810,14 +787,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         logger.error("Failed to mark milestone completed:", error);
       });
     }
-  }, [
-    isLoading,
-    benchmarks,
-    actions,
-    dailyLogs,
-    progressSnapshot,
-    updateBenchmark,
-  ]);
+  }, [isLoading, benchmarks, progressSnapshot, updateBenchmark]);
 
   const dismissMilestoneCelebration = useCallback(() => {
     setMilestoneCelebration(null);
@@ -832,6 +802,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [benchmarks],
   );
   const defaultReminderInitializationStartedRef = useRef(false);
+  const [reminderPrimerPending, setReminderPrimerPending] = useState(false);
+  const answerReminderPrimer = useCallback(
+    async (accept: boolean) => {
+      setReminderPrimerPending(false);
+      await recordReminderPrimerAnswer(accept).catch(() => {});
+      if (!accept || !persona) return;
+      await enableDefaultPersonalizedReminders({
+        streakCount: computeStreak(actions, dailyLogs).current,
+        missedRun: computeLapse(actions, dailyLogs).missedDays,
+        personaName: persona.name,
+        monthlyConsistency: personaAlignment,
+        actions,
+        dailyLogs,
+        milestoneTitles: reminderMilestoneTitles,
+      }).catch((error) =>
+        logger.error("Failed to enable reminders from primer:", error),
+      );
+    },
+    [actions, dailyLogs, persona, personaAlignment, reminderMilestoneTitles],
+  );
   useEffect(() => {
     if (
       Platform.OS === "web" ||
@@ -844,17 +834,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
     defaultReminderInitializationStartedRef.current = true;
-    enableDefaultPersonalizedReminders({
-      streakCount: computeStreak(actions, dailyLogs).current,
-      missedRun: computeLapse(actions, dailyLogs).missedDays,
-      personaName: persona.name,
-      monthlyConsistency: personaAlignment,
-      actions,
-      dailyLogs,
-      milestoneTitles: reminderMilestoneTitles,
-    }).catch((error) =>
-      logger.error("Failed to initialize personalized reminders:", error),
-    );
+    // New plans ask through the Today primer first; iOS only prompts after
+    // the person taps Turn on. Earlier users keep their existing setting.
+    getReminderPrimerState()
+      .then((state) => {
+        if (state === "pending") {
+          setReminderPrimerPending(true);
+          return;
+        }
+        if (state === "declined") return;
+        return enableDefaultPersonalizedReminders({
+          streakCount: computeStreak(actions, dailyLogs).current,
+          missedRun: computeLapse(actions, dailyLogs).missedDays,
+          personaName: persona.name,
+          monthlyConsistency: personaAlignment,
+          actions,
+          dailyLogs,
+          milestoneTitles: reminderMilestoneTitles,
+        });
+      })
+      .catch((error) =>
+        logger.error("Failed to initialize personalized reminders:", error),
+      );
   }, [
     actions,
     dailyLogs,
@@ -918,6 +919,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (Platform.OS === "web") return;
     registerReminderActions();
 
+    // The reminder is about today's plan — land its tap on Today rather than
+    // whatever tab was last open. On a cold launch this response arrives
+    // before the NavigationContainer is ready, so poll briefly.
+    const navigateToTodayTab = () => {
+      let attempts = 0;
+      const attempt = () => {
+        if (!navigationRef.isReady()) return false;
+        navigationRef.navigate("Main", { screen: "TodayTab" });
+        return true;
+      };
+      if (attempt()) return;
+      const timer = setInterval(() => {
+        if (attempt() || ++attempts >= 20) clearInterval(timer);
+      }, 250);
+    };
+
     const handleResponse = async (
       response: Notifications.NotificationResponse | null,
     ) => {
@@ -951,6 +968,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         track("notification_tap");
         recordReminderHookTap(data.hook).catch(() => {});
+        navigateToTodayTab();
         return;
       }
       if (response.actionIdentifier !== MARK_ALL_DONE_ACTION) return;
@@ -1143,7 +1161,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       benchmarks,
       actions,
       dailyLogs,
-      dailyContexts,
       planAdjustments,
       reflections,
       momentumScore,
@@ -1173,9 +1190,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setActions,
       toggleDailyLog,
       setDailyLogNote,
-      upsertDailyContext,
-      deleteDailyContext,
-      applyPlanTuneUp,
+      applyPlanAdjustment,
+      dismissPlanAdjustment,
       addReflection,
       refreshData,
       verifySubscription,
@@ -1184,6 +1200,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       canUseReflection,
       canAddPersona,
       canAddBenchmark,
+      reminderPrimerPending,
+      answerReminderPrimer,
     }),
     [
       hasOnboarded,
@@ -1192,7 +1210,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       benchmarks,
       actions,
       dailyLogs,
-      dailyContexts,
       planAdjustments,
       reflections,
       momentumScore,
@@ -1222,9 +1239,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setActions,
       toggleDailyLog,
       setDailyLogNote,
-      upsertDailyContext,
-      deleteDailyContext,
-      applyPlanTuneUp,
+      applyPlanAdjustment,
+      dismissPlanAdjustment,
       addReflection,
       refreshData,
       verifySubscription,
@@ -1233,6 +1249,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       canUseReflection,
       canAddPersona,
       canAddBenchmark,
+      reminderPrimerPending,
+      answerReminderPrimer,
     ],
   );
 

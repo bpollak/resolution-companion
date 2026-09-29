@@ -28,12 +28,7 @@ const DISCLOSURE_ITEMS: DisclosureItem[] = [
   {
     icon: "send",
     title: "What is shared",
-    text: "Messages you type in AI conversations are shared. When you explicitly request a Plan Tune-Up, current action settings and bounded 28-day aggregate counts are also shared.",
-  },
-  {
-    icon: "lock",
-    title: "What a Tune-Up excludes",
-    text: "Daily notes, context note text, IDs, and individual event dates are not sent for a Plan Tune-Up.",
+    text: "The messages you type in AI conversations (your goals, check-in answers, and replies) are sent to generate coaching responses.",
   },
   {
     icon: "cpu",
@@ -48,7 +43,7 @@ const DISCLOSURE_ITEMS: DisclosureItem[] = [
   {
     icon: "sliders",
     title: "You're in control",
-    text: "You can turn AI data sharing off anytime in Profile. Habit tracking works fully without it.",
+    text: "You can turn AI data sharing off anytime in Profile. After your plan is set up, habit tracking works without AI.",
   },
 ];
 
@@ -76,6 +71,8 @@ export function AIConsentModal({
       <View style={styles.overlay}>
         <ThemedView style={styles.container}>
           <ScrollView
+            delaysContentTouches={false}
+            decelerationRate="fast"
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
@@ -92,8 +89,8 @@ export function AIConsentModal({
             <ThemedText
               style={[styles.subtitle, { color: theme.textSecondary }]}
             >
-              Before you use an AI feature, here&apos;s exactly what happens
-              with your data.
+              Before you chat with your AI coach, here&apos;s exactly what
+              happens with your data.
             </ThemedText>
 
             {DISCLOSURE_ITEMS.map((item) => (
@@ -146,7 +143,7 @@ export function AIConsentModal({
               ]}
               accessibilityRole="button"
               accessibilityLabel="Agree and continue"
-              accessibilityHint="Allows the app to send disclosed AI feature data to OpenAI"
+              accessibilityHint="Allows the app to send your coaching messages to OpenAI"
             >
               <ThemedText
                 style={[styles.agreeButtonText, { color: theme.buttonText }]}

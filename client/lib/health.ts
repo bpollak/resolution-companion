@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { NativeModules, Platform } from "react-native";
 import type { ElementalAction } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 
@@ -40,8 +40,30 @@ if (Platform.OS === "ios") {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require("react-native-health");
-    healthKit = (mod?.default ?? mod) as HealthKitModule;
-    if (typeof healthKit?.initHealthKit !== "function") healthKit = null;
+    const exportedModule = mod?.default ?? mod;
+    // The library spreads NativeModules into an object. Bridgeless modules
+    // expose lazy methods that are not enumerable, so read them explicitly.
+    const nativeModule = NativeModules.AppleHealthKit as
+      | HealthKitModule
+      | undefined;
+    const source =
+      typeof nativeModule?.initHealthKit === "function"
+        ? nativeModule
+        : (exportedModule as HealthKitModule);
+    if (
+      typeof source?.initHealthKit === "function" &&
+      typeof source?.getStepCount === "function" &&
+      typeof source?.getSamples === "function" &&
+      typeof source?.getMindfulSession === "function"
+    ) {
+      healthKit = {
+        initHealthKit: source.initHealthKit.bind(source),
+        getStepCount: source.getStepCount.bind(source),
+        getSamples: source.getSamples.bind(source),
+        getMindfulSession: source.getMindfulSession.bind(source),
+        Constants: exportedModule?.Constants,
+      };
+    }
   } catch {
     healthKit = null;
   }

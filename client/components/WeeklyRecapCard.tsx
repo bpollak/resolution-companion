@@ -33,14 +33,14 @@ export function WeeklyRecapCard({
   const scoreDelta = lastWeek.score - prevWeek.score;
 
   const streakLine = streak.shieldUsed
-    ? "Streak protected by your shield"
+    ? "Streak protected by an earned rest day"
     : streak.current > 0
       ? `${streak.current}-day streak alive`
       : "Fresh start this week";
 
   const identityLine =
     prevWeek.scheduled > 0 && scoreDelta < 0
-      ? `New week, fresh ballot — every log is a vote for ${personaName}.`
+      ? `New week, fresh start. Every day you show up counts for ${personaName}.`
       : `Another week of becoming ${personaName}.`;
 
   return (

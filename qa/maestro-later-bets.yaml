@@ -1,33 +1,11 @@
 appId: com.resolutioncompanion.app
 name: later-bets-settings-surfaces
 ---
-# From a clean install, create the no-network starter persona and verify the
-# opt-in witness and private backup settings under the simulator's active
-# accessibility preferences.
-- launchApp:
-    clearState: true
-- extendedWaitUntil:
-    visible: "Start Your Journey.*"
-    timeout: 20000
-- tapOn: "Start Your Journey.*"
-- extendedWaitUntil:
-    visible: "Welcome to Resolution Companion.*"
-    timeout: 20000
-- tapOn: "Continue.*"
-- tapOn: "Continue.*"
-- assertVisible: "Free vs Premium.*"
-- tapOn: "Let's Get Started.*"
-- extendedWaitUntil:
-    visible: "Agree and continue.*"
-    timeout: 20000
-- tapOn: "Not now.*"
-- extendedWaitUntil:
-    visible: "Use Starter Plan.*"
-    timeout: 10000
-- tapOn: "Use Starter Plan.*"
-- extendedWaitUntil:
-    visible: "Momentum Builder.*"
-    timeout: 20000
+# Run with an existing test persona, after the AI onboarding flow or fixture
+# setup. These settings checks do not create or reset the user's plan.
+- launchApp
+- tapOn:
+    id: "tab-today"
 - tapOn: "Open profile and settings.*"
 - extendedWaitUntil:
     visible: "My Personas.*"

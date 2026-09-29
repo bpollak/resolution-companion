@@ -48,7 +48,12 @@ export async function chooseYearlyProductId(
   const subscription = await storage.getSubscription();
   if (subscription.purchasedAt) return baseProductId;
   const personas = await storage.getPersonas();
-  const firstCreatedAt = personas.map((persona) => persona.createdAt).sort()[0];
+  // A plan set up ahead (January 1) carries a future createdAt; the person
+  // signed up now, so cap it for cohort assignment.
+  const nowIso = new Date().toISOString();
+  const firstCreatedAt = personas
+    .map((persona) => (persona.createdAt > nowIso ? nowIso : persona.createdAt))
+    .sort()[0];
   if (!firstCreatedAt || firstCreatedAt < config.newCohortStartsAt) {
     return baseProductId;
   }

@@ -1,74 +1,99 @@
-import type { DailyLog, ElementalAction } from "@/lib/storage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import type { DailyLog, ElementalAction, Reflection } from "@/lib/storage";
 import { getLocalDateString } from "@/lib/progress";
 
-export interface CoachOpeningContext {
-  period: "weekly" | "monthly";
-  personaName: string;
-  monthlyConsistency: number;
-  daysSincePlanStarted?: number;
-  weekly?: {
-    weekStart: string;
-    weekEnd: string;
-    completed: number;
-    scheduled: number;
-  };
+// One-time free taste of coach memory: memory sells itself by demonstration,
+// not description. Set once a session has actually started with it in play.
+const MEMORY_TASTE_USED_KEY = "coach_memory_taste_used";
+
+export async function getMemoryTasteUsed(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(MEMORY_TASTE_USED_KEY)) === "true";
+  } catch {
+    // Unknown state must not hand out extra tastes
+    return true;
+  }
 }
 
-function parseLocalDate(dateKey: string): Date {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  return new Date(year, month - 1, day);
-}
-
-export function formatCoachDateRange(startKey: string, endKey: string): string {
-  const start = parseLocalDate(startKey);
-  const end = parseLocalDate(endKey);
-  const startLabel = start.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-  });
-  const endLabel = end.toLocaleDateString("en-US", {
-    month: start.getMonth() === end.getMonth() ? undefined : "long",
-    day: "numeric",
-  });
-  return `${startLabel}–${endLabel}`;
+export async function markMemoryTasteUsed(): Promise<void> {
+  await AsyncStorage.setItem(MEMORY_TASTE_USED_KEY, "true").catch(() => {});
 }
 
 /**
- * The opening question is deterministic because it does not benefit from a
- * model round trip. This makes the Coach feel immediate and keeps date labels
- * grounded in the exact period whose progress is being reviewed.
+ * Premium coach memory: a compact digest of the two most recent saved
+ * sessions, injected into the system prompt as the coach's own notes.
+ * Free sessions stay single-session — this is what "unlimited coaching"
+ * buys beyond quantity: a coach that remembers.
  */
-export function buildCoachOpening(context: CoachOpeningContext): string {
-  if (context.period === "weekly" && context.weekly) {
-    const range = formatCoachDateRange(
-      context.weekly.weekStart,
-      context.weekly.weekEnd,
-    );
-    if (context.weekly.completed === 0) {
-      return `Looking back at ${range}, nothing was logged—and that is useful information, not a verdict. What is one win from the week that the tracker may not show?`;
-    }
-    return `Looking back at ${range}, you completed ${context.weekly.completed} of ${context.weekly.scheduled} scheduled actions. What felt like one win for the ${context.personaName} you're becoming?`;
-  }
+export function buildPreviousSessionNotes(
+  reflections: Reflection[],
+): string | undefined {
+  const trim = (s: string, n: number) =>
+    s.length > n ? `${s.slice(0, n).trimEnd()}…` : s;
+  const notes = [...reflections]
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
+    .slice(0, 2)
+    .map((r) => {
+      let firstUser = "";
+      let lastCoach = "";
+      try {
+        const convo = r.conversation
+          ? (JSON.parse(r.conversation) as { role: string; content: string }[])
+          : [];
+        firstUser = convo.find((m) => m.role === "user")?.content ?? "";
+        lastCoach =
+          [...convo].reverse().find((m) => m.role === "assistant")?.content ??
+          "";
+      } catch {
+        // Legacy sessions stored split fields only
+      }
+      if (!firstUser) firstUser = r.userInput?.split("\n")[0] ?? "";
+      if (!lastCoach) lastCoach = r.aiFeedback?.split("\n").slice(-1)[0] ?? "";
+      const when = new Date(r.createdAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+      const kind = r.periodType === "weekly" ? "weekly review" : "check-in";
+      return `- ${when} (${kind}, momentum ${r.momentumScore}%): they opened with "${trim(firstUser, 200)}" and you closed with "${trim(lastCoach, 280)}"`;
+    });
+  return notes.length > 0 ? notes.join("\n") : undefined;
+}
 
-  if (
-    context.daysSincePlanStarted !== undefined &&
-    context.daysSincePlanStarted <= 7
-  ) {
-    const startLabel =
-      context.daysSincePlanStarted <= 0
-        ? "You're just getting started with this plan"
-        : `You're only ${context.daysSincePlanStarted} day${context.daysSincePlanStarted === 1 ? "" : "s"} into this plan`;
-    return `${startLabel}, so it's too early to judge the numbers. What would make the next few days feel realistic and doable?`;
-  }
-
-  const consistency = Math.round(context.monthlyConsistency);
-  if (consistency >= 80) {
-    return `You're at ${consistency}% consistency since starting this plan. What's been helping the ${context.personaName} you're becoming show up so reliably?`;
-  }
-  if (consistency < 50) {
-    return `You're at ${consistency}% consistency since starting this plan—no judgment, just a signal we can use. Where is the plan creating the most friction right now?`;
-  }
-  return `You're building at ${consistency}% consistency since starting this plan. What's one part of the routine that is working better than it was before?`;
+/**
+ * The user's own completion notes from the last 7 days — the coach quoting
+ * their words back is the "it knows me" moment. Newest first, capped at 8.
+ */
+export function buildRecentNotes(
+  actions: ElementalAction[],
+  dailyLogs: DailyLog[],
+  today: Date = new Date(),
+): string | undefined {
+  const cutoff = new Date(today);
+  cutoff.setDate(cutoff.getDate() - 7);
+  cutoff.setHours(0, 0, 0, 0);
+  const titleById = new Map(actions.map((a) => [a.id, a.title]));
+  const lines = dailyLogs
+    .filter((l) => l.status && l.note)
+    .filter((l) => {
+      const [y, m, d] = l.logDate.split("T")[0].split("-").map(Number);
+      return new Date(y, m - 1, d) >= cutoff;
+    })
+    .sort((a, b) => (a.logDate < b.logDate ? 1 : -1))
+    .slice(0, 8)
+    .map((l) => {
+      const [y, m, d] = l.logDate.split("T")[0].split("-").map(Number);
+      const when = new Date(y, m - 1, d).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+      const title = titleById.get(l.actionId) ?? "an action";
+      return `- ${when} · ${title}: "${l.note}"`;
+    });
+  return lines.length > 0 ? lines.join("\n") : undefined;
 }
 
 /** Compact, action-level evidence for practical coaching suggestions. */

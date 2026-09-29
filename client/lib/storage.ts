@@ -3,17 +3,10 @@ import * as Crypto from "expo-crypto";
 import { logger } from "@/lib/logger";
 import { computeMomentumScore } from "@/lib/progress";
 import {
-  normalizeDailyContextInput,
-  type DailyContextEntry,
-  type DailyContextInput,
-} from "@/lib/daily-context";
-import type { PlanTuneUpResponse } from "@shared/plan-tune-up";
-
-export type {
-  DailyContextEntry,
-  DailyContextFactor,
-  DailyContextInput,
-} from "@/lib/daily-context";
+  approvePlan,
+  planStartInstant,
+  type OnboardingPlanDraft,
+} from "@/lib/onboarding-plan";
 
 const STORAGE_KEYS = {
   HAS_ONBOARDED: "hasOnboarded",
@@ -23,10 +16,11 @@ const STORAGE_KEYS = {
   BENCHMARKS: "benchmarks",
   ELEMENTAL_ACTIONS: "elementalActions",
   DAILY_LOGS: "dailyLogs",
-  DAILY_CONTEXTS: "dailyContexts",
+  DAILY_CONTEXT_ENTRIES: "dailyContextEntries",
   PLAN_ADJUSTMENTS: "planAdjustments",
   REFLECTIONS: "reflections",
   ONBOARDING_MESSAGES: "onboardingMessages",
+  ONBOARDING_DRAFT: "onboardingPlanDraft",
   SUBSCRIPTION: "subscription",
   MONTHLY_REFLECTION_COUNT: "monthlyReflectionCount",
   DEVICE_ID: "deviceId",
@@ -39,6 +33,8 @@ export interface Persona {
   name: string;
   description: string;
   createdAt: string;
+  /** The resolution in the person's own words ("Lose 15 pounds"). */
+  resolution?: string;
 }
 
 export interface Benchmark {
@@ -48,8 +44,6 @@ export interface Benchmark {
   targetDate: string | null;
   status: "active" | "completed";
   createdAt: string;
-  /** First time this fill-only milestone reached its completion threshold. */
-  completedAt?: string;
 }
 
 export interface ElementalAction {
@@ -82,27 +76,71 @@ export interface DailyLog {
   completionKind?: "full" | "kickstart";
 }
 
+export type DailyContextFactor =
+  | "energy"
+  | "time"
+  | "support"
+  | "environment"
+  | "planFit";
+
+export type DailyContextFactorState = "helped" | "hindered";
+
+export interface DailyContextEntry {
+  id: string;
+  personaId: string;
+  logDate: string;
+  factors: Partial<Record<DailyContextFactor, DailyContextFactorState>>;
+  note?: string;
+  status: "saved" | "dismissed";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlanAdjustmentChanges {
+  frequency?: string[];
+  anchorLink?: string;
+  kickstartVersion?: string;
+}
+
 export interface PlanAdjustment {
   id: string;
   personaId: string;
   actionId: string;
-  appliedAt: string;
-  summary: string;
-  before: Pick<
-    ElementalAction,
-    "frequency" | "anchorLink" | "kickstartVersion"
-  >;
-  after: Pick<ElementalAction, "frequency" | "anchorLink" | "kickstartVersion">;
+  before: PlanAdjustmentChanges;
+  after: PlanAdjustmentChanges;
+  rationale: string;
+  status: "applied" | "dismissed";
+  createdAt: string;
+}
+
+export type CoachEntryOrigin =
+  | "today-signal"
+  | "journey-discovery"
+  | "lapse-recovery"
+  | "milestone"
+  | "recap"
+  | "action"
+  | "direct";
+
+export interface CoachEvidenceSnapshot {
+  eyebrow: string;
+  headline: string;
+  detail: string;
+  value?: string;
+  trend?: "up" | "steady" | "down";
 }
 
 export interface Reflection {
   id: string;
-  periodType: "weekly" | "monthly" | "yearly";
+  periodType: "weekly" | "monthly" | "yearly" | "contextual";
   userInput: string;
   aiFeedback: string;
   momentumScore: number;
   createdAt: string;
   conversation?: string;
+  personaId?: string;
+  origin?: CoachEntryOrigin;
+  evidenceSnapshot?: CoachEvidenceSnapshot;
 }
 
 export interface ChatMessage {
@@ -145,6 +183,87 @@ function safeParse<T>(value: string | null, fallback: T): T {
 }
 
 export const storage = {
+  async getOnboardingDraft(): Promise<OnboardingPlanDraft | null> {
+    return safeParse<OnboardingPlanDraft | null>(
+      await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_DRAFT),
+      null,
+    );
+  },
+
+  async setOnboardingDraft(draft: OnboardingPlanDraft | null): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.ONBOARDING_DRAFT,
+      JSON.stringify(draft),
+    );
+  },
+
+  async commitOnboardingPlan(draft: OnboardingPlanDraft): Promise<void> {
+    const [personas, benchmarks, actions] = await Promise.all([
+      this.getPersonas(),
+      this.getBenchmarks(),
+      this.getElementalActions(),
+    ]);
+    const prior = personas.find((item) => item.id === draft.id);
+    const plan = approvePlan(
+      draft,
+      prior?.createdAt ?? (planStartInstant(draft) ?? new Date()).toISOString(),
+    );
+    if (
+      personas.some(
+        (item) =>
+          item.id !== plan.persona.id && item.name === plan.persona.name,
+      )
+    ) {
+      throw new Error(
+        "You already have that identity name. Choose a different name for this plan.",
+      );
+    }
+    const replacedIds = new Set([
+      ...benchmarks
+        .filter((item) => item.personaId === plan.persona.id)
+        .map((item) => item.id),
+      ...Array.from(
+        { length: 5 },
+        (_, index) => `${draft.id}-milestone-${index}`,
+      ),
+    ]);
+    const replacedActionIds = new Set(
+      Array.from({ length: 5 }, (_, index) => `${draft.id}-action-${index}`),
+    );
+    // AsyncStorage can persist actions while another key fails. Remove all
+    // draft-owned IDs on retry, including habits deselected since that attempt.
+    await AsyncStorage.multiSet([
+      [
+        STORAGE_KEYS.PERSONAS,
+        JSON.stringify([
+          ...personas.filter((item) => item.id !== plan.persona.id),
+          plan.persona,
+        ]),
+      ],
+      [STORAGE_KEYS.PERSONA, JSON.stringify(plan.persona)],
+      [STORAGE_KEYS.ACTIVE_PERSONA_ID, plan.persona.id],
+      [
+        STORAGE_KEYS.BENCHMARKS,
+        JSON.stringify([
+          ...benchmarks.filter((item) => item.personaId !== plan.persona.id),
+          ...plan.benchmarks,
+        ]),
+      ],
+      [
+        STORAGE_KEYS.ELEMENTAL_ACTIONS,
+        JSON.stringify([
+          ...actions.filter(
+            (item) =>
+              !replacedIds.has(item.benchmarkId) &&
+              !replacedActionIds.has(item.id),
+          ),
+          ...plan.actions,
+        ]),
+      ],
+    ]);
+    await this.setHasOnboarded(true);
+  },
+
   async getHasOnboarded(): Promise<boolean> {
     const value = await AsyncStorage.getItem(STORAGE_KEYS.HAS_ONBOARDED);
     return value === "true";
@@ -246,13 +365,17 @@ export const storage = {
     const logs = await this.getDailyLogs();
     const filteredLogs = logs.filter((l) => !actionIds.includes(l.actionId));
     await this.setDailyLogs(filteredLogs);
-    const dailyContexts = await this.getDailyContexts();
-    await this.setDailyContexts(
-      dailyContexts.filter((entry) => entry.personaId !== id),
+    const contextEntries = await this.getDailyContextEntries();
+    await this.setDailyContextEntries(
+      contextEntries.filter((entry) => entry.personaId !== id),
     );
-    const planAdjustments = await this.getPlanAdjustments();
+    const adjustments = await this.getPlanAdjustments();
     await this.setPlanAdjustments(
-      planAdjustments.filter((entry) => entry.personaId !== id),
+      adjustments.filter((entry) => entry.personaId !== id),
+    );
+    const reflections = await this.getReflections();
+    await this.setReflections(
+      reflections.filter((entry) => entry.personaId !== id),
     );
     const activeId = await this.getActivePersonaId();
     if (activeId === id && filtered.length > 0) {
@@ -365,10 +488,10 @@ export const storage = {
       (l) => !actionIdsToDelete.includes(l.actionId),
     );
     await this.setDailyLogs(filteredLogs);
-    const planAdjustments = await this.getPlanAdjustments();
+    const adjustments = await this.getPlanAdjustments();
     await this.setPlanAdjustments(
-      planAdjustments.filter(
-        (adjustment) => !actionIdsToDelete.includes(adjustment.actionId),
+      adjustments.filter(
+        (entry) => !actionIdsToDelete.includes(entry.actionId),
       ),
     );
   },
@@ -387,12 +510,18 @@ export const storage = {
 
   async addElementalAction(
     action: Omit<ElementalAction, "id" | "createdAt">,
+    /** The plan's start; a habit added before it starts with the plan. */
+    planStartsAt?: string,
   ): Promise<ElementalAction> {
     const actions = await this.getElementalActions();
+    const now = Date.now();
+    const planStart = planStartsAt ? Date.parse(planStartsAt) : NaN;
     const newAction: ElementalAction = {
       ...action,
       id: generateId(),
-      createdAt: new Date().toISOString(),
+      createdAt: new Date(
+        Number.isFinite(planStart) && planStart > now ? planStart : now,
+      ).toISOString(),
     };
     actions.push(newAction);
     await this.setElementalActions(actions);
@@ -420,9 +549,9 @@ export const storage = {
     const dailyLogs = await this.getDailyLogs();
     const filteredLogs = dailyLogs.filter((l) => l.actionId !== id);
     await this.setDailyLogs(filteredLogs);
-    const planAdjustments = await this.getPlanAdjustments();
+    const adjustments = await this.getPlanAdjustments();
     await this.setPlanAdjustments(
-      planAdjustments.filter((adjustment) => adjustment.actionId !== id),
+      adjustments.filter((entry) => entry.actionId !== id),
     );
   },
 
@@ -433,6 +562,114 @@ export const storage = {
 
   async setDailyLogs(logs: DailyLog[]): Promise<void> {
     await AsyncStorage.setItem(STORAGE_KEYS.DAILY_LOGS, JSON.stringify(logs));
+  },
+
+  async getDailyContextEntries(): Promise<DailyContextEntry[]> {
+    const value = await AsyncStorage.getItem(
+      STORAGE_KEYS.DAILY_CONTEXT_ENTRIES,
+    );
+    return safeParse<DailyContextEntry[]>(value, []);
+  },
+
+  async setDailyContextEntries(entries: DailyContextEntry[]): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.DAILY_CONTEXT_ENTRIES,
+      JSON.stringify(entries),
+    );
+  },
+
+  async upsertDailyContextEntry(
+    entry: Omit<DailyContextEntry, "id" | "createdAt" | "updatedAt">,
+  ): Promise<DailyContextEntry> {
+    const entries = await this.getDailyContextEntries();
+    const index = entries.findIndex(
+      (candidate) =>
+        candidate.personaId === entry.personaId &&
+        candidate.logDate.split("T")[0] === entry.logDate.split("T")[0],
+    );
+    const now = new Date().toISOString();
+    const next: DailyContextEntry =
+      index >= 0
+        ? { ...entries[index], ...entry, updatedAt: now }
+        : {
+            ...entry,
+            id: generateId(),
+            createdAt: now,
+            updatedAt: now,
+          };
+    if (index >= 0) entries[index] = next;
+    else entries.push(next);
+    await this.setDailyContextEntries(entries);
+    return next;
+  },
+
+  async getPlanAdjustments(): Promise<PlanAdjustment[]> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.PLAN_ADJUSTMENTS);
+    return safeParse<PlanAdjustment[]>(value, []);
+  },
+
+  async setPlanAdjustments(entries: PlanAdjustment[]): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.PLAN_ADJUSTMENTS,
+      JSON.stringify(entries),
+    );
+  },
+
+  async recordPlanAdjustment(
+    entry: Omit<PlanAdjustment, "id" | "createdAt">,
+  ): Promise<PlanAdjustment> {
+    const entries = await this.getPlanAdjustments();
+    const next: PlanAdjustment = {
+      ...entry,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    entries.push(next);
+    await this.setPlanAdjustments(entries);
+    return next;
+  },
+
+  async applyPlanAdjustment(
+    actionId: string,
+    personaId: string,
+    changes: PlanAdjustmentChanges,
+    rationale: string,
+  ): Promise<{ action: ElementalAction; adjustment: PlanAdjustment } | null> {
+    const actions = await this.getElementalActions();
+    const actionIndex = actions.findIndex((action) => action.id === actionId);
+    if (actionIndex < 0) return null;
+    const current = actions[actionIndex];
+    const before: PlanAdjustmentChanges = {};
+    const after: PlanAdjustmentChanges = {};
+    for (const key of [
+      "frequency",
+      "anchorLink",
+      "kickstartVersion",
+    ] as const) {
+      if (changes[key] === undefined) continue;
+      Object.assign(before, { [key]: current[key] });
+      Object.assign(after, { [key]: changes[key] });
+    }
+    if (Object.keys(after).length === 0) return null;
+    const updated: ElementalAction = { ...current, ...after };
+    actions[actionIndex] = updated;
+    const adjustments = await this.getPlanAdjustments();
+    const adjustment: PlanAdjustment = {
+      id: generateId(),
+      personaId,
+      actionId,
+      before,
+      after,
+      rationale: rationale.trim().slice(0, 500),
+      status: "applied",
+      createdAt: new Date().toISOString(),
+    };
+    adjustments.push(adjustment);
+    await AsyncStorage.multiSet([
+      [STORAGE_KEYS.ELEMENTAL_ACTIONS, JSON.stringify(actions)],
+      [STORAGE_KEYS.PLAN_ADJUSTMENTS, JSON.stringify(adjustments)],
+    ]);
+    return { action: updated, adjustment };
   },
 
   // Serializes log writes so concurrent optimistic persists can't interleave
@@ -515,148 +752,16 @@ export const storage = {
     );
   },
 
-  async getDailyContexts(): Promise<DailyContextEntry[]> {
-    const value = await AsyncStorage.getItem(STORAGE_KEYS.DAILY_CONTEXTS);
-    return safeParse<DailyContextEntry[]>(value, []);
-  },
-
-  async setDailyContexts(entries: DailyContextEntry[]): Promise<void> {
-    await AsyncStorage.setItem(
-      STORAGE_KEYS.DAILY_CONTEXTS,
-      JSON.stringify(entries),
-    );
-  },
-
-  _dailyContextWriteQueue: Promise.resolve() as Promise<void>,
-
-  upsertDailyContext(
-    personaId: string,
-    input: DailyContextInput,
-    now: Date = new Date(),
-  ): Promise<DailyContextEntry> {
-    const write = this._dailyContextWriteQueue.then(async () => {
-      const normalized = normalizeDailyContextInput(input);
-      const entries = await this.getDailyContexts();
-      const index = entries.findIndex(
-        (entry) =>
-          entry.personaId === personaId && entry.logDate === normalized.logDate,
-      );
-      const timestamp = now.toISOString();
-      const entry: DailyContextEntry =
-        index >= 0
-          ? {
-              ...entries[index],
-              ...normalized,
-              updatedAt: timestamp,
-            }
-          : {
-              ...normalized,
-              id: generateId(),
-              personaId,
-              createdAt: timestamp,
-              updatedAt: timestamp,
-            };
-      if (index >= 0) entries[index] = entry;
-      else entries.push(entry);
-      await this.setDailyContexts(entries);
-      return entry;
-    });
-    this._dailyContextWriteQueue = write.then(
-      () => undefined,
-      (error) => {
-        logger.error("Failed to persist daily context:", error);
-      },
-    );
-    return write;
-  },
-
-  deleteDailyContext(personaId: string, logDate: string): Promise<void> {
-    const write = this._dailyContextWriteQueue.then(async () => {
-      const entries = await this.getDailyContexts();
-      await this.setDailyContexts(
-        entries.filter(
-          (entry) => entry.personaId !== personaId || entry.logDate !== logDate,
-        ),
-      );
-    });
-    this._dailyContextWriteQueue = write.catch((error) => {
-      logger.error("Failed to delete daily context:", error);
-    });
-    return write;
-  },
-
-  async getPlanAdjustments(): Promise<PlanAdjustment[]> {
-    const value = await AsyncStorage.getItem(STORAGE_KEYS.PLAN_ADJUSTMENTS);
-    return safeParse<PlanAdjustment[]>(value, []);
-  },
-
-  async setPlanAdjustments(adjustments: PlanAdjustment[]): Promise<void> {
-    await AsyncStorage.setItem(
-      STORAGE_KEYS.PLAN_ADJUSTMENTS,
-      JSON.stringify(adjustments),
-    );
-  },
-
-  _planTuneUpWriteQueue: Promise.resolve() as Promise<void>,
-
-  applyPlanTuneUp(
-    personaId: string,
-    actionId: string,
-    proposal: PlanTuneUpResponse,
-    now: Date = new Date(),
-  ): Promise<{ action: ElementalAction; adjustment: PlanAdjustment }> {
-    const write = this._planTuneUpWriteQueue.then(async () => {
-      const actions = await this.getElementalActions();
-      const index = actions.findIndex((action) => action.id === actionId);
-      if (index < 0) throw new Error("The action no longer exists.");
-      const current = actions[index];
-      const before: PlanAdjustment["before"] = {
-        frequency: [...current.frequency],
-        anchorLink: current.anchorLink,
-        kickstartVersion: current.kickstartVersion,
-      };
-      const after: PlanAdjustment["after"] = {
-        frequency: proposal.changes.frequency
-          ? [...proposal.changes.frequency]
-          : [...before.frequency],
-        anchorLink: proposal.changes.anchorLink ?? before.anchorLink,
-        kickstartVersion:
-          proposal.changes.kickstartVersion ?? before.kickstartVersion,
-      };
-      if (JSON.stringify(before) === JSON.stringify(after)) {
-        throw new Error("The proposal does not change this action.");
-      }
-      const action: ElementalAction = { ...current, ...after };
-      actions[index] = action;
-      const adjustments = await this.getPlanAdjustments();
-      const adjustment: PlanAdjustment = {
-        id: generateId(),
-        personaId,
-        actionId,
-        appliedAt: now.toISOString(),
-        summary: proposal.summary.trim().slice(0, 400),
-        before,
-        after,
-      };
-      adjustments.push(adjustment);
-      await AsyncStorage.multiSet([
-        [STORAGE_KEYS.ELEMENTAL_ACTIONS, JSON.stringify(actions)],
-        [STORAGE_KEYS.PLAN_ADJUSTMENTS, JSON.stringify(adjustments)],
-      ]);
-      return { action, adjustment };
-    });
-    this._planTuneUpWriteQueue = write.then(
-      () => undefined,
-      (error) => {
-        logger.error("Failed to apply Plan Tune-Up:", error);
-      },
-    );
-    return write;
-  },
-
   async getReflections(): Promise<Reflection[]> {
     const value = await AsyncStorage.getItem(STORAGE_KEYS.REFLECTIONS);
     return safeParse<Reflection[]>(value, []);
+  },
+
+  async setReflections(reflections: Reflection[]): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.REFLECTIONS,
+      JSON.stringify(reflections),
+    );
   },
 
   async addReflection(
@@ -669,10 +774,7 @@ export const storage = {
       createdAt: new Date().toISOString(),
     };
     reflections.push(newReflection);
-    await AsyncStorage.setItem(
-      STORAGE_KEYS.REFLECTIONS,
-      JSON.stringify(reflections),
-    );
+    await this.setReflections(reflections);
     return newReflection;
   },
 

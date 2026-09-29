@@ -24,7 +24,7 @@ struct LogKickstartIntent: AppIntent {
         }
         guard let actionId = data.nextActionId, !actionId.isEmpty else {
             return .result(
-                dialog: "Every vote is already cast today. Nicely done."
+                dialog: "Every action is already complete today. Nicely done."
             )
         }
 
@@ -33,8 +33,8 @@ struct LogKickstartIntent: AppIntent {
         let remaining = max(data.scheduled - data.completed - 1, 0)
         let dialog: IntentDialog =
             remaining == 0
-            ? "Done — every vote cast today for \(data.personaName)."
-            : "Logged — a vote for \(data.personaName). \(remaining) to go."
+            ? "Done — every action is complete today for \(data.personaName)."
+            : "Logged — a step toward \(data.personaName). \(remaining) to go."
         return .result(dialog: dialog)
     }
 }
@@ -88,7 +88,7 @@ struct LogNamedActionIntent: AppIntent {
         enqueueVote(actionId: action.id, isKickstart: false, source: "siri")
         let remaining = max(before.scheduled - before.completed - 1, 0)
         let dialog: IntentDialog = remaining == 0
-            ? "Done — every vote cast today for \(before.personaName)."
+            ? "Done — every action is complete today for \(before.personaName)."
             : "Logged \(action.title) — \(remaining) to go."
         return .result(dialog: dialog)
     }
@@ -101,7 +101,7 @@ struct ResolutionShortcuts: AppShortcutsProvider {
             phrases: [
                 "Log my kickstart in \(.applicationName)",
                 "I did my kickstart in \(.applicationName)",
-                "Cast my vote in \(.applicationName)",
+                "Take my next step in \(.applicationName)",
             ],
             shortTitle: "Log kickstart",
             systemImageName: "checkmark.circle"

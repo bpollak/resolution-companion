@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   FlatList,
   Platform,
@@ -26,15 +26,15 @@ const cards: CardKind[] = ["opening", "rhythm", "resilience", "closing"];
 
 function cardAccessibilityLabel(recap: YearRecap, kind: CardKind): string {
   if (kind === "opening") {
-    return `${recap.yearLabel}. ${recap.votesCast} votes for ${recap.personaName} across ${recap.activeDays} active days. Every vote made the identity a little more real.`;
+    return `${recap.yearLabel}. ${recap.votesCast} ${recap.votesCast === 1 ? "time" : "times"} you showed up as ${recap.personaName}, across ${recap.activeDays} active ${recap.activeDays === 1 ? "day" : "days"}.`;
   }
   if (kind === "rhythm") {
-    return `${recap.consistency}% consistency across ${recap.activeMonths} active ${recap.activeMonths === 1 ? "month" : "months"}. ${recap.bestMonth ? `${recap.bestMonth.monthLabel} led the year with ${recap.bestMonth.votesCast} votes.` : "Your first vote can still write the story."}`;
+    return `${recap.consistency}% consistency across ${recap.activeMonths} active ${recap.activeMonths === 1 ? "month" : "months"}. ${recap.bestMonth ? `${recap.bestMonth.monthLabel} led the year with ${recap.bestMonth.votesCast} completed actions.` : "Your first action can still write the story."}`;
   }
   if (kind === "resilience") {
-    return `The plan bent with you. ${recap.kickstartVotes} floor saves, ${recap.comebacks} comebacks, ${recap.healthVotes} Health auto-votes, ${recap.shieldsEarned} shields earned, and ${recap.shieldedDays} days protected.`;
+    return `The plan bent with you. ${recap.kickstartVotes} 2-minute saves, ${recap.comebacks} comebacks, ${recap.healthVotes} Apple Health check-offs, ${recap.shieldsEarned} rest days earned, and ${recap.shieldedDays} days protected.`;
   }
-  return `${recap.yearLabel}, still becoming. ${recap.closingLine} No rankings. No perfect year required. Just evidence that you returned.`;
+  return `${recap.yearLabel}, still becoming. ${recap.closingLine} No rankings. No perfect year required. Just proof that you kept coming back.`;
 }
 
 function YearCard({ recap, kind }: { recap: YearRecap; kind: CardKind }) {
@@ -52,11 +52,13 @@ function YearCard({ recap, kind }: { recap: YearRecap; kind: CardKind }) {
           {recap.votesCast}
         </ThemedText>
         <ThemedText maxFontSizeMultiplier={1} style={styles.headline}>
-          votes for {recap.personaName}
+          {recap.votesCast === 1 ? "time" : "times"} you showed up as{" "}
+          {recap.personaName}
         </ThemedText>
         <ThemedText maxFontSizeMultiplier={1} style={styles.sub}>
-          Across {recap.activeDays} active days, every vote made the identity a
-          little more real.
+          Across {recap.activeDays} active{" "}
+          {recap.activeDays === 1 ? "day" : "days"}, each one made it a little
+          more real.
         </ThemedText>
       </>
     );
@@ -78,8 +80,8 @@ function YearCard({ recap, kind }: { recap: YearRecap; kind: CardKind }) {
         </ThemedText>
         <ThemedText maxFontSizeMultiplier={1} style={styles.sub}>
           {recap.bestMonth
-            ? `${recap.bestMonth.monthLabel} led the year with ${recap.bestMonth.votesCast} votes.`
-            : "Your first vote can still write the story."}
+            ? `${recap.bestMonth.monthLabel} led the year with ${recap.bestMonth.votesCast} completed actions.`
+            : "Your first action can still write the story."}
         </ThemedText>
       </>
     );
@@ -98,7 +100,7 @@ function YearCard({ recap, kind }: { recap: YearRecap; kind: CardKind }) {
               {recap.kickstartVotes}
             </ThemedText>
             <ThemedText maxFontSizeMultiplier={1} style={styles.sub}>
-              floor saves
+              2-minute saves
             </ThemedText>
           </View>
           <View style={styles.stat}>
@@ -114,8 +116,8 @@ function YearCard({ recap, kind }: { recap: YearRecap; kind: CardKind }) {
           </View>
         </View>
         <ThemedText maxFontSizeMultiplier={1} style={styles.sub}>
-          {recap.healthVotes} Health auto-votes · {recap.shieldsEarned} shields
-          earned · {recap.shieldedDays} days protected
+          {recap.healthVotes} Apple Health check-offs · {recap.shieldsEarned}{" "}
+          rest days earned · {recap.shieldedDays} days protected
         </ThemedText>
       </>
     );
@@ -133,7 +135,8 @@ function YearCard({ recap, kind }: { recap: YearRecap; kind: CardKind }) {
         {recap.closingLine}
       </ThemedText>
       <ThemedText maxFontSizeMultiplier={1} style={styles.sub}>
-        No rankings. No perfect year required. Just evidence that you returned.
+        No rankings. No perfect year required. Just proof that you kept coming
+        back.
       </ThemedText>
     </>
   );
@@ -156,16 +159,10 @@ export default function YearRecapScreen() {
         persona,
         route.params.year,
         new Date(),
-        2,
+        subscription.isPremium ? 2 : 1,
       ),
-    [actions, dailyLogs, persona, route.params.year],
+    [actions, dailyLogs, persona, route.params.year, subscription.isPremium],
   );
-  useEffect(() => {
-    if (!subscription.isPremium) {
-      navigation.goBack();
-      navigation.navigate("Subscription" as never);
-    }
-  }, [navigation, subscription.isPremium]);
   const cardWidth = width - Spacing["3xl"] * 2;
   const share = async () => {
     const shot = refs.current.get(index);
@@ -175,13 +172,16 @@ export default function YearRecapScreen() {
     await Share.share(
       Platform.OS === "ios"
         ? { url: uri }
-        : { url: uri, message: "The Year You Became — Resolution Companion" },
+        : {
+            url: uri,
+            message: "The Year You Became, from Resolution Companion",
+          },
     );
     track("year_recap_shared");
   };
-  if (!subscription.isPremium) {
-    return null;
-  }
+  // Everyone gets their own opening card to share (the New Year loop);
+  // the rest of the story is Premium, shown as a teaser, not a dead end.
+  const visibleCards: CardKind[] = subscription.isPremium ? cards : ["opening"];
   return (
     <View
       style={[
@@ -209,7 +209,8 @@ export default function YearRecapScreen() {
         </Pressable>
       </View>
       <FlatList
-        data={cards}
+        delaysContentTouches={false}
+        data={visibleCards}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
@@ -220,7 +221,7 @@ export default function YearRecapScreen() {
         onMomentumScrollEnd={(event) =>
           setIndex(
             Math.min(
-              cards.length - 1,
+              visibleCards.length - 1,
               Math.max(
                 0,
                 Math.round(
@@ -261,7 +262,7 @@ export default function YearRecapScreen() {
       />
       <View style={styles.footer}>
         <View style={styles.dots}>
-          {cards.map((card, cardIndex) => (
+          {visibleCards.map((card, cardIndex) => (
             <View
               key={card}
               style={[
@@ -290,6 +291,32 @@ export default function YearRecapScreen() {
             Share this card
           </ThemedText>
         </Pressable>
+        {!subscription.isPremium ? (
+          <Pressable
+            onPress={() =>
+              (navigation as any).navigate("Subscription", {
+                source: "year-recap",
+              })
+            }
+            accessibilityRole="button"
+            accessibilityLabel="See the full year story with Premium"
+            style={({ pressed }) => [
+              styles.teaser,
+              {
+                borderColor: theme.border,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <Feather name="lock" size={16} color={theme.textSecondary} />
+            <ThemedText
+              style={[styles.teaserText, { color: theme.textSecondary }]}
+            >
+              3 more cards with Premium: your rhythm, your comebacks, and how
+              the year closes.
+            </ThemedText>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -349,4 +376,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   shareText: { ...Typography.headline },
+  teaser: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginHorizontal: Spacing["3xl"],
+  },
+  teaserText: { ...Typography.small, flex: 1 },
 });
