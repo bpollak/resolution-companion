@@ -43,7 +43,7 @@ const DISCLOSURE_ITEMS: DisclosureItem[] = [
   {
     icon: "sliders",
     title: "You're in control",
-    text: "You can turn AI data sharing off anytime in Profile. After your plan is set up, habit tracking works without AI.",
+    text: "You can turn AI data sharing off anytime in Profile. You can set up your plan and track habits without AI.",
   },
 ];
 

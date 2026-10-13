@@ -181,6 +181,21 @@ export function syncWidgetData(
 }
 
 /**
+ * One vote per (action, day), keeping the first cast. The widget and Siri
+ * append to one queue, so a double tap or a widget tap plus a Siri vote can
+ * queue the same completion twice.
+ */
+export function dedupePendingVotes(votes: PendingVote[]): PendingVote[] {
+  const seen = new Set<string>();
+  return votes.filter((vote) => {
+    const key = `${vote.actionId}|${vote.date.split("T")[0]}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
  * Read and clear votes cast from the widget while the app was closed.
  * Returns [] when there is nothing to reconcile.
  */
@@ -193,15 +208,17 @@ export function consumePendingVotes(): PendingVote[] {
     storage.removeItem(WIDGET_APP_GROUP, PENDING_VOTES_KEY);
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (v): v is PendingVote =>
-        !!v &&
-        typeof v.actionId === "string" &&
-        typeof v.date === "string" &&
-        (v.kind === "full" || v.kind === "kickstart") &&
-        (v.source === undefined ||
-          v.source === "widget" ||
-          v.source === "siri"),
+    return dedupePendingVotes(
+      parsed.filter(
+        (v): v is PendingVote =>
+          !!v &&
+          typeof v.actionId === "string" &&
+          typeof v.date === "string" &&
+          (v.kind === "full" || v.kind === "kickstart") &&
+          (v.source === undefined ||
+            v.source === "widget" ||
+            v.source === "siri"),
+      ),
     );
   } catch (error) {
     logger.error("Failed to read pending widget votes:", error);

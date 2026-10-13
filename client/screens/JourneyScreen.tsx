@@ -1239,7 +1239,9 @@ export default function JourneyScreen() {
                         style={[
                           styles.dayText,
                           !dayInfo.isCurrentMonth && { opacity: 0.3 },
-                          (isComplete || isPartial) && { color: "#000000" },
+                          (isComplete || isPartial) && {
+                            color: theme.onStatus,
+                          },
                         ]}
                       >
                         {dayInfo.date.getDate()}

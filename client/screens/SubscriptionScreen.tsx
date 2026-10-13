@@ -392,7 +392,7 @@ export default function SubscriptionScreen() {
                 };
                 await storage.setSubscription(newSubscription);
                 await refreshData();
-                await verifySubscription();
+                await verifySubscription({ force: true });
                 setIsLoading(false);
                 track("paywall_purchase_success");
                 Alert.alert(
@@ -611,7 +611,7 @@ export default function SubscriptionScreen() {
         };
         await storage.setSubscription(newSubscription);
         await refreshData();
-        await verifySubscription();
+        await verifySubscription({ force: true });
         track("paywall_restore_success");
         Alert.alert("Success", "Your subscription has been restored!");
         setCheckingStatus(false);
@@ -659,7 +659,7 @@ export default function SubscriptionScreen() {
         };
         await storage.setSubscription(newSubscription);
         await refreshData();
-        await verifySubscription();
+        await verifySubscription({ force: true });
         track("paywall_restore_success");
         Alert.alert("Success", "Your subscription has been restored!");
       } else {

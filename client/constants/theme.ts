@@ -15,6 +15,8 @@ export const Colors = {
     accent: "#00677A",
     success: "#006B45",
     warning: "#765500",
+    // Text on success/warning fills: white is 6.6:1 and 6.8:1 here, black only ~3:1.
+    onStatus: "#FFFFFF",
     error: "#B3261E",
     border: "#E0E0E0",
     cardBackground: "#F5F5F5",
@@ -33,6 +35,8 @@ export const Colors = {
     accent: "#00D9FF",
     success: "#00FF88",
     warning: "#FFB800",
+    // Text on success/warning fills: black is 15.7:1 and 12.1:1 on these.
+    onStatus: "#000000",
     error: "#FF6B6B",
     border: "#333333",
     cardBackground: "#1A1A1A",

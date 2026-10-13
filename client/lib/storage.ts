@@ -7,6 +7,11 @@ import {
   planStartInstant,
   type OnboardingPlanDraft,
 } from "@/lib/onboarding-plan";
+import {
+  completeLogIn,
+  upsertLogIn,
+  type DailyLogCompletion,
+} from "@/lib/daily-log";
 
 const STORAGE_KEYS = {
   HAS_ONBOARDED: "hasOnboarded",
@@ -676,26 +681,53 @@ export const storage = {
   // their read-modify-write cycles and drop each other's updates
   _logWriteQueue: Promise.resolve() as Promise<void>,
 
+  _enqueueLogWrite<T>(task: () => Promise<T>): Promise<T> {
+    const write = this._logWriteQueue.then(task);
+    // The queue itself never rejects; callers still see this write's error
+    this._logWriteQueue = write.then(
+      () => undefined,
+      (error) => {
+        logger.error("Failed to persist daily log:", error);
+      },
+    );
+    return write;
+  },
+
   /**
    * Persist a log the UI already applied optimistically. Writes are queued
    * FIFO so rapid taps can't lose updates to interleaved array rewrites.
+   * Matches on id or (action, day) so a stale optimistic id can't add a
+   * second record for a day that already has one.
    */
   upsertDailyLog(log: DailyLog): Promise<void> {
-    const write = this._logWriteQueue.then(async () => {
+    return this._enqueueLogWrite(async () => {
       const logs = await this.getDailyLogs();
-      const index = logs.findIndex((l) => l.id === log.id);
-      if (index >= 0) {
-        logs[index] = log;
-      } else {
-        logs.push(log);
-      }
-      await this.setDailyLogs(logs);
+      await this.setDailyLogs(upsertLogIn(logs, log));
     });
-    // The queue itself never rejects; callers still see this write's error
-    this._logWriteQueue = write.catch((error) => {
-      logger.error("Failed to persist daily log:", error);
+  },
+
+  /**
+   * Idempotent completion for automatic votes: sets status true for
+   * (action, day), and is a no-op when that day is already complete.
+   * `id` lets the optimistic UI record and the stored record share an id.
+   */
+  completeDailyLog(
+    actionId: string,
+    date: string,
+    options: DailyLogCompletion & { id?: string },
+  ): Promise<{ log: DailyLog; changed: boolean }> {
+    const { id, ...completion } = options;
+    return this._enqueueLogWrite(async () => {
+      const result = completeLogIn(
+        await this.getDailyLogs(),
+        actionId,
+        date,
+        completion,
+        () => ({ id: id ?? generateId(), createdAt: new Date().toISOString() }),
+      );
+      if (result.changed) await this.setDailyLogs(result.logs);
+      return { log: result.log, changed: result.changed };
     });
-    return write;
   },
 
   async toggleDailyLog(

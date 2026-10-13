@@ -78,3 +78,45 @@ A separate reviewer pass (report-only) over the diff before handoff.
   rate-limit rows; one transaction unlocking many devices.
 - Editor discard prompts, trial-button price, plain-language errors,
   terminology pass, pre-typing Coach quota notice, midnight snapshot refresh.
+
+## Implementation
+
+- A1: `client/lib/daily-log.ts` adds idempotent complete and (actionId, date)
+  upsert helpers; storage writes share one queue; AppContext exposes
+  `completeDailyLog`, used by Health, widget, and notification votes. Health
+  runs are single-flight; widget votes are deduped and share one helper. UI
+  state updaters use the same upsert, and a dropped duplicate's note carries
+  over.
+- A2: "Mark all done" waits for the store, joins duplicate deliveries, and
+  writes the handled marker only after the writes succeed.
+- A3: reminder scheduling runs through one timed serial queue (10s per task);
+  cancellation also removes every notification tagged `daily-reminder`; the
+  plan signature makes redundant reschedules a no-op.
+- B4: `server/iap-validation.ts` separates affirmative invalid (200
+  `{valid:false}`) from unavailable (503 `{valid:false, retryable:true,
+  error:"verification_unavailable"}`). The client treats 5xx, network, and
+  retryable bodies as unverified and never saves a downgrade while StoreKit
+  reports an active entitlement. Purchase and restore force a fresh check.
+  The Play webhook skips unknown tokens and asks Pub/Sub to retry only for
+  stored ones. A StoreKit 2 token reaching the legacy path logs a config error.
+- B5: absent Apple expiry maps to `null`; lifetime rows store no period end.
+- C6/C7: `server/ai-request.ts` aborts upstream on response close and sends
+  real errors to the client; all OpenAI calls pass the signal. Client timeout
+  30s, one retry.
+- C8: `server/device-id.ts` validates `X-Device-Id`; invalid ids use the IP
+  bucket and are never premium.
+- D9: "Set it up myself" builds an editable starter plan with no AI calls;
+  a self-setup draft can still switch to Coach.
+- D10: new `onStatus` token. Calendar day numbers: Dawn 6.59:1 / 6.84:1
+  (white on success / warning), dark 15.66:1 / 12.11:1 (black).
+
+## Verification (2026-10-13)
+
+- `npm run check:types`, `npm run lint`, Prettier: clean.
+- `npm test`: 52 suites, 401 tests pass (319 before).
+- `npm run server:build`: bundles.
+- Report-only reviewer pass: no blockers; its three should-fix items and
+  three nits were applied and re-verified.
+- Not done: simulator check of D9/D10. The local simulator build failed in
+  dependency install with ENOSPC (about 600 MB free on the Mac). Run
+  `npm run build:local:sim` after freeing disk, before any TestFlight build.

@@ -37,6 +37,7 @@ import {
   registerReminderActions,
   recordOrganicAppOpen,
   recordReminderHookTap,
+  selectMarkAllDoneActions,
   MARK_ALL_DONE_ACTION,
 } from "@/lib/notifications";
 import * as Notifications from "expo-notifications";
@@ -48,11 +49,16 @@ import { syncWidgetData, consumePendingVotes } from "@/lib/widget";
 import { unlockRewardsForMilestoneCount, Reward } from "@/lib/rewards";
 import { isHealthAvailable, initHealth, isHealthGoalMet } from "@/lib/health";
 import {
-  reconcileSubscription,
-  selectPreferredEntitlement,
+  resolveSubscriptionCheck,
   type ServerSubscriptionStatus,
   type SubscriptionVerificationStatus,
 } from "@/lib/subscription";
+import {
+  completeLogIn,
+  logDateKey,
+  upsertLogIn,
+  type DailyLogCompletion,
+} from "@/lib/daily-log";
 import { iapService } from "@/lib/iap";
 import { canDeleteMilestone } from "@/lib/plan-editing";
 import {
@@ -113,6 +119,16 @@ interface AppContextType {
     date: string,
     completion?: Pick<DailyLog, "completionSource" | "completionKind">,
   ) => Promise<DailyLog>;
+  /**
+   * Idempotent completion for automatic votes (Health, widget, Siri,
+   * notification). Never un-completes; resolves to null when the day was
+   * already complete, otherwise to the new log once it is persisted.
+   */
+  completeDailyLog: (
+    actionId: string,
+    date: string,
+    completion: DailyLogCompletion,
+  ) => Promise<DailyLog | null>;
   setDailyLogNote: (
     actionId: string,
     date: string,
@@ -132,7 +148,14 @@ interface AppContextType {
     reflection: Omit<Reflection, "id" | "createdAt">,
   ) => Promise<Reflection>;
   refreshData: () => Promise<void>;
-  verifySubscription: () => Promise<SubscriptionVerificationStatus>;
+  /**
+   * Concurrent calls share one check. `force` waits for any in-flight check
+   * and then runs a fresh one, for callers that just changed the store's
+   * state (a completed purchase or restore) and need a check that saw it.
+   */
+  verifySubscription: (options?: {
+    force?: boolean;
+  }) => Promise<SubscriptionVerificationStatus>;
   clearAllData: () => Promise<void>;
   incrementReflectionCount: () => Promise<number>;
   canUseReflection: () => boolean;
@@ -276,11 +299,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     refreshData();
   }, [refreshData]);
 
-  const verifySubscription = useCallback(() => {
-    if (subscriptionVerificationPromiseRef.current) {
-      return subscriptionVerificationPromiseRef.current;
-    }
-
+  const startSubscriptionVerification = useCallback(() => {
     setSubscriptionVerificationStatus("checking");
     const verification = (async (): Promise<SubscriptionVerificationStatus> => {
       const local = await storage.getSubscription();
@@ -305,70 +324,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
         clearTimeout(timeout);
       }
 
-      if (Platform.OS !== "web") {
-        const store = await iapService.checkCurrentEntitlements();
-        const purchase = selectPreferredEntitlement(
-          store.purchases,
-          (productId) => iapService.getPlanFromProductId(productId),
-        );
-
-        if (purchase) {
-          const plan = iapService.getPlanFromProductId(purchase.productId);
-          const next: Subscription = {
-            isPremium: true,
-            plan,
-            expiresAt:
-              plan === "lifetime"
-                ? null
-                : (purchase.expirationDate ??
-                  (local.plan === plan ? local.expiresAt : null)),
-            purchasedAt: new Date(purchase.purchaseTime).toISOString(),
-          };
-          await storage.setSubscription(next);
-          setSubscriptionState(next);
-          setSubscriptionVerificationStatus("verified");
-          return "verified";
-        }
-
-        if (store.storeAvailable && store.verificationCompleted) {
-          // StoreKit's active-entitlements list is current account truth. An
-          // empty completed result clears stale local/server Premium flags,
-          // including lifetime access left behind by a missed revocation.
-          const next: Subscription = {
-            isPremium: false,
-            plan: "free",
-            expiresAt: local.expiresAt,
-            purchasedAt: local.purchasedAt,
-          };
-          await storage.setSubscription(next);
-          setSubscriptionState(next);
-          setSubscriptionVerificationStatus("verified");
-          return "verified";
-        }
-      }
-
-      if (server) {
-        const next = reconcileSubscription(local, server);
-        await storage.setSubscription(next);
-        setSubscriptionState(next);
-        const status =
-          server.isPremium || !next.isPremium ? "verified" : "unavailable";
-        setSubscriptionVerificationStatus(status);
-        return status;
-      }
-
-      // Offline or validation service unavailable. Preserve any local access,
-      // but do not describe it as verified until a store-backed check succeeds.
-      setSubscriptionState(local);
-      setSubscriptionVerificationStatus("unavailable");
-      return "unavailable";
+      const store =
+        Platform.OS !== "web"
+          ? await iapService.checkCurrentEntitlements()
+          : null;
+      const { subscription: next, status } = resolveSubscriptionCheck({
+        local,
+        server,
+        store,
+        planForProduct: (productId) =>
+          iapService.getPlanFromProductId(productId),
+      });
+      if (next !== local) await storage.setSubscription(next);
+      setSubscriptionState(next);
+      setSubscriptionVerificationStatus(status);
+      return status;
     })().finally(() => {
-      subscriptionVerificationPromiseRef.current = null;
+      if (subscriptionVerificationPromiseRef.current === verification) {
+        subscriptionVerificationPromiseRef.current = null;
+      }
     });
 
     subscriptionVerificationPromiseRef.current = verification;
     return verification;
   }, []);
+
+  const verifySubscription = useCallback(
+    (options?: { force?: boolean }) => {
+      const inFlight = subscriptionVerificationPromiseRef.current;
+      if (!inFlight) return startSubscriptionVerification();
+      if (!options?.force) return inFlight;
+      // The in-flight check may have read StoreKit before a purchase landed
+      // and would report (and save) the pre-purchase state. Wait it out, then
+      // share whichever check started after it, which saw the purchase.
+      return inFlight
+        .catch(() => undefined)
+        .then(
+          () =>
+            subscriptionVerificationPromiseRef.current ??
+            startSubscriptionVerification(),
+        );
+    },
+    [startSubscriptionVerification],
+  );
 
   // Private iCloud backup is opt-in. Once enabled, coalesce local changes
   // into one quiet snapshot; manual Backup Now remains available in Profile.
@@ -594,16 +592,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         track("action_logged");
       }
-      setDailyLogsState((prev) =>
-        prev.some((l) => l.id === log.id)
-          ? prev.map((l) => (l.id === log.id ? log : l))
-          : [...prev, log],
-      );
+      // Same (action, day) dedupe as storage.upsertDailyLog so a legacy
+      // duplicate can't keep the UI showing a state storage no longer has.
+      setDailyLogsState((prev) => upsertLogIn(prev, log));
       storage.upsertDailyLog(log).catch(() => {
         // Persist failed — reload persisted truth so the UI doesn't drift
         refreshData();
       });
       return log;
+    },
+    [refreshData],
+  );
+
+  const completeDailyLog = useCallback(
+    async (
+      actionId: string,
+      date: string,
+      completion: DailyLogCompletion,
+    ): Promise<DailyLog | null> => {
+      const dateStr = logDateKey(date);
+      const result = completeLogIn(
+        dailyLogsRef.current,
+        actionId,
+        dateStr,
+        completion,
+        () => ({
+          id: generateStorageId(),
+          createdAt: new Date().toISOString(),
+        }),
+      );
+      if (!result.changed) return null;
+      if (!dailyLogsRef.current.some((l) => l.status)) {
+        track("first_action_logged");
+      }
+      track("action_logged");
+      // Votes arrive in loops (widget queue, Health, Mark all done) faster
+      // than React re-renders; advancing the ref now lets the next call in
+      // the same pass see this completion instead of writing a duplicate.
+      dailyLogsRef.current = result.logs;
+      const created = { id: result.log.id, createdAt: result.log.createdAt };
+      setDailyLogsState(
+        (prev) =>
+          completeLogIn(prev, actionId, dateStr, completion, () => created)
+            .logs,
+      );
+      try {
+        await storage.completeDailyLog(actionId, dateStr, {
+          ...completion,
+          id: result.log.id,
+        });
+      } catch (error) {
+        // Persist failed: reload persisted truth so the UI doesn't drift
+        refreshData();
+        throw error;
+      }
+      return result.log;
     },
     [refreshData],
   );
@@ -626,9 +669,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...existing,
         note: trimmed.length > 0 ? trimmed : undefined,
       };
-      setDailyLogsState((prev) =>
-        prev.map((l) => (l.id === updated.id ? updated : l)),
-      );
+      setDailyLogsState((prev) => upsertLogIn(prev, updated));
       storage.upsertDailyLog(updated).catch(() => {
         refreshData();
       });
@@ -910,11 +951,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => subscription.remove();
   }, []);
 
+  // Resolves once stored data has loaded and reminderStateRef reflects it
+  // (this effect is declared after the ref sync above, so it runs after it in
+  // the same commit). isLoading never returns to true.
+  const storeReadyRef = useRef<{
+    promise: Promise<void>;
+    resolve: () => void;
+  } | null>(null);
+  if (!storeReadyRef.current) {
+    let resolve = () => {};
+    const promise = new Promise<void>((done) => {
+      resolve = done;
+    });
+    storeReadyRef.current = { promise, resolve };
+  }
+  useEffect(() => {
+    if (!isLoading) storeReadyRef.current?.resolve();
+  }, [isLoading]);
+
   // "Mark all done ✓" quick action on the daily reminder. The response can
   // arrive live (listener) or on the next launch (last-response) when iOS ran
-  // the action without waking JS — the handled-key guard makes the two paths
-  // idempotent. Logs are written for the notification's FIRE date, so a tap
-  // on last night's reminder processed this morning still credits yesterday.
+  // the action without waking JS, and on a background cold launch both paths
+  // deliver the same response at once. The in-flight map joins concurrent
+  // deliveries; the persisted handled-key skips later replays. Logs are
+  // written for the notification's FIRE date, so a tap on last night's
+  // reminder processed this morning still credits yesterday.
+  const reminderResponsesInFlightRef = useRef(new Map<string, Promise<void>>());
   useEffect(() => {
     if (Platform.OS === "web") return;
     registerReminderActions();
@@ -935,10 +997,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }, 250);
     };
 
-    const handleResponse = async (
-      response: Notifications.NotificationResponse | null,
+    const processResponse = async (
+      response: Notifications.NotificationResponse,
     ) => {
-      if (!response) return;
       const data = response.notification.request.content.data as
         | {
             type?: string;
@@ -979,38 +1040,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const marker = `${response.notification.request.identifier}|${dateKey}`;
       try {
         if ((await AsyncStorage.getItem(handledKey)) === marker) return;
-        await AsyncStorage.setItem(handledKey, marker);
       } catch {
-        // Guard failed open — a duplicate pass is harmless (toggles below
-        // skip already-completed actions).
+        // Guard failed open: completion below is idempotent.
       }
 
+      // The action runs without opening the app, so this can be a cold
+      // background launch where the store hasn't loaded yet. Completing
+      // against the empty pre-load action list would mark nothing.
+      await storeReadyRef.current?.promise;
+      const currentActions = reminderStateRef.current.actions;
+      if (currentActions.length === 0) return;
+
       track("notification_mark_all_done");
-      const { actions: currentActions, dailyLogs: currentLogs } =
-        reminderStateRef.current;
-      const [year, month, day] = dateKey.split("-").map(Number);
-      const intendedDate = new Date(year, month - 1, day);
-      const weekday = intendedDate.toLocaleDateString("en-US", {
-        weekday: "long",
-      });
-      const intendedActionIds = new Set(data.actionIds ?? []);
-      for (const action of currentActions) {
-        if (intendedActionIds.size > 0 && !intendedActionIds.has(action.id)) {
-          continue;
-        }
-        if (!action.frequency.includes(weekday)) continue;
-        const created = getLocalDateString(new Date(action.createdAt));
-        if (created > dateKey) continue;
-        const existing = currentLogs.find(
-          (l) =>
-            l.actionId === action.id && l.logDate.split("T")[0] === dateKey,
-        );
-        if (existing?.status) continue;
-        await toggleDailyLog(action.id, dateKey, {
+      for (const action of selectMarkAllDoneActions(
+        currentActions,
+        dateKey,
+        data.actionIds,
+      )) {
+        await completeDailyLog(action.id, dateKey, {
           completionSource: "notification",
           completionKind: "full",
         });
       }
+      // Recorded only after every write landed: a failed pass throws above,
+      // leaving the response uncleared for a retry on the next launch.
+      await AsyncStorage.setItem(handledKey, marker).catch(() => {});
+    };
+
+    const handleResponse = (
+      response: Notifications.NotificationResponse,
+    ): Promise<void> => {
+      const key = `${response.notification.request.identifier}|${response.notification.date}|${response.actionIdentifier}`;
+      const inFlight = reminderResponsesInFlightRef.current;
+      const existing = inFlight.get(key);
+      if (existing) return existing;
+      const run = processResponse(response).finally(() => {
+        inFlight.delete(key);
+      });
+      inFlight.set(key, run);
+      return run;
     };
 
     const subscription = Notifications.addNotificationResponseReceivedListener(
@@ -1029,31 +1097,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
           await recordOrganicAppOpen();
         }
       })
-      .catch(() => {});
+      .catch((error) =>
+        logger.error("Failed to handle last reminder response:", error),
+      );
     return () => subscription.remove();
-  }, [toggleDailyLog]);
+  }, [completeDailyLog]);
 
-  // Keep the home/lock-screen widget's snapshot in step with the store, and
-  // fold in votes cast from the widget while the app was closed. Widget taps
-  // only ever complete (never un-complete): a queued vote for an action the
-  // user has since completed in-app is dropped, not toggled.
+  // Fold in votes cast from the widget or Siri while the app was closed or
+  // backgrounded. Votes only ever complete (never un-complete): a queued vote
+  // for an action the user has since completed in-app is dropped, not
+  // toggled. Votes for actions outside the active persona are dropped too.
+  const applyPendingWidgetVotes = useCallback(
+    (currentActions: ElementalAction[]) => {
+      for (const vote of consumePendingVotes()) {
+        if (!currentActions.some((a) => a.id === vote.actionId)) continue;
+        completeDailyLog(vote.actionId, vote.date, {
+          completionSource: vote.source ?? "widget",
+          completionKind: vote.kind,
+        })
+          .then((log) => {
+            if (log) track("widget_action_logged");
+          })
+          .catch((error) =>
+            logger.error("Failed to apply widget vote:", error),
+          );
+      }
+    },
+    [completeDailyLog],
+  );
+
+  // Keep the home/lock-screen widget's snapshot in step with the store.
   useEffect(() => {
     if (Platform.OS !== "ios" || isLoading) return;
-    for (const vote of consumePendingVotes()) {
-      const existing = dailyLogsRef.current.find(
-        (l) =>
-          l.actionId === vote.actionId && l.logDate.split("T")[0] === vote.date,
-      );
-      if (existing?.status) continue;
-      if (!actions.some((a) => a.id === vote.actionId)) continue;
-      track("widget_action_logged");
-      toggleDailyLog(vote.actionId, vote.date, {
-        completionSource: vote.source ?? "widget",
-        completionKind: vote.kind,
-      }).catch((error) => logger.error("Failed to apply widget vote:", error));
-    }
+    applyPendingWidgetVotes(actions);
     syncWidgetData(actions, dailyLogs, persona);
-  }, [isLoading, actions, dailyLogs, persona, toggleDailyLog]);
+  }, [isLoading, actions, dailyLogs, persona, applyPendingWidgetVotes]);
 
   // Widget votes cast while the app stayed backgrounded (state changes don't
   // fire above): reconcile on every foreground. Never consume before the
@@ -1066,32 +1144,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const subscription = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
       if (reminderStateRef.current.isLoading) return;
-      const { actions: currentActions } = reminderStateRef.current;
-      for (const vote of consumePendingVotes()) {
-        const existing = dailyLogsRef.current.find(
-          (l) =>
-            l.actionId === vote.actionId &&
-            l.logDate.split("T")[0] === vote.date,
-        );
-        if (existing?.status) continue;
-        if (!currentActions.some((a) => a.id === vote.actionId)) continue;
-        track("widget_action_logged");
-        toggleDailyLog(vote.actionId, vote.date, {
-          completionSource: vote.source ?? "widget",
-          completionKind: vote.kind,
-        }).catch((error) =>
-          logger.error("Failed to apply widget vote:", error),
-        );
-      }
+      applyPendingWidgetVotes(reminderStateRef.current.actions);
     });
     return () => subscription.remove();
-  }, [toggleDailyLog]);
+  }, [applyPendingWidgetVotes]);
 
   // Apple Health auto-votes: actions opted into Health auto-completion get
   // their vote cast when a matching sample exists for today. Runs once per
-  // foreground; a cast vote flows through the normal optimistic toggle, so
-  // rings, streaks, and the widget all update the same way a tap would.
+  // foreground; a cast vote flows through the idempotent completion, so
+  // rings, streaks, and the widget update the same way a tap would. Runs are
+  // single-flight: a second foreground while HealthKit is still answering
+  // joins the running pass instead of starting an overlapping one.
   const healthCheckDoneRef = useRef(false);
+  const healthRunRef = useRef<Promise<void> | null>(null);
   useEffect(() => {
     if (Platform.OS !== "ios" || isLoading || !isHealthAvailable()) return;
 
@@ -1106,8 +1171,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (getLocalDateString(new Date(action.createdAt)) > todayStr)
           return false;
         const existing = dailyLogsRef.current.find(
-          (l) =>
-            l.actionId === action.id && l.logDate.split("T")[0] === todayStr,
+          (l) => l.actionId === action.id && logDateKey(l.logDate) === todayStr,
         );
         return !existing?.status;
       });
@@ -1115,29 +1179,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!(await initHealth())) return;
       for (const action of candidates) {
         if (await isHealthGoalMet(action.healthAutoComplete!, today)) {
-          track("health_auto_vote");
-          await toggleDailyLog(action.id, todayStr, {
+          const log = await completeDailyLog(action.id, todayStr, {
             completionSource: "health",
             completionKind: "full",
           });
+          if (log) track("health_auto_vote");
         }
       }
     };
 
+    const runOnce = () => {
+      if (!healthRunRef.current) {
+        healthRunRef.current = runHealthAutoVotes()
+          .catch((error) => logger.error("Health auto-vote failed:", error))
+          .finally(() => {
+            healthRunRef.current = null;
+          });
+      }
+      return healthRunRef.current;
+    };
+
     if (!healthCheckDoneRef.current) {
       healthCheckDoneRef.current = true;
-      runHealthAutoVotes().catch((error) =>
-        logger.error("Health auto-vote failed:", error),
-      );
+      runOnce();
     }
     const subscription = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
-      runHealthAutoVotes().catch((error) =>
-        logger.error("Health auto-vote failed:", error),
-      );
+      runOnce();
     });
     return () => subscription.remove();
-  }, [isLoading, toggleDailyLog]);
+  }, [isLoading, completeDailyLog]);
 
   const canUseReflection = useCallback(() => {
     if (subscription.isPremium) return true;
@@ -1189,6 +1260,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteAction,
       setActions,
       toggleDailyLog,
+      completeDailyLog,
       setDailyLogNote,
       applyPlanAdjustment,
       dismissPlanAdjustment,
@@ -1238,6 +1310,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteAction,
       setActions,
       toggleDailyLog,
+      completeDailyLog,
       setDailyLogNote,
       applyPlanAdjustment,
       dismissPlanAdjustment,

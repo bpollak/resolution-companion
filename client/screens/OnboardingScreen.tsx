@@ -34,6 +34,11 @@ import {
   pickResolutionMessage,
   type OnboardingPlanDraft,
 } from "@/lib/onboarding-plan";
+import {
+  approvalClearsCoachTranscript,
+  createStarterPlanDraft,
+  isSelfSetupDraft,
+} from "@/lib/starter-plan";
 import { storage } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import { track } from "@/lib/telemetry";
@@ -63,7 +68,7 @@ export default function OnboardingScreen() {
   const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible());
   const navigation = useNavigation<any>();
   const { theme } = useTheme();
-  const { aiConsent, setAiConsent, refreshData } = useApp();
+  const { aiConsent, setAiConsent, refreshData, personas } = useApp();
   const [stage, setStage] = useState<Stage>("welcome");
   const [draft, setDraft] = useState<OnboardingPlanDraft | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -110,10 +115,11 @@ export default function OnboardingScreen() {
         setMessages(
           transcript.map(({ id, role, content }) => ({ id, role, content })),
         );
-        // Legacy manual drafts stay stored, but only Coach-created plans resume.
+        // Legacy manual drafts stay stored, but only Coach-created and
+        // self-setup plans resume.
         if (
-          savedDraft?.usesAI === true &&
-          Array.isArray(savedDraft.suggestions)
+          (savedDraft?.usesAI === true || isSelfSetupDraft(savedDraft)) &&
+          Array.isArray(savedDraft?.suggestions)
         ) {
           setDraft(savedDraft);
           setStage("review");
@@ -242,6 +248,33 @@ export default function OnboardingScreen() {
       setShowConsentModal(true);
     } else beginChat();
   };
+  // The no-AI path: a local starter draft the person edits and approves.
+  const setUpMyself = () => {
+    touchedRef.current = true;
+    cancelRequest();
+    Keyboard.dismiss();
+    setConsentPaused(false);
+    setError(null);
+    setDraft(createStarterPlanDraft(personas.map((persona) => persona.name)));
+    setStage("review");
+    Haptics.selectionAsync().catch(() => {});
+  };
+  // A saved self-made draft would otherwise leave "Resume my plan review" as
+  // the only way forward, hiding Coach for good.
+  const switchToCoach = () => {
+    touchedRef.current = true;
+    setDraft(null);
+    // Queued behind pending draft saves so a late keystroke save cannot
+    // restore the discarded draft on the next launch.
+    draftWrite.current = draftWrite.current
+      .catch(() => {})
+      .then(() => storage.setOnboardingDraft(null));
+    draftWrite.current.catch((cause) =>
+      logger.warn("Plan draft clear failed:", cause),
+    );
+    Haptics.selectionAsync().catch(() => {});
+    chooseCoach();
+  };
   const sendMessage = (consentOverride = false, starter?: string) => {
     const text = (starter ?? inputText).trim();
     if (!text || busy) return;
@@ -350,7 +383,7 @@ export default function OnboardingScreen() {
   };
 
   const approve = async () => {
-    if (draft?.usesAI !== true || savingRef.current) return;
+    if (!draft || savingRef.current) return;
     savingRef.current = true;
     setBusy("save");
     setError(null);
@@ -359,7 +392,9 @@ export default function OnboardingScreen() {
       await storage.setOnboardingDraft(draft);
       await storage.commitOnboardingPlan(draft);
       await storage.setOnboardingDraft(null);
-      await storage.setOnboardingMessages([]);
+      if (approvalClearsCoachTranscript(draft)) {
+        await storage.setOnboardingMessages([]);
+      }
       await refreshData();
       track("onboarding_completed");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
@@ -381,13 +416,15 @@ export default function OnboardingScreen() {
     }
   };
 
+  // A self-made plan goes back to the welcome choices, not into a Coach chat.
+  const returnsToCoach = messages.length > 0 && !isSelfSetupDraft(draft);
   const back = () => {
     if (busy === "save") return;
     Keyboard.dismiss();
     cancelRequest();
     setError(null);
     if (stage === "welcome") navigation.goBack();
-    else if (stage === "review" && messages.length > 0) beginChat();
+    else if (stage === "review" && returnsToCoach) beginChat();
     else setStage("welcome");
   };
   const button = (
@@ -395,12 +432,14 @@ export default function OnboardingScreen() {
     action: () => void,
     primary = false,
     disabled = false,
+    hint?: string,
   ) => (
     <Pressable
       onPress={action}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityHint={hint}
       accessibilityState={{ disabled }}
       hitSlop={8}
       pressRetentionOffset={12}
@@ -454,7 +493,7 @@ export default function OnboardingScreen() {
           accessibilityLabel={
             stage === "welcome"
               ? "Close onboarding"
-              : stage === "review" && messages.length > 0
+              : stage === "review" && returnsToCoach
                 ? "Back to Coach"
                 : "Back to onboarding"
           }
@@ -585,15 +624,17 @@ export default function OnboardingScreen() {
               ))}
             </View>
             <ThemedText style={{ color: theme.textSecondary }}>
-              Requires an internet connection and your permission to use AI.
+              Coach needs an internet connection and your permission to use AI.
+              Prefer to skip AI? Set up your plan yourself from a few starter
+              habits.
             </ThemedText>
             {consentPaused ? (
               <ThemedText
                 accessibilityLiveRegion="polite"
                 style={{ color: theme.textSecondary }}
               >
-                Setup is paused. Start with Coach whenever you are ready to
-                allow AI coaching.
+                AI coaching is off. You can set up your plan yourself now, or
+                start with Coach whenever you are ready.
               </ThemedText>
             ) : null}
             <ThemedText style={{ color: theme.textSecondary }}>
@@ -616,8 +657,25 @@ export default function OnboardingScreen() {
                     setStage("review");
                   }
                 : chooseCoach,
-              true,
+              !(consentPaused && !draft),
             )}
+            {isSelfSetupDraft(draft)
+              ? button(
+                  "Build my plan with Coach",
+                  switchToCoach,
+                  false,
+                  false,
+                  "Discards your starter plan and opens Coach.",
+                )
+              : draft
+                ? null
+                : button(
+                    "Set it up myself",
+                    setUpMyself,
+                    consentPaused,
+                    false,
+                    "Opens an editable starter plan. No AI is used.",
+                  )}
           </View>
         </>
       ) : stage === "review" && draft ? (
@@ -953,6 +1011,7 @@ const styles = StyleSheet.create({
   welcomeFooter: {
     flexShrink: 0,
     padding: Spacing.lg,
+    gap: Spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   heading: { fontSize: 28, fontWeight: "700", lineHeight: 34 },

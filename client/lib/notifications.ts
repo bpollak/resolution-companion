@@ -177,6 +177,30 @@ export const DAILY_REMINDER_CATEGORY = "daily-reminder";
 export const MARK_ALL_DONE_ACTION = "mark-all-done";
 
 /**
+ * Actions "Mark all done" should complete for a reminder's day: the ones the
+ * reminder named (all, for legacy reminders without ids), scheduled that
+ * weekday and started by then. Already-complete actions stay in the list;
+ * completion is idempotent, so a replayed response can't un-complete them.
+ */
+export function selectMarkAllDoneActions(
+  actions: ElementalAction[],
+  dateKey: string,
+  intendedActionIds: string[] | undefined,
+): ElementalAction[] {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const weekday = new Date(year, month - 1, day).toLocaleDateString("en-US", {
+    weekday: "long",
+  });
+  const intended = new Set(intendedActionIds ?? []);
+  return actions.filter(
+    (action) =>
+      (intended.size === 0 || intended.has(action.id)) &&
+      action.frequency.includes(weekday) &&
+      getLocalDateString(new Date(action.createdAt)) <= dateKey,
+  );
+}
+
+/**
  * Registers the "Mark all done" quick action on the daily reminder.
  * Idempotent; call once on app start (no-op on web).
  */
@@ -480,37 +504,161 @@ export async function requestNotificationPermissions(): Promise<boolean> {
   return finalStatus === "granted";
 }
 
+export const REMINDER_LOCK_TIMEOUT_MS = 10_000;
+
+/**
+ * Runs tasks one at a time. Each task races a timeout so a native or
+ * AsyncStorage call that never settles cannot block every later schedule and
+ * cancel for the rest of the session; on timeout the caller's promise
+ * rejects and the next task starts.
+ *
+ * Residual risk: JS cannot cancel the hung task. If it later resumes, its
+ * remaining steps can interleave with a newer run and leave a duplicate or
+ * stale reminder id. That self-heals on the next run, because
+ * cancelScheduled() removes every request tagged as a daily reminder rather
+ * than trusting stored ids. Its late result or rejection is swallowed here.
+ */
+export function createTimedSerialQueue(timeoutMs: number) {
+  let tail: Promise<unknown> = Promise.resolve();
+  return function enqueue<T>(task: () => Promise<T>): Promise<T> {
+    const run = tail.then(() => {
+      const work = task();
+      work.catch(() => undefined);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          logger.error(
+            `Reminder task exceeded ${timeoutMs}ms; releasing the reminder lock`,
+          );
+          reject(new Error("Reminder task timed out"));
+        }, timeoutMs);
+      });
+      return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
+    });
+    tail = run.catch(() => undefined);
+    return run;
+  };
+}
+
+// Every schedule and cancel runs on this one chain. A run cancels and then
+// re-adds up to 14 requests across many awaits; two interleaved runs each
+// saved only their own ids and orphaned the other's, leaving duplicate
+// reminders that even turning reminders off could not remove.
+const withReminderLock = createTimedSerialQueue(REMINDER_LOCK_TIMEOUT_MS);
+
+function isDailyReminderRequest(
+  request: Notifications.NotificationRequest,
+): boolean {
+  return (
+    request.content.data?.type === "daily-reminder" ||
+    request.content.categoryIdentifier === DAILY_REMINDER_CATEGORY
+  );
+}
+
 // Cancels the scheduled reminder without touching the enabled flag —
-// cancelDailyReminder below is the user-facing "turn it off" path
+// cancelDailyReminder below is the user-facing "turn it off" path. Stored ids
+// alone miss requests orphaned by a failed or pre-lock run, so every pending
+// request tagged as a daily reminder is cancelled too. Caller holds the lock.
 async function cancelScheduled(): Promise<void> {
+  const ids = new Set<string>();
   const stored = await AsyncStorage.getItem(NOTIFICATION_ID_KEY);
-  if (!stored) return;
-  let ids: string[] = [stored];
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored) as unknown;
+      if (Array.isArray(parsed)) {
+        for (const id of parsed) if (typeof id === "string") ids.add(id);
+      } else {
+        ids.add(stored);
+      }
+    } catch {
+      // Legacy releases stored one raw notification id.
+      ids.add(stored);
+    }
+  }
   try {
-    const parsed = JSON.parse(stored) as unknown;
-    if (Array.isArray(parsed))
-      ids = parsed.filter((id): id is string => typeof id === "string");
-  } catch {
-    // Legacy releases stored one raw notification id.
+    const pending = await Notifications.getAllScheduledNotificationsAsync();
+    for (const request of pending) {
+      if (isDailyReminderRequest(request)) ids.add(request.identifier);
+    }
+  } catch (error) {
+    logger.error("Failed to list scheduled reminders:", error);
   }
   await Promise.all(
-    ids.map((id) => Notifications.cancelScheduledNotificationAsync(id)),
+    [...ids].map((id) => Notifications.cancelScheduledNotificationAsync(id)),
   );
   await AsyncStorage.removeItem(NOTIFICATION_ID_KEY);
   await AsyncStorage.removeItem(REMINDER_PLAN_SIGNATURE_KEY);
 }
 
+interface PlannedReminderDay {
+  dateKey: string;
+  day: Date;
+  fireDate: Date;
+  remainingActions: ElementalAction[];
+}
+
+/** The rolling plan's days: scheduled, still-open, and not yet fired. */
+function planReminderDays(
+  options: ReminderOptions,
+  hour: number,
+  minute: number,
+  now: Date,
+): PlannedReminderDay[] {
+  if (!options.actions || !options.dailyLogs) return [];
+  // A plan set up ahead (January 1) has nothing to remind about until its
+  // habits start, so the rolling window opens on the earliest start.
+  const firstDay = new Date(
+    Math.max(now.getTime(), earliestActionStart(options.actions) ?? 0),
+  );
+  firstDay.setHours(0, 0, 0, 0);
+  // startDate trims the front of the window without sliding its end, so a
+  // "quiet tonight" plan matches the foreground refresh once today is done.
+  const startsOn = options.startDate
+    ? getLocalDateString(options.startDate)
+    : null;
+  const days: PlannedReminderDay[] = [];
+  for (let offset = 0; offset < REMINDER_HORIZON_DAYS; offset++) {
+    const day = new Date(firstDay);
+    day.setDate(day.getDate() + offset);
+    const fireDate = new Date(day);
+    fireDate.setHours(hour, minute, 0, 0);
+    if (fireDate <= now) continue;
+    if (startsOn && getLocalDateString(day) < startsOn) continue;
+    const remainingActions = getRemainingReminderActions(
+      options.actions,
+      options.dailyLogs,
+      day,
+    );
+    if (remainingActions.length === 0) continue;
+    days.push({
+      dateKey: getLocalDateString(day),
+      day,
+      fireDate,
+      remainingActions,
+    });
+  }
+  return days;
+}
+
+// Describes what would be scheduled rather than how the caller asked for it,
+// so "start tomorrow" (day complete) and "start today" (foreground refresh)
+// agree once today has nothing left, and an unrelated log change is a no-op.
 function reminderPlanSignature(
   options: ReminderOptions,
   hour: number,
   minute: number,
+  now: Date,
 ): string {
-  const startDate = options.startDate ?? new Date();
+  const rolling = Boolean(options.actions && options.dailyLogs);
   return JSON.stringify({
-    generatedOn: getLocalDateString(new Date()),
-    startsOn: getLocalDateString(startDate),
+    mode: rolling ? "rolling" : "daily",
+    generatedOn: rolling ? null : getLocalDateString(now),
     hour,
     minute,
+    days: planReminderDays(options, hour, minute, now).map((day) => ({
+      fireAt: day.fireDate.getTime(),
+      actionIds: day.remainingActions.map((action) => action.id),
+    })),
     streakCount: options.streakCount ?? null,
     missedRun: options.missedRun ?? null,
     personaName: options.personaName ?? null,
@@ -521,15 +669,10 @@ function reminderPlanSignature(
     actions: options.actions?.map((action) => ({
       id: action.id,
       title: action.title,
-      frequency: action.frequency,
       kickstartVersion: action.kickstartVersion,
-      createdAt: action.createdAt,
+      benchmarkId: action.benchmarkId,
     })),
     milestoneTitles: options.milestoneTitles ?? null,
-    completed: options.dailyLogs
-      ?.filter((log) => log.status)
-      .map((log) => `${log.actionId}|${log.logDate.split("T")[0]}`)
-      .sort(),
   });
 }
 
@@ -543,13 +686,10 @@ export function earliestActionStart(
   return starts.length > 0 ? Math.min(...starts) : null;
 }
 
-export async function scheduleDailyReminder(
-  options: ReminderOptions = {},
+// Caller holds the lock.
+async function scheduleDailyReminderLocked(
+  options: ReminderOptions,
 ): Promise<string | null> {
-  if (Platform.OS === "web") {
-    return null;
-  }
-
   try {
     await cancelScheduled();
 
@@ -558,33 +698,15 @@ export async function scheduleDailyReminder(
     const minute = options.minute ?? resolved.minute;
     const stats = await getReminderHookStats();
     const ids: string[] = [];
+    const now = new Date();
 
     if (options.actions && options.dailyLogs) {
-      const now = new Date();
-      // A plan set up ahead (January 1) has nothing to remind about until its
-      // habits start, so the rolling window opens on the earliest start.
-      const firstDay = new Date(
-        Math.max(
-          (options.startDate ?? now).getTime(),
-          earliestActionStart(options.actions) ?? 0,
-        ),
-      );
-      firstDay.setHours(0, 0, 0, 0);
-      for (let offset = 0; offset < REMINDER_HORIZON_DAYS; offset++) {
-        const day = new Date(firstDay);
-        day.setDate(day.getDate() + offset);
-        const fireDate = new Date(day);
-        fireDate.setHours(hour, minute, 0, 0);
-        if (fireDate <= now) continue;
-
-        const remainingActions = getRemainingReminderActions(
-          options.actions,
-          options.dailyLogs,
-          day,
-        );
-        if (remainingActions.length === 0) continue;
-
-        const dateKey = getLocalDateString(day);
+      for (const { dateKey, fireDate, remainingActions } of planReminderDays(
+        options,
+        hour,
+        minute,
+        now,
+      )) {
         const hook = selectReminderHook(stats, dateKey);
         const dayOptions = { ...options, remainingActions };
         const id = await Notifications.scheduleNotificationAsync({
@@ -611,7 +733,7 @@ export async function scheduleDailyReminder(
       }
     } else {
       // Safe migration fallback until a screen with local action context runs.
-      const dateKey = getLocalDateString(new Date());
+      const dateKey = getLocalDateString(now);
       const hook = selectReminderHook(stats, dateKey);
       const id = await Notifications.scheduleNotificationAsync({
         content: {
@@ -635,7 +757,7 @@ export async function scheduleDailyReminder(
     await AsyncStorage.setItem(NOTIFICATION_ID_KEY, JSON.stringify(ids));
     await AsyncStorage.setItem(
       REMINDER_PLAN_SIGNATURE_KEY,
-      reminderPlanSignature(options, hour, minute),
+      reminderPlanSignature(options, hour, minute, now),
     );
     await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, "true");
     await AsyncStorage.setItem(
@@ -650,15 +772,60 @@ export async function scheduleDailyReminder(
   }
 }
 
+/**
+ * Rebuild the plan only when reminders are on and what would be scheduled
+ * differs from what is. Reads the enabled flag under the lock so a refresh
+ * queued behind "turn off" can't bring reminders back. Caller holds the lock.
+ */
+async function refreshReminderPlanLocked(
+  options: ReminderOptions,
+): Promise<void> {
+  const enabled = await AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
+  if (enabled !== "true") return;
+
+  const [id, storedSignature, resolved] = await Promise.all([
+    AsyncStorage.getItem(NOTIFICATION_ID_KEY),
+    AsyncStorage.getItem(REMINDER_PLAN_SIGNATURE_KEY),
+    getResolvedReminderTime(),
+  ]);
+  const signature = reminderPlanSignature(
+    options,
+    options.hour ?? resolved.hour,
+    options.minute ?? resolved.minute,
+    new Date(),
+  );
+  if (!id || storedSignature !== signature) {
+    await scheduleDailyReminderLocked(options);
+  }
+}
+
+export async function scheduleDailyReminder(
+  options: ReminderOptions = {},
+): Promise<string | null> {
+  if (Platform.OS === "web") {
+    return null;
+  }
+  try {
+    return await withReminderLock(() => scheduleDailyReminderLocked(options));
+  } catch (error) {
+    // Only a lock timeout reaches here; the locked body catches its own.
+    logger.error("Failed to schedule notification:", error);
+    return null;
+  }
+}
+
 export async function cancelDailyReminder(): Promise<void> {
   if (Platform.OS === "web") {
     return;
   }
 
   try {
-    await cancelScheduled();
-    await AsyncStorage.removeItem(REMINDER_MODE_KEY);
-    await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, "false");
+    await withReminderLock(async () => {
+      // Flag first: if a cancel fails part way, no later refresh revives it.
+      await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, "false");
+      await AsyncStorage.removeItem(REMINDER_MODE_KEY);
+      await cancelScheduled();
+    });
   } catch (error) {
     logger.error("Failed to cancel notification:", error);
   }
@@ -762,13 +929,14 @@ export async function suppressReminderForToday(
   }
 
   try {
-    const enabled = await AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
-    if (enabled !== "true") return;
-
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(0, 0, 0, 0);
-    await scheduleDailyReminder({ ...options, startDate: tomorrow });
+    // Today calls this on every log change once the day is done; the
+    // signature check keeps those repeats from rebuilding the plan.
+    await withReminderLock(() =>
+      refreshReminderPlanLocked({ ...options, startDate: tomorrow }),
+    );
   } catch (error) {
     logger.error("Failed to suppress reminder:", error);
   }
@@ -786,22 +954,7 @@ export async function ensureReminderScheduled(
   }
 
   try {
-    const enabled = await AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
-    if (enabled !== "true") return;
-
-    const [id, storedSignature, resolved] = await Promise.all([
-      AsyncStorage.getItem(NOTIFICATION_ID_KEY),
-      AsyncStorage.getItem(REMINDER_PLAN_SIGNATURE_KEY),
-      getResolvedReminderTime(),
-    ]);
-    const signature = reminderPlanSignature(
-      options,
-      options.hour ?? resolved.hour,
-      options.minute ?? resolved.minute,
-    );
-    if (!id || storedSignature !== signature) {
-      await scheduleDailyReminder(options);
-    }
+    await withReminderLock(() => refreshReminderPlanLocked(options));
   } catch (error) {
     logger.error("Failed to ensure reminder schedule:", error);
   }
@@ -820,12 +973,14 @@ export async function setUserReminderBucket(
   }
 
   try {
-    await AsyncStorage.setItem(REMINDER_BUCKET_USER_KEY, bucket);
+    await withReminderLock(async () => {
+      await AsyncStorage.setItem(REMINDER_BUCKET_USER_KEY, bucket);
 
-    const enabled = await AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
-    if (enabled !== "true") return;
+      const enabled = await AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
+      if (enabled !== "true") return;
 
-    await scheduleDailyReminder(options);
+      await scheduleDailyReminderLocked(options);
+    });
   } catch (error) {
     logger.error("Failed to set reminder time:", error);
   }
@@ -845,17 +1000,21 @@ export async function applySuggestedReminderBucket(
   }
 
   try {
-    const previous = await AsyncStorage.getItem(REMINDER_BUCKET_SUGGESTED_KEY);
-    if (previous === bucket) return;
-    await AsyncStorage.setItem(REMINDER_BUCKET_SUGGESTED_KEY, bucket);
+    await withReminderLock(async () => {
+      const previous = await AsyncStorage.getItem(
+        REMINDER_BUCKET_SUGGESTED_KEY,
+      );
+      if (previous === bucket) return;
+      await AsyncStorage.setItem(REMINDER_BUCKET_SUGGESTED_KEY, bucket);
 
-    const [enabled, userBucket] = await Promise.all([
-      AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY),
-      getUserReminderBucket(),
-    ]);
-    if (enabled === "true" && !userBucket) {
-      await scheduleDailyReminder(options);
-    }
+      const [enabled, userBucket] = await Promise.all([
+        AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY),
+        getUserReminderBucket(),
+      ]);
+      if (enabled === "true" && !userBucket) {
+        await scheduleDailyReminderLocked(options);
+      }
+    });
   } catch (error) {
     logger.error("Failed to apply suggested reminder time:", error);
   }
