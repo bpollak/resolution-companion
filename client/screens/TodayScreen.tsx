@@ -571,11 +571,6 @@ export default function TodayScreen() {
     [actions, personaBenchmarkIds, todayDateStr],
   );
 
-  const benchmarkById = useMemo(
-    () => new Map(benchmarks.map((benchmark) => [benchmark.id, benchmark])),
-    [benchmarks],
-  );
-
   const todayLogByActionId = useMemo(() => {
     const index = new Map<string, (typeof dailyLogs)[number]>();
     for (const action of todayActions) {
@@ -1117,8 +1112,6 @@ export default function TodayScreen() {
   const showSignalCard =
     todaySignal.kind === "reduce-friction" ||
     todaySignal.kind === "protect-pattern";
-  // The plan name already heads the screen; a lone milestone only repeats it
-  const showMilestoneEyebrow = personaBenchmarkIds.length > 1;
 
   const tomorrowActions = useMemo(() => {
     const day = new Date(
@@ -1135,27 +1128,19 @@ export default function TodayScreen() {
         kind: "pending" as const,
         action,
         log: todayLogByActionId.get(action.id) ?? null,
-        benchmarkTitle: showMilestoneEyebrow
-          ? benchmarkById.get(action.benchmarkId)?.title
-          : undefined,
-        primary: index === 0,
         askCoach: index === 0 && habitCoachLink,
       })),
       ...completedTodayActions.map((action) => ({
         kind: "completed" as const,
         action,
         log: todayLogByActionId.get(action.id) ?? null,
-        benchmarkTitle: undefined,
-        primary: false,
         askCoach: false,
       })),
     ],
     [
-      benchmarkById,
       completedTodayActions,
       habitCoachLink,
       pendingTodayActions,
-      showMilestoneEyebrow,
       todayLogByActionId,
     ],
   );
@@ -1201,8 +1186,6 @@ export default function TodayScreen() {
           action={item.action}
           log={item.log}
           onToggle={handleToggle}
-          benchmarkTitle={item.benchmarkTitle}
-          primary={item.primary}
           onAskCoach={item.askCoach ? openHabitCoach : undefined}
         />
       ) : (

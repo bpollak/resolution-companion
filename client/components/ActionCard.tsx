@@ -16,7 +16,6 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import type { ElementalAction, DailyLog } from "@/lib/storage";
-import { repeatsText } from "@/lib/copy";
 
 const springConfig = {
   damping: 12,
@@ -29,9 +28,6 @@ interface ActionCardProps {
   log: DailyLog | null;
   onToggle: (actionId: string, kind?: "full" | "kickstart") => void;
   /** Omitted when the plan has one milestone, where it only repeats the plan. */
-  benchmarkTitle?: string;
-  /** The first pending habit owns the screen's one filled accent button. */
-  primary?: boolean;
   /** Footer link to the coach; given only to the habit the coach would open on. */
   onAskCoach?: (actionId: string) => void;
 }
@@ -42,8 +38,6 @@ export const ActionCard = React.memo(function ActionCard({
   action,
   log,
   onToggle,
-  benchmarkTitle,
-  primary = false,
   onAskCoach,
 }: ActionCardProps) {
   const { theme, isDark } = useTheme();
@@ -126,12 +120,6 @@ export const ActionCard = React.memo(function ActionCard({
         },
       ]}
     >
-      {benchmarkTitle && !repeatsText(benchmarkTitle, action.title) ? (
-        <ThemedText style={[styles.benchmark, { color: theme.textSecondary }]}>
-          {benchmarkTitle}
-        </ThemedText>
-      ) : null}
-
       <ThemedText style={styles.title}>{action.title}</ThemedText>
       {action.anchorLink ? (
         <ThemedText style={[styles.cue, { color: theme.textSecondary }]}>
@@ -158,13 +146,9 @@ export const ActionCard = React.memo(function ActionCard({
           style={[
             styles.toggleButton,
             {
-              backgroundColor: isCompleted
-                ? theme.success
-                : primary
-                  ? theme.accent
-                  : isDark
-                    ? Colors.dark.backgroundTertiary
-                    : Colors.light.backgroundTertiary,
+              // Every pending habit is a peer, so each gets the same filled
+              // button; a single filled card read as "this one matters more".
+              backgroundColor: isCompleted ? theme.success : theme.accent,
               borderColor: isCompleted ? "transparent" : theme.accent,
             },
             buttonAnimatedStyle,
@@ -175,14 +159,14 @@ export const ActionCard = React.memo(function ActionCard({
             <Feather
               name={isCompleted ? "check" : "circle"}
               size={24}
-              color={isCompleted || primary ? theme.buttonText : theme.accent}
+              color={theme.buttonText}
             />
           </Animated.View>
           <ThemedText
             style={[
               styles.toggleText,
               {
-                color: isCompleted || primary ? theme.buttonText : theme.accent,
+                color: theme.buttonText,
               },
             ]}
           >
@@ -458,13 +442,6 @@ const styles = StyleSheet.create({
   compactNoteButton: {
     padding: Spacing.xs,
     marginLeft: Spacing.sm,
-  },
-  benchmark: {
-    ...Typography.caption,
-    fontWeight: "600",
-    marginBottom: Spacing.xs,
-    textTransform: "uppercase",
-    letterSpacing: 1,
   },
   title: {
     fontSize: 20,
