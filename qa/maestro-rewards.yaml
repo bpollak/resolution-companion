@@ -3,7 +3,7 @@ name: earned-cosmetic-rewards
 ---
 - launchApp
 - extendedWaitUntil:
-    visible: "Becoming Momentum Builder.*"
+    visible: "Becoming My Future Self.*"
     timeout: 20000
 - tapOn: "Open profile and settings.*"
 - extendedWaitUntil:

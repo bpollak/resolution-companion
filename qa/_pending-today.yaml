@@ -1,0 +1,14 @@
+appId: com.resolutioncompanion.app
+---
+# Harness helper: undo today's completed habits so Today shows the pending
+# state (progress line, habit card "Ask Coach" link). A finished day replaces
+# both with the Day complete card, and the fresh-install and stateful flows
+# end with the habit done.
+- runFlow: _reset-to-today.yaml
+- repeat:
+    while:
+      visible: ".* completed. Undo.*"
+    times: 5
+    commands:
+      - tapOn: ".* completed. Undo.*"
+      - waitForAnimationToEnd

@@ -30,14 +30,16 @@ appId: com.resolutioncompanion.app
     visible: "AI coach: .+"
     timeout: 90000
 - takeScreenshot: coach-weekly-live-streaming
+# The response controls render only once the stream ends, which
+# distinguishes a complete stream from the first chunk. (A trailing "?" was
+# used before, but the model does not always end on a question.)
 - extendedWaitUntil:
-    # The model's completed coaching turn ends with a follow-up question.
-    # Waiting for it distinguishes a complete stream from the first chunk.
-    visible: "AI coach: .+\\?.*"
+    notVisible: "Stop Coach response"
     timeout: 90000
+- assertVisible: "Copy coach response"
 
 # The composer stays usable after a streamed response. (iOS 26 exposes the
-# placeholder, older versions the accessibility label — match either.)
+# placeholder, older versions the accessibility label; match either.)
 - tapOn: "(Message Coach|Write to Coach).*"
 - inputText: "I made the run easier by putting my shoes beside the door."
 - assertVisible: ".*shoes beside the door.*"

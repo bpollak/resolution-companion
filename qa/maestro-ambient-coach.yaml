@@ -10,6 +10,8 @@ appId: com.resolutioncompanion.app
 - tapOn:
     text: "Discard"
     optional: true
+# The progress line and Ask Coach link show only while a habit is pending.
+- runFlow: _pending-today.yaml
 # The progress line replaced the signal card's stats row on ordinary days.
 - extendedWaitUntil:
     visible: ".* done today.*"

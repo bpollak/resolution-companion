@@ -1,10 +1,12 @@
 appId: com.resolutioncompanion.app
 ---
-# Run after qa/maestro-regression.yaml creates the starter plan and declines
-# AI consent. This deliberately uses production AI once, then verifies the
+# Run after qa/maestro-regression.yaml creates the plan (AI consent already
+# granted there). This deliberately uses production AI, then verifies the
 # response controls, saved contextual history, and preview-before-apply flow.
 
 - launchApp
+# The progress line and Ask Coach link show only while a habit is pending.
+- runFlow: _pending-today.yaml
 - extendedWaitUntil:
     # The always-visible progress line, e.g. "0 of 1 done today. Day 1 ..."
     visible: ".* done today.*"
@@ -26,6 +28,10 @@ appId: com.resolutioncompanion.app
     optional: true
 - extendedWaitUntil:
     visible: "AI coach: .+"
+    timeout: 90000
+# Response controls render once the stream completes, not on the first chunk.
+- extendedWaitUntil:
+    notVisible: "Stop Coach response"
     timeout: 90000
 - assertVisible: "Copy coach response"
 - assertVisible: "Mark coach response helpful"
@@ -55,16 +61,15 @@ appId: com.resolutioncompanion.app
 
 # Plan tuning may reuse the already-counted session, but never mutates until
 # the field-level preview is explicitly confirmed.
+# The lobby has one primary entry; plan adjustment is a chip in the sheet
+# (labelled "Request a previewed plan adjustment").
 - scrollUntilVisible:
     element:
-      text: "Adjust my plan.*"
+      text: "Start a conversation with Coach"
     direction: UP
     timeout: 15000
     centerElement: true
-- tapOn: "Adjust my plan.*"
-- extendedWaitUntil:
-    visible: "Request a previewed plan adjustment"
-    timeout: 10000
+- tapOn: "Start a conversation with Coach"
 - scrollUntilVisible:
     element:
       text: "Request a previewed plan adjustment"

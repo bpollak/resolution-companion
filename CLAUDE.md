@@ -203,9 +203,14 @@ domain `resolutioncompanion.com`.
     weekly review). Both full-passed 2026-07-17 on iPhone 16 Pro / iOS 18.
     Regression also caught+fixed a pending-widget-vote race: the AppState
     'active' listener could consume votes before the store loaded (guarded
-    by isLoading in AppContext). To inject App Group values in sim tests use
-    `simctl spawn <udid> defaults write group.com.resolutioncompanion.app` —
-    editing the plist file directly desyncs cfprefsd.
+    by isLoading in AppContext). To inject App Group values in sim tests,
+    write the App Group container's plist (path from `xcrun simctl
+get_app_container <udid> com.resolutioncompanion.app
+group.com.resolutioncompanion.app` plus
+    `/Library/Preferences/group.com.resolutioncompanion.app.plist`) while the
+    app is stopped. Corrected 2026-10-14: the older `simctl spawn defaults
+write group.com.resolutioncompanion.app` writes a domain the app never
+    reads (see docs/plans/2026-10-14-native-regression.md).
 - **Website** (2026-07-11): direct App Store CTAs, official badge, social
   share card, FAQ (+ FAQPage schema), Pricing nav — live.
 

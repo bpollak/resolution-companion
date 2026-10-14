@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Seed a polished marketing persona for App Store / website screenshots.
 
-Creates "Marathon-Ready Runner" with three milestones, ~90%-consistency
+Creates "Confident Spanish Speaker" with three milestones, ~90%-consistency
 5-week history (today deliberately partial: 1 of 3 done, so the Today shot
 shows live action cards), a qualifying Energy discovery, and all transient
 cards marked seen so screens stay clean. Run against a freshly launched app's
@@ -70,7 +70,7 @@ logs = []
 day = start
 notes = {
     6: "Ordered coffee entirely in Spanish today.",
-    16: "Busy day \u2014 one sentence still counted.",
+    16: "Busy day, but one sentence still counted.",
     27: "Rolled my Rs for the first time!",
 }
 while day <= today:

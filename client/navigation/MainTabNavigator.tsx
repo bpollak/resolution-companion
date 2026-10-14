@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
 import { useLocalDateKey } from "@/hooks/useLocalDateKey";
 import { actionIsScheduledOnDate } from "@/lib/journey-date";
-import { getTodayTabBadge } from "@/lib/tab-badge";
+import { getTodayTabBadge, isSelectedTab } from "@/lib/tab-badge";
 import { Spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { ThemedText } from "@/components/ThemedText";
@@ -374,7 +374,7 @@ export default function MainTabNavigator() {
       <Tab.Screen
         name="TodayTab"
         component={TodayScreen}
-        options={({ navigation }) => ({
+        options={({ navigation, route }) => ({
           title: "Today",
           tabBarAccessibilityLabel: "Today tab",
           tabBarButtonTestID: "tab-today",
@@ -390,7 +390,7 @@ export default function MainTabNavigator() {
           ),
           headerRight: () => <ProfileHeaderButton navigation={navigation} />,
           tabBarBadge: getTodayTabBadge({
-            isTodayFocused: navigation.isFocused(),
+            isTodayFocused: isSelectedTab(navigation.getState(), route.key),
             hasLoggedToday,
             remainingTasksCount,
           }),

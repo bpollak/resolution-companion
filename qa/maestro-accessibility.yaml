@@ -21,9 +21,16 @@ name: accessibility-large-text-orientation
 - assertVisible: "Not now"
 - takeScreenshot: a11y-03-consent
 - tapOn: "Not now"
+# Declining consent explains AI is off and offers the AI-free starter plan
+# (review fix D9 replaced the old "Setup is paused" copy).
 - scrollUntilVisible:
     element:
-      text: "Setup is paused.*"
+      text: "AI coaching is off.*"
+    direction: DOWN
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Set it up myself"
     direction: DOWN
     timeout: 20000
 - assertNotVisible: "Your starting plan"

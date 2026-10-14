@@ -4,6 +4,8 @@ appId: com.resolutioncompanion.app
 # disables connectivity before this flow and restores it afterward.
 
 - launchApp
+# The progress line and Ask Coach link show only while a habit is pending.
+- runFlow: _pending-today.yaml
 - tapOn:
     id: "tab-today"
 - extendedWaitUntil:

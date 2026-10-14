@@ -2,7 +2,7 @@ appId: com.resolutioncompanion.app
 ---
 # Remaining engagement items: micro-note expand (asserted via the card's
 # Expand→Collapse label change), live weekly-review coach session, and the
-# Dawn switch flipped back to midnight through the UI.
+# opt-in Dawn switch turned on and back to midnight through the UI.
 
 - launchApp
 
@@ -18,7 +18,7 @@ appId: com.resolutioncompanion.app
           optional: true
       - waitForAnimationToEnd
 - extendedWaitUntil:
-    visible: "Becoming Momentum Builder.*"
+    visible: "Becoming My Future Self.*"
     timeout: 20000
 - tapOn:
     id: "tab-coach"
@@ -58,18 +58,23 @@ appId: com.resolutioncompanion.app
     visible: "AI coach: .+"
     timeout: 90000
 - takeScreenshot: 17-weekly-review-live
+# Wait for the completed turn: a Save while still streaming has nothing in
+# the transcript to keep yet. The response controls render only once the
+# stream ends. (A trailing "?" was used before, but the model does not always
+# end on a question.)
 - extendedWaitUntil:
-    # Wait for the completed turn (ends with a follow-up question) — a Save
-    # while still streaming has nothing in the transcript to keep yet.
-    visible: "AI coach: .+\\?.*"
+    notVisible: "Stop Coach response"
     timeout: 90000
+- assertVisible: "Copy coach response"
 - tapOn: "Save coaching session"
 - extendedWaitUntil:
     visible:
       id: "tab-today"
     timeout: 15000
 
-# --- Flip the Dawn switch back to midnight via the UI ---
+# --- Dawn: the unlocked reward is opt-in. Turn it on, then back to midnight
+# through the UI, asserting the switch state each time (the old flow tapped
+# once and assumed the unlock had already applied Dawn; it does not). ---
 - tapOn:
     id: "tab-today"
 - waitForAnimationToEnd
@@ -93,8 +98,31 @@ appId: com.resolutioncompanion.app
     timeout: 30000
     centerElement: true
 - waitForAnimationToEnd
+- assertVisible:
+    text: "Toggle Dawn Theme"
+    checked: false
 - tapOn: "Toggle Dawn Theme"
 - waitForAnimationToEnd
+- assertVisible:
+    text: "Toggle Dawn Theme"
+    checked: true
+- takeScreenshot: 18-profile-dawn-on
+- tapOn: "Back to profile.*"
+- tapOn: "Close profile.*"
+- takeScreenshot: 18b-today-dawn
+- tapOn: "Open profile and settings.*"
+- scrollUntilVisible:
+    element:
+      text: "Appearance.*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn: "Appearance.*"
+- tapOn: "Toggle Dawn Theme"
+- waitForAnimationToEnd
+- assertVisible:
+    text: "Toggle Dawn Theme"
+    checked: false
 - takeScreenshot: 19-profile-back-to-midnight
 - tapOn: "Back to profile.*"
 - tapOn: "Close profile.*"

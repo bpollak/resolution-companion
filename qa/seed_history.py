@@ -22,6 +22,9 @@ MANIFEST = sys.argv[1]
 
 
 def load_value(manifest, key):
+    # A fresh plan has no dailyLogs key until its first check-off.
+    if key not in manifest:
+        return "[]"
     value = manifest[key]
     if value is not None:
         return value
@@ -94,9 +97,10 @@ store_value(manifest, "personas", json.dumps(personas))
 store_value(manifest, "benchmarks", json.dumps(benchmarks))
 store_value(manifest, "elementalActions", json.dumps(actions))
 store_value(manifest, "dailyLogs", json.dumps(logs))
-# Give the Today card slot to the coach observation
+# Give the Today card slot to the coach observation. The recap's week key is
+# LAST week's Monday (progress.ts buildWeeklyRecap), not the current week's.
 manifest["today_weekly_recap_seen_week"] = (
-    today - timedelta(days=today.weekday())
+    today - timedelta(days=today.weekday() + 7)
 ).isoformat()
 
 with open(MANIFEST, "w") as f:

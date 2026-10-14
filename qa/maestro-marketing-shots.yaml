@@ -63,6 +63,11 @@ appId: com.resolutioncompanion.app
     text: "Agree and continue.*"
     optional: true
 - extendedWaitUntil:
-    visible: "AI coach: .+\\?.*"
+    visible: "AI coach: .+"
     timeout: 90000
+# Capture the finished turn, not a streaming fragment.
+- extendedWaitUntil:
+    notVisible: "Stop Coach response"
+    timeout: 90000
+- assertVisible: "Copy coach response"
 - takeScreenshot: mk-06-chat
