@@ -20,7 +20,7 @@
         ],
         "com.apple.developer.ubiquity-kvstore-identifier": "$(TeamIdentifierPrefix)com.resolutioncompanion.app"
       },
-      "buildNumber": "104",
+      "buildNumber": "105",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
