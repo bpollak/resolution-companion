@@ -2,6 +2,8 @@ import { Platform } from "react-native";
 import { requireOptionalNativeModule } from "expo-modules-core";
 import { ElementalAction, DailyLog, Persona } from "@/lib/storage";
 import { computeStreak, getLocalDateString } from "@/lib/progress";
+import { actionIsScheduledOnDate } from "@/lib/journey-date";
+import { buildTodayProgressLine, planDayNumber } from "@/lib/today-layout";
 import { logger } from "@/lib/logger";
 
 /**
@@ -24,7 +26,6 @@ export interface WidgetData {
   completed: number;
   streak: number;
   isRestDay: boolean;
-  copyLine: string;
   nextActionId: string | null;
   nextActionTitle: string | null;
   nextActionKickstart: string | null;
@@ -32,6 +33,17 @@ export interface WidgetData {
   remainingActions: WidgetActionData[];
   /** Seven-day schedule lets the widget roll over at midnight without an app open. */
   dayPlans: WidgetDayPlan[];
+  // The fields below were added after the first widget release. Swift
+  // decodes them as optionals, so a snapshot saved by an older build (and
+  // its legacy `copyLine` key) still renders until the app syncs again.
+  /** False until a persona exists: the widget shows its set-up state. */
+  hasPlan: boolean;
+  /** 1-based day of the plan, Today's "Day N" when there is no streak yet. */
+  planDay: number;
+  /** The streak is being held by a shield, worded "(protected)" like Today. */
+  shieldUsed: boolean;
+  /** Today's progress line ("0/1 done · 12-day streak"); streak part only on a rest day. */
+  progressLine: string;
 }
 
 export interface WidgetActionData {
@@ -52,15 +64,17 @@ export interface PendingVote {
   source?: "widget" | "siri";
 }
 
-// Rotating identity-framed widget copy — warmth only, never guilt. The
-// variant is keyed by date so the widget face changes day to day (the
-// Duolingo widget lesson) while staying deterministic for a given day.
-const COPY_VARIANTS: ((personaName: string, remaining: number) => string)[] = [
-  (name, remaining) =>
-    `${remaining} small ${remaining === 1 ? "action" : "actions"} for ${name} today`,
-  (name) => `${name} is one small action away`,
-  () => "2 minutes still counts today",
-];
+/**
+ * Progress facts owned by the app's progress snapshot. Passing them in keeps
+ * the widget's streak identical to Today's, which counts shields by plan
+ * tier; recomputing here would use the free allowance and could disagree.
+ */
+export interface WidgetProgressInput {
+  streak: number;
+  shieldUsed: boolean;
+  /** Defaults to the persona's plan day, the same rule Today uses. */
+  planDay?: number;
+}
 
 /** Pure builder so the widget contract is unit-testable. */
 export function buildWidgetData(
@@ -68,20 +82,34 @@ export function buildWidgetData(
   dailyLogs: DailyLog[],
   persona: Persona | null,
   date: Date = new Date(),
+  progress?: WidgetProgressInput,
 ): WidgetData {
   const dateStr = getLocalDateString(date);
 
-  const scheduledFor = (target: Date) => {
-    const targetDate = getLocalDateString(target);
-    const targetWeekday = target.toLocaleDateString("en-US", {
-      weekday: "long",
-    });
-    return actions.filter((action) => {
-      if (!action.frequency.includes(targetWeekday)) return false;
-      const created = getLocalDateString(new Date(action.createdAt));
-      return created <= targetDate;
-    });
-  };
+  if (!persona) {
+    return {
+      personaName: "",
+      date: dateStr,
+      scheduled: 0,
+      completed: 0,
+      streak: 0,
+      isRestDay: false,
+      nextActionId: null,
+      nextActionTitle: null,
+      nextActionKickstart: null,
+      remainingActions: [],
+      dayPlans: [],
+      hasPlan: false,
+      planDay: 1,
+      shieldUsed: false,
+      progressLine: "",
+    };
+  }
+
+  // Same scheduling rule as Today, so the widget never counts a habit that
+  // Today does not show.
+  const scheduledFor = (target: Date) =>
+    actions.filter((action) => actionIsScheduledOnDate(action, target));
 
   const scheduledActions = scheduledFor(date);
 
@@ -95,9 +123,15 @@ export function buildWidgetData(
 
   const completed = scheduledActions.filter((a) => isCompleted(a.id)).length;
   const next = scheduledActions.find((a) => !isCompleted(a.id)) ?? null;
-  const streak = computeStreak(actions, dailyLogs).current;
-  const personaName = persona?.name ?? "Future You";
-  const remaining = scheduledActions.length - completed;
+  const fallbackStreak = progress ? null : computeStreak(actions, dailyLogs);
+  const streak = progress?.streak ?? fallbackStreak?.current ?? 0;
+  const shieldUsed =
+    progress?.shieldUsed ?? fallbackStreak?.shieldUsed ?? false;
+  const planDay =
+    progress?.planDay ??
+    planDayNumber(getLocalDateString(new Date(persona.createdAt)), dateStr);
+  const isRestDay = scheduledActions.length === 0;
+
   const toWidgetAction = (action: ElementalAction): WidgetActionData => ({
     id: action.id,
     title: action.title,
@@ -115,33 +149,35 @@ export function buildWidgetData(
     };
   });
 
-  let copyLine: string;
-  if (scheduledActions.length === 0) {
-    copyLine = "Rest is part of becoming.";
-  } else if (remaining === 0) {
-    copyLine = "Every action complete today ✓";
-  } else {
-    let hash = 0;
-    for (let i = 0; i < dateStr.length; i++) hash += dateStr.charCodeAt(i);
-    copyLine = COPY_VARIANTS[hash % COPY_VARIANTS.length](
-      personaName,
-      remaining,
-    );
-  }
+  // Today's wording without the month percentage, which a widget has no
+  // room for. A rest day has no count, so only the streak part remains.
+  const lineParts = buildTodayProgressLine({
+    completed,
+    scheduled: scheduledActions.length,
+    streak,
+    shieldUsed,
+    planDay,
+    consistency: 0,
+    showConsistency: false,
+  }).parts;
+  const progressLine = (isRestDay ? lineParts.slice(1) : lineParts).join(" · ");
 
   return {
-    personaName,
+    personaName: persona.name,
     date: dateStr,
     scheduled: scheduledActions.length,
     completed,
     streak,
-    isRestDay: scheduledActions.length === 0,
-    copyLine,
+    isRestDay,
     nextActionId: next?.id ?? null,
     nextActionTitle: next?.title ?? null,
     nextActionKickstart: next?.kickstartVersion || null,
     remainingActions,
     dayPlans,
+    hasPlan: true,
+    planDay,
+    shieldUsed,
+    progressLine,
   };
 }
 
@@ -165,6 +201,7 @@ export function syncWidgetData(
   actions: ElementalAction[],
   dailyLogs: DailyLog[],
   persona: Persona | null,
+  progress?: WidgetProgressInput,
 ): void {
   const storage = getStorage();
   if (!storage) return;
@@ -172,7 +209,9 @@ export function syncWidgetData(
     storage.setItem(
       WIDGET_APP_GROUP,
       WIDGET_DATA_KEY,
-      JSON.stringify(buildWidgetData(actions, dailyLogs, persona)),
+      JSON.stringify(
+        buildWidgetData(actions, dailyLogs, persona, new Date(), progress),
+      ),
     );
     storage.reloadWidgets();
   } catch (error) {

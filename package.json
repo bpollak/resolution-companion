@@ -27,6 +27,7 @@
     "test": "TZ=America/Los_Angeles jest",
     "check:types": "tsc --noEmit",
     "check:a11y": "node scripts/check-accessibility.mjs",
+    "check:compiler": "node scripts/check-react-compiler.mjs",
     "verify:ios-artifact": "node scripts/verify-ios-artifact.mjs",
     "release:check": "node scripts/release-workflow.mjs check",
     "release:sync:ios-build-number": "node scripts/sync-ios-build-number.mjs",

@@ -134,7 +134,11 @@ real state.
 - E3 Large: name line, progress line, up to three habit rows with check
   buttons; no big ring, eyebrow, or "N more" footer.
 - E4 Lock Screen: round gauge with rest and done icons; new rectangular
-  (title, progress, check intent) and inline families.
+  (title and progress) and inline families. Decision (Brett deferred to
+  Claude, 2026-10-14): the rectangular widget opens Today instead of logging,
+  because Lock Screen widgets get brushed by accident and an uncast vote
+  breaks the honest streak. One-tap logging stays on Home Screen widgets,
+  Siri, and the app.
 - E5 Light and dark variants from asset colors, `.primary`/`.secondary`
   text, `widgetAccentable` on the accent only, tinted-mode fallbacks.
 - E6 Bugs: explicit no-plan state, rest-day ring, streak passed from the

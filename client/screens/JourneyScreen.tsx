@@ -3,6 +3,7 @@ import React, {
   useMemo,
   useEffect,
   useCallback,
+  useDeferredValue,
   useRef,
 } from "react";
 import { View, FlatList, StyleSheet, Pressable, Platform } from "react-native";
@@ -10,12 +11,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import {
-  useNavigation,
-  useRoute,
-  useIsFocused,
-  RouteProp,
-} from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
@@ -26,6 +22,7 @@ import {
   formatTargetCountdown,
   getLocalDateString,
   MilestoneProgressResult,
+  weekdayName,
 } from "@/lib/progress";
 import type { Benchmark, DailyLog, ElementalAction } from "@/lib/storage";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
@@ -141,6 +138,177 @@ interface DayInfo {
   totalCount: number;
   hasStreak: boolean;
 }
+
+/** A calendar day with its display state settled once per calendar build. */
+interface CalendarDay extends DayInfo {
+  isComplete: boolean;
+  isPartial: boolean;
+  isShielded: boolean;
+  isMissed: boolean;
+  isRestDay: boolean;
+  accessibilityLabel: string;
+}
+
+// "Wednesday, October 14", spelled out rather than toLocaleDateString: the
+// calendar labels ~35 cells per build, and Hermes on iOS can return "" for
+// Intl formatting when its data is absent, which would blank VoiceOver.
+function calendarDateLabel(date: Date): string {
+  return `${weekdayName(date)}, ${MONTHS[date.getMonth()]} ${date.getDate()}`;
+}
+
+function describeCalendarDay(
+  dayInfo: DayInfo,
+  personaCreatedDate: Date | null,
+  shieldedDaySet: Set<string>,
+  now: Date,
+): CalendarDay {
+  const isComplete =
+    dayInfo.totalCount > 0 && dayInfo.completedCount === dayInfo.totalCount;
+  const isPartial =
+    dayInfo.completedCount > 0 && dayInfo.completedCount < dayInfo.totalCount;
+  const isAfterPersonaCreated = personaCreatedDate
+    ? dayInfo.date >= personaCreatedDate
+    : true;
+  // Shield-bridged misses show a shield outline, not the red ring
+  const isShielded =
+    shieldedDaySet.has(dayInfo.dateStr) && !isComplete && !isPartial;
+  const isMissed =
+    !isShielded &&
+    // Today is pending until it's over, never painted missed
+    // (mirrors the streak rule "today never breaks a run")
+    !dayInfo.isToday &&
+    dayInfo.totalCount > 0 &&
+    dayInfo.completedCount === 0 &&
+    dayInfo.date < now &&
+    isAfterPersonaCreated;
+  // Days before the plan existed (and padding days from other months) are
+  // blank, not rest days: nothing was planned yet.
+  const isRestDay =
+    dayInfo.totalCount === 0 && dayInfo.isCurrentMonth && isAfterPersonaCreated;
+  const statusLabel = !isAfterPersonaCreated
+    ? dayInfo.date > now
+      ? "before your plan starts"
+      : "before your plan started"
+    : dayInfo.totalCount === 0
+      ? "nothing planned"
+      : `${dayInfo.completedCount} of ${dayInfo.totalCount} habit${dayInfo.totalCount === 1 ? "" : "s"} done${isShielded ? ", covered by an earned rest day" : ""}`;
+  return {
+    ...dayInfo,
+    isComplete,
+    isPartial,
+    isShielded,
+    isMissed,
+    isRestDay,
+    accessibilityLabel: `${dayInfo.isToday ? "Today, " : ""}${calendarDateLabel(dayInfo.date)}, ${statusLabel}`,
+  };
+}
+
+// Memoized so a selection change re-renders only the old and new selected
+// cells; every other prop is stable for the life of a calendar build.
+const DayCell = React.memo(function DayCell({
+  day,
+  isSelected,
+  onSelect,
+  theme,
+}: {
+  day: CalendarDay;
+  isSelected: boolean;
+  onSelect: (date: Date) => void;
+  theme: any;
+}) {
+  const { isComplete, isPartial, isShielded, isMissed, isRestDay } = day;
+  return (
+    <Pressable
+      onPress={() => onSelect(day.date)}
+      hitSlop={4}
+      pressRetentionOffset={12}
+      style={({ pressed }) => [
+        styles.dayCell,
+        // Selection reads as a cell highlight, separate from the status
+        // rings on the day marker (today/missed/shielded)
+        isSelected && {
+          backgroundColor: withAlpha(theme.accent, 0.14),
+          borderRadius: BorderRadius.md,
+        },
+        { opacity: pressed ? 0.5 : 1 },
+      ]}
+      accessibilityRole="button"
+      accessibilityState={{ selected: isSelected }}
+      accessibilityLabel={day.accessibilityLabel}
+      accessibilityHint={
+        day.isToday && !isSelected
+          ? "Today's habits are on the Today tab"
+          : isSelected
+            ? "Hides this day's actions"
+            : "Shows this day's actions below the calendar"
+      }
+    >
+      {day.hasStreak ? (
+        <View style={[styles.streakLine, { backgroundColor: theme.accent }]} />
+      ) : null}
+      <View
+        style={[
+          styles.dayMarker,
+          day.isToday && styles.todayMarker,
+          day.isToday && { borderColor: theme.accent },
+          isComplete && { backgroundColor: theme.success },
+          isPartial && { backgroundColor: theme.warning },
+          isShielded && {
+            backgroundColor: "transparent",
+            borderWidth: 2,
+            borderColor: theme.accent,
+          },
+          isMissed && {
+            backgroundColor: "transparent",
+            borderWidth: 2,
+            borderColor: theme.error,
+          },
+        ]}
+      >
+        <ThemedText
+          style={[
+            styles.dayText,
+            !day.isCurrentMonth && { opacity: 0.3 },
+            (isComplete || isPartial) && {
+              color: theme.onStatus,
+            },
+          ]}
+        >
+          {day.date.getDate()}
+        </ThemedText>
+        {isComplete || isPartial || isMissed || isShielded || isRestDay ? (
+          <View
+            style={[
+              styles.shieldBadge,
+              {
+                backgroundColor: theme.backgroundRoot,
+                borderRadius: 8,
+                padding: 2,
+              },
+            ]}
+          >
+            <Feather
+              name={
+                isShielded
+                  ? "shield"
+                  : isComplete
+                    ? "check"
+                    : isPartial
+                      ? "minus"
+                      : isMissed
+                        ? "x"
+                        : "moon"
+              }
+              size={12}
+              color={theme.text}
+              accessible={false}
+            />
+          </View>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+});
 
 interface SelectedDateDetailsProps {
   date: Date;
@@ -714,14 +882,15 @@ export default function JourneyScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<MainTabParamList, "JourneyTab">>();
-  const isFocused = useIsFocused();
+  // Focus is read from the navigator on demand (not useIsFocused), so a tab
+  // switch doesn't re-render this whole screen.
   const listRef = useRef<FlatList>(null);
   const detailsOffset = useRef<number | null>(null);
   const pendingDateScroll = useRef(false);
   const scrollToRequestedDate = useCallback(() => {
     if (
       !pendingDateScroll.current ||
-      !isFocused ||
+      !navigation.isFocused() ||
       detailsOffset.current === null
     )
       return;
@@ -730,40 +899,46 @@ export default function JourneyScreen() {
       offset: detailsOffset.current,
       animated: false,
     });
-  }, [isFocused]);
+  }, [navigation]);
   const { theme, isDark } = useTheme();
   const {
     hasOnboarded,
     persona,
     benchmarks,
     actions,
-    dailyLogs,
+    dailyLogs: latestDailyLogs,
     personaAlignment,
-    progressSnapshot,
+    progressSnapshot: latestProgressSnapshot,
     toggleDailyLog,
     canAddBenchmark,
     subscription,
   } = useApp();
+  // Journey stays mounted behind Today. Deferring the log-derived inputs
+  // lets a Today check-off commit first (this screen re-renders with the
+  // previous values, hitting its memos), then catch up at low priority.
+  const dailyLogs = useDeferredValue(latestDailyLogs);
+  const progressSnapshot = useDeferredValue(latestProgressSnapshot);
 
   const [currentDate, setCurrentDate] = useState(new Date());
   // Nothing is selected by default: today's list already lives on Today.
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  // A date handed over by Today (or a widget link) applies once Journey is
+  // focused: immediately if it already is, otherwise on the focus event.
+  const requestedDate = route.params?.date;
+  const requestedIntentId = route.params?.intentId;
   useEffect(() => {
-    if (!isFocused) return;
-    const requested = parseJourneyDate(route.params?.date);
-    if (!requested) return;
-    setCurrentDate(requested);
-    setSelectedDate(requested);
-    pendingDateScroll.current = true;
-    navigation.setParams({ date: undefined, intentId: undefined });
-    requestAnimationFrame(scrollToRequestedDate);
-  }, [
-    isFocused,
-    navigation,
-    route.params?.date,
-    route.params?.intentId,
-    scrollToRequestedDate,
-  ]);
+    const applyRequestedDate = () => {
+      const requested = parseJourneyDate(requestedDate);
+      if (!requested) return;
+      setCurrentDate(requested);
+      setSelectedDate(requested);
+      pendingDateScroll.current = true;
+      navigation.setParams({ date: undefined, intentId: undefined });
+      requestAnimationFrame(scrollToRequestedDate);
+    };
+    if (navigation.isFocused()) applyRequestedDate();
+    return navigation.addListener("focus", applyRequestedDate);
+  }, [navigation, requestedDate, requestedIntentId, scrollToRequestedDate]);
 
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -780,30 +955,33 @@ export default function JourneyScreen() {
     setToastVisible(true);
   };
 
-  const handleToggleAction = async (
+  // A promise chain rather than try/catch keeps this screen
+  // compiler-optimizable.
+  const handleToggleAction = (
     actionId: string,
     dateStr: string,
     wasCompleted: boolean,
   ) => {
-    try {
-      if (wasCompleted) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-      await toggleDailyLog(actionId, dateStr);
-      const action = actions.find((a) => a.id === actionId);
-      if (action) {
-        showToast(
-          wasCompleted
-            ? `Unmarked "${action.title}"`
-            : `Completed "${action.title}"`,
-          wasCompleted ? "info" : "success",
-        );
-      }
-    } catch {
-      showToast("Couldn’t update that habit. Try again.", "warning");
+    if (wasCompleted) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
+    return toggleDailyLog(actionId, dateStr)
+      .then(() => {
+        const action = actions.find((a) => a.id === actionId);
+        if (action) {
+          showToast(
+            wasCompleted
+              ? `Unmarked "${action.title}"`
+              : `Completed "${action.title}"`,
+            wasCompleted ? "info" : "success",
+          );
+        }
+      })
+      .catch(() => {
+        showToast("Couldn’t update that habit. Try again.", "warning");
+      });
   };
 
   const personaBenchmarks = useMemo(() => {
@@ -852,12 +1030,13 @@ export default function JourneyScreen() {
     return hadLastYear ? year - 1 : year;
   }, [dailyLogs, personaActions]);
 
+  const personaCreatedAt = persona?.createdAt;
   const personaCreatedDate = useMemo(() => {
-    if (!persona?.createdAt) return null;
-    const date = new Date(persona.createdAt);
+    if (!personaCreatedAt) return null;
+    const date = new Date(personaCreatedAt);
     date.setHours(0, 0, 0, 0);
     return date;
-  }, [persona?.createdAt]);
+  }, [personaCreatedAt]);
 
   const benchmarkById = useMemo(
     () =>
@@ -885,9 +1064,9 @@ export default function JourneyScreen() {
       getMonthProgressDisplay({
         actions: personaActions,
         logIndex: progressSnapshot.logIndex,
-        planStartedAt: persona?.createdAt,
+        planStartedAt: personaCreatedAt,
       }),
-    [personaActions, progressSnapshot.logIndex, persona?.createdAt],
+    [personaActions, progressSnapshot.logIndex, personaCreatedAt],
   );
 
   const [showMilestoneInfo, setShowMilestoneInfo] = useState(false);
@@ -1013,12 +1192,30 @@ export default function JourneyScreen() {
       });
     }
 
-    return days;
-  }, [currentDate, personaActions, progressSnapshot.logIndex]);
+    const now = new Date();
+    return days.map((day) =>
+      describeCalendarDay(day, personaCreatedDate, shieldedDaySet, now),
+    );
+  }, [
+    currentDate,
+    personaActions,
+    progressSnapshot.logIndex,
+    personaCreatedDate,
+    shieldedDaySet,
+  ]);
   const calendarWeeks = useMemo(
     () => chunkIntoWeeks(calendarDays),
     [calendarDays],
   );
+  const selectedDateStr = selectedDate
+    ? getLocalDateString(selectedDate)
+    : null;
+  const selectDay = useCallback((date: Date) => {
+    setSelectedDate((current) => nextDaySelection(current, date));
+    if (Platform.OS !== "web") {
+      Haptics.selectionAsync();
+    }
+  }, []);
 
   const prevMonth = useCallback(() => {
     setCurrentDate(
@@ -1355,163 +1552,15 @@ export default function JourneyScreen() {
             <View style={styles.calendarGrid}>
               {calendarWeeks.map((week) => (
                 <View key={week[0].dateStr} style={styles.calendarWeek}>
-                  {week.map((dayInfo) => {
-                    const isComplete =
-                      dayInfo.totalCount > 0 &&
-                      dayInfo.completedCount === dayInfo.totalCount;
-                    const isPartial =
-                      dayInfo.completedCount > 0 &&
-                      dayInfo.completedCount < dayInfo.totalCount;
-                    const isAfterPersonaCreated = personaCreatedDate
-                      ? dayInfo.date >= personaCreatedDate
-                      : true;
-                    // Shield-bridged misses show a shield outline, not the red ring
-                    const isShielded =
-                      shieldedDaySet.has(dayInfo.dateStr) &&
-                      !isComplete &&
-                      !isPartial;
-                    const isMissed =
-                      !isShielded &&
-                      // Today is pending until it's over, never painted missed
-                      // (mirrors the streak rule "today never breaks a run")
-                      !dayInfo.isToday &&
-                      dayInfo.totalCount > 0 &&
-                      dayInfo.completedCount === 0 &&
-                      dayInfo.date < new Date() &&
-                      isAfterPersonaCreated;
-
-                    const isSelected =
-                      selectedDate !== null &&
-                      dayInfo.date.toDateString() ===
-                        selectedDate.toDateString();
-                    const dateLabel = dayInfo.date.toLocaleDateString("en-US", {
-                      weekday: "long",
-                      month: "long",
-                      day: "numeric",
-                    });
-                    // Days before the plan existed (and padding days from other
-                    // months) are blank, not rest days: nothing was planned yet.
-                    const isRestDay =
-                      dayInfo.totalCount === 0 &&
-                      dayInfo.isCurrentMonth &&
-                      isAfterPersonaCreated;
-                    const statusLabel = !isAfterPersonaCreated
-                      ? dayInfo.date > new Date()
-                        ? "before your plan starts"
-                        : "before your plan started"
-                      : dayInfo.totalCount === 0
-                        ? "nothing planned"
-                        : `${dayInfo.completedCount} of ${dayInfo.totalCount} habit${dayInfo.totalCount === 1 ? "" : "s"} done${isShielded ? ", covered by an earned rest day" : ""}`;
-
-                    return (
-                      <Pressable
-                        key={dayInfo.dateStr}
-                        onPress={() => {
-                          setSelectedDate((current) =>
-                            nextDaySelection(current, dayInfo.date),
-                          );
-                          if (Platform.OS !== "web") {
-                            Haptics.selectionAsync();
-                          }
-                        }}
-                        hitSlop={4}
-                        pressRetentionOffset={12}
-                        style={({ pressed }) => [
-                          styles.dayCell,
-                          // Selection reads as a cell highlight, separate from the
-                          // status rings on the day marker (today/missed/shielded)
-                          isSelected && {
-                            backgroundColor: withAlpha(theme.accent, 0.14),
-                            borderRadius: BorderRadius.md,
-                          },
-                          { opacity: pressed ? 0.5 : 1 },
-                        ]}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: isSelected }}
-                        accessibilityLabel={`${dayInfo.isToday ? "Today, " : ""}${dateLabel}, ${statusLabel}`}
-                        accessibilityHint={
-                          dayInfo.isToday && !isSelected
-                            ? "Today's habits are on the Today tab"
-                            : isSelected
-                              ? "Hides this day's actions"
-                              : "Shows this day's actions below the calendar"
-                        }
-                      >
-                        {dayInfo.hasStreak ? (
-                          <View
-                            style={[
-                              styles.streakLine,
-                              { backgroundColor: theme.accent },
-                            ]}
-                          />
-                        ) : null}
-                        <View
-                          style={[
-                            styles.dayMarker,
-                            dayInfo.isToday && styles.todayMarker,
-                            dayInfo.isToday && { borderColor: theme.accent },
-                            isComplete && { backgroundColor: theme.success },
-                            isPartial && { backgroundColor: theme.warning },
-                            isShielded && {
-                              backgroundColor: "transparent",
-                              borderWidth: 2,
-                              borderColor: theme.accent,
-                            },
-                            isMissed && {
-                              backgroundColor: "transparent",
-                              borderWidth: 2,
-                              borderColor: theme.error,
-                            },
-                          ]}
-                        >
-                          <ThemedText
-                            style={[
-                              styles.dayText,
-                              !dayInfo.isCurrentMonth && { opacity: 0.3 },
-                              (isComplete || isPartial) && {
-                                color: theme.onStatus,
-                              },
-                            ]}
-                          >
-                            {dayInfo.date.getDate()}
-                          </ThemedText>
-                          {isComplete ||
-                          isPartial ||
-                          isMissed ||
-                          isShielded ||
-                          isRestDay ? (
-                            <View
-                              style={[
-                                styles.shieldBadge,
-                                {
-                                  backgroundColor: theme.backgroundRoot,
-                                  borderRadius: 8,
-                                  padding: 2,
-                                },
-                              ]}
-                            >
-                              <Feather
-                                name={
-                                  isShielded
-                                    ? "shield"
-                                    : isComplete
-                                      ? "check"
-                                      : isPartial
-                                        ? "minus"
-                                        : isMissed
-                                          ? "x"
-                                          : "moon"
-                                }
-                                size={12}
-                                color={theme.text}
-                                accessible={false}
-                              />
-                            </View>
-                          ) : null}
-                        </View>
-                      </Pressable>
-                    );
-                  })}
+                  {week.map((dayInfo) => (
+                    <DayCell
+                      key={dayInfo.dateStr}
+                      day={dayInfo}
+                      isSelected={dayInfo.dateStr === selectedDateStr}
+                      onSelect={selectDay}
+                      theme={theme}
+                    />
+                  ))}
                 </View>
               ))}
             </View>
@@ -1625,6 +1674,7 @@ export default function JourneyScreen() {
             <InsightsPanel
               actions={personaActions}
               dailyLogs={dailyLogs}
+              logIndex={progressSnapshot.logIndex}
               personaName={persona?.name ?? "Future You"}
               isPremium={subscription.isPremium}
               onUpgrade={() =>

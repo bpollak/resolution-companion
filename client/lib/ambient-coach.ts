@@ -3,7 +3,7 @@ import type {
   DailyLog,
   ElementalAction,
 } from "@/lib/storage";
-import { getLocalDateString } from "@/lib/progress";
+import { getLocalDateString, weekdayName } from "@/lib/progress";
 
 export type ActionRhythmCategory =
   | "working-well"
@@ -63,7 +63,7 @@ export function categorizeActionRhythms(
     const cursor = new Date(start);
     while (cursor <= end) {
       const dateKey = getLocalDateString(cursor);
-      const weekday = cursor.toLocaleDateString("en-US", { weekday: "long" });
+      const weekday = weekdayName(cursor);
       if (dateKey >= created && action.frequency.includes(weekday)) {
         scheduled += 1;
         if (index.get(`${action.id}|${dateKey}`)?.status) completed += 1;

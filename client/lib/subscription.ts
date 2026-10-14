@@ -11,6 +11,20 @@ export interface ServerSubscriptionStatus {
   currentPeriodEnd: string | null;
 }
 
+/**
+ * Field equality for Subscription. Each verification reads a fresh object
+ * from storage; keeping the old reference when nothing changed spares every
+ * context consumer a re-render.
+ */
+export function sameSubscription(a: Subscription, b: Subscription): boolean {
+  return (
+    a.isPremium === b.isPremium &&
+    a.plan === b.plan &&
+    a.expiresAt === b.expiresAt &&
+    a.purchasedAt === b.purchasedAt
+  );
+}
+
 export function getSubscriptionPlanLabel(
   plan: Subscription["plan"],
 ): "Free" | "Monthly" | "Yearly" | "Lifetime" {

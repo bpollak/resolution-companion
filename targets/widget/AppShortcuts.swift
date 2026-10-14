@@ -1,9 +1,17 @@
 import AppIntents
 import WidgetKit
 
-// "Hey Siri, log my kickstart" — parameterless voice logging of the next
+// "Hey Siri, log my kickstart": parameterless voice logging of the next
 // pending action. Shares the pendingVotes contract with CastVoteIntent
 // (index.swift); the app reconciles queued votes on its next foreground.
+
+// Spoken replies stay short: Siri reads them aloud after every vote.
+func loggedDialog(_ after: WidgetData?) -> IntentDialog {
+    let remaining = after?.remainingCount ?? 0
+    return remaining == 0 ? "Logged. All done today." : "Logged. \(remaining) to go."
+}
+
+let setUpDialog: IntentDialog = "Open Resolution Companion to set up your plan."
 
 struct LogKickstartIntent: AppIntent {
     static var title: LocalizedStringResource = "Log my kickstart"
@@ -12,30 +20,18 @@ struct LogKickstartIntent: AppIntent {
     )
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        guard let data = loadWidgetData() else {
-            return .result(
-                dialog: "Open Resolution Companion first to set up your plan."
-            )
+        guard let data = loadWidgetData(), data.planIsSet else {
+            return .result(dialog: setUpDialog)
         }
         if data.isRestDay {
-            return .result(
-                dialog: "Nothing scheduled today — rest is part of becoming."
-            )
+            return .result(dialog: "Rest day. Nothing to log today.")
         }
         guard let actionId = data.nextActionId, !actionId.isEmpty else {
-            return .result(
-                dialog: "Every action is already complete today. Nicely done."
-            )
+            return .result(dialog: "Already done today.")
         }
 
-        enqueueVote(actionId: actionId, isKickstart: true, source: "siri")
-
-        let remaining = max(data.scheduled - data.completed - 1, 0)
-        let dialog: IntentDialog =
-            remaining == 0
-            ? "Done — every action is complete today for \(data.personaName)."
-            : "Logged — a step toward \(data.personaName). \(remaining) to go."
-        return .result(dialog: dialog)
+        let after = enqueueVote(actionId: actionId, isKickstart: true, source: "siri")
+        return .result(dialog: loggedDialog(after))
     }
 }
 
@@ -80,17 +76,16 @@ struct LogNamedActionIntent: AppIntent {
     @Parameter(title: "Action") var action: ResolutionActionEntity
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        guard let before = loadWidgetData() else {
-            return .result(
-                dialog: "Open Resolution Companion first to set up your plan."
-            )
+        guard let before = loadWidgetData(), before.planIsSet else {
+            return .result(dialog: setUpDialog)
         }
-        enqueueVote(actionId: action.id, isKickstart: false, source: "siri")
-        let remaining = max(before.scheduled - before.completed - 1, 0)
-        let dialog: IntentDialog = remaining == 0
-            ? "Done — every action is complete today for \(before.personaName)."
-            : "Logged \(action.title) — \(remaining) to go."
-        return .result(dialog: dialog)
+        let wasPending = before.remainingActions?.contains(where: { $0.id == action.id })
+            ?? (before.nextActionId == action.id)
+        let after = enqueueVote(actionId: action.id, isKickstart: false, source: "siri")
+        if !wasPending {
+            return .result(dialog: "Already logged today.")
+        }
+        return .result(dialog: loggedDialog(after))
     }
 }
 

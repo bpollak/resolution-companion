@@ -3,6 +3,8 @@ import {
   buildLogIndex,
   computeStreak,
   getLocalDateString,
+  weekdayName,
+  type StreakResult,
 } from "@/lib/progress";
 
 /**
@@ -82,12 +84,37 @@ export function getPreviousMonthKey(date: Date = new Date()): string {
   return getMonthKey(d);
 }
 
+// Spelled out rather than toLocaleDateString(options): the year recap labels
+// every month on each rebuild, and Hermes on iOS can return "" for Intl
+// formatting when its data is absent.
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
+
 function monthLabelFor(monthKey: string): string {
   const [year, month] = monthKey.split("-").map(Number);
-  return new Date(year, month - 1, 1).toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
+  return `${MONTH_NAMES[month - 1]} ${year}`;
+}
+
+/**
+ * Work a caller has already done over the same `logs`. A streak passed here
+ * must have been computed with the same `maxShields`; it spans all history,
+ * so one result serves every month of a year recap.
+ */
+export interface RecapPrecomputed {
+  logIndex?: Map<string, DailyLog>;
+  streak?: StreakResult;
 }
 
 /**
@@ -104,8 +131,9 @@ export function buildMonthRecap(
   monthKey: string,
   today: Date = new Date(),
   maxShields = 1, // premium unlocks 2-shield capacity; must match the other surfaces
+  precomputed: RecapPrecomputed = {},
 ): MonthRecap {
-  const logIndex = buildLogIndex(logs);
+  const logIndex = precomputed.logIndex ?? buildLogIndex(logs);
   const [year, month] = monthKey.split("-").map(Number);
   const monthStart = new Date(year, month - 1, 1);
   const monthEnd = new Date(year, month, 0);
@@ -135,7 +163,7 @@ export function buildMonthRecap(
   const cursor = new Date(monthStart);
   while (cursor <= endCap) {
     const dateStr = getLocalDateString(cursor);
-    const dayOfWeek = cursor.toLocaleDateString("en-US", { weekday: "long" });
+    const dayOfWeek = weekdayName(cursor);
 
     let dayScheduled = 0;
     let dayCompleted = 0;
@@ -220,7 +248,8 @@ export function buildMonthRecap(
     }
   }
 
-  const streak = computeStreak(actions, logs, logIndex, maxShields);
+  const streak =
+    precomputed.streak ?? computeStreak(actions, logs, logIndex, maxShields);
   const shieldedDays = streak.shieldedDays.filter((d) =>
     d.startsWith(monthKey),
   ).length;
@@ -275,8 +304,17 @@ export function buildYearRecap(
   year: number,
   today: Date = new Date(),
   maxShields = 2,
+  precomputed: RecapPrecomputed = {},
 ): YearRecap {
   const lastMonth = year === today.getFullYear() ? today.getMonth() + 1 : 12;
+  // One index and one full-history streak walk shared by all twelve months;
+  // rebuilding them per month made this the most expensive Today builder.
+  const logIndex = precomputed.logIndex ?? buildLogIndex(logs);
+  const shared: RecapPrecomputed = {
+    logIndex,
+    streak:
+      precomputed.streak ?? computeStreak(actions, logs, logIndex, maxShields),
+  };
   const months: MonthRecap[] = [];
   for (let month = 1; month <= lastMonth; month++) {
     months.push(
@@ -287,6 +325,7 @@ export function buildYearRecap(
         `${year}-${String(month).padStart(2, "0")}`,
         today,
         maxShields,
+        shared,
       ),
     );
   }

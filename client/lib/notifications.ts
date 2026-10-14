@@ -2,7 +2,7 @@ import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getLocalDateString } from "@/lib/progress";
+import { getLocalDateString, weekdayName } from "@/lib/progress";
 import { logger } from "@/lib/logger";
 import type { DailyLog, ElementalAction } from "@/lib/storage";
 
@@ -188,9 +188,7 @@ export function selectMarkAllDoneActions(
   intendedActionIds: string[] | undefined,
 ): ElementalAction[] {
   const [year, month, day] = dateKey.split("-").map(Number);
-  const weekday = new Date(year, month - 1, day).toLocaleDateString("en-US", {
-    weekday: "long",
-  });
+  const weekday = weekdayName(new Date(year, month - 1, day));
   const intended = new Set(intendedActionIds ?? []);
   return actions.filter(
     (action) =>
@@ -372,7 +370,7 @@ export function getRemainingReminderActions(
   date: Date,
 ): ElementalAction[] {
   const dateKey = getLocalDateString(date);
-  const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
+  const weekday = weekdayName(date);
   const completed = new Set(
     dailyLogs
       .filter((log) => log.status && log.logDate.split("T")[0] === dateKey)

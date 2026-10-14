@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import type { DailyLog, ElementalAction, Reflection } from "@/lib/storage";
-import { getLocalDateString } from "@/lib/progress";
+import { getLocalDateString, weekdayName } from "@/lib/progress";
 
 // One-time free taste of coach memory: memory sells itself by demonstration,
 // not description. Set once a session has actually started with it in play.
@@ -121,7 +121,7 @@ export function buildCoachActionContext(
       const cursor = new Date(start);
       while (cursor <= end) {
         const dateKey = getLocalDateString(cursor);
-        const weekday = cursor.toLocaleDateString("en-US", { weekday: "long" });
+        const weekday = weekdayName(cursor);
         if (
           dateKey >= createdKey &&
           action.frequency.includes(weekday) &&

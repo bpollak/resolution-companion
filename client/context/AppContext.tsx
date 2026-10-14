@@ -4,11 +4,12 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useLayoutEffect,
   useMemo,
   useRef,
   ReactNode,
 } from "react";
-import { AppState, Platform } from "react-native";
+import { AppState, InteractionManager, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   storage,
@@ -46,10 +47,12 @@ import { navigationRef } from "@/navigation/navigationRef";
 import { track, flushTelemetry } from "@/lib/telemetry";
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { syncWidgetData, consumePendingVotes } from "@/lib/widget";
+import { createTrailingDebounce } from "@/lib/debounce";
 import { unlockRewardsForMilestoneCount, Reward } from "@/lib/rewards";
 import { isHealthAvailable, initHealth, isHealthGoalMet } from "@/lib/health";
 import {
   resolveSubscriptionCheck,
+  sameSubscription,
   type ServerSubscriptionStatus,
   type SubscriptionVerificationStatus,
 } from "@/lib/subscription";
@@ -174,6 +177,53 @@ const FREE_REFLECTION_LIMIT = 10;
 // milestone is celebrated exactly once, ever (survives restarts)
 const MILESTONE_CELEBRATION_SEEN_KEY = "milestone_celebration_seen_ids";
 
+// try/catch lives in these module helpers, outside AppProvider: the React
+// Compiler skips the whole provider over conditional expressions in a try.
+function parseSeenIds(raw: string | null): string[] {
+  try {
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Whether `key` already holds `marker`; false when storage fails. */
+async function markerMatches(key: string, marker: string): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(key)) === marker;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Records `marker` under `key` unless it is already there. False only when
+ * it was already recorded; storage failures claim it (the guard fails open).
+ */
+async function claimMarker(key: string, marker: string): Promise<boolean> {
+  try {
+    if ((await AsyncStorage.getItem(key)) === marker) return false;
+    await AsyncStorage.setItem(key, marker);
+  } catch {
+    // Fail open
+  }
+  return true;
+}
+
+// A promise resolved once stored data has loaded. Built by useState's lazy
+// initializer rather than in a ref during render, which the React Compiler
+// rejects.
+function createStoreReadySignal(): {
+  promise: Promise<void>;
+  resolve: () => void;
+} {
+  let resolve = () => {};
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [hasOnboarded, setHasOnboardedState] = useState(false);
   const [persona, setPersonaState] = useState<Persona | null>(null);
@@ -290,9 +340,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       logger.error("Error refreshing data:", error);
-    } finally {
-      setIsLoading(false);
     }
+    // After the try rather than in `finally`: the React Compiler skips the
+    // whole provider over try/finally, and the catch above never throws.
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -320,9 +371,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch {
         // StoreKit below can still recover a current entitlement. Its receipt
         // will be server-validated before Premium is granted.
-      } finally {
-        clearTimeout(timeout);
       }
+      clearTimeout(timeout);
 
       const store =
         Platform.OS !== "web"
@@ -336,7 +386,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           iapService.getPlanFromProductId(productId),
       });
       if (next !== local) await storage.setSubscription(next);
-      setSubscriptionState(next);
+      // Storage hands back a fresh object on every check; keep the current
+      // one when nothing changed so context consumers don't re-render.
+      setSubscriptionState((current) =>
+        sameSubscription(current, next) ? current : next,
+      );
       setSubscriptionVerificationStatus(status);
       return status;
     })().finally(() => {
@@ -372,12 +426,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // into one quiet snapshot; manual Backup Now remains available in Profile.
   useEffect(() => {
     if (Platform.OS !== "ios" || isLoading || !hasOnboarded) return;
+    // Serializing the snapshot is synchronous JS work; waiting for
+    // interactions keeps it from landing mid-gesture or mid-animation.
+    let task: { cancel: () => void } | undefined;
     const timeout = setTimeout(() => {
-      getPrivateBackupEnabled()
-        .then((enabled) => (enabled ? createPrivateBackup() : null))
-        .catch((error) => logger.warn("Private iCloud backup skipped:", error));
+      task = InteractionManager.runAfterInteractions(() => {
+        getPrivateBackupEnabled()
+          .then((enabled) => (enabled ? createPrivateBackup() : null))
+          .catch((error) =>
+            logger.warn("Private iCloud backup skipped:", error),
+          );
+      });
     }, 2500);
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+      task?.cancel();
+    };
   }, [
     isLoading,
     hasOnboarded,
@@ -554,7 +618,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // (Today, Calendar) only operate on the active persona's actions, so the
   // persona-scoped state invariant holds.
   const dailyLogsRef = useRef(dailyLogs);
-  dailyLogsRef.current = dailyLogs;
+  // Synced at commit, not during render (the React Compiler skips a
+  // component that writes refs in render). Toggles also write it directly
+  // so rapid taps chain on the newest logs before the commit.
+  useLayoutEffect(() => {
+    dailyLogsRef.current = dailyLogs;
+  }, [dailyLogs]);
   const toggleDailyLog = useCallback(
     async (
       actionId: string,
@@ -636,16 +705,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
           completeLogIn(prev, actionId, dateStr, completion, () => created)
             .logs,
       );
-      try {
-        await storage.completeDailyLog(actionId, dateStr, {
+      await storage
+        .completeDailyLog(actionId, dateStr, {
           ...completion,
           id: result.log.id,
+        })
+        .catch((error) => {
+          // Persist failed: reload persisted truth so the UI doesn't drift
+          refreshData();
+          throw error;
         });
-      } catch (error) {
-        // Persist failed: reload persisted truth so the UI doesn't drift
-        refreshData();
-        throw error;
-      }
       return result.log;
     },
     [refreshData],
@@ -798,12 +867,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // unlocking/persisting a reward — otherwise an edge-triggered re-flip
         // silently consumes the reward and the celebration is never shown.
         const raw = await AsyncStorage.getItem(MILESTONE_CELEBRATION_SEEN_KEY);
-        let seen: string[] = [];
-        try {
-          seen = raw ? JSON.parse(raw) : [];
-        } catch {
-          seen = [];
-        }
+        const seen = parseSeenIds(raw);
         if (seen.includes(benchmark.id)) return;
         // Rewards key off the lifetime completed count across ALL personas
         // (read from storage post-write, so this flip is included)
@@ -954,20 +1018,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Resolves once stored data has loaded and reminderStateRef reflects it
   // (this effect is declared after the ref sync above, so it runs after it in
   // the same commit). isLoading never returns to true.
-  const storeReadyRef = useRef<{
-    promise: Promise<void>;
-    resolve: () => void;
-  } | null>(null);
-  if (!storeReadyRef.current) {
-    let resolve = () => {};
-    const promise = new Promise<void>((done) => {
-      resolve = done;
-    });
-    storeReadyRef.current = { promise, resolve };
-  }
+  const [storeReady] = useState(createStoreReadySignal);
   useEffect(() => {
-    if (!isLoading) storeReadyRef.current?.resolve();
-  }, [isLoading]);
+    if (!isLoading) storeReady.resolve();
+  }, [isLoading, storeReady]);
 
   // "Mark all done ✓" quick action on the daily reminder. The response can
   // arrive live (listener) or on the next launch (last-response) when iOS ran
@@ -993,7 +1047,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       };
       if (attempt()) return;
       const timer = setInterval(() => {
-        if (attempt() || ++attempts >= 20) clearInterval(timer);
+        attempts += 1;
+        if (attempt() || attempts >= 20) clearInterval(timer);
       }, 250);
     };
 
@@ -1018,14 +1073,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         response.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER
       ) {
         const tapMarker = `${response.notification.request.identifier}|${response.notification.date}`;
-        try {
-          const tapHandledKey = "evolve_reminder_tap_handled";
-          if ((await AsyncStorage.getItem(tapHandledKey)) === tapMarker) {
-            return;
-          }
-          await AsyncStorage.setItem(tapHandledKey, tapMarker);
-        } catch {
-          // Guard failed open — an over-count nudges the portfolio, nothing more.
+        // Guard fails open: an over-count nudges the portfolio, nothing more.
+        if (!(await claimMarker("evolve_reminder_tap_handled", tapMarker))) {
+          return;
         }
         track("notification_tap");
         recordReminderHookTap(data.hook).catch(() => {});
@@ -1038,16 +1088,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const dateKey = data.dateKey ?? getLocalDateString(firedAt);
       const handledKey = `evolve_reminder_action_handled`;
       const marker = `${response.notification.request.identifier}|${dateKey}`;
-      try {
-        if ((await AsyncStorage.getItem(handledKey)) === marker) return;
-      } catch {
-        // Guard failed open: completion below is idempotent.
-      }
+      // Guard fails open: completion below is idempotent.
+      if (await markerMatches(handledKey, marker)) return;
 
       // The action runs without opening the app, so this can be a cold
       // background launch where the store hasn't loaded yet. Completing
       // against the empty pre-load action list would mark nothing.
-      await storeReadyRef.current?.promise;
+      await storeReady.promise;
       const currentActions = reminderStateRef.current.actions;
       if (currentActions.length === 0) return;
 
@@ -1101,7 +1148,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         logger.error("Failed to handle last reminder response:", error),
       );
     return () => subscription.remove();
-  }, [completeDailyLog]);
+    // storeReady is stable (useState); listed for the lint rule only
+  }, [completeDailyLog, storeReady]);
 
   // Fold in votes cast from the widget or Siri while the app was closed or
   // backgrounded. Votes only ever complete (never un-complete): a queued vote
@@ -1127,11 +1175,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   // Keep the home/lock-screen widget's snapshot in step with the store.
+  // Writing the App Group and reloading timelines is synchronous native work;
+  // a burst of check-offs collapses into one sync after the taps settle.
+  const [widgetSync] = useState(() =>
+    createTrailingDebounce<Parameters<typeof syncWidgetData>>(
+      (args) => syncWidgetData(...args),
+      500,
+    ),
+  );
+
+  // Leaving the app must not strand a pending sync, or the widget would
+  // show yesterday's state until the next launch.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") widgetSync.flush();
+    });
+    return () => {
+      sub.remove();
+      widgetSync.flush();
+    };
+  }, [widgetSync]);
+
   useEffect(() => {
     if (Platform.OS !== "ios" || isLoading) return;
     applyPendingWidgetVotes(actions);
-    syncWidgetData(actions, dailyLogs, persona);
-  }, [isLoading, actions, dailyLogs, persona, applyPendingWidgetVotes]);
+    widgetSync.schedule([
+      actions,
+      dailyLogs,
+      persona,
+      {
+        streak: progressSnapshot.streak.current,
+        shieldUsed: progressSnapshot.streak.shieldUsed,
+      },
+    ]);
+  }, [
+    widgetSync,
+    isLoading,
+    actions,
+    dailyLogs,
+    persona,
+    applyPendingWidgetVotes,
+    progressSnapshot.streak,
+  ]);
 
   // Widget votes cast while the app stayed backgrounded (state changes don't
   // fire above): reconcile on every foreground. Never consume before the

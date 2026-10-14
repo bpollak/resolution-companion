@@ -1,6 +1,7 @@
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -101,6 +102,28 @@ function planFieldValue(
   return Array.isArray(value) ? value.join(", ") : value;
 }
 
+// try/catch lives in these module helpers, outside the component: the
+// React Compiler skips a whole component over try/finally, or over
+// conditional expressions inside a try. Callers run their former `finally`
+// work right after the settled result.
+type Settled<T> = { ok: true; value: T } | { ok: false; error: unknown };
+
+async function settle<T>(work: () => Promise<T>): Promise<Settled<T>> {
+  try {
+    return { ok: true, value: await work() };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
+function planTuneUpErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.name === "AbortError")
+    return "Plan guidance timed out. Your plan was not changed.";
+  return error instanceof Error
+    ? error.message
+    : "Plan guidance is unavailable.";
+}
+
 export default function CoachSheetScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -134,10 +157,15 @@ export default function CoachSheetScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const savingRef = useRef(false);
   const retryRef = useRef<ChatMessage[] | null>(null);
-  const replyLifecycle = useRef(createReplyLifecycle()).current;
+  // Mirrors whether retryRef holds a conversation, so render never reads
+  // the ref (the React Compiler skips components that do).
+  const [hasRetry, setHasRetry] = useState(false);
+  const [replyLifecycle] = useState(createReplyLifecycle);
   const bufferRef = useRef<TextStreamBuffer | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
-  messagesRef.current = messages;
+  useLayoutEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
   const [showConsent, setShowConsent] = useState(false);
   const [pendingText, setPendingText] = useState<string | null>(null);
   const [planSuggestion, setPlanSuggestion] =
@@ -301,6 +329,7 @@ export default function CoachSheetScreen() {
     progressSnapshot.milestoneProgressByBenchmarkId,
   ]);
 
+  const personaCreatedAt = persona?.createdAt;
   const suggestionChips = useMemo(() => {
     const first = params.promptId ? PROMPTS[params.promptId] : null;
     const originPrompts =
@@ -318,8 +347,8 @@ export default function CoachSheetScreen() {
                   ? [PROMPTS["reduce-friction"], PROMPTS["start-today"]]
                   : [PROMPTS["reflect-success"], PROMPTS["review-week"]];
     // "Last week" has nothing to review in a plan's first week.
-    const planDays = persona?.createdAt
-      ? (Date.now() - new Date(persona.createdAt).getTime()) / 86_400_000
+    const planDays = personaCreatedAt
+      ? (Date.now() - new Date(personaCreatedAt).getTime()) / 86_400_000
       : Infinity;
     const fitsPlanAge = (prompt: string | null) =>
       planDays >= 7 || prompt !== PROMPTS["review-week"];
@@ -330,7 +359,7 @@ export default function CoachSheetScreen() {
           .filter(fitsPlanAge),
       ),
     ).slice(0, 2) as string[];
-  }, [params.origin, params.promptId, persona?.createdAt]);
+  }, [params.origin, params.promptId, personaCreatedAt]);
   // The lobby is a single entry point now, so plan tune-ups must also be
   // reachable from a plain "direct" conversation
   const showPlanAdjustment =
@@ -408,6 +437,7 @@ export default function CoachSheetScreen() {
       messagesRef.current = conversation;
       setMessages(conversation);
       retryRef.current = conversation;
+      setHasRetry(Boolean(conversation));
       setReplyError(null);
       setInputText("");
       setIsLoading(true);
@@ -426,7 +456,7 @@ export default function CoachSheetScreen() {
         if (visible !== null) setStreamingText(visible);
       });
       bufferRef.current = buffer;
-      try {
+      const outcome = await settle(async () => {
         const aiMessages: AIMessage[] = conversation.map((message) => ({
           role: message.role,
           content: message.content,
@@ -462,28 +492,29 @@ export default function CoachSheetScreen() {
         setMessages(completed);
         setStreamingText("");
         retryRef.current = null;
+        setHasRetry(false);
         await markCounted();
-      } catch (error) {
-        if (abortRef.current !== controller) return;
+      });
+      if (!outcome.ok && abortRef.current === controller) {
         buffer.flush();
         const interrupted = replyLifecycle.stop();
         if (interrupted) {
           messagesRef.current = interrupted.messages;
           setMessages(interrupted.messages);
           retryRef.current = interrupted.retry;
+          setHasRetry(Boolean(interrupted.retry));
         }
         setStreamingText("");
-        logger.warn("Contextual coach interrupted:", error);
+        logger.warn("Contextual coach interrupted:", outcome.error);
         setReplyError(
           "Coach could not finish the reply. Your message and any partial response are kept. Retry will replace the partial reply.",
         );
-      } finally {
-        buffer.cancel();
-        if (bufferRef.current === buffer) bufferRef.current = null;
-        if (abortRef.current === controller) {
-          abortRef.current = null;
-          setIsLoading(false);
-        }
+      }
+      buffer.cancel();
+      if (bufferRef.current === buffer) bufferRef.current = null;
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setIsLoading(false);
       }
     },
     [
@@ -538,7 +569,7 @@ export default function CoachSheetScreen() {
     const controller = new AbortController();
     abortRef.current = controller;
     const timeout = setTimeout(() => controller.abort(), 20_000);
-    try {
+    const outcome = await settle(async () => {
       const request = buildPlanTuneUpRequest({
         actions,
         logs: dailyLogs,
@@ -550,21 +581,14 @@ export default function CoachSheetScreen() {
       setPlanSuggestion(suggestion);
       track("plan_tuneup_previewed");
       await markCounted(true);
-    } catch (error) {
-      if (abortRef.current !== controller) return;
-      setPlanError(
-        error instanceof Error && error.name === "AbortError"
-          ? "Plan guidance timed out. Your plan was not changed."
-          : error instanceof Error
-            ? error.message
-            : "Plan guidance is unavailable.",
-      );
-    } finally {
-      clearTimeout(timeout);
-      if (abortRef.current === controller) {
-        abortRef.current = null;
-        setIsLoading(false);
-      }
+    });
+    if (!outcome.ok && abortRef.current === controller) {
+      setPlanError(planTuneUpErrorMessage(outcome.error));
+    }
+    clearTimeout(timeout);
+    if (abortRef.current === controller) {
+      abortRef.current = null;
+      setIsLoading(false);
     }
   };
 
@@ -617,6 +641,7 @@ export default function CoachSheetScreen() {
         messagesRef.current = interrupted.messages;
         setMessages(interrupted.messages);
         retryRef.current = interrupted.retry;
+        setHasRetry(Boolean(interrupted.retry));
         if (!saving)
           setReplyError(
             "Response stopped. Your message and any partial reply are kept. Retry will replace the partial reply.",
@@ -632,7 +657,7 @@ export default function CoachSheetScreen() {
     savingRef.current = true;
     setIsSaving(true);
     const transcript = stopReply(true);
-    try {
+    const outcome = await settle(async () => {
       if (persona && transcript.length > 0) {
         await addReflection({
           personaId: persona.id,
@@ -656,16 +681,16 @@ export default function CoachSheetScreen() {
       savedRef.current = true;
       setSaved(true);
       navigation.goBack();
-    } catch (error) {
-      logger.warn("Coaching session could not be saved:", error);
+    });
+    if (!outcome.ok) {
+      logger.warn("Coaching session could not be saved:", outcome.error);
       saveFailedRef.current = true;
       setReplyError(
         "Couldn’t save this conversation. Tap Done to try again, or close to leave without saving.",
       );
-    } finally {
-      savingRef.current = false;
-      setIsSaving(false);
     }
+    savingRef.current = false;
+    setIsSaving(false);
   }, [
     addReflection,
     evidence,
@@ -902,7 +927,7 @@ export default function CoachSheetScreen() {
                 >
                   {replyError}
                 </ThemedText>
-                {retryRef.current ? (
+                {hasRetry ? (
                   <Pressable
                     onPress={() => {
                       const conversation = retryRef.current;

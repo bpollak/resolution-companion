@@ -2,6 +2,7 @@ import {
   getProfileSubscriptionCopy,
   reconcileSubscription,
   resolveSubscriptionCheck,
+  sameSubscription,
   selectPreferredEntitlement,
 } from "@/lib/subscription";
 import type { Subscription } from "@/lib/storage";
@@ -261,5 +262,20 @@ describe("resolveSubscriptionCheck", () => {
       },
       status: "verified",
     });
+  });
+});
+
+describe("sameSubscription", () => {
+  it("is true for equal fields in distinct objects", () => {
+    expect(sameSubscription(local, { ...local })).toBe(true);
+  });
+
+  it("is false when any field differs", () => {
+    expect(sameSubscription(local, { ...local, isPremium: false })).toBe(false);
+    expect(sameSubscription(local, { ...local, plan: "monthly" })).toBe(false);
+    expect(sameSubscription(local, { ...local, expiresAt: null })).toBe(false);
+    expect(sameSubscription(local, { ...local, purchasedAt: null })).toBe(
+      false,
+    );
   });
 });

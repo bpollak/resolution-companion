@@ -224,6 +224,22 @@ function SettingsGroup({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Outside the component: a throw inside the screen's try/catch makes the
+// React Compiler skip the whole screen.
+async function deleteServerUserData(): Promise<void> {
+  const deviceId = await storage.getDeviceId();
+  const response = await fetch(
+    new URL(`/api/user-data/${deviceId}`, getApiUrl()).toString(),
+    {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(`Server deletion failed (${response.status})`);
+  }
+}
+
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
@@ -618,17 +634,7 @@ export default function ProfileScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              const deviceId = await storage.getDeviceId();
-              const response = await fetch(
-                new URL(`/api/user-data/${deviceId}`, getApiUrl()).toString(),
-                {
-                  method: "DELETE",
-                  headers: getAuthHeaders(),
-                },
-              );
-              if (!response.ok) {
-                throw new Error(`Server deletion failed (${response.status})`);
-              }
+              await deleteServerUserData();
               await deletePrivateBackup();
               await clearAllData();
               // Server record is gone — drop the device identity too so a

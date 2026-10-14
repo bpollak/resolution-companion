@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useDeferredValue, useEffect, useMemo } from "react";
 import { View, StyleSheet, Pressable } from "react-native";
 import Svg, { Polyline, Circle } from "react-native-svg";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -18,6 +18,8 @@ import { withAlpha } from "@/lib/color";
 interface InsightsPanelProps {
   actions: ElementalAction[];
   dailyLogs: DailyLog[];
+  /** Index of `dailyLogs` (from the progress snapshot), to skip a rebuild. */
+  logIndex?: Map<string, DailyLog>;
   personaName: string;
   isPremium: boolean;
   /** Opens the paywall with insights context. */
@@ -35,24 +37,42 @@ const SPARK_HEIGHT = 48;
  */
 export function InsightsPanel({
   actions,
-  dailyLogs,
+  dailyLogs: latestDailyLogs,
+  logIndex: latestLogIndex,
   personaName,
   isPremium,
   onUpgrade,
 }: InsightsPanelProps) {
   const { theme, isDark } = useTheme();
+  // Rendered off-screen on Journey; deferred so a Today check-off commits
+  // before these history walks rerun.
+  const dailyLogs = useDeferredValue(latestDailyLogs);
+  const logIndex = useDeferredValue(latestLogIndex);
 
-  const weekdayProfile = useMemo(
-    () => computeWeekdayProfile(actions, dailyLogs),
-    [actions, dailyLogs],
-  );
-  const trend = useMemo(
-    () => computeWeeklyTrend(actions, dailyLogs),
-    [actions, dailyLogs],
-  );
+  // Free users see only the upgrade card, so nothing is computed for them.
+  const insights = useMemo(() => {
+    if (!isPremium) return null;
+    const now = new Date();
+    const weekdayProfile = computeWeekdayProfile(
+      actions,
+      dailyLogs,
+      8,
+      now,
+      logIndex,
+    );
+    const trend = computeWeeklyTrend(actions, dailyLogs, 8, now, logIndex);
+    return { weekdayProfile, trend };
+  }, [isPremium, actions, dailyLogs, logIndex]);
   const narrative = useMemo(
-    () => buildInsightsNarrative(weekdayProfile, trend, personaName),
-    [weekdayProfile, trend, personaName],
+    () =>
+      insights
+        ? buildInsightsNarrative(
+            insights.weekdayProfile,
+            insights.trend,
+            personaName,
+          )
+        : null,
+    [insights, personaName],
   );
 
   useEffect(() => {
@@ -105,6 +125,10 @@ export function InsightsPanel({
       </Pressable>
     );
   }
+
+  // Unreachable for premium users (insights is built whenever isPremium)
+  if (!insights || !narrative) return null;
+  const { weekdayProfile, trend } = insights;
 
   const sparkPoints = trend
     .map((point, i) => {

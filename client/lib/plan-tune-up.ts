@@ -6,7 +6,7 @@ import type {
   PlanAdjustmentChanges,
 } from "@/lib/storage";
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
-import { getLocalDateString } from "@/lib/progress";
+import { getLocalDateString, weekdayName } from "@/lib/progress";
 import { storage } from "@/lib/storage";
 
 const FACTORS: DailyContextFactor[] = [
@@ -157,7 +157,7 @@ export function buildPlanTuneUpRequest(input: {
     const cursor = new Date(start);
     while (cursor <= end) {
       const dateKey = getLocalDateString(cursor);
-      const weekday = cursor.toLocaleDateString("en-US", { weekday: "long" });
+      const weekday = weekdayName(cursor);
       if (dateKey >= created && action.frequency.includes(weekday)) {
         scheduled += 1;
         const log = index.get(`${action.id}|${dateKey}`);

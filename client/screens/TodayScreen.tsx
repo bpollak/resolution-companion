@@ -2,6 +2,7 @@ import React, {
   useMemo,
   useEffect,
   useCallback,
+  useLayoutEffect,
   useState,
   useRef,
 } from "react";
@@ -14,6 +15,7 @@ import {
   Alert,
   Platform,
   Share,
+  AppState,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -36,12 +38,13 @@ import Animated, {
 import { useTheme } from "@/hooks/useTheme";
 import { useLocalDateKey } from "@/hooks/useLocalDateKey";
 import { useApp } from "@/context/AppContext";
+import type { DailyLog, ElementalAction } from "@/lib/storage";
 import {
   actionIsScheduledOnDate,
   tomorrowDateKey,
   nextScheduledDay,
 } from "@/lib/journey-date";
-import { computeMomentumScore } from "@/lib/progress";
+import { computeMomentumScore, withLogInIndex } from "@/lib/progress";
 import {
   suppressReminderForToday,
   ensureReminderScheduled,
@@ -49,7 +52,9 @@ import {
   suggestReminderBucket,
   getReminderPrimerShownDays,
   saveReminderPrimerShownDays,
+  type ReminderOptions,
 } from "@/lib/notifications";
+import { createTrailingDebounce } from "@/lib/debounce";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ActionCard, CompletedActionRow } from "@/components/ActionCard";
@@ -130,6 +135,130 @@ const YEAR_RECAP_SEEN_KEY = "today_year_recap_seen_year";
 // One-time widget/Siri hint shown at a day-complete moment — the habit loop's
 // best trigger surface is invisible unless the app says it exists once
 const WIDGET_HINT_SEEN_KEY = "today_widget_hint_seen";
+
+// Reminder rescheduling cancels and re-adds every pending notification, so
+// it runs after taps settle instead of once per check-off. Only the final
+// state matters; a burst of taps collapses into one run.
+const REMINDER_RESCHEDULE_DEBOUNCE_MS = 1500;
+
+interface ReminderMaintenance {
+  copy: ReminderOptions & { actions: { anchorLink?: string }[] };
+  dayComplete: boolean;
+}
+
+// Records the anchor-derived time suggestion, then goes quiet once the day
+// is done or restores the chain otherwise.
+function maintainReminders({ copy, dayComplete }: ReminderMaintenance) {
+  (async () => {
+    await applySuggestedReminderBucket(
+      suggestReminderBucket(copy.actions.map((a) => a.anchorLink)),
+      copy,
+    );
+    if (dayComplete) {
+      await suppressReminderForToday(copy);
+    } else {
+      await ensureReminderScheduled(copy);
+    }
+  })().catch((error) => {
+    logger.error("Failed to maintain reminder schedule:", error);
+  });
+}
+
+// try/catch lives in these module helpers, outside the component: the
+// React Compiler skips a whole component over try/catch with conditional
+// expressions inside it.
+interface ShieldState {
+  latestShieldedDay?: string | null;
+  latestShieldEarnedDay?: string | null;
+}
+
+async function readShieldState(): Promise<ShieldState | null> {
+  try {
+    const raw = await AsyncStorage.getItem(SHIELD_STATE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseReviewDays(raw: string | null): {
+  count: number;
+  lastDate: string;
+} {
+  try {
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // Corrupt marker: restart the count; worst case the ask comes later
+  }
+  return { count: 0, lastDate: "" };
+}
+
+async function requestStoreReviewOnce(): Promise<void> {
+  try {
+    if (await StoreReview.hasAction()) {
+      await StoreReview.requestReview();
+      await AsyncStorage.setItem(REVIEW_REQUESTED_KEY, "true");
+    }
+  } catch (error) {
+    logger.error("Failed to request store review:", error);
+  }
+}
+
+// Focus is read here rather than in TodayScreen so a tab switch re-renders
+// only the toast, not the whole Today tree.
+function FocusedToast(props: React.ComponentProps<typeof Toast>) {
+  const isFocused = useIsFocused();
+  return <Toast {...props} visible={props.visible && isFocused} />;
+}
+
+interface ToggleContext {
+  todayActions: ElementalAction[];
+  dailyLogs: DailyLog[];
+  actions: ElementalAction[];
+  personaName: string;
+  personaAlignment: number;
+  logIndex: Map<string, DailyLog>;
+}
+
+/**
+ * Toast copy after a completion, or null when it finished the day (the
+ * celebration card takes over). `ctx` may predate the toggle, so the log is
+ * upserted before counting.
+ */
+function toggleToastMessage(
+  log: DailyLog,
+  ctx: ToggleContext,
+  todayDateStr: string,
+  variantIndex: number,
+): string | null {
+  const newLogs = ctx.dailyLogs.some((l) => l.id === log.id)
+    ? ctx.dailyLogs.map((l) => (l.id === log.id ? log : l))
+    : [...ctx.dailyLogs, log];
+  const isDone = (id: string) =>
+    newLogs.some(
+      (l) =>
+        l.actionId === id &&
+        l.logDate.split("T")[0] === todayDateStr &&
+        l.status,
+    );
+  const remaining = ctx.todayActions.filter((a) => !isDone(a.id)).length;
+  if (remaining === 0 && ctx.todayActions.length > 0) return null;
+
+  // Identity-framed toast variants (variable reward, rotating). Delta uses
+  // the month-to-date window so the number matches the Monthly Consistency
+  // chip and Progress ring.
+  const delta =
+    computeMomentumScore(
+      ctx.actions,
+      newLogs,
+      new Date().getDate(),
+      withLogInIndex(ctx.logIndex, log),
+    ) - ctx.personaAlignment;
+  const variants = [`${ctx.personaName} in action ✓`];
+  if (delta > 0) variants.push(`Consistency +${delta}%`);
+  variants.push(`${remaining} to go. The ring is filling up`);
+  return variants[variantIndex % variants.length];
+}
 
 function getLocalDateString(date: Date): string {
   const year = date.getFullYear();
@@ -387,7 +516,6 @@ export default function TodayScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<any>();
   const { theme, isDark } = useTheme();
-  const isFocused = useIsFocused();
   const {
     hasOnboarded,
     persona,
@@ -411,11 +539,12 @@ export default function TodayScreen() {
   const todayDateStr = useLocalDateKey();
   const today = new Date();
   // A plan set up ahead of time (for January 1) starts at its createdAt.
+  const personaCreatedAt = persona?.createdAt;
   const planStart = useMemo(() => {
-    if (!persona?.createdAt) return null;
-    const start = new Date(persona.createdAt);
+    if (!personaCreatedAt) return null;
+    const start = new Date(personaCreatedAt);
     return getLocalDateString(start) > todayDateStr ? start : null;
-  }, [persona?.createdAt, todayDateStr]);
+  }, [personaCreatedAt, todayDateStr]);
 
   const personaBenchmarkIds = useMemo(() => {
     return benchmarks
@@ -637,24 +766,47 @@ export default function TodayScreen() {
   // during the first week of a new month, once, and only when last month had
   // any votes to tell a story about. Takes precedence over the weekly card
   // (the 1st is often a Monday — the weekly card returns after this one).
-  const prevMonthKey = getPreviousMonthKey(today);
-  const monthRecap = useMemo(
-    () =>
-      buildMonthRecap(
-        actions,
-        dailyLogs,
-        persona,
-        prevMonthKey,
-        new Date(),
-        subscription.isPremium ? 2 : 1,
-      ),
-    [actions, dailyLogs, persona, prevMonthKey, subscription.isPremium],
+  // Recaps are built only while their card can show: every check-off
+  // changes dailyLogs, and a hidden recap would otherwise rewalk history on
+  // each tap. The snapshot's index and streak share the recap's maxShields.
+  // Derived from the date key, not the shared `today` Date: the compiler
+  // treats Date method calls as possible mutation, so values taken from it
+  // could not feed memo dependencies.
+  const prevMonthKey = getPreviousMonthKey(
+    new Date(`${todayDateStr}T12:00:00`),
   );
-  const showMonthRecapCard =
+  const monthRecapEligible =
     recapPrefsLoaded &&
     today.getDate() <= MONTH_RECAP_WINDOW_DAYS &&
-    monthRecap.votesCast > 0 &&
     monthRecapSeen !== prevMonthKey;
+  const monthRecap = useMemo(
+    () =>
+      monthRecapEligible
+        ? buildMonthRecap(
+            actions,
+            dailyLogs,
+            persona,
+            prevMonthKey,
+            new Date(),
+            subscription.isPremium ? 2 : 1,
+            {
+              logIndex: progressSnapshot.logIndex,
+              streak: progressSnapshot.streak,
+            },
+          )
+        : null,
+    [
+      monthRecapEligible,
+      actions,
+      dailyLogs,
+      persona,
+      prevMonthKey,
+      subscription.isPremium,
+      progressSnapshot.logIndex,
+      progressSnapshot.streak,
+    ],
+  );
+  const showMonthRecapCard = monthRecap !== null && monthRecap.votesCast > 0;
 
   const dismissMonthRecap = () => {
     setMonthRecapSeen(prevMonthKey);
@@ -668,26 +820,42 @@ export default function TodayScreen() {
     weeklyRecap.lastWeek.scheduled > 0 &&
     recapSeenWeek !== weeklyRecap.weekKey;
 
+  const todayYear = Number(todayDateStr.slice(0, 4));
   const annualYear =
-    today.getMonth() === 0 ? today.getFullYear() - 1 : today.getFullYear();
-  const yearRecap = useMemo(
-    () =>
-      buildYearRecap(
-        actions,
-        dailyLogs,
-        persona,
-        annualYear,
-        new Date(),
-        subscription.isPremium ? 2 : 1,
-      ),
-    [actions, dailyLogs, persona, annualYear, subscription.isPremium],
-  );
-  const showYearRecap =
+    todayDateStr.slice(5, 7) === "01" ? todayYear - 1 : todayYear;
+  const yearRecapEligible =
     recapPrefsLoaded &&
     subscription.isPremium &&
     (today.getMonth() === 11 || today.getMonth() === 0) &&
-    yearRecap.votesCast > 0 &&
     yearRecapSeen !== String(annualYear);
+  const yearRecap = useMemo(
+    () =>
+      yearRecapEligible
+        ? buildYearRecap(
+            actions,
+            dailyLogs,
+            persona,
+            annualYear,
+            new Date(),
+            subscription.isPremium ? 2 : 1,
+            {
+              logIndex: progressSnapshot.logIndex,
+              streak: progressSnapshot.streak,
+            },
+          )
+        : null,
+    [
+      yearRecapEligible,
+      actions,
+      dailyLogs,
+      persona,
+      annualYear,
+      subscription.isPremium,
+      progressSnapshot.logIndex,
+      progressSnapshot.streak,
+    ],
+  );
+  const showYearRecap = yearRecap !== null && yearRecap.votesCast > 0;
   const dismissYearRecap = () => {
     setYearRecapSeen(String(annualYear));
     AsyncStorage.setItem(YEAR_RECAP_SEEN_KEY, String(annualYear));
@@ -696,8 +864,15 @@ export default function TodayScreen() {
   // The coach's one proactive weekly observation — locally computed, shown
   // once per pattern per week, and never stacked on top of a recap card
   const coachObservation = useMemo(
-    () => computeCoachObservation(actions, dailyLogs, persona?.name ?? "you"),
-    [actions, dailyLogs, persona?.name],
+    () =>
+      computeCoachObservation(
+        actions,
+        dailyLogs,
+        persona?.name ?? "you",
+        new Date(),
+        progressSnapshot.logIndex,
+      ),
+    [actions, dailyLogs, persona?.name, progressSnapshot.logIndex],
   );
   const showCoachObservation =
     recapPrefsLoaded &&
@@ -714,20 +889,35 @@ export default function TodayScreen() {
     weeklyRecap.lastWeek.completed > 0 &&
     witnessSeenWeek !== weeklyRecap.weekKey;
 
-  const showSecondPersonaInvite =
+  // Memoized because the eligibility check rescans 30 days of logs; it
+  // only needs to rerun when its inputs or the local date change.
+  const secondPersonaGate =
     recapPrefsLoaded &&
     !showMonthRecapCard &&
     !showWeeklyRecap &&
     !showWitnessCelebration &&
-    !showCoachObservation &&
-    shouldOfferSecondPersona(
+    !showCoachObservation;
+  const showSecondPersonaInvite = useMemo(
+    () =>
+      secondPersonaGate &&
+      shouldOfferSecondPersona(
+        personas,
+        persona,
+        actions,
+        dailyLogs,
+        secondPersonaInviteSeen,
+        new Date(`${todayDateStr}T12:00:00`),
+      ),
+    [
+      secondPersonaGate,
       personas,
       persona,
       actions,
       dailyLogs,
       secondPersonaInviteSeen,
-      today,
-    );
+      todayDateStr,
+    ],
+  );
 
   const dismissSecondPersonaInvite = () => {
     const month = getMonthKey(today);
@@ -813,12 +1003,13 @@ export default function TodayScreen() {
 
   // Latest per-render data for the stable handleToggle callback — widening
   // its deps would re-render every memoized ActionCard on each toggle
-  const latestRef = useRef({
+  const latestRef = useRef<ToggleContext>({
     todayActions,
     dailyLogs,
     actions,
     personaName: persona?.name ?? "",
     personaAlignment,
+    logIndex: progressSnapshot.logIndex,
   });
   useEffect(() => {
     latestRef.current = {
@@ -827,68 +1018,44 @@ export default function TodayScreen() {
       actions,
       personaName: persona?.name ?? "",
       personaAlignment,
+      logIndex: progressSnapshot.logIndex,
     };
   });
   const toastVariantRef = useRef(0);
 
-  // Stable reference so memoized ActionCards skip re-rendering on each toggle
+  // Stable reference so memoized ActionCards skip re-rendering on each toggle.
+  // A promise chain rather than try/catch keeps this compiler-optimizable.
   const handleToggle = useCallback(
-    async (actionId: string, completionKind: "full" | "kickstart" = "full") => {
-      try {
-        const log = await toggleDailyLog(actionId, todayDateStr, {
-          completionSource: "manual",
-          completionKind,
-        });
-        if (!log.status) return;
-
-        const {
-          todayActions: currentActions,
-          dailyLogs: currentLogs,
-          actions: allActions,
-          personaName,
-          personaAlignment: currentAlignment,
-        } = latestRef.current;
-        // The ref may not hold the post-toggle state yet — upsert the log
-        const newLogs = currentLogs.some((l) => l.id === log.id)
-          ? currentLogs.map((l) => (l.id === log.id ? log : l))
-          : [...currentLogs, log];
-        const isDone = (id: string) =>
-          newLogs.some((l) => {
-            const logDateStr = l.logDate.includes("T")
-              ? l.logDate.split("T")[0]
-              : l.logDate;
-            return l.actionId === id && logDateStr === todayDateStr && l.status;
-          });
-        const remaining = currentActions.filter((a) => !isDone(a.id)).length;
-
-        if (remaining === 0 && currentActions.length > 0) {
-          // Final action of the day: the celebration card takes over, with a
-          // double haptic so it reads as an event, not an acknowledgment
-          setCelebrateDayComplete(true);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          setTimeout(() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-          }, 300);
-          return;
-        }
-
-        // Identity-framed toast variants (variable reward, rotating).
-        // Delta uses the month-to-date window so the number matches the
-        // Monthly Consistency chip and Progress ring.
-        const monthWindow = new Date().getDate();
-        const delta =
-          computeMomentumScore(allActions, newLogs, monthWindow) -
-          currentAlignment;
-        const variants = [`${personaName} in action ✓`];
-        if (delta > 0) variants.push(`Consistency +${delta}%`);
-        variants.push(`${remaining} to go. The ring is filling up`);
-        setToastMessage(variants[toastVariantRef.current % variants.length]);
-        toastVariantRef.current += 1;
-        setToastVisible(true);
-      } catch (error) {
-        logger.error("Failed to toggle action:", error);
-      }
-    },
+    (actionId: string, completionKind: "full" | "kickstart" = "full") =>
+      toggleDailyLog(actionId, todayDateStr, {
+        completionSource: "manual",
+        completionKind,
+      })
+        .then((log) => {
+          if (!log.status) return;
+          const message = toggleToastMessage(
+            log,
+            latestRef.current,
+            todayDateStr,
+            toastVariantRef.current,
+          );
+          if (message === null) {
+            // Final action of the day: the celebration card takes over, with
+            // a double haptic so it reads as an event, not an acknowledgment
+            setCelebrateDayComplete(true);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setTimeout(() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            }, 300);
+            return;
+          }
+          setToastMessage(message);
+          toastVariantRef.current += 1;
+          setToastVisible(true);
+        })
+        .catch((error) => {
+          logger.error("Failed to toggle action:", error);
+        }),
     [toggleDailyLog, todayDateStr],
   );
 
@@ -996,7 +1163,9 @@ export default function TodayScreen() {
   // Optional "how it went" note on a completed action. One native prompt,
   // fully skippable — the completion tap itself stays friction-free.
   const todayLogByActionIdRef = useRef(todayLogByActionId);
-  todayLogByActionIdRef.current = todayLogByActionId;
+  useLayoutEffect(() => {
+    todayLogByActionIdRef.current = todayLogByActionId;
+  }, [todayLogByActionId]);
   const handleNotePress = useCallback(
     (actionId: string) => {
       const currentNote = todayLogByActionIdRef.current.get(actionId)?.note;
@@ -1058,16 +1227,7 @@ export default function TodayScreen() {
   useEffect(() => {
     if (!hasOnboarded) return;
     (async () => {
-      let previous: {
-        latestShieldedDay?: string | null;
-        latestShieldEarnedDay?: string | null;
-      } | null = null;
-      try {
-        const raw = await AsyncStorage.getItem(SHIELD_STATE_KEY);
-        previous = raw ? JSON.parse(raw) : null;
-      } catch {
-        previous = null;
-      }
+      const previous = await readShieldState();
       const hasVersionedState =
         previous !== null &&
         ("latestShieldedDay" in previous ||
@@ -1118,11 +1278,27 @@ export default function TodayScreen() {
     });
   }, [celebrateDayComplete]);
 
-  // Daily reminder maintenance: record the anchor-derived time suggestion,
-  // go quiet once the day is done, restore the chain otherwise
+  // Daily reminder maintenance, debounced off the tap path (see
+  // maintainReminders). Leaving the screen or the app flushes the latest
+  // state so the schedule never stays behind the last check-off.
+  const [reminderDebounce] = useState(() =>
+    createTrailingDebounce(maintainReminders, REMINDER_RESCHEDULE_DEBOUNCE_MS),
+  );
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") reminderDebounce.flush();
+    });
+    return () => {
+      subscription.remove();
+      reminderDebounce.flush();
+    };
+  }, [reminderDebounce]);
   const lapseMissedDays = lapse.missedDays;
   useEffect(() => {
-    if (Platform.OS === "web" || !hasOnboarded) return;
+    if (Platform.OS === "web" || !hasOnboarded) {
+      reminderDebounce.cancel();
+      return;
+    }
     const copy = {
       streakCount: streakCurrent,
       missedRun: lapseMissedDays,
@@ -1134,20 +1310,9 @@ export default function TodayScreen() {
         benchmarks.map((item) => [item.id, item.title]),
       ),
     };
-    (async () => {
-      await applySuggestedReminderBucket(
-        suggestReminderBucket(actions.map((a) => a.anchorLink)),
-        copy,
-      );
-      if (dayComplete) {
-        await suppressReminderForToday(copy);
-      } else {
-        await ensureReminderScheduled(copy);
-      }
-    })().catch((error) => {
-      logger.error("Failed to maintain reminder schedule:", error);
-    });
+    reminderDebounce.schedule({ copy, dayComplete });
   }, [
+    reminderDebounce,
     dayComplete,
     hasOnboarded,
     streakCurrent,
@@ -1164,8 +1329,11 @@ export default function TodayScreen() {
   // StoreReview.requestReview is a no-op when Apple declines to show it.
   // Never stacked on the milestone modal or a toast; a skipped ask retries
   // at the next day-complete because the key is written only once it runs.
-  const reviewBlockedRef = useRef(false);
-  reviewBlockedRef.current = toastVisible || milestoneCelebration !== null;
+  const reviewBlocked = toastVisible || milestoneCelebration !== null;
+  const reviewBlockedRef = useRef(reviewBlocked);
+  useLayoutEffect(() => {
+    reviewBlockedRef.current = reviewBlocked;
+  }, [reviewBlocked]);
   useEffect(() => {
     if (!celebrateDayComplete || Platform.OS === "web") return;
     let cancelled = false;
@@ -1175,15 +1343,7 @@ export default function TodayScreen() {
         AsyncStorage.getItem(REVIEW_COMPLETE_DAYS_KEY),
         AsyncStorage.getItem(REVIEW_REQUESTED_KEY),
       ]);
-      let days: { count: number; lastDate: string } = {
-        count: 0,
-        lastDate: "",
-      };
-      try {
-        if (rawDays) days = JSON.parse(rawDays);
-      } catch {
-        // Corrupt marker — restart the count; worst case the ask comes later
-      }
+      let days = parseReviewDays(rawDays);
       if (days.lastDate !== todayDateStr) {
         days = { count: days.count + 1, lastDate: todayDateStr };
         await AsyncStorage.setItem(
@@ -1194,14 +1354,7 @@ export default function TodayScreen() {
       if (requested || days.count < REVIEW_ASK_AFTER_DAYS || cancelled) return;
       timer = setTimeout(async () => {
         if (cancelled || reviewBlockedRef.current) return;
-        try {
-          if (await StoreReview.hasAction()) {
-            await StoreReview.requestReview();
-            await AsyncStorage.setItem(REVIEW_REQUESTED_KEY, "true");
-          }
-        } catch (error) {
-          logger.error("Failed to request store review:", error);
-        }
+        await requestStoreReviewOnce();
       }, 4000);
     })().catch((error) => {
       logger.error("Failed to track review timing:", error);
@@ -1582,11 +1735,11 @@ export default function TodayScreen() {
           </>
         }
       />
-      <Toast
+      <FocusedToast
         message={toastMessage}
         // Held, not dropped, while the milestone modal or a sheet it opened
         // (Add next milestone) covers Today; it plays once Today is back.
-        visible={toastVisible && milestoneCelebration === null && isFocused}
+        visible={toastVisible && milestoneCelebration === null}
         onHide={hideToast}
         type="success"
         topOffset={headerClearance + Spacing.md}
