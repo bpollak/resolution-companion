@@ -219,4 +219,56 @@ describe("buildWidgetData", () => {
     );
     expect(data.remainingActions.map((item) => item.id)).toEqual(["b"]);
   });
+
+  it("writes the plan start so the widget can count days from it", () => {
+    const data = buildWidgetData(
+      [action("a", ["Thursday"])],
+      [],
+      { ...persona, createdAt: "2026-07-14T09:00:00" },
+      THURSDAY,
+    );
+    expect(data.planStart).toBe("2026-07-14");
+  });
+
+  it("dates a plan set up ahead of time to its future start", () => {
+    // Saved Dec 28 for a Jan 1 start: approvePlan dates persona and actions
+    // to local midnight of the start day.
+    const start = new Date(2027, 0, 1).toISOString();
+    const data = buildWidgetData(
+      [action("a", ["Friday", "Monday", "Tuesday"], { createdAt: start })],
+      [],
+      { ...persona, createdAt: start },
+      new Date("2026-12-28T20:00:00"),
+      { streak: 0, shieldUsed: false },
+    );
+    expect(data.planStart).toBe("2027-01-01");
+    expect(data.date).toBe("2026-12-28");
+    expect(data.planDay).toBe(1);
+    expect(data.scheduled).toBe(0);
+    expect(data.isRestDay).toBe(true);
+    // Jan 1 (a Friday) is inside the seven-day plan, so the widget can flip
+    // to the first habit at midnight without the app.
+    expect(
+      data.dayPlans.find((day) => day.date === "2027-01-01")?.actions,
+    ).toMatchObject([{ id: "a" }]);
+    expect(
+      data.dayPlans.find((day) => day.date === "2026-12-29")?.actions,
+    ).toEqual([]);
+  });
+
+  it("omits the plan start when the persona date cannot be parsed", () => {
+    const data = buildWidgetData(
+      [action("a", ["Thursday"])],
+      [],
+      { ...persona, createdAt: "not a date" },
+      THURSDAY,
+    );
+    expect(data).not.toHaveProperty("planStart");
+    expect(data.planDay).toBe(1);
+  });
+
+  it("leaves the plan start out of the no-plan state", () => {
+    const data = buildWidgetData([], [], null, THURSDAY);
+    expect(data).not.toHaveProperty("planStart");
+  });
 });

@@ -44,6 +44,12 @@ export interface WidgetData {
   shieldUsed: boolean;
   /** Today's progress line ("0/1 done · 12-day streak"); streak part only on a rest day. */
   progressLine: string;
+  /**
+   * Local YYYY-MM-DD the plan starts (the persona's createdAt day). A plan
+   * set up ahead of time is dated in the future, and the widget needs the
+   * real start to show "Starts Jan 1" and to count days after a rollover.
+   */
+  planStart?: string;
 }
 
 export interface WidgetActionData {
@@ -127,9 +133,14 @@ export function buildWidgetData(
   const streak = progress?.streak ?? fallbackStreak?.current ?? 0;
   const shieldUsed =
     progress?.shieldUsed ?? fallbackStreak?.shieldUsed ?? false;
+  // Same start Today counts "Day N" from. An unparseable createdAt would
+  // read "NaN-NaN-NaN", which Swift cannot compare, so it is left out.
+  const createdAt = new Date(persona.createdAt);
+  const planStart = Number.isNaN(createdAt.getTime())
+    ? undefined
+    : getLocalDateString(createdAt);
   const planDay =
-    progress?.planDay ??
-    planDayNumber(getLocalDateString(new Date(persona.createdAt)), dateStr);
+    progress?.planDay ?? planDayNumber(planStart ?? dateStr, dateStr);
   const isRestDay = scheduledActions.length === 0;
 
   const toWidgetAction = (action: ElementalAction): WidgetActionData => ({
@@ -178,6 +189,7 @@ export function buildWidgetData(
     planDay,
     shieldUsed,
     progressLine,
+    ...(planStart ? { planStart } : {}),
   };
 }
 

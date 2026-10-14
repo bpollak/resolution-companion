@@ -21,6 +21,10 @@ jobs:
         run: npm run check:types
       - name: Lint
         run: npm run lint
+      - name: React Compiler bailouts
+        run: npm run check:compiler
+      - name: Unit tests
+        run: npm test -- --ci
       - name: Format
         run: npm run check:format
       - name: Server production build

@@ -46,9 +46,73 @@ struct WidgetData: Codable {
     var planDay: Int?
     var shieldUsed: Bool?
     var progressLine: String?
+    // Local YYYY-MM-DD the plan starts; later than `date` for a plan set up
+    // ahead of time. Absent in snapshots from builds before it was written.
+    var planStart: String?
+    // Set only by the widget's own rollover, never by the app: today is past
+    // the seven-day plan the app last wrote, so the schedule is unknown.
+    var isStale: Bool?
 
     // Older snapshots predate hasPlan and were only written with a plan.
     var planIsSet: Bool { hasPlan ?? true }
+
+    /// A plan set up ahead of time (for January 1) has nothing scheduled
+    /// before its start, which must not read as a rest day. Keys are
+    /// YYYY-MM-DD, so string order is date order.
+    var startsLater: Bool {
+        guard let start = planStart else { return false }
+        return date < start
+    }
+
+    var state: DayState {
+        if startsLater { return .startsLater }
+        if isStale ?? false { return .stale }
+        if isRestDay { return .rest }
+        if allDone || nextActionId == nil { return .done }
+        return .pending
+    }
+
+    /// "Jan 1", in the person's locale.
+    var startDateText: String? {
+        guard let start = planStart, let day = dateFromKey(start) else { return nil }
+        return day.formatted(.dateTime.month(.abbreviated).day())
+    }
+
+    var startsText: String {
+        startDateText.map { "Starts \($0)" } ?? "Starts soon"
+    }
+
+    /// The first habit of the plan, when the start falls inside the saved
+    /// seven-day plan.
+    var firstPlannedTitle: String? {
+        guard let start = planStart else { return nil }
+        return dayPlans?
+            .filter { $0.date >= start && !$0.actions.isEmpty }
+            .min(by: { $0.date < $1.date })?
+            .actions.first?.title
+    }
+
+    /// Headline for every state except a pending habit.
+    var stateHeadline: String {
+        switch state {
+        case .startsLater: return startsText
+        case .stale: return "Open to update"
+        case .rest: return "Rest day"
+        case .done, .pending: return "Done today"
+        }
+    }
+
+    /// Second line under the headline, nil when there is nothing true to say.
+    var stateCaption: String? {
+        switch state {
+        case .startsLater:
+            return personaName.isEmpty ? nil : "Becoming \(personaName)"
+        case .stale:
+            return "Today's plan needs the app"
+        case .rest, .done, .pending:
+            return streakText
+        }
+    }
 
     var allDone: Bool { scheduled > 0 && completed >= scheduled }
 
@@ -82,6 +146,10 @@ struct WidgetData: Codable {
         }
         return plan.actions.map { HabitRow(action: $0, pending: pendingIds.contains($0.id)) }
     }
+}
+
+enum DayState {
+    case startsLater, stale, rest, done, pending
 }
 
 struct HabitRow: Identifiable {
@@ -156,6 +224,10 @@ func daysBetween(_ fromKey: String, _ toKey: String) -> Int? {
 func rolledOver(_ d: WidgetData, to today: String) -> WidgetData {
     let actions = d.dayPlans?.first(where: { $0.date == today })?.actions ?? []
     let elapsed = daysBetween(d.date, today) ?? 0
+    // The app writes seven days ahead. Past that, an empty day means "not
+    // known", not "rest day", so the widget asks to be opened instead.
+    let planHorizonEnd = d.dayPlans?.map(\.date).max()
+    let beyondHorizon = planHorizonEnd.map { today > $0 } ?? (elapsed >= 7)
 
     // The streak survives only if the saved day was finished (or a rest day)
     // and every day since was a rest day in the plan. Otherwise the app may
@@ -175,7 +247,13 @@ func rolledOver(_ d: WidgetData, to today: String) -> WidgetData {
     let keepStreak = savedDayHeld && gapDaysRested
     let streak = keepStreak ? d.streak : 0
     let shieldUsed = keepStreak ? (d.shieldUsed ?? false) : false
-    let planDay = d.planDay.map { $0 + max(elapsed, 0) }
+    // Counting from the real start keeps a future-start plan at Day 1 on its
+    // first day; adding elapsed days to the clamped pre-start Day 1 would
+    // read "Day 5" on January 1 for a plan saved December 28.
+    let planDay = d.planStart
+        .flatMap { daysBetween($0, today) }
+        .map { max(1, $0 + 1) }
+        ?? d.planDay.map { $0 + max(elapsed, 0) }
     let isRestDay = actions.isEmpty
     let next = actions.first
 
@@ -191,6 +269,9 @@ func rolledOver(_ d: WidgetData, to today: String) -> WidgetData {
     data.nextActionTitle = next?.title
     data.nextActionKickstart = next?.kickstart
     data.remainingActions = actions
+    // Sticky until the app writes a fresh snapshot, because a Siri vote can
+    // save this rolled-over copy with today's date.
+    data.isStale = (d.isStale ?? false) || beyondHorizon
     data.progressLine = isRestDay
         ? (streakPhrase(streak: streak, shieldUsed: shieldUsed, planDay: planDay) ?? "")
         : makeProgressLine(
@@ -340,7 +421,9 @@ enum SampleData {
         pending: [WidgetActionData],
         streak: Int = 5,
         planDay: Int = 9,
-        hasPlan: Bool = true
+        hasPlan: Bool = true,
+        planStart: String? = nil,
+        isStale: Bool? = nil
     ) -> WidgetData {
         let today = localDateString()
         let completed = actions.count - pending.count
@@ -370,7 +453,9 @@ enum SampleData {
                     streak: streak,
                     shieldUsed: false,
                     planDay: planDay
-                )
+                ),
+            planStart: planStart,
+            isStale: isStale
         )
     }
 
@@ -380,6 +465,14 @@ enum SampleData {
     static let allDone = day(actions: [stretch, walk], pending: [], streak: 6)
     static let restDay = day(actions: [], pending: [])
     static let firstDay = day(actions: [walk], pending: [walk], streak: 0, planDay: 1)
+    static let startsLater = day(
+        actions: [],
+        pending: [],
+        streak: 0,
+        planDay: 1,
+        planStart: localDateString(Calendar.current.date(byAdding: .day, value: 3, to: Date()) ?? Date())
+    )
+    static let stale = day(actions: [], pending: [], streak: 0, isStale: true)
     static let noPlan = WidgetData(
         personaName: "",
         date: localDateString(),
@@ -517,30 +610,69 @@ struct DoneMark: View {
 }
 
 struct NoPlanView: View {
+    /// Medium has room to spare vertically; pinned to the top the one line
+    /// left an empty band below it.
+    var centered = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Open to set up your plan")
                 .font(.headline)
                 .foregroundStyle(.primary)
-            Spacer(minLength: 0)
+            if !centered { Spacer(minLength: 0) }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity,
+            alignment: centered ? .leading : .topLeading
+        )
     }
 }
 
-/// Headline for the non-pending states: "Rest day" or "Done today".
+/// Trailing glyph for every state except a pending habit.
+struct StateIcon: View {
+    let state: DayState
+    var size: CGFloat = 22
+
+    var body: some View {
+        switch state {
+        case .done, .pending:
+            DoneMark(size: size)
+        case .rest:
+            symbol("moon.fill")
+        case .startsLater:
+            symbol("calendar")
+        case .stale:
+            symbol("arrow.clockwise")
+        }
+    }
+
+    // Outline-weight symbols read larger than the filled check, so they
+    // draw smaller to match it optically.
+    func symbol(_ name: String) -> some View {
+        Image(systemName: name)
+            .font(.system(size: size * 0.68))
+            .foregroundStyle(.secondary)
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+}
+
+/// Headline and caption for every state except a pending habit.
 struct DayStateHeadline: View {
     let data: WidgetData
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(data.isRestDay ? "Rest day" : "Done today")
+            Text(data.stateHeadline)
                 .font(.headline)
                 .foregroundStyle(.primary)
-            if let streak = data.streakText {
-                Text(streak)
+                .lineLimit(2)
+            if let caption = data.stateCaption {
+                Text(caption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
         }
     }
@@ -552,35 +684,26 @@ struct SmallVoteView: View {
     let data: WidgetData
 
     var body: some View {
+        let pending = data.state == .pending
+        // Headline pinned top, caption pinned bottom: the small tile is
+        // square, so splitting the two fills it evenly at any text length.
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top, spacing: 6) {
-                if data.isRestDay || data.allDone || data.nextActionTitle == nil {
-                    Text(data.isRestDay ? "Rest day" : "Done today")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                        .lineLimit(3)
-                } else {
-                    Text(data.nextActionTitle ?? "")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                        .lineLimit(3)
-                        .minimumScaleFactor(0.9)
-                }
+                Text(pending ? (data.nextActionTitle ?? "") : data.stateHeadline)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.9)
                 Spacer(minLength: 0)
-                if data.isRestDay {
-                    Image(systemName: "moon.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                } else if data.allDone {
-                    DoneMark(size: 22)
-                } else {
+                if pending {
                     ProgressRing(completed: data.completed, scheduled: data.scheduled, lineWidth: 3.5)
                         .frame(width: 22, height: 22)
+                } else {
+                    StateIcon(state: data.state, size: 22)
                 }
             }
             Spacer(minLength: 0)
-            Text(data.isRestDay || data.allDone ? (data.streakText ?? "") : data.displayProgressLine)
+            Text(pending ? data.displayProgressLine : (data.stateCaption ?? ""))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
@@ -592,22 +715,13 @@ struct SmallVoteView: View {
 struct MediumVoteView: View {
     let data: WidgetData
 
+    var hasKickstart: Bool {
+        !(data.nextActionKickstart ?? "").isEmpty && data.nextActionId != nil
+    }
+
     var body: some View {
-        if data.isRestDay || data.allDone || data.nextActionId == nil {
-            HStack(alignment: .center, spacing: 12) {
-                DayStateHeadline(data: data)
-                Spacer(minLength: 0)
-                if data.isRestDay {
-                    Image(systemName: "moon.fill")
-                        .font(.system(size: 28))
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                } else {
-                    DoneMark(size: 44)
-                }
-            }
-        } else {
-            HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
+            if data.state == .pending {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(data.nextActionTitle ?? "")
                         .font(.headline)
@@ -617,19 +731,30 @@ struct MediumVoteView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                    if let kickstart = data.nextActionKickstart, !kickstart.isEmpty,
+                    if hasKickstart, let kickstart = data.nextActionKickstart,
                        let id = data.nextActionId {
                         KickstartLink(actionId: id, kickstart: kickstart)
                     }
                 }
+                // The link's 28pt tap frame centers its text, leaving blank
+                // space under the underline; matching it on top keeps the
+                // visible text centered beside the check.
+                .padding(.top, hasKickstart ? 5 : 0)
                 Spacer(minLength: 0)
                 CheckButton(
                     actionId: data.nextActionId ?? "",
                     title: data.nextActionTitle ?? "",
                     size: 52
                 )
+            } else {
+                DayStateHeadline(data: data)
+                Spacer(minLength: 0)
+                StateIcon(state: data.state, size: 44)
             }
         }
+        // Fill the content area so the block is centered vertically in the
+        // widget rather than placed at its intrinsic height.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 }
 
@@ -646,23 +771,28 @@ struct LargeVoteView: View {
 
     var firstPendingId: String? { rows.first(where: { $0.pending })?.id }
 
+    var showsRows: Bool {
+        (data.state == .pending || data.state == .done) && !rows.isEmpty
+    }
+
+    /// Under the centered headline. Before the start the header already
+    /// names the persona, so the first habit is the more useful line.
+    var centeredCaption: String? {
+        if data.state == .startsLater {
+            return data.firstPlannedTitle.map { "First up: \($0)" }
+        }
+        return data.stateCaption
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Becoming \(data.personaName)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                if data.isRestDay {
-                    Text("Rest day")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                    if let streak = data.streakText {
-                        Text(streak)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                } else {
+            Text("Becoming \(data.personaName)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            if showsRows {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(data.allDone ? "Done today" : data.displayProgressLine)
                         .font(data.allDone ? .headline : .subheadline)
                         .foregroundStyle(data.allDone ? HierarchicalShapeStyle.primary : .secondary)
@@ -673,9 +803,7 @@ struct LargeVoteView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-            }
 
-            if !data.isRestDay {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(rows) { row in
                         HStack(alignment: .center, spacing: 12) {
@@ -698,9 +826,30 @@ struct LargeVoteView: View {
                         }
                     }
                 }
-            }
 
-            Spacer(minLength: 0)
+                // A checklist reads top-down like Reminders; the rows stay
+                // under their header and the slack goes below.
+                Spacer(minLength: 0)
+            } else {
+                // Nothing to list: a lone header line over an empty tile read
+                // as unfinished, so the state sits centered in the space.
+                Spacer(minLength: 0)
+                VStack(spacing: 8) {
+                    StateIcon(state: data.state, size: 44)
+                    Text(data.stateHeadline)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    if let caption = centeredCaption {
+                        Text(caption)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                }
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                Spacer(minLength: 0)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -711,6 +860,16 @@ struct LargeVoteView: View {
 struct CircularAccessoryView: View {
     let data: WidgetData
 
+    func glyph(_ name: String, label: String) -> some View {
+        ZStack {
+            AccessoryWidgetBackground()
+            Image(systemName: name)
+                .font(.title3)
+        }
+        .accessibilityElement()
+        .accessibilityLabel(label)
+    }
+
     var body: some View {
         if !data.planIsSet {
             ZStack {
@@ -719,13 +878,12 @@ struct CircularAccessoryView: View {
                     .font(.title3.weight(.semibold))
             }
             .accessibilityLabel("Set up your plan")
-        } else if data.isRestDay {
-            ZStack {
-                AccessoryWidgetBackground()
-                Image(systemName: "moon.fill")
-                    .font(.title3)
-            }
-            .accessibilityLabel("Rest day")
+        } else if data.state == .startsLater {
+            glyph("calendar", label: data.startsText)
+        } else if data.state == .stale {
+            glyph("arrow.clockwise", label: "Open to update")
+        } else if data.state == .rest {
+            glyph("moon.fill", label: "Rest day")
         } else {
             Gauge(value: Double(data.completed), in: 0...Double(max(data.scheduled, 1))) {
                 Text("Today")
@@ -757,13 +915,15 @@ struct RectangularAccessoryView: View {
                 Text("Open to set up your plan")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            } else if data.isRestDay || data.allDone || data.nextActionId == nil {
-                Text(data.isRestDay ? "Rest day" : "Done today")
+            } else if data.state != .pending {
+                Text(data.stateHeadline)
                     .font(.headline)
-                if let streak = data.streakText {
-                    Text(streak)
+                    .lineLimit(1)
+                if let caption = data.stateCaption {
+                    Text(caption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             } else {
                 HStack(spacing: 4) {
@@ -797,11 +957,14 @@ struct InlineAccessoryView: View {
 
     var text: String {
         if !data.planIsSet { return "Set up your plan" }
-        if data.isRestDay { return "Rest day" }
-        if data.allDone || data.nextActionTitle == nil {
+        switch data.state {
+        case .startsLater, .stale, .rest:
+            return data.stateHeadline
+        case .done:
             return "\(data.completed)/\(data.scheduled) · Done today"
+        case .pending:
+            return "\(data.completed)/\(data.scheduled) · \(data.nextActionTitle ?? "")"
         }
-        return "\(data.completed)/\(data.scheduled) · \(data.nextActionTitle ?? "")"
     }
 
     var body: some View {
@@ -831,7 +994,7 @@ struct ResolutionWidgetView: View {
             InlineAccessoryView(data: data)
         default:
             if !data.planIsSet {
-                NoPlanView()
+                NoPlanView(centered: family == .systemMedium)
             } else {
                 switch family {
                 case .systemMedium:
@@ -893,6 +1056,8 @@ struct ResolutionWidgetBundle: WidgetBundle {
     VoteEntry(date: .now, data: SampleData.firstDay)
     VoteEntry(date: .now, data: SampleData.allDone)
     VoteEntry(date: .now, data: SampleData.restDay)
+    VoteEntry(date: .now, data: SampleData.startsLater)
+    VoteEntry(date: .now, data: SampleData.stale)
     VoteEntry(date: .now, data: SampleData.noPlan)
 }
 
@@ -902,6 +1067,8 @@ struct ResolutionWidgetBundle: WidgetBundle {
     VoteEntry(date: .now, data: SampleData.pending)
     VoteEntry(date: .now, data: SampleData.allDone)
     VoteEntry(date: .now, data: SampleData.restDay)
+    VoteEntry(date: .now, data: SampleData.startsLater)
+    VoteEntry(date: .now, data: SampleData.stale)
     VoteEntry(date: .now, data: SampleData.noPlan)
 }
 
@@ -911,6 +1078,7 @@ struct ResolutionWidgetBundle: WidgetBundle {
     VoteEntry(date: .now, data: SampleData.threeHabits)
     VoteEntry(date: .now, data: SampleData.allDone)
     VoteEntry(date: .now, data: SampleData.restDay)
+    VoteEntry(date: .now, data: SampleData.startsLater)
 }
 
 #Preview("Circular", as: .accessoryCircular) {
@@ -926,6 +1094,8 @@ struct ResolutionWidgetBundle: WidgetBundle {
 } timeline: {
     VoteEntry(date: .now, data: SampleData.pending)
     VoteEntry(date: .now, data: SampleData.allDone)
+    VoteEntry(date: .now, data: SampleData.startsLater)
+    VoteEntry(date: .now, data: SampleData.stale)
 }
 
 #Preview("Inline", as: .accessoryInline) {

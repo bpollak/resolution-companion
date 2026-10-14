@@ -1618,7 +1618,9 @@ export default function JourneyScreen() {
                 <SelectedDateDetails
                   date={selectedDate}
                   actions={personaActions}
-                  logIndex={progressSnapshot.logIndex}
+                  // The day the user is tapping must reflect each tap at
+                  // once; only the calendar and Insights read deferred data.
+                  logIndex={latestProgressSnapshot.logIndex}
                   benchmarkById={benchmarkById}
                   isDark={isDark}
                   theme={theme}

@@ -5,7 +5,7 @@
 // when a file outside KNOWN_BAILOUTS has one, so fixed files stay fixed.
 //
 // Usage: node scripts/check-react-compiler.mjs [dir-or-file ...]
-// Defaults to client/screens and client/context.
+// Defaults to client/screens, client/context, and client/components.
 
 import { createRequire } from "node:module";
 import { readdirSync, statSync } from "node:fs";
@@ -20,6 +20,9 @@ const reactCompiler = require.resolve("babel-plugin-react-compiler");
 // Bailouts that predate this check. Remove an entry once its file compiles;
 // the check reports when that happens.
 const KNOWN_BAILOUTS = new Set([
+  // A press handler passed to a render helper reads scrollRef, which the
+  // compiler treats as a ref read during render.
+  "client/components/OnboardingPlanReview.tsx",
   "client/screens/ActionEditorScreen.tsx",
   "client/screens/BenchmarkEditorScreen.tsx",
   "client/screens/DataBackupScreen.tsx",
@@ -57,7 +60,9 @@ function describe(event) {
 
 const targets = process.argv.slice(2);
 const files = (
-  targets.length ? targets : ["client/screens", "client/context"]
+  targets.length
+    ? targets
+    : ["client/screens", "client/context", "client/components"]
 ).flatMap(collect);
 
 let failures = 0;

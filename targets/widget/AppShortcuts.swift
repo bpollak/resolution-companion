@@ -23,8 +23,17 @@ struct LogKickstartIntent: AppIntent {
         guard let data = loadWidgetData(), data.planIsSet else {
             return .result(dialog: setUpDialog)
         }
-        if data.isRestDay {
+        // Same states the widget shows, so Siri never calls a day "rest"
+        // when the plan has not started or the widget's schedule ran out.
+        switch data.state {
+        case .startsLater:
+            return .result(dialog: "Your plan starts \(data.startDateText ?? "soon"). Nothing to log yet.")
+        case .stale:
+            return .result(dialog: "Open Resolution Companion to update today's plan.")
+        case .rest:
             return .result(dialog: "Rest day. Nothing to log today.")
+        case .done, .pending:
+            break
         }
         guard let actionId = data.nextActionId, !actionId.isEmpty else {
             return .result(dialog: "Already done today.")

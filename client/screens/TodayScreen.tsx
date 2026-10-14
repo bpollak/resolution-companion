@@ -1311,6 +1311,9 @@ export default function TodayScreen() {
       ),
     };
     reminderDebounce.schedule({ copy, dayComplete });
+    // A background launch (notification "Mark all done") never changes
+    // AppState, so a pending timer could be suspended before it runs.
+    if (AppState.currentState !== "active") reminderDebounce.flush();
   }, [
     reminderDebounce,
     dayComplete,

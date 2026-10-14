@@ -1208,6 +1208,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         shieldUsed: progressSnapshot.streak.shieldUsed,
       },
     ]);
+    // Background launches (notification actions) never change AppState, so
+    // sync now rather than risk suspension before the timer fires.
+    if (AppState.currentState !== "active") widgetSync.flush();
   }, [
     widgetSync,
     isLoading,

@@ -194,3 +194,35 @@ and Dawn, compared against the before set. A report-only reviewer pass.
 Consolidating the type scale into a six-style `ThemedText`, shared `Card` and
 `ListGroup` components, replacing the 84 `Colors.dark/light` ternaries, a full
 celebration queue in AppContext, gating Stories & Support by tenure.
+
+## Results (2026-10-14)
+
+Commits on `claude/review-fixes-2026-10-13`: dcab4b9 (plan), ac49bff
+(A-D), 48dde14 (review follow-ups), 7576769 and d1bf787 (plan E, F),
+6de6336 (widget and responsiveness), plus a final review fix commit.
+
+Measured on the simulator (iPhone, 402x874pt), before and after:
+
+- Today, new user: Mark Complete top edge moved from about 655pt to about
+  296pt; the habit is the first card; one optional card.
+- Today, 33-day user: streak and month consistency visible without
+  scrolling; weekly recap holds the single optional slot; no toast collision
+  with the milestone modal.
+- Journey, 33-day user: about 3.5 screens of scroll down to about 2;
+  Premium entry points 4 to 2; Day N instead of 100% on day one; calendar
+  sized to its weeks.
+- Profile fits one screen; paywall top gap removed; Coach has one primary
+  button.
+- Widget (signed simulator build with App Group): habit first, one accent,
+  follows light/dark; check-off from the medium widget logged in the app.
+- Responsiveness (V8 benchmark): progress snapshot about 24 ms to 2 ms per
+  check-off, year recap 76 ms to 1 ms, zero Intl calls in builders; React
+  Compiler bailouts removed from the heavy screens and guarded in CI.
+
+Verification: type check, lint, Prettier, `check:compiler` (42 files), and
+492 tests pass. Three report-only reviews; all blockers and should-fix items
+applied.
+
+Not verified here: Lock Screen widgets and tinted/clear Home Screen modes
+on device, Maestro flows (Maestro not installed), device timing with
+Instruments on a Release build.
