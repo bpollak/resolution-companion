@@ -25,6 +25,7 @@ import * as Haptics from "expo-haptics";
 import { useApp } from "@/context/AppContext";
 import { useTheme } from "@/hooks/useTheme";
 import { BorderRadius, Colors, Spacing, Typography } from "@/constants/theme";
+import { withAlpha } from "@/lib/color";
 import { ThemedText } from "@/components/ThemedText";
 import { ChatBubble } from "@/components/ChatBubble";
 import { CoachEvidenceCard } from "@/components/CoachEvidenceCard";
@@ -822,7 +823,7 @@ export default function CoachSheetScreen() {
                         borderColor: index === 0 ? theme.accent : theme.border,
                         backgroundColor:
                           index === 0
-                            ? `${theme.accent}1A`
+                            ? withAlpha(theme.accent, 0.1)
                             : isDark
                               ? Colors.dark.backgroundSecondary
                               : Colors.light.backgroundSecondary,

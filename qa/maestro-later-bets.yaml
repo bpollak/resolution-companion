@@ -8,7 +8,7 @@ name: later-bets-settings-surfaces
     id: "tab-today"
 - tapOn: "Open profile and settings.*"
 - extendedWaitUntil:
-    visible: "My Personas.*"
+    visible: "My plans.*"
     timeout: 10000
 
 # All three later-bet entries remain reachable at maximum Dynamic Type.

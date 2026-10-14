@@ -46,6 +46,7 @@ import {
 import { withAlpha } from "@/lib/color";
 import {
   calendarWeekCount,
+  chunkIntoWeeks,
   formatEarlyProgress,
   getMonthProgressDisplay,
   hasRhythmToSimplify,
@@ -56,6 +57,8 @@ import type { MainTabParamList } from "@/navigation/MainTabNavigator";
 import { parseJourneyDate, actionIsScheduledOnDate } from "@/lib/journey-date";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+// Fits the 32pt day marker plus its corner badge and keeps a 44pt+ target
+const CALENDAR_CELL_HEIGHT = 46;
 const MONTHS = [
   "January",
   "February",
@@ -1012,6 +1015,10 @@ export default function JourneyScreen() {
 
     return days;
   }, [currentDate, personaActions, progressSnapshot.logIndex]);
+  const calendarWeeks = useMemo(
+    () => chunkIntoWeeks(calendarDays),
+    [calendarDays],
+  );
 
   const prevMonth = useCallback(() => {
     setCurrentDate(
@@ -1346,162 +1353,167 @@ export default function JourneyScreen() {
             </View>
 
             <View style={styles.calendarGrid}>
-              {calendarDays.map((dayInfo, index) => {
-                const isComplete =
-                  dayInfo.totalCount > 0 &&
-                  dayInfo.completedCount === dayInfo.totalCount;
-                const isPartial =
-                  dayInfo.completedCount > 0 &&
-                  dayInfo.completedCount < dayInfo.totalCount;
-                const isAfterPersonaCreated = personaCreatedDate
-                  ? dayInfo.date >= personaCreatedDate
-                  : true;
-                // Shield-bridged misses show a shield outline, not the red ring
-                const isShielded =
-                  shieldedDaySet.has(dayInfo.dateStr) &&
-                  !isComplete &&
-                  !isPartial;
-                const isMissed =
-                  !isShielded &&
-                  // Today is pending until it's over — never painted missed
-                  // (mirrors the streak rule "today never breaks a run")
-                  !dayInfo.isToday &&
-                  dayInfo.totalCount > 0 &&
-                  dayInfo.completedCount === 0 &&
-                  dayInfo.date < new Date() &&
-                  isAfterPersonaCreated;
+              {calendarWeeks.map((week) => (
+                <View key={week[0].dateStr} style={styles.calendarWeek}>
+                  {week.map((dayInfo) => {
+                    const isComplete =
+                      dayInfo.totalCount > 0 &&
+                      dayInfo.completedCount === dayInfo.totalCount;
+                    const isPartial =
+                      dayInfo.completedCount > 0 &&
+                      dayInfo.completedCount < dayInfo.totalCount;
+                    const isAfterPersonaCreated = personaCreatedDate
+                      ? dayInfo.date >= personaCreatedDate
+                      : true;
+                    // Shield-bridged misses show a shield outline, not the red ring
+                    const isShielded =
+                      shieldedDaySet.has(dayInfo.dateStr) &&
+                      !isComplete &&
+                      !isPartial;
+                    const isMissed =
+                      !isShielded &&
+                      // Today is pending until it's over, never painted missed
+                      // (mirrors the streak rule "today never breaks a run")
+                      !dayInfo.isToday &&
+                      dayInfo.totalCount > 0 &&
+                      dayInfo.completedCount === 0 &&
+                      dayInfo.date < new Date() &&
+                      isAfterPersonaCreated;
 
-                const isSelected =
-                  selectedDate !== null &&
-                  dayInfo.date.toDateString() === selectedDate.toDateString();
-                const dateLabel = dayInfo.date.toLocaleDateString("en-US", {
-                  weekday: "long",
-                  month: "long",
-                  day: "numeric",
-                });
-                // Days before the plan existed (and padding days from other
-                // months) are blank, not rest days: nothing was planned yet.
-                const isRestDay =
-                  dayInfo.totalCount === 0 &&
-                  dayInfo.isCurrentMonth &&
-                  isAfterPersonaCreated;
-                const statusLabel = !isAfterPersonaCreated
-                  ? dayInfo.date > new Date()
-                    ? "before your plan starts"
-                    : "before your plan started"
-                  : dayInfo.totalCount === 0
-                    ? "nothing planned"
-                    : `${dayInfo.completedCount} of ${dayInfo.totalCount} habit${dayInfo.totalCount === 1 ? "" : "s"} done${isShielded ? ", covered by an earned rest day" : ""}`;
+                    const isSelected =
+                      selectedDate !== null &&
+                      dayInfo.date.toDateString() ===
+                        selectedDate.toDateString();
+                    const dateLabel = dayInfo.date.toLocaleDateString("en-US", {
+                      weekday: "long",
+                      month: "long",
+                      day: "numeric",
+                    });
+                    // Days before the plan existed (and padding days from other
+                    // months) are blank, not rest days: nothing was planned yet.
+                    const isRestDay =
+                      dayInfo.totalCount === 0 &&
+                      dayInfo.isCurrentMonth &&
+                      isAfterPersonaCreated;
+                    const statusLabel = !isAfterPersonaCreated
+                      ? dayInfo.date > new Date()
+                        ? "before your plan starts"
+                        : "before your plan started"
+                      : dayInfo.totalCount === 0
+                        ? "nothing planned"
+                        : `${dayInfo.completedCount} of ${dayInfo.totalCount} habit${dayInfo.totalCount === 1 ? "" : "s"} done${isShielded ? ", covered by an earned rest day" : ""}`;
 
-                return (
-                  <Pressable
-                    key={index}
-                    onPress={() => {
-                      setSelectedDate((current) =>
-                        nextDaySelection(current, dayInfo.date),
-                      );
-                      if (Platform.OS !== "web") {
-                        Haptics.selectionAsync();
-                      }
-                    }}
-                    hitSlop={4}
-                    pressRetentionOffset={12}
-                    style={({ pressed }) => [
-                      styles.dayCell,
-                      // Selection reads as a cell highlight, separate from the
-                      // status rings on the day marker (today/missed/shielded)
-                      isSelected && {
-                        backgroundColor: withAlpha(theme.accent, 0.14),
-                        borderRadius: BorderRadius.md,
-                      },
-                      { opacity: pressed ? 0.5 : 1 },
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: isSelected }}
-                    accessibilityLabel={`${dayInfo.isToday ? "Today, " : ""}${dateLabel}, ${statusLabel}`}
-                    accessibilityHint={
-                      dayInfo.isToday && !isSelected
-                        ? "Today's habits are on the Today tab"
-                        : isSelected
-                          ? "Hides this day's actions"
-                          : "Shows this day's actions below the calendar"
-                    }
-                  >
-                    {dayInfo.hasStreak ? (
-                      <View
-                        style={[
-                          styles.streakLine,
-                          { backgroundColor: theme.accent },
-                        ]}
-                      />
-                    ) : null}
-                    <View
-                      style={[
-                        styles.dayMarker,
-                        dayInfo.isToday && styles.todayMarker,
-                        dayInfo.isToday && { borderColor: theme.accent },
-                        isComplete && { backgroundColor: theme.success },
-                        isPartial && { backgroundColor: theme.warning },
-                        isShielded && {
-                          backgroundColor: "transparent",
-                          borderWidth: 2,
-                          borderColor: theme.accent,
-                        },
-                        isMissed && {
-                          backgroundColor: "transparent",
-                          borderWidth: 2,
-                          borderColor: theme.error,
-                        },
-                      ]}
-                    >
-                      <ThemedText
-                        style={[
-                          styles.dayText,
-                          !dayInfo.isCurrentMonth && { opacity: 0.3 },
-                          (isComplete || isPartial) && {
-                            color: theme.onStatus,
+                    return (
+                      <Pressable
+                        key={dayInfo.dateStr}
+                        onPress={() => {
+                          setSelectedDate((current) =>
+                            nextDaySelection(current, dayInfo.date),
+                          );
+                          if (Platform.OS !== "web") {
+                            Haptics.selectionAsync();
+                          }
+                        }}
+                        hitSlop={4}
+                        pressRetentionOffset={12}
+                        style={({ pressed }) => [
+                          styles.dayCell,
+                          // Selection reads as a cell highlight, separate from the
+                          // status rings on the day marker (today/missed/shielded)
+                          isSelected && {
+                            backgroundColor: withAlpha(theme.accent, 0.14),
+                            borderRadius: BorderRadius.md,
                           },
+                          { opacity: pressed ? 0.5 : 1 },
                         ]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
+                        accessibilityLabel={`${dayInfo.isToday ? "Today, " : ""}${dateLabel}, ${statusLabel}`}
+                        accessibilityHint={
+                          dayInfo.isToday && !isSelected
+                            ? "Today's habits are on the Today tab"
+                            : isSelected
+                              ? "Hides this day's actions"
+                              : "Shows this day's actions below the calendar"
+                        }
                       >
-                        {dayInfo.date.getDate()}
-                      </ThemedText>
-                      {isComplete ||
-                      isPartial ||
-                      isMissed ||
-                      isShielded ||
-                      isRestDay ? (
+                        {dayInfo.hasStreak ? (
+                          <View
+                            style={[
+                              styles.streakLine,
+                              { backgroundColor: theme.accent },
+                            ]}
+                          />
+                        ) : null}
                         <View
                           style={[
-                            styles.shieldBadge,
-                            {
-                              backgroundColor: theme.backgroundRoot,
-                              borderRadius: 8,
-                              padding: 2,
+                            styles.dayMarker,
+                            dayInfo.isToday && styles.todayMarker,
+                            dayInfo.isToday && { borderColor: theme.accent },
+                            isComplete && { backgroundColor: theme.success },
+                            isPartial && { backgroundColor: theme.warning },
+                            isShielded && {
+                              backgroundColor: "transparent",
+                              borderWidth: 2,
+                              borderColor: theme.accent,
+                            },
+                            isMissed && {
+                              backgroundColor: "transparent",
+                              borderWidth: 2,
+                              borderColor: theme.error,
                             },
                           ]}
                         >
-                          <Feather
-                            name={
-                              isShielded
-                                ? "shield"
-                                : isComplete
-                                  ? "check"
-                                  : isPartial
-                                    ? "minus"
-                                    : isMissed
-                                      ? "x"
-                                      : "moon"
-                            }
-                            size={12}
-                            color={theme.text}
-                            accessible={false}
-                          />
+                          <ThemedText
+                            style={[
+                              styles.dayText,
+                              !dayInfo.isCurrentMonth && { opacity: 0.3 },
+                              (isComplete || isPartial) && {
+                                color: theme.onStatus,
+                              },
+                            ]}
+                          >
+                            {dayInfo.date.getDate()}
+                          </ThemedText>
+                          {isComplete ||
+                          isPartial ||
+                          isMissed ||
+                          isShielded ||
+                          isRestDay ? (
+                            <View
+                              style={[
+                                styles.shieldBadge,
+                                {
+                                  backgroundColor: theme.backgroundRoot,
+                                  borderRadius: 8,
+                                  padding: 2,
+                                },
+                              ]}
+                            >
+                              <Feather
+                                name={
+                                  isShielded
+                                    ? "shield"
+                                    : isComplete
+                                      ? "check"
+                                      : isPartial
+                                        ? "minus"
+                                        : isMissed
+                                          ? "x"
+                                          : "moon"
+                                }
+                                size={12}
+                                color={theme.text}
+                                accessible={false}
+                              />
+                            </View>
+                          ) : null}
                         </View>
-                      ) : null}
-                    </View>
-                  </Pressable>
-                );
-              })}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ))}
             </View>
 
             <View style={styles.legendContainer}>
@@ -1794,14 +1806,18 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     fontWeight: "600",
   },
+  // Explicit week rows with a fixed cell height: a wrapping grid of
+  // percentage-width, aspectRatio cells let Yoga reserve height for rows that
+  // never render, leaving a dead band above the legend on 5-row months.
   calendarGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     marginBottom: Spacing.xl,
   },
+  calendarWeek: {
+    flexDirection: "row",
+  },
   dayCell: {
-    width: `${100 / 7}%`,
-    aspectRatio: 1,
+    flex: 1,
+    height: CALENDAR_CELL_HEIGHT,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",

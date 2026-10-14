@@ -1,8 +1,13 @@
 import {
   buildTodayProgressLine,
+  canShowReminderPrimer,
   countCompletedDays,
+  dayCompleteProgressText,
   isWeeklyRecapFresh,
+  parseReminderPrimerDays,
   planDayNumber,
+  recordReminderPrimerDay,
+  REMINDER_PRIMER_MAX_DAYS,
   selectTodayOptionalCard,
   toastDurationFor,
 } from "../today-layout";
@@ -18,19 +23,35 @@ function log(logDate: string, status: boolean, actionId = "a1"): DailyLog {
 }
 
 describe("selectTodayOptionalCard", () => {
+  const none = {
+    timeLimited: false,
+    primer: false,
+    widgetHint: false,
+    secondary: false,
+  };
+
   it("shows nothing when no card is eligible", () => {
-    expect(
-      selectTodayOptionalCard({
-        primer: false,
-        widgetHint: false,
-        secondary: false,
-      }),
-    ).toBeNull();
+    expect(selectTodayOptionalCard(none)).toBeNull();
   });
 
-  it("prefers the reminder primer over everything else", () => {
+  it("puts a time-limited recap ahead of every teach-once tip", () => {
     expect(
       selectTodayOptionalCard({
+        timeLimited: true,
+        primer: true,
+        widgetHint: true,
+        secondary: true,
+      }),
+    ).toBe("time-limited");
+    expect(
+      selectTodayOptionalCard({ ...none, timeLimited: true, widgetHint: true }),
+    ).toBe("time-limited");
+  });
+
+  it("prefers the reminder primer over the widget hint and nudges", () => {
+    expect(
+      selectTodayOptionalCard({
+        ...none,
         primer: true,
         widgetHint: true,
         secondary: true,
@@ -38,24 +59,53 @@ describe("selectTodayOptionalCard", () => {
     ).toBe("primer");
   });
 
-  it("prefers the widget hint over the recap/invite chain", () => {
+  it("prefers the widget hint over the invite/nudge chain", () => {
     expect(
-      selectTodayOptionalCard({
-        primer: false,
-        widgetHint: true,
-        secondary: true,
-      }),
+      selectTodayOptionalCard({ ...none, widgetHint: true, secondary: true }),
     ).toBe("widget-hint");
   });
 
-  it("falls back to the recap/invite chain", () => {
-    expect(
-      selectTodayOptionalCard({
-        primer: false,
-        widgetHint: false,
-        secondary: true,
-      }),
-    ).toBe("secondary");
+  it("falls back to the invite/nudge chain", () => {
+    expect(selectTodayOptionalCard({ ...none, secondary: true })).toBe(
+      "secondary",
+    );
+  });
+});
+
+describe("reminder primer cap", () => {
+  it("parses stored days defensively", () => {
+    expect(parseReminderPrimerDays(null)).toEqual([]);
+    expect(parseReminderPrimerDays("not json")).toEqual([]);
+    expect(parseReminderPrimerDays('{"a":1}')).toEqual([]);
+    expect(parseReminderPrimerDays('["2026-10-12", 4, "2026-10-13"]')).toEqual([
+      "2026-10-12",
+      "2026-10-13",
+    ]);
+  });
+
+  it("allows the first three days it appears, then stops", () => {
+    expect(REMINDER_PRIMER_MAX_DAYS).toBe(3);
+    let days: string[] = [];
+    for (const day of ["2026-10-12", "2026-10-13", "2026-10-15"]) {
+      expect(canShowReminderPrimer(days, day)).toBe(true);
+      days = recordReminderPrimerDay(days, day);
+    }
+    expect(days).toHaveLength(3);
+    expect(canShowReminderPrimer(days, "2026-10-16")).toBe(false);
+  });
+
+  it("keeps showing for the rest of a day that already counted", () => {
+    const days = ["2026-10-12", "2026-10-13", "2026-10-14"];
+    expect(canShowReminderPrimer(days, "2026-10-14")).toBe(true);
+  });
+
+  it("does not record the same day twice", () => {
+    const days = ["2026-10-12"];
+    expect(recordReminderPrimerDay(days, "2026-10-12")).toBe(days);
+    expect(recordReminderPrimerDay(days, "2026-10-13")).toEqual([
+      "2026-10-12",
+      "2026-10-13",
+    ]);
   });
 });
 
@@ -112,6 +162,7 @@ describe("buildTodayProgressLine", () => {
     shieldUsed: false,
     planDay: 1,
     consistency: 0,
+    showConsistency: false,
   };
 
   it("shows Day N and hides the month figure for a new plan", () => {
@@ -122,7 +173,7 @@ describe("buildTodayProgressLine", () => {
     );
   });
 
-  it("shows the streak and month consistency once a week in", () => {
+  it("shows the streak and month consistency once the month has data", () => {
     expect(
       buildTodayProgressLine({
         ...base,
@@ -131,6 +182,7 @@ describe("buildTodayProgressLine", () => {
         streak: 12,
         planDay: 33,
         consistency: 82,
+        showConsistency: true,
       }).parts,
     ).toEqual(["1/2 done", "12-day streak", "82% this month"]);
   });
@@ -146,8 +198,52 @@ describe("buildTodayProgressLine", () => {
 
   it("falls back to Day N when an established streak has ended", () => {
     expect(
-      buildTodayProgressLine({ ...base, planDay: 40, consistency: 55 }).parts,
+      buildTodayProgressLine({
+        ...base,
+        planDay: 40,
+        consistency: 55,
+        showConsistency: true,
+      }).parts,
     ).toEqual(["0/1 done", "Day 40", "55% this month"]);
+  });
+
+  it("hides the month figure on an old plan's first days of a month", () => {
+    // Day 31 of the plan, but October 1 has no month history yet
+    expect(
+      buildTodayProgressLine({ ...base, planDay: 31, consistency: 100 }).parts,
+    ).toEqual(["0/1 done", "Day 31"]);
+  });
+});
+
+describe("dayCompleteProgressText", () => {
+  const base = {
+    showConsistency: false,
+    monthName: "October",
+    consistency: 100,
+    planDay: 1,
+    streak: 1,
+  };
+
+  it("never claims 100% month consistency on plan day one", () => {
+    expect(dayCompleteProgressText(base)).toBeNull();
+  });
+
+  it("names the plan day when it differs from the streak", () => {
+    expect(dayCompleteProgressText({ ...base, planDay: 4, streak: 2 })).toBe(
+      "Day 4 of your plan",
+    );
+  });
+
+  it("shows month consistency once the month has enough planned days", () => {
+    expect(
+      dayCompleteProgressText({
+        ...base,
+        showConsistency: true,
+        consistency: 86,
+        planDay: 20,
+        streak: 5,
+      }),
+    ).toBe("October consistency: 86%");
   });
 });
 

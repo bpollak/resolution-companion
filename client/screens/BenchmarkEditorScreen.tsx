@@ -769,7 +769,6 @@ const styles = StyleSheet.create({
   },
   editActionButtonText: {
     ...Typography.small,
-    color: Colors.dark.accent,
     fontWeight: "600",
   },
   minActionsHint: {

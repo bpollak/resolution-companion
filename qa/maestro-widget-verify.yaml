@@ -3,7 +3,7 @@ appId: com.resolutioncompanion.app
 # Verify the app consumed an injected kickstart vote from App Group storage.
 - launchApp
 - extendedWaitUntil:
-    visible: "Momentum Builder.*"
+    visible: "Becoming Momentum Builder.*"
     timeout: 20000
 - scrollUntilVisible:
     element:

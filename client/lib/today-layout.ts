@@ -3,22 +3,67 @@ import type { DailyLog } from "@/lib/storage";
 // Pure layout rules for the Today screen, kept out of the component so the
 // "one optional card" and timing rules are unit-testable.
 
-export type TodayOptionalCard = "primer" | "widget-hint" | "secondary";
+export type TodayOptionalCard =
+  | "time-limited"
+  | "primer"
+  | "widget-hint"
+  | "secondary";
 
 /**
- * Today shows at most one optional card per day. The reminder primer wins
- * because it is answered once and gates the reminder itself; the widget hint
- * is a one-time tip; the recap/invite chain fills the slot otherwise.
+ * Today shows at most one optional card per day. Time-limited cards (month,
+ * year and weekly recaps, the witness celebration) go stale within days, so
+ * they outrank the teach-once tips, which keep until a quieter day. The
+ * reminder primer beats the widget hint because it gates the reminder
+ * itself; the remaining nudges and invites fill the slot otherwise.
  */
 export function selectTodayOptionalCard(candidates: {
+  timeLimited: boolean;
   primer: boolean;
   widgetHint: boolean;
   secondary: boolean;
 }): TodayOptionalCard | null {
+  if (candidates.timeLimited) return "time-limited";
   if (candidates.primer) return "primer";
   if (candidates.widgetHint) return "widget-hint";
   if (candidates.secondary) return "secondary";
   return null;
+}
+
+/**
+ * The primer is a nudge, not a gate: after this many days on screen without
+ * an answer it stops taking Today's slot. Profile > Daily Reminder remains.
+ */
+export const REMINDER_PRIMER_MAX_DAYS = 3;
+
+/** Stored list of local date keys the primer was shown on; tolerant of junk. */
+export function parseReminderPrimerDays(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((day): day is string => typeof day === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Today counts as one of the allowed days once it has shown there. */
+export function canShowReminderPrimer(
+  shownDays: readonly string[],
+  todayKey: string,
+): boolean {
+  return (
+    shownDays.includes(todayKey) || shownDays.length < REMINDER_PRIMER_MAX_DAYS
+  );
+}
+
+/** Returns the same array when today is already recorded, so callers can skip a write. */
+export function recordReminderPrimerDay(
+  shownDays: string[],
+  todayKey: string,
+): string[] {
+  return shownDays.includes(todayKey) ? shownDays : [...shownDays, todayKey];
 }
 
 /** Days into the week (Monday-based) that the weekly recap stays relevant. */
@@ -56,12 +101,6 @@ export function planDayNumber(startDateKey: string, todayKey: string): number {
   return Math.max(1, Math.round(diff) + 1);
 }
 
-/**
- * Before a week of history a month percentage swings wildly (0% or 100% on
- * day one), so the progress line shows "Day N" alone until then.
- */
-export const PROGRESS_CONSISTENCY_MIN_PLAN_DAYS = 7;
-
 export interface TodayProgressLine {
   parts: string[];
   accessibilityLabel: string;
@@ -74,9 +113,18 @@ export function buildTodayProgressLine(input: {
   shieldUsed: boolean;
   planDay: number;
   consistency: number;
+  /** Shared with Journey's ring: see getMonthProgressDisplay. */
+  showConsistency: boolean;
 }): TodayProgressLine {
-  const { completed, scheduled, streak, shieldUsed, planDay, consistency } =
-    input;
+  const {
+    completed,
+    scheduled,
+    streak,
+    shieldUsed,
+    planDay,
+    consistency,
+    showConsistency,
+  } = input;
   const parts = [`${completed}/${scheduled} done`];
   const spoken = [`${completed} of ${scheduled} done today`];
 
@@ -92,12 +140,33 @@ export function buildTodayProgressLine(input: {
     spoken.push(`Day ${planDay} of your plan`);
   }
 
-  if (planDay >= PROGRESS_CONSISTENCY_MIN_PLAN_DAYS) {
+  if (showConsistency) {
     parts.push(`${consistency}% this month`);
     spoken.push(`${consistency}% consistency this month`);
   }
 
   return { parts, accessibilityLabel: `${spoken.join(". ")}.` };
+}
+
+/**
+ * The day-complete card's progress line. Until the month has enough planned
+ * days for a percentage to mean something (the same rule as Journey's ring),
+ * day one would read "100%", so it names the plan day instead, or nothing
+ * when the streak line above already says the same number.
+ */
+export function dayCompleteProgressText(input: {
+  showConsistency: boolean;
+  monthName: string;
+  consistency: number;
+  planDay: number;
+  streak: number;
+}): string | null {
+  if (input.showConsistency) {
+    return `${input.monthName} consistency: ${input.consistency}%`;
+  }
+  return input.planDay === input.streak
+    ? null
+    : `Day ${input.planDay} of your plan`;
 }
 
 /**

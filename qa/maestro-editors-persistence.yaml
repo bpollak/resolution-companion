@@ -123,5 +123,7 @@ appId: com.resolutioncompanion.app
 - extendedWaitUntil:
     visible: ".*Navigation confidence.*"
     timeout: 15000
+# Milestones start collapsed; expanding shows the action plan underneath.
+- tapOn: "Navigation confidence milestone, .* days done"
 - assertVisible: ".*Practice one map bearing.*"
 # Cold-relaunch persistence is asserted by qa/maestro-editors-relaunch.yaml.

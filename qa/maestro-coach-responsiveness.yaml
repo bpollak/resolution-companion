@@ -54,7 +54,7 @@ appId: com.resolutioncompanion.app
     text: "Discard"
     optional: true
 - extendedWaitUntil:
-    visible: "Weekly Review"
+    visible: "What do you need help with?.*"
     timeout: 10000
 - scrollUntilVisible:
     element:

@@ -7,7 +7,8 @@ appId: com.resolutioncompanion.app
 - tapOn:
     id: "tab-today"
 - extendedWaitUntil:
-    visible: "Today’s evidence.*"
+    # The always-visible progress line, e.g. "0 of 1 done today. Day 1 ..."
+    visible: ".* done today.*"
     timeout: 20000
 - tapOn: "Ask Coach.*"
 - extendedWaitUntil:

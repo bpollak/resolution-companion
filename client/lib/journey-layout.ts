@@ -10,6 +10,15 @@ export function calendarWeekCount(year: number, month: number): number {
   return Math.ceil((startPadding + daysInMonth) / 7);
 }
 
+/** Splits the month grid's days into rows of seven, one per rendered week. */
+export function chunkIntoWeeks<T>(days: readonly T[]): T[][] {
+  const weeks: T[][] = [];
+  for (let start = 0; start < days.length; start += 7) {
+    weeks.push(days.slice(start, start + 7));
+  }
+  return weeks;
+}
+
 /** Below this many planned days a percentage swings too hard to mean much. */
 export const EARLY_PROGRESS_MIN_DAYS = 7;
 
@@ -36,7 +45,9 @@ function calendarDaysBetween(from: Date, to: Date): number {
 
 /**
  * Decides between the month consistency ring and "Day N" text. A day-one
- * plan otherwise reads 100% (or 0%) off a single data point.
+ * plan (or the 1st of any month) otherwise reads 100% or 0% off a single data
+ * point. Today's progress line and day-complete card use the same result, so
+ * a month percentage appears on both screens or on neither.
  */
 export function getMonthProgressDisplay({
   actions,
@@ -100,12 +111,21 @@ export function getMonthProgressDisplay({
   };
 }
 
+/** True when the month figure has enough planned days to be shown anywhere. */
+export function showsMonthConsistency(display: MonthProgressDisplay): boolean {
+  return display.kind === "ring";
+}
+
 export function formatEarlyProgress(
   display: Extract<MonthProgressDisplay, { kind: "early" }>,
 ): { title: string; detail: string } {
   const title = `Day ${display.dayNumber}`;
   if (display.plannedDays === 0) {
-    return { title, detail: "Just getting started" };
+    // An established plan isn't starting; only the month is.
+    return {
+      title,
+      detail: display.monthOnly ? "New month" : "Just getting started",
+    };
   }
   const unit = display.plannedDays === 1 ? "day" : "days";
   return {

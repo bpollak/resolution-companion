@@ -63,8 +63,10 @@ appId: com.resolutioncompanion.app
     timeout: 10000
 - tapOn:
     id: "tab-journey"
+# Journey no longer repeats the plan name; the month pager is its first
+# stable, Journey-only control.
 - extendedWaitUntil:
-    visible: "Becoming .*"
+    visible: "Previous month"
     timeout: 10000
 - takeScreenshot: 05-journey-top
 

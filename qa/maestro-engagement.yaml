@@ -18,7 +18,7 @@ appId: com.resolutioncompanion.app
           optional: true
       - waitForAnimationToEnd
 - extendedWaitUntil:
-    visible: "Momentum Builder.*"
+    visible: "Becoming Momentum Builder.*"
     timeout: 20000
 - tapOn:
     id: "tab-coach"
@@ -76,7 +76,7 @@ appId: com.resolutioncompanion.app
 - tapOn: "Open profile and settings.*"
 - extendedWaitUntil:
     # Post-AI-session modal presentation can lag; give it headroom
-    visible: "My Personas.*"
+    visible: "My plans.*"
     timeout: 20000
 # Earned rewards live in the dedicated Appearance panel
 - scrollUntilVisible:

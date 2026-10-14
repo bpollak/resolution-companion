@@ -19,6 +19,15 @@ module.exports = defineConfig([
           message:
             "Use withAlpha(theme.accent, alpha) instead of a hardcoded cyan tint.",
         },
+        {
+          // `${theme.accent}1A`-style suffixes break on any non-#RRGGBB
+          // color. Limited to member expressions (theme.x, frame.color) so
+          // plain number templates like `${hours}00` stay legal.
+          selector:
+            "TemplateLiteral[quasis.length=2][quasis.0.value.raw=''][quasis.1.value.raw=/^[0-9a-fA-F]{2}$/][expressions.0.type='MemberExpression']",
+          message:
+            "Use withAlpha(color, alpha) instead of appending a hex alpha suffix.",
+        },
       ],
     },
   },

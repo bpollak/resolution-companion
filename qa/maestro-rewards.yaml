@@ -3,11 +3,11 @@ name: earned-cosmetic-rewards
 ---
 - launchApp
 - extendedWaitUntil:
-    visible: "Momentum Builder.*"
+    visible: "Becoming Momentum Builder.*"
     timeout: 20000
 - tapOn: "Open profile and settings.*"
 - extendedWaitUntil:
-    visible: "My Personas.*"
+    visible: "My plans.*"
     timeout: 10000
 
 # Earned rewards live in the dedicated Appearance panel

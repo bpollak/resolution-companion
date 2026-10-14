@@ -13,7 +13,7 @@ appId: com.resolutioncompanion.app
 - assertVisible: "Mark .* complete"
 - scrollUntilVisible:
     element:
-      text: "0 of 1 actions done today.*"
+      text: "0 of 1 done today.*"
     direction: UP
     timeout: 15000
 - scrollUntilVisible:

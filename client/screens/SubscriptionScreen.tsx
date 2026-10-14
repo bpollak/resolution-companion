@@ -800,7 +800,7 @@ export default function SubscriptionScreen() {
               accessibilityLabel="Manage subscription in store settings"
               style={({ pressed }) => [
                 styles.manageButton,
-                { opacity: pressed ? 0.8 : 1 },
+                { borderColor: theme.accent, opacity: pressed ? 0.8 : 1 },
               ]}
             >
               <Feather name="settings" size={16} color={theme.accent} />
@@ -1432,7 +1432,6 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
   },
   subscribeButton: {
-    backgroundColor: Colors.dark.accent,
     minHeight: 56,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.lg,
@@ -1498,7 +1497,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: Colors.dark.accent,
   },
   manageButtonText: {
     ...Typography.body,

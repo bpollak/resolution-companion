@@ -2,6 +2,7 @@ import {
   coachRequestAllowed,
   getCoachQuotaMessage,
   shouldConsumeCoachSession,
+  shouldShowCoachUpgradeLink,
 } from "@/lib/coach-quota";
 
 describe("contextual Coach quota timing", () => {
@@ -72,6 +73,26 @@ describe("quota explanations", () => {
     );
     expect(getCoachQuotaMessage(14, new Date(2026, 8, 5))).toContain(
       "October 1",
+    );
+  });
+});
+
+describe("shouldShowCoachUpgradeLink", () => {
+  it.each([
+    [10, false],
+    [4, false],
+    [3, true],
+    [1, true],
+    [0, true],
+  ])("free user with %i left -> %s", (remaining, expected) => {
+    expect(shouldShowCoachUpgradeLink({ isPremium: false, remaining })).toBe(
+      expected,
+    );
+  });
+
+  it("never shows for Premium", () => {
+    expect(shouldShowCoachUpgradeLink({ isPremium: true, remaining: 0 })).toBe(
+      false,
     );
   });
 });

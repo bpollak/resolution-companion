@@ -870,6 +870,27 @@ export async function getReminderPrimerState(): Promise<ReminderPrimerState> {
   }
 }
 
+// JSON list of local date keys the unanswered primer occupied Today's slot,
+// so it can stop asking after a few days (see REMINDER_PRIMER_MAX_DAYS)
+const REMINDER_PRIMER_SHOWN_DAYS_KEY = "reminder_primer_shown_days";
+
+export async function getReminderPrimerShownDays(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(REMINDER_PRIMER_SHOWN_DAYS_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export async function saveReminderPrimerShownDays(
+  days: string[],
+): Promise<void> {
+  await AsyncStorage.setItem(
+    REMINDER_PRIMER_SHOWN_DAYS_KEY,
+    JSON.stringify(days),
+  );
+}
+
 export async function recordReminderPrimerAnswer(
   accepted: boolean,
 ): Promise<void> {

@@ -1,7 +1,9 @@
 import {
   calendarWeekCount,
+  chunkIntoWeeks,
   formatEarlyProgress,
   getMonthProgressDisplay,
+  showsMonthConsistency,
   hasRhythmToSimplify,
   nextDaySelection,
   rhythmStatusText,
@@ -44,6 +46,16 @@ describe("calendarWeekCount", () => {
     [2026, 10, 5], // November 2026 starts Sunday, 30 days
   ])("%i-%i needs %i rows", (year, month, rows) => {
     expect(calendarWeekCount(year, month)).toBe(rows);
+  });
+});
+
+describe("chunkIntoWeeks", () => {
+  test("splits a 5-row month into five rows of seven", () => {
+    const days = Array.from({ length: 35 }, (_, i) => i);
+    const weeks = chunkIntoWeeks(days);
+    expect(weeks).toHaveLength(calendarWeekCount(2026, 9));
+    expect(weeks.every((week) => week.length === 7)).toBe(true);
+    expect(weeks[4][6]).toBe(34);
   });
 });
 
@@ -129,6 +141,53 @@ describe("getMonthProgressDisplay", () => {
     ).toBe("3 of 3 days this month");
   });
 
+  test("an older plan on the 1st with nothing planned yet reads New month", () => {
+    const action = {
+      id: "a1",
+      frequency: EVERY_DAY,
+      createdAt: "2026-09-01T15:00:00Z",
+    };
+    const display = getMonthProgressDisplay({
+      actions: [action],
+      logIndex: logsFor("a1", ["2026-09-29", "2026-09-30"]),
+      planStartedAt: "2026-09-01T15:00:00Z",
+      now: new Date(2026, 9, 1, 9),
+    });
+    expect(display).toEqual({
+      kind: "early",
+      dayNumber: 31,
+      completedDays: 0,
+      plannedDays: 0,
+      monthOnly: true,
+    });
+    expect(showsMonthConsistency(display)).toBe(false);
+    expect(
+      formatEarlyProgress(
+        display as Extract<typeof display, { kind: "early" }>,
+      ),
+    ).toEqual({ title: "Day 31", detail: "New month" });
+  });
+
+  test("an older plan with no planned days yet this month never says getting started", () => {
+    const weekendOnly = {
+      id: "a1",
+      frequency: ["Saturday", "Sunday"],
+      createdAt: "2026-09-01T15:00:00Z",
+    };
+    // Thursday Oct 1 and Friday Oct 2 have nothing scheduled
+    const display = getMonthProgressDisplay({
+      actions: [weekendOnly],
+      logIndex: new Map(),
+      planStartedAt: "2026-09-01T15:00:00Z",
+      now: new Date(2026, 9, 2, 9),
+    });
+    expect(display).toMatchObject({ kind: "early", plannedDays: 0 });
+    expect(
+      formatEarlyProgress(display as Extract<typeof display, { kind: "early" }>)
+        .detail,
+    ).toBe("New month");
+  });
+
   test("seven planned days on a week-old plan switch to the ring", () => {
     const action = {
       id: "a1",
@@ -143,6 +202,7 @@ describe("getMonthProgressDisplay", () => {
     });
     // Oct 1-7 are planned (missed days still count); Oct 8 is pending.
     expect(display).toEqual({ kind: "ring" });
+    expect(showsMonthConsistency(display)).toBe(true);
   });
 
   test("a sparse schedule stays in Day N until seven planned days", () => {

@@ -10,11 +10,10 @@ appId: com.resolutioncompanion.app
 - tapOn:
     text: "Discard"
     optional: true
+# The progress line replaced the signal card's stats row on ordinary days.
 - extendedWaitUntil:
-    visible: "Today’s evidence.*"
+    visible: ".* done today.*"
     timeout: 20000
-- assertVisible: "Today"
-- assertVisible: "This month"
 - takeScreenshot: ambient-today-signal
 
 - tapOn:
@@ -38,10 +37,15 @@ appId: com.resolutioncompanion.app
     timeout: 10000
 - tapOn:
     id: "tab-journey"
-- extendedWaitUntil:
-    visible: "How the plan is fitting.*"
-    timeout: 10000
-- assertVisible: ".*(Working well|Still forming|Worth simplifying).*"
+# Rhythm status sits inline on each milestone row; the separate rhythm card
+# appears only when a habit is worth simplifying.
+- scrollUntilVisible:
+    element:
+      text: "Adjust .*"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- assertVisible: "Adjust .*(Still learning your rhythm|Working well|Still forming|Worth simplifying).*"
 - takeScreenshot: ambient-journey-framing
 
 - tapOn:
@@ -49,9 +53,8 @@ appId: com.resolutioncompanion.app
 - extendedWaitUntil:
     visible: "What do you need help with?.*"
     timeout: 10000
-- assertVisible: "Start a conversation.*"
-- assertVisible: "Adjust my plan.*"
-- tapOn: "Adjust my plan.*"
+# The lobby has one primary entry; plan adjustment is a chip in the sheet.
+- tapOn: "Start a conversation with Coach"
 - scrollUntilVisible:
     element:
       text: "Request a previewed plan adjustment"

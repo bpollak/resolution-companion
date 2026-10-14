@@ -23,6 +23,10 @@ import { logger } from "@/lib/logger";
 import { track } from "@/lib/telemetry";
 import { getTodaysMicroNote } from "@/lib/micro-notes";
 import { withAlpha } from "@/lib/color";
+import {
+  FREE_REFLECTION_LIMIT,
+  shouldShowCoachUpgradeLink,
+} from "@/lib/coach-quota";
 import { getMainTabHeaderClearance } from "@/navigation/tab-bar-layout";
 
 interface ChatMessage {
@@ -103,7 +107,16 @@ export default function ReflectScreen() {
       .slice(0, 3);
   }, [planAdjustments, actions]);
 
-  const remainingCheckIns = Math.max(0, 10 - monthlyReflectionCount);
+  const remainingCheckIns = Math.max(
+    0,
+    FREE_REFLECTION_LIMIT - monthlyReflectionCount,
+  );
+  const showUpgradeLink = shouldShowCoachUpgradeLink({
+    isPremium: subscription.isPremium,
+    remaining: remainingCheckIns,
+  });
+  const openUpgrade = () =>
+    navigation.navigate("Subscription", { source: "coach-limit" });
   const conversationAvailable = subscription.isPremium || canUseReflection();
 
   const formatDate = (dateString: string) => {
@@ -303,12 +316,29 @@ export default function ReflectScreen() {
               ? ""
               : ` ${remainingCheckIns} free check-in${remainingCheckIns === 1 ? "" : "s"} left this month.`}
           </ThemedText>
+          {showUpgradeLink ? (
+            <Pressable
+              onPress={openUpgrade}
+              hitSlop={12}
+              pressRetentionOffset={16}
+              accessibilityRole="button"
+              accessibilityLabel="Upgrade to Premium for unlimited check-ins"
+              style={({ pressed }) => [
+                styles.upgradeLink,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+            >
+              <ThemedText
+                style={[styles.upgradeLinkText, { color: theme.accent }]}
+              >
+                Upgrade
+              </ThemedText>
+            </Pressable>
+          ) : null}
         </View>
       ) : (
         <Pressable
-          onPress={() =>
-            navigation.navigate("Subscription", { source: "coach-limit" })
-          }
+          onPress={openUpgrade}
           hitSlop={8}
           pressRetentionOffset={16}
           accessibilityRole="button"
@@ -331,7 +361,9 @@ export default function ReflectScreen() {
               They reset next month. Premium removes the cap.
             </ThemedText>
           </View>
-          <Feather name="chevron-right" size={18} color={theme.textSecondary} />
+          <ThemedText style={[styles.upgradeLinkText, { color: theme.accent }]}>
+            Upgrade
+          </ThemedText>
         </Pressable>
       )}
 
@@ -540,6 +572,14 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     ...Typography.headline,
+  },
+  upgradeLink: {
+    alignSelf: "center",
+    paddingVertical: Spacing.xs,
+  },
+  upgradeLinkText: {
+    ...Typography.small,
+    fontWeight: "600",
   },
   startHint: {
     ...Typography.small,

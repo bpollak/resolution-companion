@@ -11,7 +11,7 @@ appId: com.resolutioncompanion.app
           optional: true
       - waitForAnimationToEnd
 - extendedWaitUntil:
-    visible: "Momentum Builder.*"
+    visible: "Becoming Momentum Builder.*"
     timeout: 20000
 - scrollUntilVisible:
     element:

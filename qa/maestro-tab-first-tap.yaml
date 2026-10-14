@@ -7,13 +7,14 @@ appId: com.resolutioncompanion.app
     timeout: 15000
 - waitForAnimationToEnd
 - tapOn: "Journey tab"
+# Journey and Coach headers are the title alone, so each tab is confirmed
+# by a control only that tab renders.
 - extendedWaitUntil:
-    visible: "Journey, .*"
+    visible: "Previous month"
     timeout: 10000
 - tapOn: "Coach tab"
 - extendedWaitUntil:
-    # The Coach tab now carries the same two-line header as Today/Journey
-    visible: "Coach, .*"
+    visible: "What do you need help with?.*"
     timeout: 10000
 - tapOn: "Today tab"
 - extendedWaitUntil:

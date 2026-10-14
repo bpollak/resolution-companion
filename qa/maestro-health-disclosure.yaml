@@ -7,10 +7,11 @@ name: health-disclosure
 - tapOn: "Open profile and settings.*"
 - scrollUntilVisible:
     element:
-      text: "Apple Health.*Optional HealthKit.*"
+      # Grouped Settings rows carry the title alone
+      text: "Apple Health"
     direction: DOWN
     timeout: 20000
-- tapOn: "Apple Health.*Optional HealthKit.*"
+- tapOn: "Apple Health"
 - assertVisible: "Resolution Companion uses HealthKit.*"
 - scrollUntilVisible:
     element:

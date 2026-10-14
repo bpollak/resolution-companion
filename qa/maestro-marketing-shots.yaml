@@ -21,14 +21,15 @@ appId: com.resolutioncompanion.app
           direction: DOWN
           duration: 300
 - extendedWaitUntil:
-    visible: "Confident Spanish Speaker.*"
+    # Today's header reads as one line: "Becoming <plan name>"
+    visible: "Becoming Confident Spanish Speaker.*"
     timeout: 20000
 - takeScreenshot: mk-01-today
 
 - tapOn:
     id: "tab-journey"
 - extendedWaitUntil:
-    visible: "Becoming Confident Spanish Speaker.*"
+    visible: "Previous month"
     timeout: 15000
 - takeScreenshot: mk-02-journey-rhythm
 - scrollUntilVisible:

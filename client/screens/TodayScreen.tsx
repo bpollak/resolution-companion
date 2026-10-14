@@ -19,7 +19,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useNavigation } from "@react-navigation/native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as StoreReview from "expo-store-review";
@@ -47,6 +47,8 @@ import {
   ensureReminderScheduled,
   applySuggestedReminderBucket,
   suggestReminderBucket,
+  getReminderPrimerShownDays,
+  saveReminderPrimerShownDays,
 } from "@/lib/notifications";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
@@ -87,12 +89,19 @@ import { ReminderPrimerCard } from "@/components/ReminderPrimerCard";
 import { withAlpha } from "@/lib/color";
 import {
   buildTodayProgressLine,
+  canShowReminderPrimer,
   countCompletedDays,
   isWeeklyRecapFresh,
+  parseReminderPrimerDays,
   planDayNumber,
+  recordReminderPrimerDay,
   selectTodayOptionalCard,
   WIDGET_HINT_MIN_COMPLETED_DAYS,
 } from "@/lib/today-layout";
+import {
+  getMonthProgressDisplay,
+  showsMonthConsistency,
+} from "@/lib/journey-layout";
 
 const FIRST_DAY_COMPLETE_KEY = "today_first_day_complete_seen";
 // {count, lastDate} of distinct fully-complete days, for timing the one-time
@@ -378,6 +387,7 @@ export default function TodayScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<any>();
   const { theme, isDark } = useTheme();
+  const isFocused = useIsFocused();
   const {
     hasOnboarded,
     persona,
@@ -493,6 +503,28 @@ export default function TodayScreen() {
         todayDateStr,
       )
     : 1;
+  // Journey's rule decides whether a month percentage is meaningful yet, so
+  // Today never shows "100% this month" while Journey still says "Day 1".
+  const showMonthConsistency = useMemo(
+    () =>
+      showsMonthConsistency(
+        getMonthProgressDisplay({
+          actions: actions.filter((action) =>
+            personaBenchmarkIds.includes(action.benchmarkId),
+          ),
+          logIndex: progressSnapshot.logIndex,
+          planStartedAt: persona?.createdAt,
+          now: new Date(`${todayDateStr}T12:00:00`),
+        }),
+      ),
+    [
+      actions,
+      personaBenchmarkIds,
+      progressSnapshot.logIndex,
+      persona?.createdAt,
+      todayDateStr,
+    ],
+  );
   const progressLine = buildTodayProgressLine({
     completed: completedTodayCount,
     scheduled: scheduledTodayCount,
@@ -500,6 +532,7 @@ export default function TodayScreen() {
     shieldUsed: streak.shieldUsed,
     planDay,
     consistency: personaAlignment,
+    showConsistency: showMonthConsistency,
   });
 
   const [toastVisible, setToastVisible] = useState(false);
@@ -515,6 +548,8 @@ export default function TodayScreen() {
   // once; nothing renders until it has, so cards never flash-then-vanish
   const [recapPrefsLoaded, setRecapPrefsLoaded] = useState(false);
   const [widgetHintSeen, setWidgetHintSeen] = useState(true);
+  // null until loaded, so the primer never flashes on a day past its cap
+  const [primerShownDays, setPrimerShownDays] = useState<string[] | null>(null);
   const [recapSeenWeek, setRecapSeenWeek] = useState<string | null>(null);
   const [nudgeSeenWeek, setNudgeSeenWeek] = useState<string | null>(null);
   const [lapseDismissedFor, setLapseDismissedFor] = useState<string | null>(
@@ -568,6 +603,12 @@ export default function TodayScreen() {
         setWidgetHintSeen(widgetHint === "true");
         setRecapPrefsLoaded(true);
       },
+    );
+  }, []);
+
+  useEffect(() => {
+    getReminderPrimerShownDays().then((raw) =>
+      setPrimerShownDays(parseReminderPrimerDays(raw)),
     );
   }, []);
 
@@ -1171,7 +1212,9 @@ export default function TodayScreen() {
     };
   }, [celebrateDayComplete, todayDateStr]);
 
-  const secondaryCard = showMonthRecapCard ? (
+  // Recaps and the witness celebration expire within days, so they get the
+  // slot ahead of the teach-once tips (see selectTodayOptionalCard).
+  const timeLimitedCard = showMonthRecapCard ? (
     <MonthRecapCard
       recap={monthRecap}
       onOpen={() => {
@@ -1208,20 +1251,27 @@ export default function TodayScreen() {
       onShare={shareWitnessCelebration}
       onDismiss={dismissWitnessCelebration}
     />
-  ) : showSecondPersonaInvite && persona ? (
-    <SecondPersonaInviteCard
-      personaName={persona.name}
-      onExplore={exploreSecondPersona}
-      onDismiss={dismissSecondPersonaInvite}
-    />
-  ) : showBeatLastWeekNudge ? (
-    <BeatLastWeekCard
-      lastWeekCompleted={weeklyRecap.lastWeek.completed}
-      onDismiss={dismissBeatLastWeek}
-    />
   ) : null;
 
-  const showReminderPrimer = reminderPrimerPending && actions.length > 0;
+  const secondaryCard =
+    showSecondPersonaInvite && persona ? (
+      <SecondPersonaInviteCard
+        personaName={persona.name}
+        onExplore={exploreSecondPersona}
+        onDismiss={dismissSecondPersonaInvite}
+      />
+    ) : showBeatLastWeekNudge ? (
+      <BeatLastWeekCard
+        lastWeekCompleted={weeklyRecap.lastWeek.completed}
+        onDismiss={dismissBeatLastWeek}
+      />
+    ) : null;
+
+  const showReminderPrimer =
+    reminderPrimerPending &&
+    actions.length > 0 &&
+    primerShownDays !== null &&
+    canShowReminderPrimer(primerShownDays, todayDateStr);
   const showWidgetHint =
     Platform.OS === "ios" &&
     recapPrefsLoaded &&
@@ -1229,10 +1279,22 @@ export default function TodayScreen() {
     dayComplete &&
     completedDayCount >= WIDGET_HINT_MIN_COMPLETED_DAYS;
   const optionalCard = selectTodayOptionalCard({
+    timeLimited: timeLimitedCard !== null,
     primer: showReminderPrimer,
     widgetHint: showWidgetHint,
     secondary: secondaryCard !== null,
   });
+
+  // A day counts toward the primer's cap only when it actually held the slot
+  useEffect(() => {
+    if (optionalCard !== "primer" || primerShownDays === null) return;
+    const next = recordReminderPrimerDay(primerShownDays, todayDateStr);
+    if (next === primerShownDays) return;
+    setPrimerShownDays(next);
+    saveReminderPrimerShownDays(next).catch((error) =>
+      logger.warn("Failed to record reminder primer day:", error),
+    );
+  }, [optionalCard, primerShownDays, todayDateStr]);
 
   const showWidgetHowTo = () => {
     Alert.alert(
@@ -1352,6 +1414,8 @@ export default function TodayScreen() {
                 personaName={persona.name}
                 momentum={personaAlignment}
                 momentumDelta={momentumDelta}
+                showMonthConsistency={showMonthConsistency}
+                planDay={planDay}
                 tomorrowCount={tomorrowActions.length}
                 tomorrowFirstTitle={tomorrowActions[0]?.title}
                 isFirstEver={isFirstDayComplete}
@@ -1501,6 +1565,8 @@ export default function TodayScreen() {
                   </ThemedText>
                 </Pressable>
               </View>
+            ) : optionalCard === "time-limited" ? (
+              timeLimitedCard
             ) : optionalCard === "secondary" ? (
               secondaryCard
             ) : null}
@@ -1518,8 +1584,9 @@ export default function TodayScreen() {
       />
       <Toast
         message={toastMessage}
-        // Held, not dropped, while the milestone modal covers the screen
-        visible={toastVisible && milestoneCelebration === null}
+        // Held, not dropped, while the milestone modal or a sheet it opened
+        // (Add next milestone) covers Today; it plays once Today is back.
+        visible={toastVisible && milestoneCelebration === null && isFocused}
         onHide={hideToast}
         type="success"
         topOffset={headerClearance + Spacing.md}
