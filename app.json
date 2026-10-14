@@ -20,7 +20,7 @@
         ],
         "com.apple.developer.ubiquity-kvstore-identifier": "$(TeamIdentifierPrefix)com.resolutioncompanion.app"
       },
-      "buildNumber": "100",
+      "buildNumber": "102",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -88,6 +88,7 @@
         }
       ],
       "@bacons/apple-targets",
+      "./plugins/with-healthkit-access-cleanup",
       [
         "react-native-health",
         {
