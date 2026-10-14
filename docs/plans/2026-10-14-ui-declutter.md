@@ -146,6 +146,38 @@ real state.
 Accept: the widget's first readable element is the habit; one accent per
 family; legible in light, dark, and tinted; data matches Today.
 
+### F. Tap and scroll responsiveness (added 2026-10-14 at Brett's request)
+
+Findings (V8 benchmark on synthetic data, 3 daily habits since Jan 1):
+`toLocaleDateString` with a weekday option runs about 5,000 times per Today
+check-off inside progress, recap, insights, and widget builders
+(`buildProgressSnapshot` 24.5 ms, `buildYearRecap` 74 ms; about 15x faster
+with a `getDay()` lookup). Today rebuilds year and month recaps on every log
+change even when hidden. React Compiler skips TodayScreen, JourneyScreen,
+ProfileScreen, CoachSheetScreen, and AppProvider (refs written in render,
+try/finally, throw, unpreservable memoization). One check-off re-renders
+every mounted tab. Every tap reschedules all reminders and resyncs the
+widget synchronously.
+
+- F1 Weekday lookups use `getDay()` everywhere on the hot path; a regression
+  test fails if the builders call `toLocaleDateString`.
+- F2 Year and month recap builders run only when their card can show and
+  reuse the progress snapshot's log index.
+- F3 Remove React Compiler bailouts in the heavy screens (ref writes moved
+  to effects, try/finally and throw moved into helpers, memo deps fixed);
+  add a check that reports compiler bailouts.
+- F4 Non-visible consumers (Journey, Insights, Coach) read deferred values so
+  Today's checkmark commits first. Tab freezing settings stay as documented.
+- F5 Journey calendar cells become memoized components with precomputed
+  labels; focus-only state moves into small children.
+- F6 Reminder rescheduling and widget sync are debounced off the tap path;
+  subscription checks skip state updates when nothing changed.
+
+Accept: zero `toLocaleDateString` calls in progress builders; a check-off
+does no recap work when recaps are hidden; compiler reports no bailouts in
+the four screens; tests and checks green. Device timing with Instruments on
+a Release build is recommended before release (not possible headless here).
+
 ## Verification
 
 Type check, lint, Prettier, and all tests green; new unit tests for pure
