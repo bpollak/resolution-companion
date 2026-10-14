@@ -120,3 +120,24 @@ A separate reviewer pass (report-only) over the diff before handoff.
 - Not done: simulator check of D9/D10. The local simulator build failed in
   dependency install with ENOSPC (about 600 MB free on the Mac). Run
   `npm run build:local:sim` after freeing disk, before any TestFlight build.
+
+## Native verification and TestFlight (2026-10-13)
+
+Brett asked to clear disk space, finish testing, and deploy to TestFlight.
+
+- Disk: removed only regenerable items (Xcode DerivedData, npx cache, about
+  350 stale temp git index folders). Free space went from 0.6 GB to about 7 GB.
+- Simulator (arm64 Release build of f5c33a1, fresh install): "Set it up
+  myself" opens an editable starter plan, approves with no AI call, and lands
+  on Today. Marking the habit complete shows on the Journey calendar with
+  dark text on the success fill (dark theme), and survives a relaunch.
+- Signing: the EAS export picked a local "Apple Distribution" cert instead
+  of the EAS profile's cert (builds 101 and 102 failed at export). Xcode
+  automatic signing then refused because react-native-health writes an empty
+  `healthkit.access` entitlement; `plugins/with-healthkit-access-cleanup`
+  removes it (0bf1b95). No App ID capability was changed.
+- Build 1.5.0 (103) archived from 0bf1b95 and uploaded from Xcode Organizer
+  with automatic signing; status "Uploaded to Apple". Warnings only: missing
+  dSYMs for prebuilt React, ReactNativeDependencies, and hermes frameworks.
+- Not yet verified: Apple processing, internal tester availability, and a
+  physical-device pass.

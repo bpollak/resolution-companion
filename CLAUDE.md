@@ -112,6 +112,15 @@ domain `resolutioncompanion.com`.
     `PATH=/opt/homebrew/opt/node@22/bin:$PATH` since brew's default is now 25.)
   - **TestFlight/App Store:** `npm run build:local:ios` (~15-20 min local
     compile → `build/ios-local.ipa`) then `npm run submit:local:ios` (uploads).
+    **Signing landmine (since 2026-09):** this Mac's login keychain has two
+    local "Apple Distribution" certs, while EAS profiles use EAS's own
+    "iPhone Distribution" cert (`B736…`), which exists only in EAS. The
+    archive works with `GYM_CODE_SIGNING_IDENTITY=B7361570C46DD775268CEEF81EAC8244F90F48E3`,
+    but EAS's export still fails. Upload the saved archive from Xcode
+    Organizer instead (Distribute App > App Store Connect, automatic
+    signing); build 103 shipped this way 2026-10-13. Keep
+    `plugins/with-healthkit-access-cleanup` before `react-native-health`, or
+    automatic signing demands Verifiable Health Records on the App ID.
   - **Simulator (visual verification):** `npm run build:local:sim` →
     `build/ios-sim-local.tar.gz`; `tar -xzf`, then
     `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun simctl install <booted> ResolutionCompanionAI.app` +
