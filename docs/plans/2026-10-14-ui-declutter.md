@@ -115,6 +115,37 @@ user sees at most 2 Premium entry points.
   bans the literal.
 - D3 Eyebrow labels use secondary text color.
 
+### E. Home screen widget (added 2026-10-14 at Brett's request)
+
+Findings: the widget leads with a "1/3" ring instead of the habit; medium
+and large carry two or three filled accents; the 2-minute button truncates
+and buttons are about 28pt tall; fixed `#0f0f1a` background, fixed white text,
+no light variant, no tinted/clear rendering support; only a round Lock
+Screen gauge. Bugs: no-plan users see "Rest is part of becoming"; rest days
+show a 0/1 ring; widget streak can differ from Today (shield count); a quick
+double tap can overcount until the next sync; placeholder copy matches no
+real state.
+
+- E1 Small: habit title first, progress line ("0/1 done · 12-day streak"),
+  small ring as the only accent; rest and all-done states with their own
+  copy.
+- E2 Medium: title and progress line on the left, one 44pt check button on
+  the right (the only accent), "2-minute version" as a secondary link.
+- E3 Large: name line, progress line, up to three habit rows with check
+  buttons; no big ring, eyebrow, or "N more" footer.
+- E4 Lock Screen: round gauge with rest and done icons; new rectangular
+  (title, progress, check intent) and inline families.
+- E5 Light and dark variants from asset colors, `.primary`/`.secondary`
+  text, `widgetAccentable` on the accent only, tinted-mode fallbacks.
+- E6 Bugs: explicit no-plan state, rest-day ring, streak passed from the
+  app's progress snapshot, idempotent vote counting, realistic placeholder
+  and previews, Siri replies without em dashes.
+- E7 Bridge: additive optional fields (`hasPlan`, `planDay`, `shieldUsed`,
+  `progressLine`) so older saved data still decodes.
+
+Accept: the widget's first readable element is the habit; one accent per
+family; legible in light, dark, and tinted; data matches Today.
+
 ## Verification
 
 Type check, lint, Prettier, and all tests green; new unit tests for pure
