@@ -94,7 +94,7 @@ A separate reviewer pass (report-only) over the diff before handoff.
   plan signature makes redundant reschedules a no-op.
 - B4: `server/iap-validation.ts` separates affirmative invalid (200
   `{valid:false}`) from unavailable (503 `{valid:false, retryable:true,
-  error:"verification_unavailable"}`). The client treats 5xx, network, and
+error:"verification_unavailable"}`). The client treats 5xx, network, and
   retryable bodies as unverified and never saves a downgrade while StoreKit
   reports an active entitlement. Purchase and restore force a fresh check.
   The Play webhook skips unknown tokens and asks Pub/Sub to retry only for
