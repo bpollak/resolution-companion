@@ -23,6 +23,7 @@ import {
   getLocalDateString,
 } from "@/lib/progress";
 import { logger } from "@/lib/logger";
+import { withAlpha } from "@/lib/color";
 import { canDeleteMilestone } from "@/lib/plan-editing";
 
 const MIN_ACTIONS_PER_PERSONA = 1;
@@ -379,7 +380,7 @@ export default function BenchmarkEditorScreen() {
                     styles.presetChip,
                     {
                       backgroundColor: selected
-                        ? "rgba(0, 217, 255, 0.12)"
+                        ? withAlpha(theme.accent, 0.12)
                         : isDark
                           ? Colors.dark.backgroundDefault
                           : Colors.light.backgroundDefault,
@@ -511,7 +512,10 @@ export default function BenchmarkEditorScreen() {
                         accessibilityLabel={`Edit action ${action.title}`}
                         style={({ pressed }) => [
                           styles.editActionButton,
-                          { borderColor: theme.accent },
+                          {
+                            borderColor: withAlpha(theme.accent, 0.5),
+                            backgroundColor: withAlpha(theme.accent, 0.12),
+                          },
                           { opacity: pressed ? 0.7 : 1 },
                         ]}
                       >
@@ -762,8 +766,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: "rgba(0, 217, 255, 0.5)",
-    backgroundColor: "rgba(0, 217, 255, 0.12)",
   },
   editActionButtonText: {
     ...Typography.small,

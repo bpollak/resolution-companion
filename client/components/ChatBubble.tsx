@@ -9,6 +9,7 @@ import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { reportAIContent, type AIReportSurface } from "@/lib/ai-reporting";
 import { track } from "@/lib/telemetry";
 import { tidyCoachText } from "@/lib/copy";
+import { withAlpha } from "@/lib/color";
 
 interface ChatBubbleProps {
   message: string;
@@ -88,7 +89,12 @@ export const ChatBubble = React.memo(function ChatBubble({
     >
       {!isUser ? (
         <View style={styles.avatarContainer}>
-          <View style={styles.avatar}>
+          <View
+            style={[
+              styles.avatar,
+              { backgroundColor: withAlpha(theme.accent, 0.15) },
+            ]}
+          >
             <Feather name="compass" size={16} color={theme.accent} />
           </View>
         </View>
@@ -256,7 +262,6 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: BorderRadius.full,
-    backgroundColor: "rgba(0, 217, 255, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },

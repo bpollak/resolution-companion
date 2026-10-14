@@ -20,13 +20,13 @@ export function CoachEvidenceCard({
           backgroundColor: isDark
             ? Colors.dark.backgroundDefault
             : Colors.light.backgroundDefault,
-          borderColor: `${theme.accent}33`,
+          borderColor: theme.border,
         },
       ]}
     >
       <View style={styles.header}>
-        <Feather name="activity" size={16} color={theme.accent} />
-        <ThemedText style={[styles.eyebrow, { color: theme.accent }]}>
+        <Feather name="activity" size={16} color={theme.textSecondary} />
+        <ThemedText style={[styles.eyebrow, { color: theme.textSecondary }]}>
           {evidence.eyebrow}
         </ThemedText>
         {evidence.value ? (
@@ -53,11 +53,9 @@ const styles = StyleSheet.create({
   },
   header: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
   eyebrow: {
-    ...Typography.caption,
-    fontWeight: "700",
+    ...Typography.small,
+    fontWeight: "600",
     flex: 1,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
   },
   value: { ...Typography.body, fontWeight: "800" },
   headline: { ...Typography.headline, marginTop: Spacing.md },

@@ -16,6 +16,7 @@ import * as Haptics from "expo-haptics";
 
 import { useApp } from "@/context/AppContext";
 import { useTheme } from "@/hooks/useTheme";
+import { withAlpha } from "@/lib/color";
 import { ThemedText } from "@/components/ThemedText";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { buildMonthRecap, MonthRecap } from "@/lib/recap";
@@ -372,7 +373,14 @@ export default function MonthRecapScreen() {
               shotRefs.current.set(index, ref);
             }}
             options={{ format: "png", quality: 1 }}
-            style={[styles.card, { width: cardWidth, marginRight: Spacing.lg }]}
+            style={[
+              styles.card,
+              {
+                width: cardWidth,
+                marginRight: Spacing.lg,
+                borderColor: withAlpha(theme.accent, 0.3),
+              },
+            ]}
           >
             <CardBody recap={displayRecap} kind={item.kind} />
             <View style={styles.brandRow}>
@@ -449,7 +457,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#0f0f1a",
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    borderColor: "rgba(0, 217, 255, 0.3)",
     padding: Spacing["3xl"],
     justifyContent: "center",
     gap: Spacing.md,

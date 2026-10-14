@@ -84,6 +84,15 @@ import {
 } from "@/lib/persona-invitation";
 import { PlanCountdownCard } from "@/components/PlanCountdownCard";
 import { ReminderPrimerCard } from "@/components/ReminderPrimerCard";
+import { withAlpha } from "@/lib/color";
+import {
+  buildTodayProgressLine,
+  countCompletedDays,
+  isWeeklyRecapFresh,
+  planDayNumber,
+  selectTodayOptionalCard,
+  WIDGET_HINT_MIN_COMPLETED_DAYS,
+} from "@/lib/today-layout";
 
 const FIRST_DAY_COMPLETE_KEY = "today_first_day_complete_seen";
 // {count, lastDate} of distinct fully-complete days, for timing the one-time
@@ -157,6 +166,7 @@ function TomorrowLink({
 }
 
 function StylizedAppLogo() {
+  const { theme } = useTheme();
   const rotation = useSharedValue(0);
   const pulse = useSharedValue(1);
   const glow = useSharedValue(0.3);
@@ -195,15 +205,39 @@ function StylizedAppLogo() {
 
   return (
     <View style={logoStyles.container}>
-      <Animated.View style={[logoStyles.glowOuter, glowStyle]} />
-      <Animated.View style={[logoStyles.outerRing, outerRingStyle]}>
-        <View style={logoStyles.gradientDot1} />
+      <Animated.View
+        style={[
+          logoStyles.glowOuter,
+          { backgroundColor: theme.accent },
+          glowStyle,
+        ]}
+      />
+      <Animated.View
+        style={[
+          logoStyles.outerRing,
+          { borderColor: withAlpha(theme.accent, 0.4) },
+          outerRingStyle,
+        ]}
+      >
+        <View
+          style={[logoStyles.gradientDot1, { backgroundColor: theme.accent }]}
+        />
         <View style={logoStyles.gradientDot2} />
         <View style={logoStyles.gradientDot3} />
         <View style={logoStyles.gradientDot4} />
       </Animated.View>
-      <View style={logoStyles.innerCircle}>
-        <View style={logoStyles.compassCore}>
+      <View
+        style={[
+          logoStyles.innerCircle,
+          { backgroundColor: withAlpha(theme.accent, 0.2) },
+        ]}
+      >
+        <View
+          style={[
+            logoStyles.compassCore,
+            { backgroundColor: withAlpha(theme.accent, 0.3) },
+          ]}
+        >
           <Feather name="compass" size={40} color="#FFFFFF" />
         </View>
       </View>
@@ -224,7 +258,6 @@ const logoStyles = StyleSheet.create({
     width: 140,
     height: 140,
     borderRadius: 70,
-    backgroundColor: Colors.dark.accent,
   },
   outerRing: {
     position: "absolute",
@@ -232,7 +265,6 @@ const logoStyles = StyleSheet.create({
     height: 110,
     borderRadius: 55,
     borderWidth: 2,
-    borderColor: "rgba(0, 217, 255, 0.4)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -242,7 +274,6 @@ const logoStyles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.dark.accent,
   },
   gradientDot2: {
     position: "absolute",
@@ -272,7 +303,6 @@ const logoStyles = StyleSheet.create({
     width: 90,
     height: 90,
     borderRadius: 45,
-    backgroundColor: "rgba(0, 217, 255, 0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -280,7 +310,6 @@ const logoStyles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: "rgba(0, 217, 255, 0.3)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -364,6 +393,7 @@ export default function TodayScreen() {
     canAddPersona,
     reminderPrimerPending,
     answerReminderPrimer,
+    milestoneCelebration,
   } = useApp();
 
   // Re-renders on a date change, so everything below that reads `today`
@@ -453,8 +483,29 @@ export default function TodayScreen() {
   }, [actions, dailyLogs, todayDateStr]);
   const momentumDelta = personaAlignment - consistencyBeforeToday;
 
+  const completedDayCount = useMemo(
+    () => countCompletedDays(dailyLogs),
+    [dailyLogs],
+  );
+  const planDay = persona?.createdAt
+    ? planDayNumber(
+        getLocalDateString(new Date(persona.createdAt)),
+        todayDateStr,
+      )
+    : 1;
+  const progressLine = buildTodayProgressLine({
+    completed: completedTodayCount,
+    scheduled: scheduledTodayCount,
+    streak: streakCurrent,
+    shieldUsed: streak.shieldUsed,
+    planDay,
+    consistency: personaAlignment,
+  });
+
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
+  // Stable so the Toast's timer isn't restarted by every Today re-render
+  const hideToast = useCallback(() => setToastVisible(false), []);
   // True only when the final action was checked in this session, so
   // reopening the app shows the completed state without re-animating
   const [celebrateDayComplete, setCelebrateDayComplete] = useState(false);
@@ -572,6 +623,7 @@ export default function TodayScreen() {
   const showWeeklyRecap =
     recapPrefsLoaded &&
     !showMonthRecapCard &&
+    isWeeklyRecapFresh(today) &&
     weeklyRecap.lastWeek.scheduled > 0 &&
     recapSeenWeek !== weeklyRecap.weekKey;
 
@@ -840,8 +892,25 @@ export default function TodayScreen() {
     });
   };
 
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  // The ordinary "Up next" signal only repeated the habit card, so its
+  // coach entry moved into that card's footer with the same origin/prompt
+  const openHabitCoach = useCallback(
+    (actionId: string) => {
+      track("today_signal_actioned");
+      navigation.navigate("CoachSheet", {
+        origin: "today-signal",
+        actionId,
+        promptId: "start-today",
+      });
+    },
+    [navigation],
+  );
+  const habitCoachLink = todaySignal.kind === "next-action";
+  const showSignalCard =
+    todaySignal.kind === "reduce-friction" ||
+    todaySignal.kind === "protect-pattern";
+  // The plan name already heads the screen; a lone milestone only repeats it
+  const showMilestoneEyebrow = personaBenchmarkIds.length > 1;
 
   const tomorrowActions = useMemo(() => {
     const day = new Date(
@@ -854,23 +923,31 @@ export default function TodayScreen() {
 
   const todayRows = useMemo(
     () => [
-      ...pendingTodayActions.map((action) => ({
+      ...pendingTodayActions.map((action, index) => ({
         kind: "pending" as const,
         action,
         log: todayLogByActionId.get(action.id) ?? null,
-        benchmarkTitle: benchmarkById.get(action.benchmarkId)?.title,
+        benchmarkTitle: showMilestoneEyebrow
+          ? benchmarkById.get(action.benchmarkId)?.title
+          : undefined,
+        primary: index === 0,
+        askCoach: index === 0 && habitCoachLink,
       })),
       ...completedTodayActions.map((action) => ({
         kind: "completed" as const,
         action,
         log: todayLogByActionId.get(action.id) ?? null,
         benchmarkTitle: undefined,
+        primary: false,
+        askCoach: false,
       })),
     ],
     [
       benchmarkById,
       completedTodayActions,
+      habitCoachLink,
       pendingTodayActions,
+      showMilestoneEyebrow,
       todayLogByActionId,
     ],
   );
@@ -915,6 +992,8 @@ export default function TodayScreen() {
           log={item.log}
           onToggle={handleToggle}
           benchmarkTitle={item.benchmarkTitle}
+          primary={item.primary}
+          onAskCoach={item.askCoach ? openHabitCoach : undefined}
         />
       ) : (
         <CompletedActionRow
@@ -925,7 +1004,7 @@ export default function TodayScreen() {
           onNotePress={handleNotePress}
         />
       ),
-    [handleToggle, handleNotePress],
+    [handleToggle, handleNotePress, openHabitCoach],
   );
 
   // Shield spend/recharge moments: the shield mechanic already worked
@@ -1042,9 +1121,14 @@ export default function TodayScreen() {
   // One-time App Store review ask at the seventh day-complete celebration —
   // peak-moment timing, and disjoint from the first-day notification ask.
   // StoreReview.requestReview is a no-op when Apple declines to show it.
+  // Never stacked on the milestone modal or a toast; a skipped ask retries
+  // at the next day-complete because the key is written only once it runs.
+  const reviewBlockedRef = useRef(false);
+  reviewBlockedRef.current = toastVisible || milestoneCelebration !== null;
   useEffect(() => {
     if (!celebrateDayComplete || Platform.OS === "web") return;
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     (async () => {
       const [rawDays, requested] = await Promise.all([
         AsyncStorage.getItem(REVIEW_COMPLETE_DAYS_KEY),
@@ -1067,11 +1151,12 @@ export default function TodayScreen() {
         );
       }
       if (requested || days.count < REVIEW_ASK_AFTER_DAYS || cancelled) return;
-      await AsyncStorage.setItem(REVIEW_REQUESTED_KEY, "true");
-      setTimeout(async () => {
+      timer = setTimeout(async () => {
+        if (cancelled || reviewBlockedRef.current) return;
         try {
           if (await StoreReview.hasAction()) {
             await StoreReview.requestReview();
+            await AsyncStorage.setItem(REVIEW_REQUESTED_KEY, "true");
           }
         } catch (error) {
           logger.error("Failed to request store review:", error);
@@ -1082,6 +1167,7 @@ export default function TodayScreen() {
     });
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
     };
   }, [celebrateDayComplete, todayDateStr]);
 
@@ -1134,6 +1220,27 @@ export default function TodayScreen() {
       onDismiss={dismissBeatLastWeek}
     />
   ) : null;
+
+  const showReminderPrimer = reminderPrimerPending && actions.length > 0;
+  const showWidgetHint =
+    Platform.OS === "ios" &&
+    recapPrefsLoaded &&
+    !widgetHintSeen &&
+    dayComplete &&
+    completedDayCount >= WIDGET_HINT_MIN_COMPLETED_DAYS;
+  const optionalCard = selectTodayOptionalCard({
+    primer: showReminderPrimer,
+    widgetHint: showWidgetHint,
+    secondary: secondaryCard !== null,
+  });
+
+  const showWidgetHowTo = () => {
+    Alert.alert(
+      "Check off without opening the app",
+      "Add the “Take the Next Step” widget to your Home or Lock Screen to check off your habit with one tap. Siri works too: “Log my kickstart in Resolution Companion.” Walks and workouts can even check themselves off with Apple Health: turn it on when you edit a habit.",
+      [{ text: "Got it", onPress: dismissWidgetHint }],
+    );
+  };
 
   if (!hasOnboarded || !persona) {
     return (
@@ -1189,50 +1296,46 @@ export default function TodayScreen() {
         ListHeaderComponent={
           <>
             <View style={styles.header}>
-              <ThemedText
-                style={[styles.personaLabel, { color: theme.accent }]}
-              >
-                Becoming
+              <ThemedText style={styles.personaLine}>
+                <ThemedText
+                  style={[
+                    styles.personaLine,
+                    styles.personaLabel,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Becoming{" "}
+                </ThemedText>
+                {persona.name}
               </ThemedText>
-              <ThemedText style={styles.personaName}>{persona.name}</ThemedText>
               {persona.resolution ? (
                 <ThemedText
                   style={[styles.resolution, { color: theme.textSecondary }]}
-                  numberOfLines={2}
+                  numberOfLines={1}
                 >
                   Resolution: {persona.resolution}
                 </ThemedText>
               ) : null}
             </View>
 
-            {reminderPrimerPending && actions.length > 0 ? (
-              <ReminderPrimerCard
-                actions={actions}
-                startLabel={planStart?.toLocaleDateString("en-US", {
-                  month: "long",
-                  day: "numeric",
-                })}
-                onAnswer={(accept) => {
-                  void answerReminderPrimer(accept);
-                }}
-              />
+            {/* Always visible: the streak was hidden behind a tap, so an
+                engaged user's Today looked the same as day one. The finished
+                day's card states these facts itself. */}
+            {todayActions.length > 0 && !dayComplete && !planStart ? (
+              <ThemedText
+                style={[styles.progressLine, { color: theme.textSecondary }]}
+                accessibilityLabel={progressLine.accessibilityLabel}
+              >
+                {progressLine.parts.join(" · ")}
+              </ThemedText>
             ) : null}
 
-            {/* On a finished day the DayCompleteCard carries the moment; a
-                second "done" card only pushed the widget tip off screen. */}
-            {todayActions.length > 0 && !dayComplete && !planStart ? (
+            {todayActions.length > 0 &&
+            !dayComplete &&
+            !planStart &&
+            showSignalCard ? (
               <TodaySignalCard
                 signal={todaySignal}
-                completed={completedTodayCount}
-                scheduled={scheduledTodayCount}
-                streakLabel={
-                  streak.shieldUsed
-                    ? "Protected"
-                    : streakCurrent > 0
-                      ? `${streakCurrent} day${streakCurrent === 1 ? "" : "s"}`
-                      : "Starting"
-                }
-                consistency={personaAlignment}
                 onPrimary={
                   // Logging belongs to the action row, including small versions.
                   todaySignal.primaryKind === "journey"
@@ -1244,73 +1347,17 @@ export default function TodayScreen() {
             ) : null}
 
             {dayComplete ? (
-              <>
-                <DayCompleteCard
-                  streak={streak.current}
-                  personaName={persona.name}
-                  momentum={personaAlignment}
-                  momentumDelta={momentumDelta}
-                  tomorrowCount={tomorrowActions.length}
-                  tomorrowFirstTitle={tomorrowActions[0]?.title}
-                  isFirstEver={isFirstDayComplete}
-                  celebrate={celebrateDayComplete}
-                  onTomorrowPress={openTomorrow}
-                />
-                {Platform.OS === "ios" &&
-                recapPrefsLoaded &&
-                !widgetHintSeen ? (
-                  <View
-                    style={[
-                      styles.widgetHintCard,
-                      {
-                        backgroundColor: isDark
-                          ? Colors.dark.backgroundDefault
-                          : Colors.light.backgroundDefault,
-                        borderColor: `${theme.accent}40`,
-                      },
-                    ]}
-                  >
-                    <View style={styles.widgetHintHeader}>
-                      <Feather name="grid" size={18} color={theme.accent} />
-                      <ThemedText style={styles.widgetHintTitle}>
-                        Check off without opening the app
-                      </ThemedText>
-                    </View>
-                    <ThemedText
-                      style={[
-                        styles.widgetHintBody,
-                        { color: theme.textSecondary },
-                      ]}
-                    >
-                      Add the &ldquo;Take the Next Step&rdquo; widget to your
-                      Home or Lock Screen to check off tomorrow&rsquo;s habit
-                      with one tap. Siri works too: &ldquo;Log my kickstart in
-                      Resolution Companion.&rdquo; Walks and workouts can even
-                      check themselves off with Apple Health: turn it on when
-                      you edit a habit.
-                    </ThemedText>
-                    <Pressable
-                      onPress={dismissWidgetHint}
-                      hitSlop={8}
-                      accessibilityRole="button"
-                      accessibilityLabel="Dismiss widget hint"
-                      style={({ pressed }) => [
-                        styles.widgetHintDismiss,
-                        { opacity: pressed ? 0.6 : 1 },
-                      ]}
-                    >
-                      <ThemedText
-                        style={[
-                          styles.widgetHintDismissText,
-                          { color: theme.accent },
-                        ]}
-                      >
-                        Got it
-                      </ThemedText>
-                    </Pressable>
-                  </View>
-                ) : null}
-              </>
+              <DayCompleteCard
+                streak={streak.current}
+                personaName={persona.name}
+                momentum={personaAlignment}
+                momentumDelta={momentumDelta}
+                tomorrowCount={tomorrowActions.length}
+                tomorrowFirstTitle={tomorrowActions[0]?.title}
+                isFirstEver={isFirstDayComplete}
+                celebrate={celebrateDayComplete}
+                onTomorrowPress={openTomorrow}
+              />
             ) : planStart ? (
               <PlanCountdownCard start={planStart} firstAction={actions[0]} />
             ) : todayActions.length === 0 ? (
@@ -1384,7 +1431,79 @@ export default function TodayScreen() {
         }
         ListFooterComponent={
           <>
-            {secondaryCard}
+            {/* One optional card at a time, always below the habit (and below
+                a finished day's card), never between the user and the tap. */}
+            {optionalCard === "primer" ? (
+              <ReminderPrimerCard
+                actions={actions}
+                startLabel={planStart?.toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                })}
+                filled={pendingTodayActions.length === 0}
+                onAnswer={(accept) => {
+                  void answerReminderPrimer(accept);
+                }}
+              />
+            ) : optionalCard === "widget-hint" ? (
+              <View
+                style={[
+                  styles.widgetHintCard,
+                  {
+                    backgroundColor: isDark
+                      ? Colors.dark.backgroundDefault
+                      : Colors.light.backgroundDefault,
+                    borderColor: withAlpha(theme.accent, 0.25),
+                  },
+                ]}
+              >
+                <View style={styles.widgetHintHeader}>
+                  <Feather
+                    name="grid"
+                    size={18}
+                    color={theme.accent}
+                    style={{ marginTop: 1 }}
+                  />
+                  <ThemedText
+                    style={[
+                      styles.widgetHintBody,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Check off your habit from the Home Screen with the widget.
+                  </ThemedText>
+                  <Pressable
+                    onPress={dismissWidgetHint}
+                    hitSlop={12}
+                    pressRetentionOffset={16}
+                    accessibilityRole="button"
+                    accessibilityLabel="Dismiss widget hint"
+                    style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+                  >
+                    <Feather name="x" size={18} color={theme.textSecondary} />
+                  </Pressable>
+                </View>
+                <Pressable
+                  onPress={showWidgetHowTo}
+                  hitSlop={8}
+                  pressRetentionOffset={12}
+                  accessibilityRole="button"
+                  accessibilityLabel="Show me how to add the widget"
+                  style={({ pressed }) => [
+                    styles.widgetHintLink,
+                    { opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  <ThemedText
+                    style={[styles.widgetHintLinkText, { color: theme.accent }]}
+                  >
+                    Show me how
+                  </ThemedText>
+                </Pressable>
+              </View>
+            ) : optionalCard === "secondary" ? (
+              secondaryCard
+            ) : null}
             {!dayComplete &&
             todayActions.length > 0 &&
             tomorrowActions.length > 0 ? (
@@ -1399,8 +1518,9 @@ export default function TodayScreen() {
       />
       <Toast
         message={toastMessage}
-        visible={toastVisible}
-        onHide={() => setToastVisible(false)}
+        // Held, not dropped, while the milestone modal covers the screen
+        visible={toastVisible && milestoneCelebration === null}
+        onHide={hideToast}
         type="success"
         topOffset={headerClearance + Spacing.md}
       />
@@ -1420,19 +1540,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: Spacing.xl,
   },
-  emptyIcon: {
-    marginBottom: Spacing["2xl"],
-  },
-  phoenixIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.full,
-    backgroundColor: "rgba(0, 217, 255, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing["2xl"],
-  },
-  resolution: { marginTop: Spacing.xs },
+  resolution: { ...Typography.small, marginTop: Spacing.xs },
   emptyTitle: {
     ...Typography.title,
     textAlign: "center",
@@ -1446,7 +1554,6 @@ const styles = StyleSheet.create({
   startButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.dark.accent,
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing["2xl"],
     borderRadius: BorderRadius.full,
@@ -1457,42 +1564,19 @@ const styles = StyleSheet.create({
     color: "#000000",
   },
   header: {
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.md,
+  },
+  personaLine: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: "700",
   },
   personaLabel: {
-    ...Typography.caption,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: Spacing.xs,
+    fontWeight: "400",
   },
-  personaName: {
-    ...Typography.title,
-  },
-  alignmentContainer: {
-    alignItems: "center",
-    marginBottom: Spacing["3xl"],
-  },
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    marginTop: Spacing.lg,
-    paddingHorizontal: Spacing.lg,
-  },
-  dateContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.lg,
-  },
-  dateText: {
-    ...Typography.headline,
-  },
-  actionCount: {},
-  actionCountText: {
+  progressLine: {
     ...Typography.small,
+    marginBottom: Spacing.md,
   },
   noActionsCard: {
     alignItems: "center",
@@ -1524,31 +1608,28 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     padding: Spacing.lg,
-    marginTop: Spacing.md,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.lg,
+    gap: Spacing.xs,
   },
   widgetHintHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: Spacing.sm,
-  },
-  widgetHintTitle: {
-    ...Typography.body,
-    fontWeight: "600",
-    flex: 1,
   },
   widgetHintBody: {
     ...Typography.small,
     lineHeight: 20,
-    marginTop: Spacing.sm,
+    flex: 1,
   },
-  widgetHintDismiss: {
-    alignSelf: "flex-end",
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    marginTop: Spacing.xs,
+  widgetHintLink: {
+    alignSelf: "flex-start",
+    minHeight: 44,
+    justifyContent: "center",
+    paddingLeft: 18 + Spacing.sm,
   },
-  widgetHintDismissText: {
+  widgetHintLinkText: {
     ...Typography.small,
-    fontWeight: "700",
+    fontWeight: "600",
   },
 });

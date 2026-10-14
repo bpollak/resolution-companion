@@ -15,11 +15,13 @@ import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
+import { toastDurationFor } from "@/lib/today-layout";
 
 interface ToastProps {
   message: string;
   visible: boolean;
   onHide: () => void;
+  /** Defaults to a reading-time estimate for the message. */
   duration?: number;
   type?: "success" | "info" | "warning";
   topOffset?: number;
@@ -35,10 +37,11 @@ export function Toast({
   message,
   visible,
   onHide,
-  duration = 2000,
+  duration,
   type = "info",
   topOffset,
 }: ToastProps) {
+  const shownFor = duration ?? toastDurationFor(message);
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const finalTop =
@@ -66,7 +69,7 @@ export function Toast({
         });
         translateY.value = withTiming(-30, { duration: 250 });
         scale.value = withTiming(0.9, { duration: 250 });
-      }, duration);
+      }, shownFor);
 
       return () => clearTimeout(timer);
     } else {
@@ -74,7 +77,7 @@ export function Toast({
       translateY.value = -30;
       scale.value = 0.9;
     }
-  }, [duration, message, onHide, opacity, scale, translateY, visible]);
+  }, [message, onHide, opacity, scale, shownFor, translateY, visible]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
@@ -169,9 +172,11 @@ const styles = StyleSheet.create({
   icon: {
     marginRight: Spacing.sm,
   },
+  // Long messages wrap inside the pill instead of running off its edge
   text: {
     ...Typography.body,
     fontWeight: "500",
     textAlign: "center",
+    flexShrink: 1,
   },
 });

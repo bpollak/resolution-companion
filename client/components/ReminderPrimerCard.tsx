@@ -4,6 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { BorderRadius, Spacing } from "@/constants/theme";
+import { withAlpha } from "@/lib/color";
 import { REMINDER_BUCKETS, suggestReminderBucket } from "@/lib/notifications";
 import type { ElementalAction } from "@/lib/storage";
 
@@ -13,11 +14,14 @@ export function ReminderPrimerCard({
   actions,
   startLabel,
   onAnswer,
+  filled = false,
 }: {
   actions: ElementalAction[];
   /** "January 1" when the plan starts later; reminders begin that day. */
   startLabel?: string;
   onAnswer: (accept: boolean) => void;
+  /** Fill "Turn on" only when no habit button is on screen to compete with. */
+  filled?: boolean;
 }) {
   const { theme, isDark } = useTheme();
   const [busy, setBusy] = useState(false);
@@ -39,7 +43,7 @@ export function ReminderPrimerCard({
           backgroundColor: isDark
             ? theme.backgroundDefault
             : theme.backgroundSecondary,
-          borderColor: `${theme.accent}40`,
+          borderColor: withAlpha(theme.accent, 0.25),
         },
       ]}
     >
@@ -63,10 +67,19 @@ export function ReminderPrimerCard({
           pressRetentionOffset={12}
           style={({ pressed }) => [
             styles.primary,
-            { backgroundColor: theme.accent, opacity: pressed ? 0.7 : 1 },
+            {
+              borderColor: theme.accent,
+              backgroundColor: filled ? theme.accent : "transparent",
+              opacity: pressed ? 0.7 : 1,
+            },
           ]}
         >
-          <ThemedText style={{ color: theme.buttonText, fontWeight: "700" }}>
+          <ThemedText
+            style={{
+              color: filled ? theme.buttonText : theme.accent,
+              fontWeight: "700",
+            }}
+          >
             Turn on
           </ThemedText>
         </Pressable>
@@ -82,7 +95,7 @@ export function ReminderPrimerCard({
             { opacity: pressed ? 0.6 : 1 },
           ]}
         >
-          <ThemedText style={{ color: theme.accent, fontWeight: "600" }}>
+          <ThemedText style={{ color: theme.textSecondary, fontWeight: "600" }}>
             Not now
           </ThemedText>
         </Pressable>
@@ -109,6 +122,7 @@ const styles = StyleSheet.create({
   },
   primary: {
     minHeight: 44,
+    borderWidth: 1,
     paddingHorizontal: Spacing.xl,
     borderRadius: BorderRadius.full,
     justifyContent: "center",

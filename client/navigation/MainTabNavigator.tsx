@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
 import { useLocalDateKey } from "@/hooks/useLocalDateKey";
 import { actionIsScheduledOnDate } from "@/lib/journey-date";
+import { getTodayTabBadge } from "@/lib/tab-badge";
 import { Spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { ThemedText } from "@/components/ThemedText";
@@ -135,8 +136,9 @@ const headerButtonStyles = StyleSheet.create({
   },
 });
 
-// A two-line header keeps the current tab's context (date / persona) pinned
-// even after the screen's in-body header scrolls away
+// Today keeps its date pinned as a second line after the in-body header
+// scrolls away. Journey and Coach use the title alone: the plan name lives in
+// Journey's body and Profile, and pinning it on every tab was clutter.
 function HeaderTitle({
   title,
   subtitle,
@@ -220,7 +222,7 @@ const MONTHS = [
 
 export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
-  const { actions, dailyLogs, persona } = useApp();
+  const { actions, dailyLogs } = useApp();
   const insets = useSafeAreaInsets();
 
   // "Wednesday, July 8" — pinned under the Today title so the day stays
@@ -387,13 +389,14 @@ export default function MainTabNavigator() {
             />
           ),
           headerRight: () => <ProfileHeaderButton navigation={navigation} />,
-          tabBarBadge:
-            !hasLoggedToday && remainingTasksCount > 0
-              ? remainingTasksCount
-              : undefined,
+          tabBarBadge: getTodayTabBadge({
+            isTodayFocused: navigation.isFocused(),
+            hasLoggedToday,
+            remainingTasksCount,
+          }),
           tabBarBadgeStyle: {
-            backgroundColor: "#FF6B9D",
-            color: "#FFFFFF",
+            backgroundColor: theme.accent,
+            color: theme.buttonText,
             fontSize: 11,
             fontWeight: "600",
             minWidth: 18,
@@ -408,9 +411,7 @@ export default function MainTabNavigator() {
           title: "Journey",
           tabBarAccessibilityLabel: "Journey tab",
           tabBarButtonTestID: "tab-journey",
-          headerTitle: () => (
-            <HeaderTitle title="Journey" subtitle={persona?.name} />
-          ),
+          headerTitle: () => <HeaderTitle title="Journey" />,
           tabBarIcon: ({ focused }) => (
             <TabBarIcon focused={focused} filled="map" outline="map-outline" />
           ),
@@ -424,9 +425,7 @@ export default function MainTabNavigator() {
           title: "Coach",
           tabBarAccessibilityLabel: "Coach tab",
           tabBarButtonTestID: "tab-coach",
-          headerTitle: () => (
-            <HeaderTitle title="Coach" subtitle={persona?.name} />
-          ),
+          headerTitle: () => <HeaderTitle title="Coach" />,
           tabBarIcon: ({ focused }) => (
             <TabBarIcon
               focused={focused}

@@ -7,6 +7,22 @@ module.exports = defineConfig([
   expoConfig,
   eslintPluginPrettierRecommended,
   {
+    files: ["client/**/*.{ts,tsx}"],
+    ignores: ["client/constants/theme.ts", "client/**/__tests__/**"],
+    rules: {
+      // Accent tints must follow the active theme; derive them with
+      // withAlpha(theme.accent, a) from client/lib/color.ts.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "Literal[value=/rgba\\(\\s*0\\s*,\\s*217\\s*,\\s*255/]",
+          message:
+            "Use withAlpha(theme.accent, alpha) instead of a hardcoded cyan tint.",
+        },
+      ],
+    },
+  },
+  {
     // Generated bundles are large minified files; linting them makes the
     // standard Expo command appear hung without checking any authored code.
     ignores: [

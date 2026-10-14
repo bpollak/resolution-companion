@@ -512,26 +512,26 @@ export default function OnboardingScreen() {
             color={theme.text}
           />
         </Pressable>
-        <View
-          style={styles.headerCopy}
-          accessible
-          accessibilityRole="header"
-          accessibilityLabel={
-            stage === "welcome"
-              ? "Set up your plan"
-              : `Step ${step} of 2. ${stepTitle}`
-          }
-          accessibilityLiveRegion="polite"
-        >
-          <ThemedText
-            style={[styles.stepLabel, { color: theme.textSecondary }]}
+        {/* Welcome's own heading names the screen, so its header stays
+            empty rather than repeating a second title. */}
+        {stage === "welcome" ? (
+          <View style={styles.headerCopy} />
+        ) : (
+          <View
+            style={styles.headerCopy}
+            accessible
+            accessibilityRole="header"
+            accessibilityLabel={`Step ${step} of 2. ${stepTitle}`}
+            accessibilityLiveRegion="polite"
           >
-            {stage === "welcome" ? "BEFORE YOU BEGIN" : `STEP ${step} OF 2`}
-          </ThemedText>
-          <ThemedText style={styles.headerTitle}>
-            {stage === "welcome" ? "Set up your plan" : stepTitle}
-          </ThemedText>
-        </View>
+            <ThemedText
+              style={[styles.stepLabel, { color: theme.textSecondary }]}
+            >
+              Step {step} of 2
+            </ThemedText>
+            <ThemedText style={styles.headerTitle}>{stepTitle}</ThemedText>
+          </View>
+        )}
         {stage === "chat" ? (
           <Pressable
             onPress={previewPlan}
@@ -554,23 +554,6 @@ export default function OnboardingScreen() {
           </Pressable>
         ) : null}
       </View>
-      {stage !== "welcome" ? (
-        <View
-          style={styles.progress}
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        >
-          {[1, 2].map((item) => (
-            <View
-              key={item}
-              style={[
-                styles.progressSegment,
-                { backgroundColor: item <= step ? theme.accent : theme.border },
-              ]}
-            />
-          ))}
-        </View>
-      ) : null}
       {!ready ? (
         <ActivityIndicator color={theme.accent} />
       ) : stage === "welcome" ? (
@@ -585,8 +568,7 @@ export default function OnboardingScreen() {
               What&rsquo;s your resolution?
             </ThemedText>
             <ThemedText style={{ color: theme.textSecondary }}>
-              Say it in your own words. Coach turns it into one small habit that
-              fits your life, and you decide when it starts.
+              Coach turns it into one small habit. You decide when it starts.
             </ThemedText>
             <View style={styles.overview}>
               {[
@@ -625,8 +607,7 @@ export default function OnboardingScreen() {
             </View>
             <ThemedText style={{ color: theme.textSecondary }}>
               Coach needs an internet connection and your permission to use AI.
-              Prefer to skip AI? Set up your plan yourself from a few starter
-              habits.
+              Free includes 10 Coach conversations a month.
             </ThemedText>
             {consentPaused ? (
               <ThemedText
@@ -637,10 +618,6 @@ export default function OnboardingScreen() {
                 start with Coach whenever you are ready.
               </ThemedText>
             ) : null}
-            <ThemedText style={{ color: theme.textSecondary }}>
-              Free includes your first plan, daily tracking, and 10 Coach
-              conversations each month.
-            </ThemedText>
           </ScrollView>
           <View
             style={[styles.welcomeFooter, { borderTopColor: theme.border }]}
@@ -981,7 +958,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     fontWeight: "600",
-    letterSpacing: 0.8,
   },
   headerTitle: { fontSize: 18, lineHeight: 24, fontWeight: "600" },
   headerAction: {
@@ -992,13 +968,6 @@ const styles = StyleSheet.create({
     gap: 4,
     flexShrink: 0,
   },
-  progress: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.sm,
-  },
-  progressSegment: { height: 3, borderRadius: 2, flex: 1 },
   overview: { gap: Spacing.lg },
   overviewStep: { flexDirection: "row", gap: Spacing.md },
   stepNumber: {

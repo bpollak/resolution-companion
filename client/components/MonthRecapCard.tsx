@@ -6,6 +6,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import type { MonthRecap } from "@/lib/recap";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
+import { withAlpha } from "@/lib/color";
 
 interface MonthRecapCardProps {
   recap: MonthRecap;
@@ -33,6 +34,7 @@ export function MonthRecapCard({
           backgroundColor: isDark
             ? Colors.dark.backgroundDefault
             : Colors.light.backgroundDefault,
+          borderColor: withAlpha(theme.accent, 0.3),
         },
       ]}
     >
@@ -48,7 +50,10 @@ export function MonthRecapCard({
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel="Dismiss month recap"
-          style={styles.close}
+          style={({ pressed }) => [
+            styles.close,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
         >
           <Feather name="x" size={18} color={theme.textSecondary} />
         </Pressable>
@@ -87,7 +92,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.xl,
     borderWidth: 1,
-    borderColor: "rgba(0, 217, 255, 0.3)",
   },
   header: {
     flexDirection: "row",

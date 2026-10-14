@@ -6,6 +6,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import type { WeeklyRecapResult, StreakResult } from "@/lib/progress";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
+import { withAlpha } from "@/lib/color";
 
 interface WeeklyRecapCardProps {
   recap: WeeklyRecapResult;
@@ -51,6 +52,7 @@ export function WeeklyRecapCard({
           backgroundColor: isDark
             ? Colors.dark.backgroundDefault
             : Colors.light.backgroundDefault,
+          borderColor: withAlpha(theme.accent, 0.3),
         },
       ]}
     >
@@ -62,7 +64,10 @@ export function WeeklyRecapCard({
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel="Dismiss weekly recap"
-          style={styles.close}
+          style={({ pressed }) => [
+            styles.close,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
         >
           <Feather name="x" size={18} color={theme.textSecondary} />
         </Pressable>
@@ -169,6 +174,7 @@ export function BeatLastWeekCard({
           backgroundColor: isDark
             ? Colors.dark.backgroundDefault
             : Colors.light.backgroundDefault,
+          borderColor: withAlpha(theme.accent, 0.3),
         },
       ]}
     >
@@ -180,7 +186,10 @@ export function BeatLastWeekCard({
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel="Dismiss beat-last-week nudge"
-          style={styles.close}
+          style={({ pressed }) => [
+            styles.close,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
         >
           <Feather name="x" size={18} color={theme.textSecondary} />
         </Pressable>
@@ -199,7 +208,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.xl,
     borderWidth: 1,
-    borderColor: "rgba(0, 217, 255, 0.3)",
   },
   header: {
     flexDirection: "row",

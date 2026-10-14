@@ -13,6 +13,7 @@ import {
   computeWeeklyTrend,
 } from "@/lib/insights";
 import { track } from "@/lib/telemetry";
+import { withAlpha } from "@/lib/color";
 
 interface InsightsPanelProps {
   actions: ElementalAction[];
@@ -29,8 +30,8 @@ const SPARK_HEIGHT = 48;
 /**
  * Premium insights: day-of-week profile, momentum sparkline, and ONE
  * narrative + recommendation (the Oura pattern — story, not dashboards).
- * Free users see a quiet locked state, never a blurred tease of their own
- * data.
+ * Free users see the merged Premium card instead, never a blurred tease of
+ * their own data.
  */
 export function InsightsPanel({
   actions,
@@ -62,36 +63,46 @@ export function InsightsPanel({
     ? Colors.dark.backgroundDefault
     : Colors.light.backgroundDefault;
 
+  // Free users get the one Premium card on Journey: Insights leads because
+  // it is the part they can't see, followed by the other Premium unlocks.
   if (!isPremium) {
     return (
-      <View style={[styles.card, { backgroundColor: cardBackground }]}>
+      <Pressable
+        onPress={onUpgrade}
+        hitSlop={8}
+        pressRetentionOffset={12}
+        accessibilityRole="button"
+        accessibilityLabel="Premium. See when you show up and how your consistency is trending, plus unlimited milestones, plans and coaching. See plans."
+        style={({ pressed }) => [
+          styles.card,
+          {
+            backgroundColor: cardBackground,
+            borderColor: theme.border,
+            opacity: pressed ? 0.85 : 1,
+            transform: [{ scale: pressed ? 0.98 : 1 }],
+          },
+        ]}
+      >
         <View style={styles.header}>
           <MaterialCommunityIcons
             name="chart-timeline-variant"
             size={18}
             color={theme.accent}
           />
-          <ThemedText style={styles.title}>Insights</ThemedText>
+          <ThemedText style={styles.title}>Insights with Premium</ThemedText>
           <Feather name="lock" size={16} color={theme.textSecondary} />
         </View>
         <ThemedText style={[styles.lockedText, { color: theme.textSecondary }]}>
-          See when you show up, how your consistency is trending, and the one
-          thing to protect next week.
+          See when you show up and how your consistency is trending. Plus
+          unlimited milestones, plans and coaching.
         </ThemedText>
-        <Pressable
-          onPress={onUpgrade}
-          hitSlop={8}
-          pressRetentionOffset={12}
-          accessibilityRole="button"
-          accessibilityLabel="Unlock insights with Premium"
-          style={({ pressed }) => [styles.cta, { opacity: pressed ? 0.7 : 1 }]}
-        >
+        <View style={styles.cta}>
           <ThemedText style={[styles.ctaText, { color: theme.accent }]}>
-            Unlock with Premium
+            See plans
           </ThemedText>
           <Feather name="arrow-right" size={14} color={theme.accent} />
-        </Pressable>
-      </View>
+        </View>
+      </Pressable>
     );
   }
 
@@ -107,7 +118,15 @@ export function InsightsPanel({
   const lastY = SPARK_HEIGHT - (lastPoint.score / 100) * SPARK_HEIGHT;
 
   return (
-    <View style={[styles.card, { backgroundColor: cardBackground }]}>
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: cardBackground,
+          borderColor: withAlpha(theme.accent, 0.3),
+        },
+      ]}
+    >
       <View style={styles.header}>
         <MaterialCommunityIcons
           name="chart-timeline-variant"
@@ -218,7 +237,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.xl,
     borderWidth: 1,
-    borderColor: "rgba(0, 217, 255, 0.3)",
   },
   header: {
     flexDirection: "row",

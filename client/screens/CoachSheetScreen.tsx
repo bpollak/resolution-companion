@@ -949,7 +949,7 @@ export default function CoachSheetScreen() {
                 ]}
               >
                 <ThemedText
-                  style={[styles.planEyebrow, { color: theme.accent }]}
+                  style={[styles.planEyebrow, { color: theme.textSecondary }]}
                 >
                   Preview changes
                 </ThemedText>
@@ -1149,14 +1149,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   planEyebrow: {
-    ...Typography.caption,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 1,
+    ...Typography.small,
+    fontWeight: "600",
   },
   planTitle: { ...Typography.headline, marginTop: Spacing.sm },
   diffRow: { marginTop: Spacing.md },
-  diffLabel: { ...Typography.caption, textTransform: "uppercase" },
+  diffLabel: { ...Typography.caption, fontWeight: "600" },
   diffValues: { marginTop: Spacing.xs, gap: 2 },
   beforeValue: { ...Typography.small, textDecorationLine: "line-through" },
   diffValue: { ...Typography.body, fontWeight: "600", marginTop: 2 },

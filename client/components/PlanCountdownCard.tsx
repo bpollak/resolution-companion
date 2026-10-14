@@ -6,6 +6,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { BorderRadius, Spacing, Typography } from "@/constants/theme";
 import type { ElementalAction } from "@/lib/storage";
 import { daysUntil } from "@/lib/onboarding-plan";
+import { withAlpha } from "@/lib/color";
 
 // Shown on Today when a plan was set up ahead of its start day (usually
 // January 1): nothing is scheduled yet, so there is nothing to miss.
@@ -34,7 +35,7 @@ export function PlanCountdownCard({
           backgroundColor: isDark
             ? theme.backgroundDefault
             : theme.backgroundSecondary,
-          borderColor: `${theme.accent}40`,
+          borderColor: withAlpha(theme.accent, 0.25),
         },
       ]}
       accessible
@@ -42,7 +43,7 @@ export function PlanCountdownCard({
     >
       <View style={styles.eyebrowRow}>
         <Feather name="calendar" size={16} color={theme.accent} />
-        <ThemedText style={[styles.eyebrow, { color: theme.accent }]}>
+        <ThemedText style={[styles.eyebrow, { color: theme.textSecondary }]}>
           Starts {startLabel}
         </ThemedText>
       </View>

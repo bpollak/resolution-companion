@@ -4,6 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { ThemedText } from "@/components/ThemedText";
 import { BorderRadius, Spacing, Typography } from "@/constants/theme";
+import { withAlpha } from "@/lib/color";
 
 export function SecondPersonaInviteCard({
   personaName,
@@ -23,11 +24,18 @@ export function SecondPersonaInviteCard({
       ]}
     >
       <View style={styles.header}>
-        <View style={[styles.icon, { backgroundColor: `${theme.accent}18` }]}>
+        <View
+          style={[
+            styles.icon,
+            { backgroundColor: withAlpha(theme.accent, 0.1) },
+          ]}
+        >
           <Feather name="layers" size={18} color={theme.accent} />
         </View>
         <View style={styles.copy}>
-          <ThemedText style={styles.eyebrow}>ANOTHER PART OF YOU</ThemedText>
+          <ThemedText style={[styles.eyebrow, { color: theme.textSecondary }]}>
+            ANOTHER PART OF YOU
+          </ThemedText>
           <ThemedText style={styles.title}>
             {personaName} has a rhythm now
           </ThemedText>

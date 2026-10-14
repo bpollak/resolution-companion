@@ -99,6 +99,26 @@ export function OnboardingPlanReview({
       </ThemedText>
     </Pressable>
   );
+  // One quiet icon per row: stacked accent "Edit ..." links competed with the
+  // Start button. The label keeps the old wording for VoiceOver and QA.
+  const editIcon = (label: string, onPress: () => void, expanded: boolean) => (
+    <Pressable
+      onPress={onPress}
+      disabled={saving}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: saving, expanded }}
+      hitSlop={8}
+      pressRetentionOffset={12}
+      style={({ pressed }) => [styles.editIcon, { opacity: pressed ? 0.5 : 1 }]}
+    >
+      <Feather
+        name={expanded ? "check" : "edit-2"}
+        size={18}
+        color={expanded ? theme.accent : theme.textSecondary}
+      />
+    </Pressable>
+  );
   const count = draft.suggestions.filter((item) => item.selected).length;
   const update = (
     index: number,
@@ -152,54 +172,72 @@ export function OnboardingPlanReview({
         {draft.resolution !== undefined ? (
           <View style={styles.identity}>
             <ThemedText style={styles.label}>Your resolution</ThemedText>
-            {editingResolution ? (
-              <TextInput
-                value={draft.resolution}
-                onChangeText={(resolution) =>
-                  onChange({ ...draft, resolution })
-                }
-                accessibilityLabel="Your resolution"
-                placeholder="e.g., Lose 15 pounds"
-                placeholderTextColor={theme.textSecondary}
-                style={inputStyle}
-                editable={!saving}
-                maxLength={90}
-              />
-            ) : (
-              <ThemedText style={styles.identityName}>
-                {draft.resolution.trim() || "Add your resolution"}
-              </ThemedText>
-            )}
-            {editButton(
-              editingResolution ? "Done editing resolution" : "Edit resolution",
-              () => setEditingResolution(!editingResolution),
-              editingResolution,
-            )}
+            <View style={styles.editRow}>
+              {editingResolution ? (
+                <TextInput
+                  value={draft.resolution}
+                  onChangeText={(resolution) =>
+                    onChange({ ...draft, resolution })
+                  }
+                  accessibilityLabel="Your resolution"
+                  placeholder="e.g., Lose 15 pounds"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[inputStyle, styles.editField]}
+                  editable={!saving}
+                  maxLength={90}
+                />
+              ) : draft.resolution.trim() ? (
+                <ThemedText style={[styles.identityName, styles.editField]}>
+                  {draft.resolution.trim()}
+                </ThemedText>
+              ) : (
+                <ThemedText
+                  style={[
+                    styles.placeholder,
+                    styles.editField,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Add your resolution
+                </ThemedText>
+              )}
+              {editIcon(
+                editingResolution
+                  ? "Done editing resolution"
+                  : "Edit resolution",
+                () => setEditingResolution(!editingResolution),
+                editingResolution,
+              )}
+            </View>
           </View>
         ) : null}
         <View style={styles.identity}>
           <ThemedText style={styles.label}>Who you are becoming</ThemedText>
-          {editingName ? (
-            <TextInput
-              ref={(node) => {
-                fieldRefs.current["identity-name"] = node;
-              }}
-              value={draft.name}
-              onChangeText={(name) => onChange({ ...draft, name })}
-              accessibilityLabel="Identity name"
-              placeholder="e.g., Consistent Writer"
-              placeholderTextColor={theme.textSecondary}
-              style={inputStyle}
-              editable={!saving}
-            />
-          ) : (
-            <ThemedText style={styles.identityName}>{draft.name}</ThemedText>
-          )}
-          {editButton(
-            editingName ? "Done editing identity" : "Edit identity",
-            () => setEditingName(!editingName),
-            editingName,
-          )}
+          <View style={styles.editRow}>
+            {editingName ? (
+              <TextInput
+                ref={(node) => {
+                  fieldRefs.current["identity-name"] = node;
+                }}
+                value={draft.name}
+                onChangeText={(name) => onChange({ ...draft, name })}
+                accessibilityLabel="Identity name"
+                placeholder="e.g., Consistent Writer"
+                placeholderTextColor={theme.textSecondary}
+                style={[inputStyle, styles.editField]}
+                editable={!saving}
+              />
+            ) : (
+              <ThemedText style={[styles.identityName, styles.editField]}>
+                {draft.name}
+              </ThemedText>
+            )}
+            {editIcon(
+              editingName ? "Done editing identity" : "Edit identity",
+              () => setEditingName(!editingName),
+              editingName,
+            )}
+          </View>
         </View>
         {draft.suggestions.map((item, index) =>
           item.selected || showIdeas ? (
@@ -208,10 +246,7 @@ export function OnboardingPlanReview({
                 cardOffsets.current[index] = event.nativeEvent.layout.y;
               }}
               key={index}
-              style={[
-                styles.card,
-                { borderColor: item.selected ? theme.accent : theme.border },
-              ]}
+              style={[styles.card, { borderColor: theme.border }]}
             >
               <Pressable
                 onPress={() => {
@@ -247,9 +282,16 @@ export function OnboardingPlanReview({
                 </ThemedText>
               ) : editing !== index ? (
                 <View style={styles.summary}>
-                  <ThemedText style={styles.actionTitle}>
-                    {item.elementalAction.title || "Choose an action"}
-                  </ThemedText>
+                  <View style={styles.editRow}>
+                    <ThemedText style={[styles.actionTitle, styles.editField]}>
+                      {item.elementalAction.title || "Choose an action"}
+                    </ThemedText>
+                    {editIcon(
+                      `Edit habit ${index + 1}`,
+                      () => setEditing(index),
+                      false,
+                    )}
+                  </View>
                   <ThemedText style={{ color: theme.textSecondary }}>
                     {item.elementalAction.frequency.length === 7
                       ? "Every day"
@@ -258,9 +300,6 @@ export function OnboardingPlanReview({
                             .map((day) => day.slice(0, 3))
                             .join(" · ")
                         : "Choose your days"}
-                  </ThemedText>
-                  <ThemedText style={{ color: theme.textSecondary }}>
-                    Milestone: {item.title}
                   </ThemedText>
                   <ThemedText style={styles.label}>
                     The 2-minute version
@@ -274,11 +313,6 @@ export function OnboardingPlanReview({
                       {item.elementalAction.anchorLink}
                     </ThemedText>
                   ) : null}
-                  {editButton(
-                    `Edit habit ${index + 1}`,
-                    () => setEditing(index),
-                    false,
-                  )}
                 </View>
               ) : (
                 <>
@@ -586,6 +620,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   identityName: { fontSize: 22, lineHeight: 28, fontWeight: "600" },
+  placeholder: { ...Typography.body, lineHeight: 28 },
+  editRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
+  editField: { flex: 1 },
+  editIcon: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   actionTitle: { fontSize: 22, lineHeight: 28, fontWeight: "600" },
   summary: { gap: Spacing.sm },
   editButton: {

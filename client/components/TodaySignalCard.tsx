@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -6,28 +6,23 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { BorderRadius, Colors, Spacing, Typography } from "@/constants/theme";
 import type { TodaySignal } from "@/lib/ambient-coach";
+import { withAlpha } from "@/lib/color";
 
 interface TodaySignalCardProps {
   signal: TodaySignal;
-  completed: number;
-  scheduled: number;
-  streakLabel: string;
-  consistency: number;
   onPrimary?: () => void;
   onCoach?: () => void;
 }
 
+// Today renders this only for signals the habit card can't carry itself
+// (a gentler restart or a coach observation); the progress line and the
+// "Ask Coach" link for an ordinary day live on Today and the habit card.
 export function TodaySignalCard({
   signal,
-  completed,
-  scheduled,
-  streakLabel,
-  consistency,
   onPrimary,
   onCoach,
 }: TodaySignalCardProps) {
   const { theme, isDark } = useTheme();
-  const [showProgress, setShowProgress] = useState(false);
   const compact =
     signal.kind === "next-action" || signal.kind === "reduce-friction";
   // The frame carries the signal's meaning; actions stay accent-colored.
@@ -50,58 +45,6 @@ export function TodaySignalCard({
   };
   return (
     <View style={styles.container}>
-      <Pressable
-        onPress={() => setShowProgress((value) => !value)}
-        accessibilityRole="button"
-        accessibilityState={{ expanded: showProgress }}
-        accessibilityLabel={`${completed} of ${scheduled} actions done today. ${showProgress ? "Hide" : "Show"} progress`}
-        hitSlop={8}
-        pressRetentionOffset={12}
-        style={({ pressed }) => ({
-          minHeight: 44,
-          justifyContent: "center",
-          opacity: pressed ? 0.6 : 1,
-        })}
-      >
-        <ThemedText style={{ color: theme.textSecondary }}>
-          {scheduled === 0
-            ? "A rest day"
-            : `${completed}/${scheduled} done today`}{" "}
-          · {showProgress ? "Hide progress" : "View progress"}
-        </ThemedText>
-      </Pressable>
-      {showProgress ? (
-        <View style={styles.stats}>
-          <View style={styles.stat}>
-            <ThemedText style={[styles.statValue, { color: theme.accent }]}>
-              {scheduled === 0 ? "Rest" : `${completed}/${scheduled}`}
-            </ThemedText>
-            <ThemedText
-              style={[styles.statLabel, { color: theme.textSecondary }]}
-            >
-              Today
-            </ThemedText>
-          </View>
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
-          <View style={styles.stat}>
-            <ThemedText style={styles.statValue}>{streakLabel}</ThemedText>
-            <ThemedText
-              style={[styles.statLabel, { color: theme.textSecondary }]}
-            >
-              Continuity
-            </ThemedText>
-          </View>
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
-          <View style={styles.stat}>
-            <ThemedText style={styles.statValue}>{consistency}%</ThemedText>
-            <ThemedText
-              style={[styles.statLabel, { color: theme.textSecondary }]}
-            >
-              This month
-            </ThemedText>
-          </View>
-        </View>
-      ) : null}
       <View
         style={[
           styles.card,
@@ -110,13 +53,13 @@ export function TodaySignalCard({
             backgroundColor: isDark
               ? Colors.dark.backgroundDefault
               : Colors.light.backgroundDefault,
-            borderColor: `${frame.color}55`,
+            borderColor: withAlpha(frame.color, 0.33),
           },
         ]}
       >
         <View style={styles.eyebrowRow}>
           <Feather name={frame.icon} size={16} color={frame.color} />
-          <ThemedText style={[styles.eyebrow, { color: frame.color }]}>
+          <ThemedText style={[styles.eyebrow, { color: theme.textSecondary }]}>
             {signal.eyebrow}
           </ThemedText>
         </View>
@@ -140,16 +83,18 @@ export function TodaySignalCard({
                 onPress={() => press(onPrimary)}
                 accessibilityRole="button"
                 accessibilityLabel={signal.primaryLabel}
+                hitSlop={8}
+                pressRetentionOffset={12}
                 style={({ pressed }) => [
                   styles.primary,
                   {
-                    backgroundColor: theme.accent,
-                    opacity: pressed ? 0.78 : 1,
+                    borderColor: theme.accent,
+                    opacity: pressed ? 0.7 : 1,
                   },
                 ]}
               >
                 <ThemedText
-                  style={[styles.primaryText, { color: theme.buttonText }]}
+                  style={[styles.primaryText, { color: theme.accent }]}
                 >
                   {signal.primaryLabel}
                 </ThemedText>
@@ -181,16 +126,7 @@ export function TodaySignalCard({
 }
 
 const styles = StyleSheet.create({
-  container: { marginBottom: Spacing.xl },
-  stats: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.md,
-  },
-  stat: { flex: 1, alignItems: "center" },
-  statValue: { ...Typography.body, fontWeight: "700" },
-  statLabel: { ...Typography.caption, marginTop: 2 },
-  divider: { width: StyleSheet.hairlineWidth, height: 34 },
+  container: { marginBottom: Spacing.lg },
   card: { borderRadius: BorderRadius.lg, borderWidth: 1, padding: Spacing.lg },
   eyebrowRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
   eyebrow: {
@@ -208,8 +144,10 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     marginTop: Spacing.sm,
   },
+  // Outlined: the habit card's Mark Complete is Today's one filled button
   primary: {
     minHeight: 44,
+    borderWidth: 1,
     borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing.lg,
     alignItems: "center",

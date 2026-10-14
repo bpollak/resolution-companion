@@ -34,6 +34,8 @@ import { logger } from "@/lib/logger";
 import { track } from "@/lib/telemetry";
 import { chooseYearlyProductId } from "@/lib/pricing";
 import { getSubscriptionPlanLabel } from "@/lib/subscription";
+import { withAlpha } from "@/lib/color";
+import { getModalSheetTopInset } from "@/lib/modal-layout";
 
 type PlanType = "monthly" | "yearly" | "lifetime";
 
@@ -154,7 +156,7 @@ function PlanCard({
         styles.planCard,
         {
           backgroundColor: selected
-            ? "rgba(0, 217, 255, 0.08)"
+            ? withAlpha(theme.accent, 0.08)
             : isDark
               ? Colors.dark.backgroundDefault
               : Colors.light.backgroundDefault,
@@ -164,10 +166,13 @@ function PlanCard({
       ]}
     >
       {badge ? (
-        <View style={[styles.planBadge, { backgroundColor: theme.accent }]}>
-          <ThemedText
-            style={[styles.planBadgeText, { color: theme.buttonText }]}
-          >
+        <View
+          style={[
+            styles.planBadge,
+            { backgroundColor: withAlpha(theme.accent, 0.15) },
+          ]}
+        >
+          <ThemedText style={[styles.planBadgeText, { color: theme.text }]}>
             {badge}
           </ThemedText>
         </View>
@@ -264,15 +269,9 @@ function CompareRow({
       </View>
       <View style={styles.compareValueCol}>
         {premium === null ? (
-          <Feather name="check" size={16} color={theme.accent} />
+          <Feather name="check" size={16} color={theme.text} />
         ) : (
-          <ThemedText
-            style={[
-              styles.compareValue,
-              styles.compareValuePremium,
-              { color: theme.accent },
-            ]}
-          >
+          <ThemedText style={[styles.compareValue, styles.compareValuePremium]}>
             {premium}
           </ThemedText>
         )}
@@ -283,6 +282,8 @@ function CompareRow({
 
 export default function SubscriptionScreen() {
   const insets = useSafeAreaInsets();
+  const headerTopPadding =
+    getModalSheetTopInset(Platform.OS, insets.top) + Spacing.md;
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<SubscriptionRouteParams, "Subscription">>();
   // Presentation-only framing: arriving from a gate explains which cap was
@@ -705,10 +706,12 @@ export default function SubscriptionScreen() {
   const yearlyTrialEligible =
     !!yearlyProduct && introEligibleProductIds.has(yearlyProduct.productId);
   const yearlyBadge = yearlyTrialEligible
-    ? `${yearlyIntroDuration?.toUpperCase()} FREE`
+    ? yearlyIntroDuration
+      ? `${yearlyIntroDuration} free`
+      : "Free trial"
     : savingsPercent !== null
-      ? `BEST VALUE · SAVE ${savingsPercent}%`
-      : "BEST VALUE";
+      ? `Save ${savingsPercent}%`
+      : "Best value";
   const yearlySubline = yearlyTrialEligible
     ? `${yearlyIntroDuration} free, then ${yearlyProduct!.price}/year`
     : yearlyPerMonth
@@ -731,9 +734,11 @@ export default function SubscriptionScreen() {
       <View
         style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
       >
-        <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+        <View style={[styles.header, { paddingTop: headerTopPadding }]}>
           <Pressable
             onPress={() => navigation.goBack()}
+            hitSlop={12}
+            pressRetentionOffset={16}
             style={({ pressed }) => [
               styles.closeButton,
               { opacity: pressed ? 0.5 : 1 },
@@ -813,10 +818,15 @@ export default function SubscriptionScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+      <View style={[styles.header, { paddingTop: headerTopPadding }]}>
         <Pressable
           onPress={() => navigation.goBack()}
-          style={styles.closeButton}
+          hitSlop={12}
+          pressRetentionOffset={16}
+          style={({ pressed }) => [
+            styles.closeButton,
+            { opacity: pressed ? 0.5 : 1 },
+          ]}
           accessibilityRole="button"
           accessibilityLabel="Close"
         >
@@ -876,6 +886,7 @@ export default function SubscriptionScreen() {
                 backgroundColor: isDark
                   ? Colors.dark.backgroundDefault
                   : Colors.light.backgroundDefault,
+                borderColor: withAlpha(theme.accent, 0.3),
               },
             ]}
           >
@@ -887,16 +898,8 @@ export default function SubscriptionScreen() {
         ) : null}
 
         <View style={styles.heroSection}>
-          <View style={[styles.heroIcon, { backgroundColor: theme.accent }]}>
-            <Feather name="zap" size={32} color={theme.buttonText} />
-          </View>
           <ThemedText style={styles.heroTitle}>
             Become who you&rsquo;re becoming, without limits
-          </ThemedText>
-          <ThemedText
-            style={[styles.heroSubtitle, { color: theme.textSecondary }]}
-          >
-            Premium takes the caps off everything you use to grow.
           </ThemedText>
         </View>
 
@@ -1000,7 +1003,7 @@ export default function SubscriptionScreen() {
                 price={lifetimeProduct.price}
                 period="one time"
                 subline="Premium without a subscription"
-                badge="PAY ONCE"
+                badge="Pay once"
                 selected={selectedPlan === "lifetime"}
                 onSelect={() => setSelectedPlan("lifetime")}
               />
@@ -1035,14 +1038,14 @@ export default function SubscriptionScreen() {
               <ThemedText
                 style={[styles.compareColLabel, { color: theme.textSecondary }]}
               >
-                FREE
+                Free
               </ThemedText>
             </View>
             <View style={styles.compareValueCol}>
               <ThemedText
-                style={[styles.compareColLabel, { color: theme.accent }]}
+                style={[styles.compareColLabel, { color: theme.text }]}
               >
-                PREMIUM
+                Premium
               </ThemedText>
             </View>
           </View>
@@ -1075,13 +1078,13 @@ export default function SubscriptionScreen() {
             title="Insights"
             description="When you show up, and the one thing to protect"
             free="—"
-            premium="Included"
+            premium={null}
           />
           <CompareRow
             title="Coach memory"
             description="A coach that remembers your past sessions"
             free="—"
-            premium="Included"
+            premium={null}
           />
           <CompareRow
             title="Quick reads"
@@ -1094,12 +1097,6 @@ export default function SubscriptionScreen() {
             description="Your year, told as a story worth sharing"
             free="1 card"
             premium="Full story"
-          />
-          <CompareRow
-            title="Daily action tracking"
-            description="Log actions and build momentum every day"
-            free={null}
-            premium={null}
             isLast
           />
         </View>
@@ -1285,7 +1282,6 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: "rgba(0, 217, 255, 0.3)",
     marginBottom: Spacing.xl,
   },
   contextCardText: {
@@ -1297,24 +1293,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.xl,
   },
-  heroIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: BorderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing.lg,
-  },
   heroTitle: {
     ...Typography.h3,
     textAlign: "center",
     maxWidth: 320,
-    marginBottom: Spacing.sm,
-  },
-  heroSubtitle: {
-    ...Typography.small,
-    textAlign: "center",
-    maxWidth: 300,
   },
   compareCard: {
     borderRadius: BorderRadius.md,
@@ -1329,9 +1311,7 @@ const styles = StyleSheet.create({
   },
   compareColLabel: {
     ...Typography.caption,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-    fontSize: 11,
+    fontWeight: "600",
   },
   compareRow: {
     flexDirection: "row",
@@ -1397,10 +1377,7 @@ const styles = StyleSheet.create({
   },
   planBadgeText: {
     ...Typography.caption,
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-    color: "#000000",
+    fontWeight: "600",
   },
   planHeader: {
     flexDirection: "row",
@@ -1466,7 +1443,6 @@ const styles = StyleSheet.create({
   },
   subscribeButtonText: {
     ...Typography.headline,
-    color: "#000000",
     flexShrink: 1,
     textAlign: "center",
   },

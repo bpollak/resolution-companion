@@ -28,7 +28,12 @@ interface ActionCardProps {
   action: ElementalAction;
   log: DailyLog | null;
   onToggle: (actionId: string, kind?: "full" | "kickstart") => void;
+  /** Omitted when the plan has one milestone, where it only repeats the plan. */
   benchmarkTitle?: string;
+  /** The first pending habit owns the screen's one filled accent button. */
+  primary?: boolean;
+  /** Footer link to the coach; given only to the habit the coach would open on. */
+  onAskCoach?: (actionId: string) => void;
 }
 
 // Memoized: TodayScreen renders one card per action, and a toggle should only
@@ -38,6 +43,8 @@ export const ActionCard = React.memo(function ActionCard({
   log,
   onToggle,
   benchmarkTitle,
+  primary = false,
+  onAskCoach,
 }: ActionCardProps) {
   const { theme, isDark } = useTheme();
   const buttonScale = useSharedValue(1);
@@ -106,6 +113,8 @@ export const ActionCard = React.memo(function ActionCard({
     transform: [{ scale: checkScale.value }],
   }));
 
+  const kickstart = action.kickstartVersion?.trim();
+
   return (
     <View
       style={[
@@ -118,12 +127,17 @@ export const ActionCard = React.memo(function ActionCard({
       ]}
     >
       {benchmarkTitle && !repeatsText(benchmarkTitle, action.title) ? (
-        <ThemedText style={[styles.benchmark, { color: theme.accent }]}>
+        <ThemedText style={[styles.benchmark, { color: theme.textSecondary }]}>
           {benchmarkTitle}
         </ThemedText>
       ) : null}
 
       <ThemedText style={styles.title}>{action.title}</ThemedText>
+      {action.anchorLink ? (
+        <ThemedText style={[styles.cue, { color: theme.textSecondary }]}>
+          When: {action.anchorLink}
+        </ThemedText>
+      ) : null}
 
       <Pressable
         onPress={handlePress}
@@ -138,6 +152,7 @@ export const ActionCard = React.memo(function ActionCard({
             ? `${action.title} completed. Tap to undo`
             : `Mark ${action.title} complete`
         }
+        style={styles.togglePressable}
       >
         <Animated.View
           style={[
@@ -145,9 +160,11 @@ export const ActionCard = React.memo(function ActionCard({
             {
               backgroundColor: isCompleted
                 ? theme.success
-                : isDark
-                  ? Colors.dark.backgroundTertiary
-                  : Colors.light.backgroundTertiary,
+                : primary
+                  ? theme.accent
+                  : isDark
+                    ? Colors.dark.backgroundTertiary
+                    : Colors.light.backgroundTertiary,
               borderColor: isCompleted ? "transparent" : theme.accent,
             },
             buttonAnimatedStyle,
@@ -158,13 +175,15 @@ export const ActionCard = React.memo(function ActionCard({
             <Feather
               name={isCompleted ? "check" : "circle"}
               size={24}
-              color={isCompleted ? theme.buttonText : theme.accent}
+              color={isCompleted || primary ? theme.buttonText : theme.accent}
             />
           </Animated.View>
           <ThemedText
             style={[
               styles.toggleText,
-              { color: isCompleted ? theme.buttonText : theme.accent },
+              {
+                color: isCompleted || primary ? theme.buttonText : theme.accent,
+              },
             ]}
           >
             {isCompleted ? "Completed" : "Mark Complete"}
@@ -172,71 +191,71 @@ export const ActionCard = React.memo(function ActionCard({
         </Animated.View>
       </Pressable>
 
-      <View style={styles.kickstartContainer}>
-        <Feather
-          name="zap"
-          size={16}
-          color={theme.warning}
-          style={styles.zapIcon}
-        />
-        <View style={styles.kickstartContent}>
-          <ThemedText style={[styles.kickstartLabel, { color: theme.warning }]}>
-            Too busy? Just:
-          </ThemedText>
-          <ThemedText style={styles.kickstart}>
-            {action.kickstartVersion}
-          </ThemedText>
-        </View>
-      </View>
-
-      {!isCompleted && action.kickstartVersion ? (
-        <Pressable
-          onPress={() => {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            onToggle(action.id, "kickstart");
-          }}
-          hitSlop={8}
-          pressRetentionOffset={16}
-          accessibilityRole="button"
-          accessibilityLabel={`I did the 2-minute version of ${action.title}`}
-          style={({ pressed }) => ({
-            minHeight: 44,
-            justifyContent: "center",
-            opacity: pressed ? 0.6 : 1,
-          })}
-        >
-          <ThemedText style={{ color: theme.accent }}>
-            I did the 2-minute version
-          </ThemedText>
-        </Pressable>
+      {kickstart ? (
+        isCompleted ? (
+          <View style={styles.backupRow}>
+            <Feather name="zap" size={16} color={theme.warning} />
+            <ThemedText
+              style={[styles.backupText, { color: theme.textSecondary }]}
+            >
+              Too busy? Just: {kickstart}
+            </ThemedText>
+          </View>
+        ) : (
+          <Pressable
+            onPress={() => {
+              Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Success,
+              );
+              onToggle(action.id, "kickstart");
+            }}
+            hitSlop={8}
+            pressRetentionOffset={16}
+            accessibilityRole="button"
+            accessibilityLabel={`I did the 2-minute version of ${action.title}`}
+            accessibilityHint={`Logs the 2-minute version: ${kickstart}`}
+            style={({ pressed }) => [
+              styles.backupRow,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
+          >
+            <Feather name="zap" size={16} color={theme.warning} />
+            <ThemedText
+              style={[styles.backupText, { color: theme.textSecondary }]}
+            >
+              Too busy? Just: {kickstart}
+            </ThemedText>
+            <ThemedText style={styles.backupAction}>I did this</ThemedText>
+          </Pressable>
+        )
       ) : null}
 
-      {action.anchorLink ? (
-        <View
-          style={[
-            styles.anchorContainer,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundSecondary
-                : Colors.light.backgroundSecondary,
-            },
+      {onAskCoach && !isCompleted ? (
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onAskCoach(action.id);
+          }}
+          hitSlop={10}
+          pressRetentionOffset={12}
+          accessibilityRole="button"
+          accessibilityLabel={`Ask Coach about ${action.title}`}
+          style={({ pressed }) => [
+            styles.coachLink,
+            { opacity: pressed ? 0.6 : 1 },
           ]}
         >
           <Feather
-            name="link"
-            size={14}
-            color={theme.accent}
-            style={styles.anchorIcon}
+            name="message-circle"
+            size={15}
+            color={theme.textSecondary}
           />
-          <View style={styles.anchorContent}>
-            <ThemedText style={[styles.anchorLabel, { color: theme.accent }]}>
-              When:
-            </ThemedText>
-            <ThemedText style={[styles.anchor, { color: theme.textSecondary }]}>
-              {action.anchorLink}
-            </ThemedText>
-          </View>
-        </View>
+          <ThemedText
+            style={[styles.coachLinkText, { color: theme.textSecondary }]}
+          >
+            Ask Coach
+          </ThemedText>
+        </Pressable>
       ) : null}
     </View>
   );
@@ -448,52 +467,44 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   title: {
-    ...Typography.headline,
-    marginBottom: Spacing.sm,
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: "700",
   },
-  kickstartContainer: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: Spacing.sm,
-  },
-  zapIcon: {
-    marginRight: Spacing.xs,
-    marginTop: 2,
-  },
-  kickstartContent: {
-    flex: 1,
-  },
-  kickstartLabel: {
-    ...Typography.caption,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  kickstart: {
-    ...Typography.kickstart,
-    lineHeight: 27,
-  },
-  anchorContainer: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.lg,
-  },
-  anchorIcon: {
-    marginRight: Spacing.sm,
-    marginTop: 2,
-  },
-  anchorContent: {
-    flex: 1,
-  },
-  anchorLabel: {
-    ...Typography.caption,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  anchor: {
-    ...Typography.small,
+  cue: {
+    fontSize: 15,
     lineHeight: 20,
+    marginTop: Spacing.xs,
+  },
+  togglePressable: {
+    marginTop: Spacing.md,
+  },
+  backupRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    minHeight: 44,
+    marginTop: Spacing.sm,
+  },
+  backupText: {
+    fontSize: 15,
+    lineHeight: 20,
+    flex: 1,
+  },
+  backupAction: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  coachLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: Spacing.xs,
+    minHeight: 44,
+  },
+  coachLinkText: {
+    ...Typography.small,
+    fontWeight: "600",
   },
   toggleButton: {
     flexDirection: "row",

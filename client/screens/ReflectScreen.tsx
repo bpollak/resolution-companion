@@ -12,6 +12,7 @@ import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 
 import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
@@ -21,6 +22,7 @@ import { ChatBubble } from "@/components/ChatBubble";
 import { logger } from "@/lib/logger";
 import { track } from "@/lib/telemetry";
 import { getTodaysMicroNote } from "@/lib/micro-notes";
+import { withAlpha } from "@/lib/color";
 import { getMainTabHeaderClearance } from "@/navigation/tab-bar-layout";
 
 interface ChatMessage {
@@ -261,120 +263,77 @@ export default function ReflectScreen() {
       }}
       scrollIndicatorInsets={{ bottom: insets.bottom }}
     >
-      <View style={styles.header}>
-        <ThemedText style={styles.title}>
-          What do you need help with?
-        </ThemedText>
-        <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Talk through what is working, what feels hard, or what you want to
-          change.
-        </ThemedText>
-      </View>
+      <ThemedText style={styles.title}>What do you need help with?</ThemedText>
 
       {conversationAvailable ? (
-        <Pressable
-          onPress={() =>
-            navigation.navigate("CoachSheet", {
-              origin: "direct",
-              promptId: "reflect-success",
-            })
-          }
-          accessibilityRole="button"
-          accessibilityLabel="Start a conversation with Coach"
-          style={({ pressed }) => [
-            styles.scoreCard,
-            { borderColor: theme.accent, opacity: pressed ? 0.78 : 1 },
-          ]}
-        >
-          <View style={styles.microNoteHeader}>
-            <Feather name="message-circle" size={22} color={theme.accent} />
-            <ThemedText style={styles.scoreLabel}>
-              Start a conversation
+        <View style={styles.startBlock}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+                () => {},
+              );
+              navigation.navigate("CoachSheet", {
+                origin: "direct",
+                promptId: "reflect-success",
+              });
+            }}
+            hitSlop={8}
+            pressRetentionOffset={16}
+            accessibilityRole="button"
+            // QA flows select this label; the visible text is shorter.
+            accessibilityLabel="Start a conversation with Coach"
+            style={({ pressed }) => [
+              styles.primaryButton,
+              { backgroundColor: theme.accent },
+              pressed && styles.primaryButtonPressed,
+            ]}
+          >
+            <Feather name="message-circle" size={20} color={theme.buttonText} />
+            <ThemedText
+              style={[styles.primaryButtonText, { color: theme.buttonText }]}
+            >
+              Talk to Coach
             </ThemedText>
-            <Feather
-              name="chevron-right"
-              size={20}
-              color={theme.textSecondary}
-            />
-          </View>
+          </Pressable>
           <ThemedText
-            style={[styles.scoreHint, { color: theme.textSecondary }]}
+            style={[styles.startHint, { color: theme.textSecondary }]}
           >
             Coach starts from what you’ve already done.
-          </ThemedText>
-          <ThemedText style={[styles.sessionsCount, { color: theme.accent }]}>
             {subscription.isPremium
-              ? "Unlimited with Premium"
-              : `${remainingCheckIns} free check-in${remainingCheckIns === 1 ? "" : "s"} left this month`}
+              ? ""
+              : ` ${remainingCheckIns} free check-in${remainingCheckIns === 1 ? "" : "s"} left this month.`}
           </ThemedText>
-        </Pressable>
+        </View>
       ) : (
         <Pressable
           onPress={() =>
             navigation.navigate("Subscription", { source: "coach-limit" })
           }
+          hitSlop={8}
+          pressRetentionOffset={16}
           accessibilityRole="button"
           accessibilityLabel="Monthly check-in limit reached. Upgrade to Premium for unlimited coaching"
           style={({ pressed }) => [
-            styles.heroCtaLocked,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundDefault
-                : Colors.light.backgroundDefault,
-              borderColor: theme.border,
-            },
-            pressed && styles.heroCtaPressed,
+            styles.card,
+            styles.lockedCard,
+            { backgroundColor: theme.backgroundDefault },
+            pressed && styles.cardPressed,
           ]}
         >
-          <View
-            style={[
-              styles.heroCtaLockedIcon,
-              {
-                backgroundColor: isDark
-                  ? Colors.dark.backgroundTertiary
-                  : Colors.light.backgroundTertiary,
-              },
-            ]}
-          >
-            <Feather name="lock" size={24} color={theme.textSecondary} />
-          </View>
-          <View style={styles.heroCtaContent}>
-            <ThemedText style={styles.heroCtaLockedTitle}>
+          <Feather name="lock" size={18} color={theme.textSecondary} />
+          <View style={styles.lockedContent}>
+            <ThemedText style={styles.cardTitle}>
               Free check-ins used for now
             </ThemedText>
             <ThemedText
-              style={[
-                styles.heroCtaLockedSubtitle,
-                { color: theme.textSecondary },
-              ]}
+              style={[styles.lockedSubtitle, { color: theme.textSecondary }]}
             >
               They reset next month. Premium removes the cap.
             </ThemedText>
           </View>
-          <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+          <Feather name="chevron-right" size={18} color={theme.textSecondary} />
         </Pressable>
       )}
-
-      {!subscription.isPremium &&
-      conversationAvailable &&
-      monthlyReflectionCount >= 7 ? (
-        <Pressable
-          onPress={() =>
-            navigation.navigate("Subscription", { source: "coach-limit" })
-          }
-          accessibilityRole="button"
-          accessibilityLabel="Upgrade to Premium for unlimited check-ins"
-          style={({ pressed }) => [
-            styles.upgradeLink,
-            { borderColor: theme.accent, opacity: pressed ? 0.7 : 1 },
-          ]}
-        >
-          <Feather name="zap" size={16} color={theme.accent} />
-          <ThemedText style={[styles.upgradeLinkText, { color: theme.accent }]}>
-            Upgrade to Premium
-          </ThemedText>
-        </Pressable>
-      ) : null}
 
       <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
         {subscription.isPremium ? "Today's read" : "This week's read"}
@@ -388,21 +347,14 @@ export default function ReflectScreen() {
         accessibilityRole="button"
         accessibilityLabel={`60-second read: ${microNote.title}. ${noteExpanded ? "Collapse" : "Expand"}.`}
         style={({ pressed }) => [
-          styles.microNoteCard,
-          {
-            backgroundColor: isDark
-              ? Colors.dark.backgroundDefault
-              : Colors.light.backgroundDefault,
-            borderColor: `${theme.warning}33`,
-            opacity: pressed ? 0.85 : 1,
-          },
+          styles.card,
+          { backgroundColor: theme.backgroundDefault },
+          pressed && styles.cardPressed,
         ]}
       >
         <View style={styles.microNoteHeader}>
-          <Feather name="book-open" size={16} color={theme.warning} />
-          <ThemedText style={styles.microNoteTitle}>
-            {microNote.title}
-          </ThemedText>
+          <Feather name="book-open" size={16} color={theme.textSecondary} />
+          <ThemedText style={styles.cardTitle}>{microNote.title}</ThemedText>
           <Feather
             name={noteExpanded ? "chevron-up" : "chevron-down"}
             size={18}
@@ -501,12 +453,16 @@ export default function ReflectScreen() {
                   backgroundColor: isDark
                     ? Colors.dark.backgroundDefault
                     : Colors.light.backgroundDefault,
-                  opacity: pressed ? 0.8 : 1,
                 },
                 pressed && styles.cardPressed,
               ]}
             >
-              <View style={styles.pastSessionIcon}>
+              <View
+                style={[
+                  styles.pastSessionIcon,
+                  { backgroundColor: withAlpha(theme.accent, 0.1) },
+                ]}
+              >
                 <Feather name="message-circle" size={20} color={theme.accent} />
               </View>
               <View style={styles.pastSessionContent}>
@@ -562,54 +518,61 @@ const styles = StyleSheet.create({
     ...Typography.body,
     textAlign: "center",
   },
-  header: {
-    marginBottom: Spacing["2xl"],
-  },
   title: {
     ...Typography.title,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xl,
   },
-  subtitle: {
-    ...Typography.body,
-  },
-  scoreCard: {
-    alignItems: "center",
-    padding: Spacing["2xl"],
+  startBlock: {
+    gap: Spacing.sm,
     marginBottom: Spacing.md,
-    borderWidth: 1,
-    borderRadius: BorderRadius.md,
   },
-  scoreLabel: {
-    ...Typography.caption,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: Spacing.xs,
+  primaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    height: Spacing.buttonHeight,
+    borderRadius: BorderRadius.full,
   },
-  scoreHint: {
-    ...Typography.body,
+  primaryButtonPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
+  },
+  primaryButtonText: {
+    ...Typography.headline,
+  },
+  startHint: {
+    ...Typography.small,
+    lineHeight: 20,
     textAlign: "center",
   },
-  sessionsCount: {
-    ...Typography.body,
-    fontWeight: "700",
-    marginTop: Spacing.md,
-  },
-  microNoteCard: {
+  card: {
     borderRadius: BorderRadius.md,
     padding: Spacing.lg,
-    borderWidth: 1,
-    borderColor: "rgba(0, 217, 255, 0.2)",
+  },
+  cardTitle: {
+    ...Typography.body,
+    fontWeight: "600",
+    flex: 1,
+  },
+  lockedCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  lockedContent: {
+    flex: 1,
+    gap: Spacing.xs,
+  },
+  lockedSubtitle: {
+    ...Typography.small,
+    lineHeight: 20,
   },
   microNoteHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
-  },
-  microNoteTitle: {
-    ...Typography.body,
-    fontWeight: "600",
-    flex: 1,
   },
   microNoteBody: {
     ...Typography.small,
@@ -621,82 +584,12 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     marginTop: Spacing.md,
   },
-  upgradeLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "center",
-    gap: Spacing.xs,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    marginBottom: Spacing.md,
-  },
-  upgradeLinkText: {
-    ...Typography.body,
-    fontWeight: "600",
-  },
   sectionTitle: {
     ...Typography.headline,
     marginBottom: Spacing.md,
   },
-  heroCtaPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.98 }],
-  },
-  weeklyReviewCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.md,
-  },
-  weeklyReviewIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.full,
-    backgroundColor: "rgba(0, 217, 255, 0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.md,
-  },
-  weeklyReviewTitle: {
-    ...Typography.body,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  weeklyReviewSubtitle: {
-    ...Typography.caption,
-  },
-  heroCtaContent: {
-    flex: 1,
-    marginRight: Spacing.md,
-  },
-  heroCtaLocked: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.xl,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    marginBottom: Spacing.md,
-  },
-  heroCtaLockedIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.lg,
-  },
-  heroCtaLockedTitle: {
-    ...Typography.headline,
-    marginBottom: Spacing.xs,
-  },
-  heroCtaLockedSubtitle: {
-    ...Typography.small,
-    lineHeight: 20,
-  },
   cardPressed: {
+    opacity: 0.85,
     transform: [{ scale: 0.98 }],
   },
   planChangeCard: {
@@ -741,7 +634,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: BorderRadius.full,
-    backgroundColor: "rgba(0, 217, 255, 0.1)",
     alignItems: "center",
     justifyContent: "center",
     marginRight: Spacing.md,

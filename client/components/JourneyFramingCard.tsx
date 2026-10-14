@@ -6,15 +6,76 @@ import { useTheme } from "@/hooks/useTheme";
 import { BorderRadius, Colors, Spacing, Typography } from "@/constants/theme";
 import type { ElementalAction } from "@/lib/storage";
 import type { ActionRhythm } from "@/lib/ambient-coach";
+import { RHYTHM_LABELS, rhythmStatusText } from "@/lib/journey-layout";
 
-const CATEGORY_COPY = {
-  "working-well": { label: "Working well", icon: "check-circle" as const },
-  "still-forming": { label: "Still forming", icon: "clock" as const },
-  "worth-simplifying": {
-    label: "Worth simplifying",
-    icon: "minimize-2" as const,
-  },
-};
+const CATEGORY_ICONS = {
+  "working-well": "check-circle",
+  "still-forming": "clock",
+  "worth-simplifying": "minimize-2",
+} as const;
+
+function rhythmColor(
+  category: ActionRhythm["category"],
+  theme: ReturnType<typeof useTheme>["theme"],
+): string {
+  return category === "worth-simplifying"
+    ? theme.warning
+    : category === "working-well"
+      ? theme.success
+      : theme.accent;
+}
+
+/**
+ * One-line rhythm status for a milestone row, used when nothing needs
+ * simplifying and the full rhythm card stays hidden.
+ */
+export function RhythmStatusLine({
+  rhythm,
+  actionTitle,
+  showTitle,
+  onAdjust,
+}: {
+  rhythm: ActionRhythm;
+  actionTitle: string;
+  /** Milestones with several habits name which one the status is for. */
+  showTitle: boolean;
+  onAdjust: (actionId: string) => void;
+}) {
+  const { theme } = useTheme();
+  const status =
+    rhythm.scheduled < 4
+      ? "Still learning your rhythm"
+      : RHYTHM_LABELS[rhythm.category];
+
+  return (
+    <Pressable
+      onPress={() => onAdjust(rhythm.actionId)}
+      accessibilityRole="button"
+      accessibilityLabel={`Adjust ${actionTitle}. ${rhythmStatusText(rhythm)}`}
+      hitSlop={8}
+      pressRetentionOffset={12}
+      style={({ pressed }) => [
+        styles.inlineRhythm,
+        { opacity: pressed ? 0.6 : 1 },
+      ]}
+    >
+      <Feather
+        name={CATEGORY_ICONS[rhythm.category]}
+        size={14}
+        color={rhythmColor(rhythm.category, theme)}
+      />
+      <ThemedText
+        style={[styles.inlineStatus, { color: theme.textSecondary }]}
+        numberOfLines={1}
+      >
+        {showTitle ? `${actionTitle}: ${status}` : status}
+      </ThemedText>
+      <ThemedText style={[styles.inlineAdjust, { color: theme.accent }]}>
+        Adjust
+      </ThemedText>
+    </Pressable>
+  );
+}
 
 export function JourneyFramingCard({
   actions,
@@ -49,7 +110,7 @@ export function JourneyFramingCard({
     >
       <View style={styles.header}>
         <View>
-          <ThemedText style={[styles.eyebrow, { color: theme.accent }]}>
+          <ThemedText style={[styles.eyebrow, { color: theme.textSecondary }]}>
             YOUR RHYTHM
           </ThemedText>
           <ThemedText style={styles.title}>How the plan is fitting</ThemedText>
@@ -62,13 +123,13 @@ export function JourneyFramingCard({
       </ThemedText>
       <View style={styles.rhythms}>
         {visibleRhythms.map((rhythm) => {
-          const copy = CATEGORY_COPY[rhythm.category];
+          const label = RHYTHM_LABELS[rhythm.category];
           return (
             <Pressable
               key={rhythm.actionId}
               onPress={() => onAdjust(rhythm.actionId)}
               accessibilityRole="button"
-              accessibilityLabel={`Adjust ${actionById.get(rhythm.actionId)?.title ?? "habit"}. ${copy.label}`}
+              accessibilityLabel={`Adjust ${actionById.get(rhythm.actionId)?.title ?? "habit"}. ${label}`}
               hitSlop={8}
               pressRetentionOffset={12}
               style={({ pressed }) => [
@@ -77,15 +138,9 @@ export function JourneyFramingCard({
               ]}
             >
               <Feather
-                name={copy.icon}
+                name={CATEGORY_ICONS[rhythm.category]}
                 size={16}
-                color={
-                  rhythm.category === "worth-simplifying"
-                    ? theme.warning
-                    : rhythm.category === "working-well"
-                      ? theme.success
-                      : theme.accent
-                }
+                color={rhythmColor(rhythm.category, theme)}
               />
               <View style={styles.rhythmText}>
                 <ThemedText style={styles.actionTitle}>
@@ -94,9 +149,7 @@ export function JourneyFramingCard({
                 <ThemedText
                   style={[styles.category, { color: theme.textSecondary }]}
                 >
-                  {rhythm.scheduled < 4
-                    ? "Still learning your rhythm"
-                    : `${copy.label} · ${rhythm.completed}/${rhythm.scheduled} completed`}
+                  {rhythmStatusText(rhythm)}
                 </ThemedText>
                 <ThemedText style={[styles.category, { color: theme.accent }]}>
                   Adjust this habit →
@@ -157,4 +210,13 @@ const styles = StyleSheet.create({
   rhythmText: { flex: 1 },
   actionTitle: { ...Typography.body, fontWeight: "600" },
   category: { ...Typography.caption, marginTop: 2 },
+  inlineRhythm: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    minHeight: 32,
+    marginTop: Spacing.sm,
+  },
+  inlineStatus: { ...Typography.caption, flexShrink: 1 },
+  inlineAdjust: { ...Typography.caption, fontWeight: "600" },
 });

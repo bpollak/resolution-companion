@@ -16,7 +16,8 @@ import * as Haptics from "expo-haptics";
 import { useApp } from "@/context/AppContext";
 import { useTheme } from "@/hooks/useTheme";
 import { ThemedText } from "@/components/ThemedText";
-import { BorderRadius, Spacing, Typography } from "@/constants/theme";
+import { BorderRadius, Colors, Spacing, Typography } from "@/constants/theme";
+import { withAlpha } from "@/lib/color";
 import { buildYearRecap, type YearRecap } from "@/lib/recap";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { track } from "@/lib/telemetry";
@@ -336,7 +337,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#0f0f1a",
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    borderColor: "rgba(0,217,255,0.3)",
+    // Share cards always render on a fixed dark background.
+    borderColor: withAlpha(Colors.dark.accent, 0.3),
     padding: Spacing["3xl"],
     paddingBottom: 56,
     justifyContent: "center",
