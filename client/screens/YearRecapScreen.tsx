@@ -316,6 +316,12 @@ export default function YearRecapScreen() {
               3 more cards with Premium: your rhythm, your comebacks, and how
               the year closes.
             </ThemedText>
+            {/* Opens the paywall; without a cue the card read as a note */}
+            <Feather
+              name="chevron-right"
+              size={16}
+              color={theme.textSecondary}
+            />
           </Pressable>
         ) : null}
       </View>

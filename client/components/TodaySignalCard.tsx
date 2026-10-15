@@ -30,7 +30,7 @@ export function TodaySignalCard({
   // the icon differentiating pattern/rest/ordinary days).
   const frame =
     signal.kind === "complete"
-      ? { color: theme.success, icon: "check-circle" as const }
+      ? { color: theme.success, icon: "check" as const }
       : signal.kind === "reduce-friction"
         ? { color: theme.warning, icon: "wind" as const }
         : signal.kind === "protect-pattern"

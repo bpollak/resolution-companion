@@ -596,15 +596,17 @@ struct KickstartLink: View {
     }
 }
 
-/// Static marker for a finished habit or day; not tappable.
+/// Static marker for a finished habit or day; not tappable. A bare check, no
+/// circle: the filled accent circle is the tappable CheckButton, and a
+/// circled check here read as the same control.
 struct DoneMark: View {
     var size: CGFloat = 22
 
     var body: some View {
-        Image(systemName: "checkmark.circle.fill")
-            .font(.system(size: size))
-            .foregroundStyle(brandAccent)
-            .widgetAccentable()
+        Image(systemName: "checkmark")
+            .font(.system(size: size * 0.7, weight: .bold))
+            .foregroundStyle(.secondary)
+            .frame(width: size, height: size)
             .accessibilityLabel("Done")
     }
 }
@@ -647,8 +649,8 @@ struct StateIcon: View {
         }
     }
 
-    // Outline-weight symbols read larger than the filled check, so they
-    // draw smaller to match it optically.
+    // Drawn at about DoneMark's glyph size so every trailing state icon
+    // matches optically.
     func symbol(_ name: String) -> some View {
         Image(systemName: name)
             .font(.system(size: size * 0.68))
@@ -926,15 +928,11 @@ struct RectangularAccessoryView: View {
                         .lineLimit(1)
                 }
             } else {
-                HStack(spacing: 4) {
-                    Image(systemName: "circle")
-                        .font(.caption.weight(.semibold))
-                        .widgetAccentable()
-                        .accessibilityHidden(true)
-                    Text(data.nextActionTitle ?? "")
-                        .font(.headline)
-                        .lineLimit(1)
-                }
+                // No leading circle: this widget opens Today rather than
+                // logging, so a checkbox glyph promised a tap it can't keep.
+                Text(data.nextActionTitle ?? "")
+                    .font(.headline)
+                    .lineLimit(1)
                 Text(data.displayProgressLine)
                     .font(.caption)
                     .foregroundStyle(.secondary)

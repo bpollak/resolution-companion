@@ -12,6 +12,9 @@ export function CoachEvidenceCard({
   evidence: CoachEvidenceSnapshot;
 }) {
   const { theme, isDark } = useTheme();
+  // Each fact once: the detail line usually states the value already
+  const showValue =
+    !!evidence.value && !evidence.detail.includes(evidence.value);
   return (
     <View
       style={[
@@ -20,7 +23,6 @@ export function CoachEvidenceCard({
           backgroundColor: isDark
             ? Colors.dark.backgroundDefault
             : Colors.light.backgroundDefault,
-          borderColor: theme.border,
         },
       ]}
     >
@@ -29,8 +31,10 @@ export function CoachEvidenceCard({
         <ThemedText style={[styles.eyebrow, { color: theme.textSecondary }]}>
           {evidence.eyebrow}
         </ThemedText>
-        {evidence.value ? (
-          <ThemedText style={[styles.value, { color: theme.accent }]}>
+        {showValue ? (
+          // Static figure: accent would read as a tappable control beside
+          // the sheet's accent "Done"
+          <ThemedText style={[styles.value, { color: theme.text }]}>
             {evidence.value}
           </ThemedText>
         ) : null}
@@ -48,7 +52,7 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.md,
     padding: Spacing.lg,
-    borderWidth: 1,
+    // No border: bordered surfaces in the sheet are the tappable chips
     borderRadius: BorderRadius.lg,
   },
   header: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },

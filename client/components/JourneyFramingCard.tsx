@@ -1,5 +1,11 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Pressable } from "react-native";
+import {
+  StyleSheet,
+  View,
+  Pressable,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -8,8 +14,9 @@ import type { ElementalAction } from "@/lib/storage";
 import type { ActionRhythm } from "@/lib/ambient-coach";
 import { RHYTHM_LABELS, rhythmStatusText } from "@/lib/journey-layout";
 
+// No circle glyphs: in this app a circle is the tap-to-complete control.
 const CATEGORY_ICONS = {
-  "working-well": "check-circle",
+  "working-well": "trending-up",
   "still-forming": "clock",
   "worth-simplifying": "minimize-2",
 } as const;
@@ -34,12 +41,14 @@ export function RhythmStatusLine({
   actionTitle,
   showTitle,
   onAdjust,
+  style,
 }: {
   rhythm: ActionRhythm;
   actionTitle: string;
   /** Milestones with several habits name which one the status is for. */
   showTitle: boolean;
   onAdjust: (actionId: string) => void;
+  style?: StyleProp<ViewStyle>;
 }) {
   const { theme } = useTheme();
   const status =
@@ -56,6 +65,7 @@ export function RhythmStatusLine({
       pressRetentionOffset={12}
       style={({ pressed }) => [
         styles.inlineRhythm,
+        style,
         { opacity: pressed ? 0.6 : 1 },
       ]}
     >

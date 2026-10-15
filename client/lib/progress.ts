@@ -63,9 +63,11 @@ export function sortWeekdays(days: string[]): string[] {
 }
 
 /**
- * Gentle countdown label for an optional milestone target date, or null when
- * unset. Deliberately soft past the date ("past target") — deadlines create
- * pull here, never guilt (see docs/ux-redesign-proposal.md principles).
+ * Time to an optional milestone target date ("in 6 days"), or null when
+ * unset. It reads after the date it counts toward ("Target: Oct 20 · in 6
+ * days"); on its own "6 days left" read as days left in the milestone.
+ * Deliberately soft past the date: deadlines create pull here, never guilt
+ * (see docs/ux-redesign-proposal.md principles).
  */
 export function formatTargetCountdown(
   targetDate: string | null,
@@ -81,12 +83,12 @@ export function formatTargetCountdown(
   const diffDays = Math.round(
     (target.getTime() - startOfToday.getTime()) / 86400000,
   );
-  if (diffDays < 0) return "past target";
-  if (diffDays === 0) return "target today";
-  if (diffDays === 1) return "1 day left";
-  if (diffDays < 14) return `${diffDays} days left`;
+  if (diffDays < 0) return "already passed";
+  if (diffDays === 0) return "today";
+  if (diffDays === 1) return "tomorrow";
+  if (diffDays < 14) return `in ${diffDays} days`;
   const weeks = Math.round(diffDays / 7);
-  return `${weeks} weeks left`;
+  return `in ${weeks} weeks`;
 }
 
 /** Human schedule summary: "Every day", "Weekdays", or "Mon · Wed · Fri". */

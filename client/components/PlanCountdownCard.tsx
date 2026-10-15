@@ -25,7 +25,9 @@ export function PlanCountdownCard({
     month: "long",
     day: "numeric",
   });
-  const countdown = days <= 1 ? "Starts tomorrow" : `${days} days to go`;
+  // Says what it counts: "12 days to go" alone could mean a goal deadline.
+  const countdown =
+    days <= 1 ? "Starts tomorrow" : `${days} days until day one`;
 
   return (
     <View

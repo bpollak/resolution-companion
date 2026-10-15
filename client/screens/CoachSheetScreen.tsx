@@ -1182,7 +1182,8 @@ const styles = StyleSheet.create({
   diffRow: { marginTop: Spacing.md },
   diffLabel: { ...Typography.caption, fontWeight: "600" },
   diffValues: { marginTop: Spacing.xs, gap: 2 },
-  beforeValue: { ...Typography.small, textDecorationLine: "line-through" },
+  // "Before:" already labels it; a strikethrough read as cancelled
+  beforeValue: { ...Typography.small },
   diffValue: { ...Typography.body, fontWeight: "600", marginTop: 2 },
   rationale: { ...Typography.small, lineHeight: 20, marginTop: Spacing.lg },
   planActions: { flexDirection: "row", gap: Spacing.sm, marginTop: Spacing.lg },

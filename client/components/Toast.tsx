@@ -118,11 +118,8 @@ export function Toast({
       : Colors.dark.text;
 
   const iconName: keyof typeof Feather.glyphMap =
-    type === "success"
-      ? "check-circle"
-      : type === "warning"
-        ? "alert-circle"
-        : "info";
+    // A circle glyph is reserved for the tap-to-complete control
+    type === "success" ? "check" : type === "warning" ? "alert-circle" : "info";
 
   if (!shouldRender) return null;
 

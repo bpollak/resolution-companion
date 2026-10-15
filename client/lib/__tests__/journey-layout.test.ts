@@ -1,7 +1,10 @@
 import {
   calendarWeekCount,
   chunkIntoWeeks,
+  dayListMilestoneLabel,
   formatEarlyProgress,
+  formatMilestoneCaption,
+  formatShortDate,
   getMonthProgressDisplay,
   showsMonthConsistency,
   hasRhythmToSimplify,
@@ -295,5 +298,124 @@ describe("rhythm helpers", () => {
     expect(rhythmStatusText(rhythm("still-forming", 3, 3))).toBe(
       "Still learning your rhythm",
     );
+  });
+});
+
+describe("formatMilestoneCaption", () => {
+  const today = new Date(2026, 9, 14);
+
+  it("counts the days still to go, not the time to a target", () => {
+    expect(
+      formatMilestoneCaption({
+        daysDone: 5,
+        target: 21,
+        completed: false,
+        today,
+      }),
+    ).toBe("16 more days to go");
+  });
+
+  it("names the target date only when one is set", () => {
+    expect(
+      formatMilestoneCaption({
+        daysDone: 5,
+        target: 21,
+        completed: false,
+        targetDate: "2026-10-20",
+        today,
+      }),
+    ).toBe("16 more days to go · Target Oct 20");
+    expect(
+      formatMilestoneCaption({
+        daysDone: 5,
+        target: 21,
+        completed: false,
+        targetDate: null,
+        today,
+      }),
+    ).toBe("16 more days to go");
+  });
+
+  it("uses the singular for the last day", () => {
+    expect(
+      formatMilestoneCaption({
+        daysDone: 20,
+        target: 21,
+        completed: false,
+        today,
+      }),
+    ).toBe("1 more day to go");
+  });
+
+  it("reads Complete once the target is reached", () => {
+    expect(
+      formatMilestoneCaption({
+        daysDone: 21,
+        target: 21,
+        completed: true,
+        targetDate: "2026-10-20",
+        today,
+      }),
+    ).toBe("Complete");
+    expect(
+      formatMilestoneCaption({
+        daysDone: 21,
+        target: 21,
+        completed: false,
+        today,
+      }),
+    ).toBe("Complete");
+  });
+});
+
+describe("formatShortDate", () => {
+  const today = new Date(2026, 9, 14);
+
+  it("omits the year in the current year", () => {
+    expect(formatShortDate("2026-10-20", today)).toBe("Oct 20");
+    expect(formatShortDate("2026-01-05T00:00:00.000Z", today)).toBe("Jan 5");
+  });
+
+  it("adds the year when it differs", () => {
+    expect(formatShortDate("2027-01-05", today)).toBe("Jan 5, 2027");
+  });
+});
+
+describe("dayListMilestoneLabel", () => {
+  it("hides the milestone when the plan has only one", () => {
+    expect(
+      dayListMilestoneLabel({
+        milestoneTitle: "Speak Spanish",
+        habitTitle: "Babbel lesson",
+        milestoneCount: 1,
+      }),
+    ).toBeNull();
+  });
+
+  it("names the milestone when several share the day", () => {
+    expect(
+      dayListMilestoneLabel({
+        milestoneTitle: "Speak Spanish",
+        habitTitle: "Babbel lesson",
+        milestoneCount: 2,
+      }),
+    ).toBe("Speak Spanish");
+  });
+
+  it("hides a milestone titled the same as its habit", () => {
+    expect(
+      dayListMilestoneLabel({
+        milestoneTitle: "Read 10 pages ",
+        habitTitle: "read 10 pages",
+        milestoneCount: 3,
+      }),
+    ).toBeNull();
+    expect(
+      dayListMilestoneLabel({
+        milestoneTitle: undefined,
+        habitTitle: "Walk",
+        milestoneCount: 3,
+      }),
+    ).toBeNull();
   });
 });

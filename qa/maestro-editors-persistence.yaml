@@ -17,13 +17,21 @@ appId: com.resolutioncompanion.app
     direction: DOWN
 - swipe:
     direction: DOWN
+# The header label continues with the caption ("16 more days to go"), and
+# Edit lives in the expanded card's footer, so expand the milestone first.
 - scrollUntilVisible:
     element:
-      text: ".* milestone, .* days done"
+      text: ".* milestone, .* days done.*"
     direction: DOWN
     timeout: 30000
     centerElement: true
     visibilityPercentage: 60
+- tapOn: ".* milestone, .* days done.*"
+- scrollUntilVisible:
+    element:
+      text: "Edit .* milestone"
+    direction: DOWN
+    timeout: 10000
 - tapOn: "Edit .* milestone"
 - assertVisible: "Edit Milestone"
 
@@ -123,7 +131,13 @@ appId: com.resolutioncompanion.app
 - extendedWaitUntil:
     visible: ".*Navigation confidence.*"
     timeout: 15000
-# Milestones start collapsed; expanding shows the action plan underneath.
-- tapOn: "Navigation confidence milestone, .* days done"
-- assertVisible: ".*Practice one map bearing.*"
+# The milestone is still expanded from opening its editor above (a tap here
+# would collapse it); the renamed habit must show in its row. Collapsed-start
+# plus expand is asserted after the cold relaunch.
+- scrollUntilVisible:
+    element:
+      text: ".*Practice one map bearing.*"
+    direction: DOWN
+    timeout: 10000
+- assertVisible: "Edit Navigation confidence milestone"
 # Cold-relaunch persistence is asserted by qa/maestro-editors-relaunch.yaml.

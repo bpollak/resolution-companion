@@ -19,7 +19,6 @@ import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
 import {
   formatScheduleDays,
-  formatTargetCountdown,
   getLocalDateString,
   MilestoneProgressResult,
   weekdayName,
@@ -29,6 +28,7 @@ import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { CircularProgress } from "@/components/CircularProgress";
 import { ProgressBar } from "@/components/ProgressBar";
+import { CompletionCheck } from "@/components/CompletionCheck";
 import { Toast } from "@/components/Toast";
 import { InsightsPanel } from "@/components/InsightsPanel";
 import {
@@ -44,7 +44,9 @@ import { withAlpha } from "@/lib/color";
 import {
   calendarWeekCount,
   chunkIntoWeeks,
+  dayListMilestoneLabel,
   formatEarlyProgress,
+  formatMilestoneCaption,
   getMonthProgressDisplay,
   hasRhythmToSimplify,
   nextDaySelection,
@@ -352,10 +354,13 @@ function SelectedDateDetails({
 
   const actionStatuses = dayActions.map((action) => {
     const log = logIndex.get(`${action.id}|${dateStr}`);
-    const benchmark = benchmarkById.get(action.benchmarkId);
     return {
       action,
-      benchmark,
+      milestoneLabel: dayListMilestoneLabel({
+        milestoneTitle: benchmarkById.get(action.benchmarkId)?.title,
+        habitTitle: action.title,
+        milestoneCount: benchmarkById.size,
+      }),
       completed: log?.status === true,
       note: log?.status === true ? log?.note : undefined,
       completionSource: log?.status === true ? log.completionSource : undefined,
@@ -407,7 +412,8 @@ function SelectedDateDetails({
         <View style={styles.selectedDateActions}>
           {dayActions.map((action) => (
             <View key={action.id} style={styles.selectedDateAction}>
-              <Feather name="calendar" size={18} color={theme.accent} />
+              {/* Not checkable until the day comes, so no check control */}
+              <Feather name="calendar" size={18} color={theme.textSecondary} />
               <View style={styles.selectedDateActionInfo}>
                 <ThemedText style={styles.selectedDateActionTitle}>
                   {action.title}
@@ -449,7 +455,7 @@ function SelectedDateDetails({
           {actionStatuses.map(
             ({
               action,
-              benchmark,
+              milestoneLabel,
               completed,
               note,
               completionSource,
@@ -457,45 +463,44 @@ function SelectedDateDetails({
             }) => (
               <Pressable
                 key={action.id}
+                hitSlop={4}
+                pressRetentionOffset={12}
                 style={({ pressed }) => [
                   styles.selectedDateAction,
-                  { opacity: pressed && !isFutureDate ? 0.6 : 1 },
+                  { opacity: pressed ? 0.6 : 1 },
                 ]}
                 onPress={() => handleToggle(action.id, completed)}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: completed }}
-                accessibilityLabel={`${action.title}${benchmark ? `, ${benchmark.title}` : ""}`}
+                accessibilityLabel={`${action.title}${milestoneLabel ? `, ${milestoneLabel}` : ""}`}
                 accessibilityHint={
                   completed
                     ? "Marks this habit as not done"
                     : "Marks this habit as done"
                 }
               >
-                <Feather
-                  name={completed ? "check-circle" : "circle"}
-                  size={18}
-                  color={completed ? theme.success : theme.textSecondary}
-                />
+                {/* The row toggles completion, so its only glyph is the
+                    check control; done reads as check plus secondary text. */}
+                <View style={styles.selectedDateCheck}>
+                  <CompletionCheck checked={completed} />
+                </View>
                 <View style={styles.selectedDateActionInfo}>
                   <ThemedText
                     style={[
                       styles.selectedDateActionTitle,
-                      completed && {
-                        textDecorationLine: "line-through",
-                        opacity: 0.7,
-                      },
+                      completed && { color: theme.textSecondary },
                     ]}
                   >
                     {action.title}
                   </ThemedText>
-                  {benchmark ? (
+                  {milestoneLabel ? (
                     <ThemedText
                       style={[
                         styles.selectedDateBenchmark,
                         { color: theme.textSecondary },
                       ]}
                     >
-                      {benchmark.title}
+                      {milestoneLabel}
                     </ThemedText>
                   ) : null}
                   {completed &&
@@ -505,17 +510,17 @@ function SelectedDateDetails({
                       <Feather
                         name={completionSource === "health" ? "heart" : "zap"}
                         size={11}
-                        color={theme.accent}
+                        color={theme.textSecondary}
                       />
                       <ThemedText
                         style={[
                           styles.selectedDateSourceText,
-                          { color: theme.accent },
+                          { color: theme.textSecondary },
                         ]}
                       >
                         {completionSource === "health"
                           ? "Completed by Health"
-                          : "2-minute fallback"}
+                          : "2-minute version"}
                       </ThemedText>
                     </View>
                   ) : null}
@@ -531,12 +536,6 @@ function SelectedDateDetails({
                     </ThemedText>
                   ) : null}
                 </View>
-                <Feather
-                  name="chevron-right"
-                  size={16}
-                  color={theme.textSecondary}
-                  style={{ opacity: 0.5 }}
-                />
               </Pressable>
             ),
           )}
@@ -546,137 +545,109 @@ function SelectedDateDetails({
   );
 }
 
-interface ActionPlanCardProps {
+interface HabitPlanRowProps {
   action: ElementalAction;
-  daysDone: number;
-  isDark: boolean;
+  /** Shown only when the milestone has several habits to tell apart. */
+  daysDone: number | null;
+  /** Present only while the full rhythm card is hidden. */
+  rhythm?: ActionRhythm;
+  onAdjust: (actionId: string) => void;
   theme: any;
 }
 
-// Schedule stays visible; cue and fallback are reference detail, so they sit
-// behind a disclosure to keep an expanded milestone near one screen.
-function ActionPlanCard({
+// A plain row inside the milestone card, not a card of its own. Cadence stays
+// visible; cue and fallback are reference detail behind "Plan details".
+function HabitPlanRow({
   action,
   daysDone,
-  isDark,
+  rhythm,
+  onAdjust,
   theme,
-}: ActionPlanCardProps) {
+}: HabitPlanRowProps) {
   const [showPlanDetails, setShowPlanDetails] = useState(false);
   const hasPlanDetails = !!action.anchorLink || !!action.kickstartVersion;
 
   return (
-    <View
-      style={[
-        styles.actionCard,
-        {
-          backgroundColor: isDark
-            ? Colors.dark.backgroundSecondary
-            : Colors.light.backgroundSecondary,
-        },
-      ]}
-    >
-      <View style={styles.actionHeader}>
-        <ThemedText style={styles.actionTitle}>{action.title}</ThemedText>
-        <ThemedText style={[styles.actionDays, { color: theme.textSecondary }]}>
-          {daysDone} {daysDone === 1 ? "day" : "days"} done
-        </ThemedText>
-      </View>
-      <View style={styles.actionDetails}>
-        <View style={styles.actionDetail}>
-          <Feather
-            name="calendar"
-            size={14}
-            color={theme.accent}
-            style={styles.actionDetailIcon}
-          />
-          <View style={styles.actionDetailContent}>
-            <ThemedText style={styles.actionDetailLabel}>On:</ThemedText>
-            <ThemedText
-              style={[styles.actionDetailText, { color: theme.textSecondary }]}
-            >
-              {formatScheduleDays(action.frequency)}. Each completed day fills
-              this milestone
-            </ThemedText>
-          </View>
-        </View>
-        {hasPlanDetails ? (
-          <Pressable
-            onPress={() => {
-              Haptics.selectionAsync();
-              setShowPlanDetails((value) => !value);
-            }}
-            hitSlop={8}
-            pressRetentionOffset={12}
-            accessibilityRole="button"
-            accessibilityState={{ expanded: showPlanDetails }}
-            accessibilityLabel={`Plan details for ${action.title}`}
-            accessibilityHint={
-              showPlanDetails
-                ? "Hides when this habit happens and its small version"
-                : "Shows when this habit happens and its small version"
-            }
-            style={({ pressed }) => [
-              styles.planDetailsToggle,
-              { opacity: pressed ? 0.6 : 1 },
-            ]}
+    <View style={styles.habitRow}>
+      <View style={styles.habitHeader}>
+        <View style={styles.habitText}>
+          <ThemedText style={styles.habitTitle}>{action.title}</ThemedText>
+          <ThemedText
+            style={[styles.habitCadence, { color: theme.textSecondary }]}
           >
-            <ThemedText
-              style={[styles.planDetailsText, { color: theme.textSecondary }]}
-            >
-              Plan details
-            </ThemedText>
-            <Feather
-              name={showPlanDetails ? "chevron-up" : "chevron-down"}
-              size={14}
-              color={theme.textSecondary}
-            />
-          </Pressable>
-        ) : null}
-        {showPlanDetails && action.anchorLink ? (
-          <View style={styles.actionDetail}>
-            <Feather
-              name="link"
-              size={14}
-              color={theme.accent}
-              style={styles.actionDetailIcon}
-            />
-            <View style={styles.actionDetailContent}>
-              <ThemedText style={styles.actionDetailLabel}>When:</ThemedText>
-              <ThemedText
-                style={[
-                  styles.actionDetailText,
-                  { color: theme.textSecondary },
-                ]}
-              >
-                {action.anchorLink}
-              </ThemedText>
-            </View>
-          </View>
-        ) : null}
-        {showPlanDetails && action.kickstartVersion ? (
-          <View style={styles.actionDetail}>
-            <Feather
-              name="zap"
-              size={14}
-              color={theme.warning}
-              style={styles.actionDetailIcon}
-            />
-            <View style={styles.actionDetailContent}>
-              <ThemedText style={styles.actionDetailLabel}>
-                Too busy? Just:
-              </ThemedText>
-              <ThemedText
-                style={[
-                  styles.actionDetailText,
-                  { color: theme.textSecondary },
-                ]}
-              >
-                {action.kickstartVersion}
-              </ThemedText>
-            </View>
-          </View>
+            {formatScheduleDays(action.frequency)}
+          </ThemedText>
+        </View>
+        {daysDone !== null ? (
+          <ThemedText
+            style={[styles.habitDays, { color: theme.textSecondary }]}
+          >
+            {daysDone} {daysDone === 1 ? "day" : "days"} done
+          </ThemedText>
         ) : null}
       </View>
+      {rhythm ? (
+        <RhythmStatusLine
+          rhythm={rhythm}
+          actionTitle={action.title}
+          showTitle={false}
+          onAdjust={onAdjust}
+          style={styles.habitRhythm}
+        />
+      ) : null}
+      {hasPlanDetails ? (
+        <Pressable
+          onPress={() => {
+            Haptics.selectionAsync();
+            setShowPlanDetails((value) => !value);
+          }}
+          hitSlop={8}
+          pressRetentionOffset={12}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showPlanDetails }}
+          accessibilityLabel={`Plan details for ${action.title}`}
+          accessibilityHint={
+            showPlanDetails
+              ? "Hides when this habit happens and its small version"
+              : "Shows when this habit happens and its small version"
+          }
+          style={({ pressed }) => [
+            styles.planDetailsToggle,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
+        >
+          <ThemedText
+            style={[styles.planDetailsText, { color: theme.textSecondary }]}
+          >
+            Plan details
+          </ThemedText>
+          <Feather
+            name={showPlanDetails ? "chevron-up" : "chevron-down"}
+            size={14}
+            color={theme.textSecondary}
+          />
+        </Pressable>
+      ) : null}
+      {showPlanDetails && action.anchorLink ? (
+        <ThemedText
+          style={[styles.planDetailText, { color: theme.textSecondary }]}
+        >
+          <ThemedText style={[styles.planDetailLabel, { color: theme.text }]}>
+            When:{" "}
+          </ThemedText>
+          {action.anchorLink}
+        </ThemedText>
+      ) : null}
+      {showPlanDetails && action.kickstartVersion ? (
+        <ThemedText
+          style={[styles.planDetailText, { color: theme.textSecondary }]}
+        >
+          <ThemedText style={[styles.planDetailLabel, { color: theme.text }]}>
+            Too busy? Just:{" "}
+          </ThemedText>
+          {action.kickstartVersion}
+        </ThemedText>
+      ) : null}
     </View>
   );
 }
@@ -694,6 +665,10 @@ interface MilestoneRowProps {
   onAdjust: (actionId: string) => void;
 }
 
+// One surface per milestone. The header is the only expand control and its
+// one glyph is the chevron: a leading circle here read as a checkbox. The
+// collapsed card is title, count, bar, and one caption; per-habit detail
+// (cadence, rhythm, plan details) lives in the expanded rows.
 const MilestoneRow = React.memo(function MilestoneRow({
   item,
   expanded,
@@ -713,162 +688,131 @@ const MilestoneRow = React.memo(function MilestoneRow({
     progress,
     completed,
   } = item;
+  const caption = formatMilestoneCaption({
+    daysDone,
+    target,
+    completed,
+    targetDate: benchmark.targetDate,
+  });
+  const showHabitCounts = actionProgress.length > 1;
 
   return (
-    <View>
-      <View
-        style={[
-          styles.benchmarkCard,
-          {
-            backgroundColor: isDark
-              ? Colors.dark.backgroundDefault
-              : Colors.light.backgroundDefault,
-          },
-          completed && {
-            borderWidth: 1,
-            borderColor: withAlpha(theme.success, 0.35),
-          },
-        ]}
+    <View
+      style={[
+        styles.benchmarkCard,
+        {
+          backgroundColor: isDark
+            ? Colors.dark.backgroundDefault
+            : Colors.light.backgroundDefault,
+        },
+      ]}
+    >
+      <Pressable
+        onPress={() => onToggle(benchmark.id)}
+        hitSlop={4}
+        pressRetentionOffset={12}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityLabel={`${benchmark.title} milestone, ${daysDone} of ${target} days done. ${caption}`}
+        accessibilityHint={
+          expanded
+            ? "Hides the habits in this milestone"
+            : "Shows the habits in this milestone"
+        }
+        style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
       >
-        <Pressable
-          onPress={() => onToggle(benchmark.id)}
-          accessibilityRole="button"
-          accessibilityState={{ expanded }}
-          accessibilityLabel={`${benchmark.title} milestone, ${daysDone} of ${target} days done`}
-          accessibilityHint={
-            expanded
-              ? "Hides the daily actions for this milestone"
-              : "Shows the daily actions for this milestone"
-          }
-          style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-        >
-          <View style={styles.benchmarkHeader}>
-            <View style={styles.benchmarkTitleCol}>
-              <View style={styles.benchmarkTitleRow}>
-                <Feather
-                  name={completed ? "check-circle" : "circle"}
-                  size={16}
-                  color={completed ? theme.success : theme.textSecondary}
-                  style={styles.milestoneStatusIcon}
-                />
-                <ThemedText style={styles.benchmarkTitle}>
-                  {benchmark.title}
-                </ThemedText>
-              </View>
-              {actionProgress[0]?.action.frequency ? (
-                <ThemedText
-                  style={[
-                    styles.frequencyBadge,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  {actionProgress[0].action.frequency.length >= 7
-                    ? "Daily"
-                    : `${actionProgress[0].action.frequency.length}×/week`}
-                </ThemedText>
-              ) : null}
-            </View>
-            <View style={styles.benchmarkMeta}>
-              <ThemedText
-                style={[
-                  styles.benchmarkDays,
-                  { color: completed ? theme.success : theme.text },
-                ]}
-              >
-                {daysDone}/{target}
-              </ThemedText>
-              <Feather
-                name={expanded ? "chevron-up" : "chevron-down"}
-                size={20}
-                color={theme.textSecondary}
-              />
-            </View>
-          </View>
-          <ProgressBar
-            progress={progress}
-            color={completed ? theme.success : theme.accent}
-          />
-        </Pressable>
-        <View style={styles.benchmarkFooter}>
-          <ThemedText
-            style={[
-              styles.milestoneCaption,
-              {
-                color: completed ? theme.success : theme.textSecondary,
-              },
-            ]}
-          >
-            {completed
-              ? "Complete. Habit locked in"
-              : `${daysDone} of ${target} days done${(() => {
-                  const countdown = formatTargetCountdown(benchmark.targetDate);
-                  return countdown ? ` · ${countdown}` : "";
-                })()}`}
+        <View style={styles.benchmarkHeader}>
+          <ThemedText style={styles.benchmarkTitle}>
+            {benchmark.title}
           </ThemedText>
-          <Pressable
-            onPress={() => onEdit(benchmark.id)}
-            hitSlop={12}
-            pressRetentionOffset={16}
-            accessibilityRole="button"
-            accessibilityLabel={`Edit ${benchmark.title} milestone`}
-            style={({ pressed }) => [
-              styles.editButton,
-              { borderColor: theme.border },
-              { opacity: pressed ? 0.7 : 1 },
-              pressed && styles.editButtonPressed,
+          <ThemedText
+            style={[styles.benchmarkDays, { color: theme.textSecondary }]}
+          >
+            {daysDone}/{target}
+          </ThemedText>
+          <Feather
+            name={expanded ? "chevron-up" : "chevron-down"}
+            size={20}
+            color={theme.textSecondary}
+          />
+        </View>
+        <ProgressBar
+          progress={progress}
+          color={completed ? theme.success : theme.accent}
+        />
+        {completed ? (
+          // A tinted chip, not a solid pill: a solid fill read as a button
+          // next to the filled "Add" control
+          <View
+            style={[
+              styles.completeBadge,
+              { backgroundColor: withAlpha(theme.success, 0.16) },
             ]}
           >
-            <Feather name="edit-2" size={14} color={theme.textSecondary} />
-            <ThemedText style={[styles.editButtonText, { color: theme.text }]}>
-              Edit
+            <ThemedText
+              style={[styles.completeBadgeText, { color: theme.success }]}
+            >
+              Complete
             </ThemedText>
-          </Pressable>
-        </View>
-        {rhythms?.map((rhythm) => {
-          const title =
-            actionProgress.find(({ action }) => action.id === rhythm.actionId)
-              ?.action.title ?? "habit";
-          return (
-            <RhythmStatusLine
-              key={rhythm.actionId}
-              rhythm={rhythm}
-              actionTitle={title}
-              showTitle={rhythms.length > 1}
-              onAdjust={onAdjust}
-            />
-          );
-        })}
-      </View>
-
-      {expanded && actionProgress.length > 0 ? (
-        <View style={styles.actionsContainer}>
+          </View>
+        ) : (
+          <ThemedText
+            style={[styles.milestoneCaption, { color: theme.textSecondary }]}
+          >
+            {caption}
+          </ThemedText>
+        )}
+      </Pressable>
+      {expanded ? (
+        <View style={[styles.milestoneBody, { borderTopColor: theme.border }]}>
           {actionProgress.map(({ action, daysDone: actionDays }) => (
-            <ActionPlanCard
+            <HabitPlanRow
               key={action.id}
               action={action}
-              daysDone={actionDays}
-              isDark={isDark}
+              daysDone={showHabitCounts ? actionDays : null}
+              rhythm={rhythms?.find((item) => item.actionId === action.id)}
+              onAdjust={onAdjust}
               theme={theme}
             />
           ))}
-          <Pressable
-            onPress={() => onAskMilestone(benchmark.id)}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel={`Ask Coach about ${benchmark.title} milestone`}
-            style={({ pressed }) => [
-              styles.contextCoachButton,
-              styles.milestoneCoachButton,
-              { borderColor: theme.accent, opacity: pressed ? 0.65 : 1 },
-            ]}
-          >
-            <Feather name="target" size={14} color={theme.accent} />
-            <ThemedText
-              style={[styles.contextCoachText, { color: theme.accent }]}
+          <View style={styles.milestoneFooter}>
+            <Pressable
+              onPress={() => onEdit(benchmark.id)}
+              hitSlop={8}
+              pressRetentionOffset={16}
+              accessibilityRole="button"
+              accessibilityLabel={`Edit ${benchmark.title} milestone`}
+              style={({ pressed }) => [
+                styles.footerAction,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
             >
-              Ask Coach about this milestone
-            </ThemedText>
-          </Pressable>
+              <Feather name="edit-2" size={14} color={theme.accent} />
+              <ThemedText
+                style={[styles.footerActionText, { color: theme.accent }]}
+              >
+                Edit
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => onAskMilestone(benchmark.id)}
+              hitSlop={8}
+              pressRetentionOffset={16}
+              accessibilityRole="button"
+              accessibilityLabel={`Ask Coach about ${benchmark.title} milestone`}
+              style={({ pressed }) => [
+                styles.footerAction,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+            >
+              <Feather name="message-circle" size={14} color={theme.accent} />
+              <ThemedText
+                style={[styles.footerActionText, { color: theme.accent }]}
+              >
+                Ask Coach
+              </ThemedText>
+            </Pressable>
+          </View>
         </View>
       ) : null}
     </View>
@@ -1944,11 +1888,16 @@ const styles = StyleSheet.create({
   selectedDateAction: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: Spacing.sm,
+    gap: Spacing.md,
+    minHeight: 44,
     paddingVertical: Spacing.xs,
   },
   selectedDateActionInfo: {
     flex: 1,
+  },
+  // Centers the 22pt check on the title's first 24pt line
+  selectedDateCheck: {
+    paddingTop: 1,
   },
   selectedDateActionTitle: {
     ...Typography.body,
@@ -2004,111 +1953,68 @@ const styles = StyleSheet.create({
   },
   benchmarkHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "flex-start",
+    gap: Spacing.sm,
     marginBottom: Spacing.md,
-  },
-  benchmarkTitleCol: {
-    flex: 1,
-    marginRight: Spacing.md,
-  },
-  benchmarkTitleRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  milestoneStatusIcon: {
-    marginRight: Spacing.sm,
-    marginTop: 3,
   },
   benchmarkTitle: {
     ...Typography.headline,
     lineHeight: 22,
     flex: 1,
   },
-  benchmarkMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-  },
-  benchmarkFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing.md,
-    marginTop: Spacing.md,
-  },
-  editButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-  },
-  editButtonPressed: {
-    transform: [{ scale: 0.96 }],
-  },
-  editButtonText: {
+  benchmarkDays: {
     ...Typography.small,
     fontWeight: "600",
-  },
-  benchmarkDays: {
-    ...Typography.headline,
+    lineHeight: 22,
   },
   milestoneCaption: {
     ...Typography.caption,
     lineHeight: 17,
-    flex: 1,
+    marginTop: Spacing.sm,
   },
-  frequencyBadge: {
+  completeBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+    marginTop: Spacing.sm,
+  },
+  completeBadgeText: {
     ...Typography.caption,
-    marginTop: Spacing.xs,
-    marginLeft: Spacing.sm + 16,
+    fontWeight: "700",
   },
-  actionsContainer: {
-    marginLeft: Spacing.lg,
-    marginBottom: Spacing.md,
+  milestoneBody: {
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: Spacing.lg,
   },
-  actionCard: {
-    padding: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.sm,
+  habitRow: {
+    gap: 2,
   },
-  actionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.sm,
+  habitRhythm: {
+    marginTop: 0,
   },
-  actionTitle: {
-    ...Typography.small,
-    fontWeight: "600",
-    flex: 1,
-    marginRight: Spacing.sm,
-  },
-  actionDays: {
-    ...Typography.small,
-    fontWeight: "600",
-  },
-  actionDetails: {
-    gap: Spacing.sm,
-  },
-  actionDetail: {
+  habitHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
-  actionDetailIcon: {
-    marginTop: 2,
-  },
-  actionDetailContent: {
+  habitText: {
     flex: 1,
   },
-  actionDetailLabel: {
+  habitTitle: {
+    ...Typography.body,
+    fontWeight: "600",
+  },
+  habitCadence: {
+    ...Typography.caption,
+    marginTop: 2,
+  },
+  habitDays: {
     ...Typography.caption,
     fontWeight: "600",
-    marginBottom: 2,
+    marginTop: 3,
   },
   planDetailsToggle: {
     flexDirection: "row",
@@ -2121,7 +2027,7 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     fontWeight: "600",
   },
-  actionDetailText: {
+  planDetailText: {
     ...Typography.small,
     lineHeight: 20,
     // Fabric can measure a Text unconstrained on first layout, rendering it
@@ -2129,25 +2035,22 @@ const styles = StyleSheet.create({
     width: "100%",
     flexShrink: 1,
   },
-  contextCoachButton: {
-    minHeight: 44,
-    marginTop: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
+  planDetailLabel: {
+    ...Typography.small,
+    fontWeight: "600",
+  },
+  milestoneFooter: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
+    gap: Spacing.xl,
   },
-  milestoneCoachButton: {
-    marginTop: Spacing.xs,
-    marginBottom: Spacing.sm,
-    paddingHorizontal: Spacing.sm,
-    borderWidth: 0,
-    alignSelf: "flex-start",
+  footerAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    minHeight: 44,
   },
-  contextCoachText: {
+  footerActionText: {
     ...Typography.small,
     fontWeight: "600",
   },

@@ -229,11 +229,12 @@ export default function ReflectScreen() {
             <ThemedText style={styles.chatHeaderTitle}>
               {formatDate(session.createdAt)}
             </ThemedText>
+            {/* Sits where a header button would; accent made it look like one */}
             <View style={styles.doneButton}>
               <ThemedText
                 style={[
                   styles.pastSessionMomentumValue,
-                  { color: theme.accent },
+                  { color: theme.textSecondary },
                 ]}
               >
                 {session.momentumScore}%
@@ -438,9 +439,8 @@ export default function ReflectScreen() {
                   style={[
                     styles.planChangeStatus,
                     {
-                      color: change.applied
-                        ? theme.accent
-                        : theme.textSecondary,
+                      // Status text, not a link: accent reads as tappable
+                      color: change.applied ? theme.text : theme.textSecondary,
                     },
                   ]}
                 >

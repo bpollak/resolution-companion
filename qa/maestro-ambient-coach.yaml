@@ -39,8 +39,20 @@ appId: com.resolutioncompanion.app
     timeout: 10000
 - tapOn:
     id: "tab-journey"
-# Rhythm status sits inline on each milestone row; the separate rhythm card
-# appears only when a habit is worth simplifying.
+# Rhythm status sits inline under each habit in the expanded milestone card;
+# the separate rhythm card appears only when a habit is worth simplifying.
+# Expand the milestone unless an earlier step left it open.
+- scrollUntilVisible:
+    element:
+      text: ".* milestone, .* days done.*"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- runFlow:
+    when:
+      notVisible: "Edit .* milestone"
+    commands:
+      - tapOn: ".* milestone, .* days done.*"
 - scrollUntilVisible:
     element:
       text: "Adjust .*"

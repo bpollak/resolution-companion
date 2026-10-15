@@ -112,11 +112,14 @@ export function OnboardingPlanReview({
       pressRetentionOffset={12}
       style={({ pressed }) => [styles.editIcon, { opacity: pressed ? 0.5 : 1 }]}
     >
-      <Feather
-        name={expanded ? "check" : "edit-2"}
-        size={18}
-        color={expanded ? theme.accent : theme.textSecondary}
-      />
+      {/* "Done" in words: a bare check glyph read as a completion mark */}
+      {expanded ? (
+        <ThemedText style={{ color: theme.accent, fontWeight: "600" }}>
+          Done
+        </ThemedText>
+      ) : (
+        <Feather name="edit-2" size={18} color={theme.textSecondary} />
+      )}
     </Pressable>
   );
   const count = draft.suggestions.filter((item) => item.selected).length;

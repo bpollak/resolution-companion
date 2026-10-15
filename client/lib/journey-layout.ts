@@ -165,3 +165,74 @@ export function nextDaySelection(
   if (current && getLocalDateString(current) === tappedKey) return null;
   return tapped;
 }
+
+const MONTH_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+/**
+ * "Oct 20" for a YYYY-MM-DD (or ISO) date, adding the year only when it
+ * differs from today's. Spelled out rather than Intl-formatted: Hermes on iOS
+ * can return "" when its Intl data is absent.
+ */
+export function formatShortDate(dateStr: string, today = new Date()): string {
+  const [year, month, day] = dateStr.split("T")[0].split("-").map(Number);
+  const label = `${MONTH_SHORT[month - 1]} ${day}`;
+  return year === today.getFullYear() ? label : `${label}, ${year}`;
+}
+
+/**
+ * The one caption line under a milestone's progress bar. It names what each
+ * number counts: a bare "6 days left" next to "5/21" read as days remaining
+ * in the milestone when it was really the optional target date.
+ */
+export function formatMilestoneCaption({
+  daysDone,
+  target,
+  completed,
+  targetDate,
+  today = new Date(),
+}: {
+  daysDone: number;
+  target: number;
+  completed: boolean;
+  targetDate?: string | null;
+  today?: Date;
+}): string {
+  const remaining = Math.max(target - daysDone, 0);
+  if (completed || remaining === 0) return "Complete";
+  const toGo = `${remaining} more ${remaining === 1 ? "day" : "days"} to go`;
+  return targetDate
+    ? `${toGo} · Target ${formatShortDate(targetDate, today)}`
+    : toGo;
+}
+
+/**
+ * The milestone name under a habit in the day list, or null when it would
+ * only repeat something on screen: with one milestone every habit belongs
+ * to it, and some habits are titled the same as their milestone.
+ */
+export function dayListMilestoneLabel({
+  milestoneTitle,
+  habitTitle,
+  milestoneCount,
+}: {
+  milestoneTitle?: string | null;
+  habitTitle: string;
+  milestoneCount: number;
+}): string | null {
+  const title = milestoneTitle?.trim();
+  if (!title || milestoneCount < 2) return null;
+  return title.toLowerCase() === habitTitle.trim().toLowerCase() ? null : title;
+}

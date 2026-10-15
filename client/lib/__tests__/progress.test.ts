@@ -1087,26 +1087,26 @@ describe("formatTargetCountdown", () => {
   });
 
   it("labels near-term targets in days", () => {
-    expect(formatTargetCountdown("2026-07-15", today)).toBe("target today");
-    expect(formatTargetCountdown("2026-07-16", today)).toBe("1 day left");
-    expect(formatTargetCountdown("2026-07-20", today)).toBe("5 days left");
-    expect(formatTargetCountdown("2026-07-28", today)).toBe("13 days left");
+    expect(formatTargetCountdown("2026-07-15", today)).toBe("today");
+    expect(formatTargetCountdown("2026-07-16", today)).toBe("tomorrow");
+    expect(formatTargetCountdown("2026-07-20", today)).toBe("in 5 days");
+    expect(formatTargetCountdown("2026-07-28", today)).toBe("in 13 days");
   });
 
   it("labels two weeks and beyond in weeks", () => {
-    expect(formatTargetCountdown("2026-07-29", today)).toBe("2 weeks left");
-    expect(formatTargetCountdown("2026-08-05", today)).toBe("3 weeks left");
-    expect(formatTargetCountdown("2026-10-15", today)).toBe("13 weeks left");
+    expect(formatTargetCountdown("2026-07-29", today)).toBe("in 2 weeks");
+    expect(formatTargetCountdown("2026-08-05", today)).toBe("in 3 weeks");
+    expect(formatTargetCountdown("2026-10-15", today)).toBe("in 13 weeks");
   });
 
-  it("is gentle past the target — no negative counts", () => {
-    expect(formatTargetCountdown("2026-07-14", today)).toBe("past target");
-    expect(formatTargetCountdown("2026-01-01", today)).toBe("past target");
+  it("is gentle past the target, with no negative counts", () => {
+    expect(formatTargetCountdown("2026-07-14", today)).toBe("already passed");
+    expect(formatTargetCountdown("2026-01-01", today)).toBe("already passed");
   });
 
   it("ignores any time component on stored dates", () => {
     expect(formatTargetCountdown("2026-07-16T08:00:00.000Z", today)).toBe(
-      "1 day left",
+      "tomorrow",
     );
   });
 });

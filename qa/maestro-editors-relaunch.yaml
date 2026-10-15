@@ -13,7 +13,7 @@ appId: com.resolutioncompanion.app
     timeout: 30000
     centerElement: true
 # Milestones start collapsed; expanding shows the action plan underneath.
-- tapOn: "Navigation confidence milestone, .* days done"
+- tapOn: "Navigation confidence milestone, .* days done.*"
 - assertVisible: ".*Practice one map bearing.*"
 - tapOn: "Today tab"
 - extendedWaitUntil:

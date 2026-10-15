@@ -159,7 +159,8 @@ export function DayCompleteCard({
         {personaName}.
       </ThemedText>
       {isFirstEver ? (
-        <ThemedText style={[styles.firstEver, { color: theme.accent }]}>
+        // Static line: accent text reads as a link in this app
+        <ThemedText style={[styles.firstEver, { color: theme.text }]}>
           This is how it starts.
         </ThemedText>
       ) : null}

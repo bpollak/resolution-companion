@@ -329,7 +329,9 @@ export default function BenchmarkEditorScreen() {
         ]}
       >
         <View style={styles.section}>
-          <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
+          <ThemedText
+            style={[styles.sectionLabel, { color: theme.textSecondary }]}
+          >
             Milestone Goal
           </ThemedText>
           <TextInput
@@ -356,7 +358,9 @@ export default function BenchmarkEditorScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
+          <ThemedText
+            style={[styles.sectionLabel, { color: theme.textSecondary }]}
+          >
             Target Date (Optional)
           </ThemedText>
           <View style={styles.presetRow}>
@@ -439,7 +443,7 @@ export default function BenchmarkEditorScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <ThemedText
-                style={[styles.sectionLabel, { color: theme.accent }]}
+                style={[styles.sectionLabel, { color: theme.textSecondary }]}
               >
                 Actions ({personaActionsCount}/{MAX_ACTIONS_PER_PERSONA})
               </ThemedText>

@@ -257,3 +257,129 @@ Accept: an audit table of every glyph/row pattern per screen with its rule
 verdict; all violations fixed; simulator screenshots of Journey (collapsed,
 expanded, day selected), Today (pending, completed rows), Profile, Coach;
 Maestro flows touching changed labels re-run green.
+
+#### G audit (2026-10-14)
+
+Every glyph and row pattern, read against code (and build 105 for Journey).
+Verdict is Pass, or the rule broken and the fix. "Accent text" counts as a
+link signifier: in this app accent-colored words are tappable (Upgrade,
+Adjust, See plans), so static accent text breaks G6.
+
+| Screen / component | Pattern | What it meant | Verdict |
+| --- | --- | --- | --- |
+| Today, ActionCard | Filled "Mark Complete" button with a circle glyph | Tap to complete | Pass (G1: the circle is the completion control) |
+| Today, ActionCard | "Too busy? Just: X · I did this" row | Logs the 2-minute version | Pass while pending. G6: a static copy of the row rendered on a done card. Fix: shown only while pending |
+| Today, ActionCard | "Ask Coach" icon link | Opens Coach sheet | Pass |
+| Today, CompletedActionRow | Filled check, strikethrough title, "Undo" | Row toggles back to pending | G3. Fix: no strikethrough; shared CompletionCheck plus secondary title |
+| Today, CompletedActionRow | "2-minute version" / "Completed by Health" in accent | Static source note | G6. Fix: secondary color |
+| Today, CompletedActionRow | Note icon (edit-3 / message-square) | Add or edit a note | Pass |
+| Today, DayCompleteCard | Large filled check with burst | Celebration, not tappable | Pass (filled status badge, not a row glyph) |
+| Today, DayCompleteCard | "This is how it starts." in accent (first day) | Static line | G6. Fix: text color |
+| Today, DayCompleteCard / TomorrowLink | "Tomorrow: N habits ›" | Opens Journey on tomorrow | Pass (G2: opens another screen) |
+| Today, signal card | Check-circle eyebrow for the "complete" kind | Status | G1. Fix: bare check |
+| Today, PlanCountdownCard | "12 days to go" | Days until the plan starts | G7. Fix: "12 days until day one" |
+| Today, primer / recap / invite / witness cards | x dismiss, arrow-right CTA | Dismiss, open | Pass |
+| App-wide, Toast | Check-circle on success toasts | Status | G1. Fix: bare check |
+| Journey, progress row | Ring, fire, award, shield stats | Static status | Pass |
+| Journey, month header | Chevron left / right | Previous / next month | Pass (paired paging control, labeled) |
+| Journey, calendar cells | Numbered marker (filled, ring) with corner check / minus / x / shield / moon | Day status; tap selects the day | Pass (calendar idiom; the marker carries a date, never an empty circle) |
+| Journey, legend | Same corner glyphs | Key | Pass |
+| Journey, selected-day rows | Circle / check-circle, chevron-right, strikethrough, milestone name on every row | Row toggles completion | G2 (chevron on a toggle), G3, G5 (milestone name repeated with one milestone). Fix: CompletionCheck as the only glyph, no chevron, secondary text when done, milestone name only with 2+ milestones |
+| Journey, selected-day rows | Source note in accent | Static | G6. Fix: secondary |
+| Journey, future-day rows | Accent calendar glyph | Not checkable yet | Pass; glyph now secondary so it reads as static |
+| Journey, milestone header | Leading circle / check-circle | Status, while the row expands | G1. Fix: removed |
+| Journey, milestone header | "Daily" badge from the first habit only | Cadence | G5 (repeated in the expanded rows) and wrong for multi-habit milestones. Fix: removed |
+| Journey, milestone card | "5/21", "5 of 21 days done", habit "5 days done" | One count three times | G5. Fix: "5/21" in the header, per-habit count only with 2+ habits |
+| Journey, milestone caption | "· 6 days left" | Time to the optional target date | G7. Fix: one line, "16 more days to go · Target Oct 20" (target only when set) |
+| Journey, milestone complete | Check-circle and "Complete. Habit locked in" | Status | G1. Fix: filled "Complete" badge |
+| Journey, milestone footer | Outlined "Edit" pill on the collapsed card | Opens editor | Moved into the expanded footer as a text button with "Ask Coach" (one control set per object) |
+| Journey, ActionPlanCard | Inset card inside the milestone card | Habit detail | G4. Fix: flat habit rows (title, cadence) inside the same card |
+| Journey, ActionPlanCard | "On: Every day. Each completed day fills this milestone" | Schedule plus repeated explanation | G5. Fix: cadence only |
+| Journey, milestone | "Ask Coach about this milestone" floating below the card | Opens Coach | G4 / G6. Fix: "Ask Coach" text button in the card footer |
+| Journey, "Plan details" | Chevron down / up | Expands cue and fallback in place | Pass (G2) |
+| Journey, RhythmStatusLine / rhythm card | Check-circle for "Working well" | Status | G1. Fix: trending-up |
+| Journey, rhythm rows | "Adjust" / "Adjust this habit →" | Opens habit editor | Pass |
+| Journey, Insights (free) | Lock plus "See plans →" card | Opens paywall | Pass |
+| Journey, Stories & Support | Rows with chevron-right | Open Year recap / Witness screens | Pass |
+| Journey, StatChip | (component) | No consumers; progress row replaced it | No verdict; dead code |
+| Coach lobby | Filled "Talk to Coach", locked card with "Upgrade" | Open sheet / paywall | Pass |
+| Coach lobby | Weekly read with chevron down / up | Expands in place | Pass |
+| Coach lobby, Plan Changes | "Applied" in accent on a static card | Status | G6. Fix: primary text color |
+| Coach lobby, Past sessions | Chevron-right rows | Open the session view | Pass |
+| Coach, past session view | Momentum "%" in accent where a header button sits | Static figure | G6. Fix: secondary |
+| CoachSheet | Suggestion chips, plan-adjust chip | Send prompt / request preview | Pass |
+| CoachSheet, plan preview | "Before:" value struck through | Old value being replaced | G3 vocabulary. Fix: label alone carries it |
+| CoachSheet, evidence card | Bordered card (same border as the tappable chips), accent "90%" beside the accent "Done", and the same 90% again in the detail line | Static summary | G5 / G6. Fix: no border, value in text color and shown only when the detail does not already state it |
+| CoachSheet, chat bubble icons | Copy / helpful / report | | Pass |
+| Profile, upgrade row | Zap plus chevron | Opens paywall | Pass |
+| Profile, My plans | Active plan check, trash on others, "+ Add" / lock | Selection mark, delete, add | Pass (check is a selection mark, no circle) |
+| Profile, Premium row | Leading check-circle | Status | G1. Fix: star |
+| Profile, Widget & Siri | Chevron-right | Shows a how-to alert | G2. Fix: no chevron |
+| Profile, Health / Reminder / Appearance / Privacy / About, iCloud Backup | Chevron-right | Open sub-panels / screens | Pass |
+| Profile > Privacy, Clear Local Data / Delete Account | Chevron-right | Confirm alert | G2. Fix: no chevron (red title signals the action) |
+| Profile > About, Rate / Privacy Policy / Terms | Chevron-right | Leaves the app | G2. Fix: arrow-up-right |
+| Profile > About | "Version 1.5.0" in accent | Static text | G6. Fix: secondary |
+| Profile > Appearance | "Nothing unlocked yet" in a row card with an icon tile | Static note | G6. Fix: plain text |
+| Profile > Appearance / Reminders / Privacy | Switch rows, reminder radio chips | Toggles, choice | Pass |
+| ActionEditor, BenchmarkEditor | Header x / check | Cancel / Save (labeled) | Pass |
+| ActionEditor, BenchmarkEditor | Uppercase section labels in accent | Headings | G6. Fix: secondary |
+| ActionEditor | Day chips, filled when on | Checkbox role | Pass; hardcoded black ink replaced with theme.buttonText |
+| BenchmarkEditor | "Target: Oct 20 · 6 days left" | Time to target | G7 (same phrase misread on Journey). Fix: "in 6 days" |
+| BenchmarkEditor | Habit list Edit pill and trash; info / empty boxes | Edit, delete; static | Pass |
+| Onboarding plan review | Square / check-square "Included in your plan" | Include toggle | Pass |
+| Onboarding plan review | Edit icon that turns into a check while editing | Close the editor | G1 / G6 (check reads as a done mark). Fix: "Done" text |
+| Onboarding | "Preview ›" | Opens step 2 | Pass |
+| Onboarding | "Hide keyboard" with chevron-down | Dismiss keyboard | G2. Fix: keyboard-close glyph |
+| Paywall | Plan cards with radio circles | Select plan | Pass (selection control, radio role) |
+| Paywall | Compare table checks, close x, success check badge | Static / close / status | Pass |
+| Month / Year recap | Decorative icons, Share | | Pass |
+| Year recap (free) | Lock teaser card with no cue | Opens paywall | G6. Fix: trailing chevron-right |
+| Milestone complete modal, AI consent modal, Witness, iCloud Backup | Award badge, external-link, x, buttons | | Pass |
+| Widget (medium / large) | Filled accent circle with check | Logs the habit | Pass |
+| Widget (medium / large / small) | DoneMark: filled check-circle | Static "done" | G1 (same shape as the tappable button beside it). Fix: bare secondary checkmark |
+| Lock Screen rectangular | Leading circle before the habit | Widget opens Today, never logs | G1. Fix: removed |
+| Siri App Shortcuts | checkmark.circle tiles | Perform the completion | Pass |
+
+#### G results (2026-10-14)
+
+All violations in the table are fixed in the working tree on
+`claude/review-fixes-2026-10-13` (uncommitted). Shared vocabulary:
+`client/components/CompletionCheck.tsx` (open circle pending, filled check
+done) is the only circle glyph in list rows and appears only where the row
+toggles completion (Today completed rows, Journey day list).
+
+Journey milestones: header is title, "9/21", chevron (the whole header,
+bar, and caption are one button with expanded state); one caption from
+`formatMilestoneCaption` ("12 more days to go · Target Oct 20", or a tinted
+"Complete" chip); expanded content is flat habit rows (title, cadence,
+per-habit count only with 2+ habits, rhythm status with Adjust, Plan
+details), then Edit and Ask Coach text buttons. The inline rhythm status
+moved from the collapsed card into each expanded habit row so the collapsed
+card stays four elements (B7 intent kept: status still inline on the
+milestone). A solid "Complete" pill read as a button next to the filled
+Add control, so it is a tinted chip in success color.
+
+Verification: type check, lint, `check:compiler` (43 files), Prettier on
+changed files, and 504 tests (new: `formatMilestoneCaption`,
+`formatShortDate`, `dayListMilestoneLabel`; reworded `formatTargetCountdown`)
+pass. Release simulator build with `qa/seed_marketing.py` plus a scratchpad
+tweak (second habit and a target date on one milestone, two milestones
+restarted recently) for Journey collapsed, expanded (one and two habits), a
+past day selected and toggled, Today pending plus completed, Profile,
+Privacy, About, Coach lobby and sheet.
+
+Maestro on the final build, all PASS: maestro-regression,
+maestro-stateful-regression (tab-first-tap, today-undo, editors-persistence,
+editors-relaunch), ambient-coach, later-bets, \_self-setup-plan + engagement,
+roadmap-completion, rewards, ai-onboarding. Selector updates: milestone
+header labels now continue with the caption (`.* days done.*`); Edit lives
+in the expanded footer, so editors-persistence expands first and, because
+the card stays expanded after the editor, asserts the renamed habit without
+re-tapping; ambient-coach expands the milestone before finding the rhythm
+"Adjust" row. Not re-run (labels untouched): widget-prepare/verify,
+accessibility, coach flows, subscription-status, marketing-shots;
+year-recap and coach-offline remain blocked as documented.
+
+Not verified visually: the widget's DoneMark and Lock Screen rectangular
+changes (compiled in the Release build; seeing them needs a signed build
+with the App Group), Dawn theme rendering of the tinted Complete chip.

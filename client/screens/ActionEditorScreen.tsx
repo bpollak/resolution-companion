@@ -285,7 +285,9 @@ export default function ActionEditorScreen() {
         ]}
       >
         <View style={styles.section}>
-          <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
+          <ThemedText
+            style={[styles.sectionLabel, { color: theme.textSecondary }]}
+          >
             Action Title
           </ThemedText>
           <TextInput
@@ -312,7 +314,9 @@ export default function ActionEditorScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
+          <ThemedText
+            style={[styles.sectionLabel, { color: theme.textSecondary }]}
+          >
             Frequency
           </ThemedText>
           <View style={styles.daysContainer}>
@@ -338,7 +342,11 @@ export default function ActionEditorScreen() {
                 <ThemedText
                   style={[
                     styles.dayText,
-                    { color: frequency.includes(day) ? "#000000" : theme.text },
+                    {
+                      color: frequency.includes(day)
+                        ? theme.buttonText
+                        : theme.text,
+                    },
                   ]}
                 >
                   {day.slice(0, 3)}
@@ -349,7 +357,9 @@ export default function ActionEditorScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
+          <ThemedText
+            style={[styles.sectionLabel, { color: theme.textSecondary }]}
+          >
             120-Second Kickstart
           </ThemedText>
           <TextInput
@@ -377,7 +387,9 @@ export default function ActionEditorScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
+          <ThemedText
+            style={[styles.sectionLabel, { color: theme.textSecondary }]}
+          >
             Anchor Link
           </ThemedText>
           <TextInput
@@ -406,7 +418,9 @@ export default function ActionEditorScreen() {
 
         {Platform.OS === "ios" ? (
           <View style={styles.section}>
-            <ThemedText style={[styles.sectionLabel, { color: theme.accent }]}>
+            <ThemedText
+              style={[styles.sectionLabel, { color: theme.textSecondary }]}
+            >
               Apple Health
             </ThemedText>
             <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>

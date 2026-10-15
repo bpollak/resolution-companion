@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
@@ -901,7 +901,12 @@ export default function OnboardingScreen() {
             <ThemedText style={styles.keyboardDismissText}>
               Hide keyboard
             </ThemedText>
-            <Feather name="chevron-down" size={18} color={theme.text} />
+            {/* Chevron-down means "expands here" elsewhere in the app */}
+            <MaterialCommunityIcons
+              name="keyboard-close"
+              size={18}
+              color={theme.text}
+            />
           </Pressable>
         </View>
       ) : null}

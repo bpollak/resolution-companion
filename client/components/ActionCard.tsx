@@ -16,6 +16,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import type { ElementalAction, DailyLog } from "@/lib/storage";
+import { CompletionCheck } from "@/components/CompletionCheck";
 
 const springConfig = {
   damping: 12,
@@ -175,43 +176,32 @@ export const ActionCard = React.memo(function ActionCard({
         </Animated.View>
       </Pressable>
 
-      {kickstart ? (
-        isCompleted ? (
-          <View style={styles.backupRow}>
-            <Feather name="zap" size={16} color={theme.warning} />
-            <ThemedText
-              style={[styles.backupText, { color: theme.textSecondary }]}
-            >
-              Too busy? Just: {kickstart}
-            </ThemedText>
-          </View>
-        ) : (
-          <Pressable
-            onPress={() => {
-              Haptics.notificationAsync(
-                Haptics.NotificationFeedbackType.Success,
-              );
-              onToggle(action.id, "kickstart");
-            }}
-            hitSlop={8}
-            pressRetentionOffset={16}
-            accessibilityRole="button"
-            accessibilityLabel={`I did the 2-minute version of ${action.title}`}
-            accessibilityHint={`Logs the 2-minute version: ${kickstart}`}
-            style={({ pressed }) => [
-              styles.backupRow,
-              { opacity: pressed ? 0.6 : 1 },
-            ]}
+      {/* Only while pending: a done habit has no fallback to log, and a
+          static copy of this row looked tappable. */}
+      {kickstart && !isCompleted ? (
+        <Pressable
+          onPress={() => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            onToggle(action.id, "kickstart");
+          }}
+          hitSlop={8}
+          pressRetentionOffset={16}
+          accessibilityRole="button"
+          accessibilityLabel={`I did the 2-minute version of ${action.title}`}
+          accessibilityHint={`Logs the 2-minute version: ${kickstart}`}
+          style={({ pressed }) => [
+            styles.backupRow,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
+        >
+          <Feather name="zap" size={16} color={theme.warning} />
+          <ThemedText
+            style={[styles.backupText, { color: theme.textSecondary }]}
           >
-            <Feather name="zap" size={16} color={theme.warning} />
-            <ThemedText
-              style={[styles.backupText, { color: theme.textSecondary }]}
-            >
-              Too busy? Just: {kickstart}
-            </ThemedText>
-            <ThemedText style={styles.backupAction}>I did this</ThemedText>
-          </Pressable>
-        )
+            Too busy? Just: {kickstart}
+          </ThemedText>
+          <ThemedText style={styles.backupAction}>I did this</ThemedText>
+        </Pressable>
       ) : null}
 
       {onAskCoach && !isCompleted ? (
@@ -316,11 +306,7 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
             { opacity: pressed ? 0.8 : 1 },
           ]}
         >
-          <View
-            style={[styles.compactCheck, { backgroundColor: theme.success }]}
-          >
-            <Feather name="check" size={14} color={theme.buttonText} />
-          </View>
+          <CompletionCheck checked />
           <View style={styles.compactTextCol}>
             <ThemedText
               style={[styles.compactTitle, { color: theme.textSecondary }]}
@@ -333,10 +319,13 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
                 <Feather
                   name={completionBadge.icon}
                   size={11}
-                  color={theme.accent}
+                  color={theme.textSecondary}
                 />
                 <ThemedText
-                  style={[styles.completionBadgeText, { color: theme.accent }]}
+                  style={[
+                    styles.completionBadgeText,
+                    { color: theme.textSecondary },
+                  ]}
                 >
                   {completionBadge.label}
                 </ThemedText>
@@ -398,14 +387,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.sm,
   },
-  compactCheck: {
-    width: 22,
-    height: 22,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.dark.success,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   compactMain: {
     flex: 1,
     flexDirection: "row",
@@ -420,9 +401,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginLeft: Spacing.sm,
   },
+  // Done reads as the check plus secondary text; strikethrough made a
+  // finished habit look cancelled.
   compactTitle: {
     ...Typography.body,
-    textDecorationLine: "line-through",
   },
   compactNote: {
     ...Typography.caption,

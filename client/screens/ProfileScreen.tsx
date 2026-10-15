@@ -86,6 +86,11 @@ interface SettingsRowProps {
   destructive?: boolean;
   /** Inside a SettingsGroup: no own card, neutral icon, shared dividers. */
   grouped?: boolean;
+  /**
+   * Trailing glyph: a chevron only when the row opens another screen,
+   * arrow-up-right when it leaves the app, nothing for an alert or action.
+   */
+  accessory?: "chevron" | "external" | "none";
 }
 
 type ProfilePanel =
@@ -103,6 +108,7 @@ function SettingsRow({
   onPress,
   destructive,
   grouped,
+  accessory = "chevron",
 }: SettingsRowProps) {
   const { theme, isDark } = useTheme();
   const scale = useSharedValue(1);
@@ -195,9 +201,21 @@ function SettingsRow({
             </ThemedText>
           ) : null}
         </View>
-        <Animated.View style={chevronStyle}>
-          <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-        </Animated.View>
+        {accessory === "chevron" ? (
+          <Animated.View style={chevronStyle}>
+            <Feather
+              name="chevron-right"
+              size={20}
+              color={theme.textSecondary}
+            />
+          </Animated.View>
+        ) : accessory === "external" ? (
+          <Feather
+            name="arrow-up-right"
+            size={18}
+            color={theme.textSecondary}
+          />
+        ) : null}
       </Animated.View>
     </Pressable>
   );
@@ -890,7 +908,7 @@ export default function ProfileScreen() {
                 icon={
                   subscriptionVerificationStatus === "checking"
                     ? "refresh-cw"
-                    : "check-circle"
+                    : "star"
                 }
                 title={subscriptionCopy.title}
                 subtitle={subscriptionCopy.subtitle}
@@ -936,6 +954,8 @@ export default function ProfileScreen() {
                 grouped
                 icon="grid"
                 title="Widget & Siri"
+                // Shows a how-to alert, not another screen
+                accessory="none"
                 onPress={() =>
                   Alert.alert(
                     "Log from your Home Screen",
@@ -1320,6 +1340,7 @@ export default function ProfileScreen() {
               subtitle="Delete local data and start fresh"
               onPress={handleClearData}
               destructive
+              accessory="none"
             />
           ) : null}
 
@@ -1329,6 +1350,7 @@ export default function ProfileScreen() {
             subtitle="Remove all data from device and servers"
             onPress={handleDeleteAccount}
             destructive
+            accessory="none"
           />
         </>
       ) : null}
@@ -1340,7 +1362,10 @@ export default function ProfileScreen() {
             <ThemedText style={styles.detailTitle}>
               Resolution Companion
             </ThemedText>
-            <ThemedText style={[styles.detailVersion, { color: theme.accent }]}>
+            {/* Static text: accent would read as a link */}
+            <ThemedText
+              style={[styles.detailVersion, { color: theme.textSecondary }]}
+            >
               Version {Constants.expoConfig?.version || "1.0.0"}
             </ThemedText>
             <ThemedText
@@ -1377,38 +1402,13 @@ export default function ProfileScreen() {
               Earned Personalization
             </ThemedText>
           ) : (
-            <View
-              style={[
-                styles.settingsRow,
-                {
-                  backgroundColor: isDark
-                    ? Colors.dark.backgroundDefault
-                    : Colors.light.backgroundDefault,
-                },
-              ]}
+            // Plain text, not a row: a card with an icon looked tappable
+            <ThemedText
+              style={[styles.lockedRewardsNote, { color: theme.textSecondary }]}
             >
-              <View
-                style={[
-                  styles.settingsIcon,
-                  { backgroundColor: "rgba(255, 184, 0, 0.1)" },
-                ]}
-              >
-                <Feather name="lock" size={20} color={theme.textSecondary} />
-              </View>
-              <View style={styles.settingsContent}>
-                <ThemedText style={styles.settingsTitle}>
-                  Nothing unlocked yet
-                </ThemedText>
-                <ThemedText
-                  style={[
-                    styles.settingsSubtitle,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  Your first completed milestone unlocks the Dawn theme
-                </ThemedText>
-              </View>
-            </View>
+              Nothing unlocked yet. Your first completed milestone unlocks the
+              Dawn theme.
+            </ThemedText>
           )}
 
           {dawnUnlocked ? (
@@ -1693,6 +1693,7 @@ export default function ProfileScreen() {
                 icon="star"
                 title="Rate Resolution Companion"
                 subtitle="Share your experience on the App Store"
+                accessory="external"
                 onPress={() =>
                   Linking.openURL(
                     "https://apps.apple.com/app/id6757996708?action=write-review",
@@ -1710,6 +1711,7 @@ export default function ProfileScreen() {
             icon="file-text"
             title="Privacy Policy"
             subtitle="How we handle your data"
+            accessory="external"
             onPress={() =>
               Linking.openURL(new URL("/privacy", getApiUrl()).toString())
             }
@@ -1719,6 +1721,7 @@ export default function ProfileScreen() {
             icon="book-open"
             title="Terms of Use"
             subtitle="App usage terms and conditions"
+            accessory="external"
             onPress={() =>
               Linking.openURL(new URL("/terms", getApiUrl()).toString())
             }
@@ -1756,6 +1759,11 @@ const styles = StyleSheet.create({
   detailVersion: {
     ...Typography.small,
     fontWeight: "600",
+  },
+  lockedRewardsNote: {
+    ...Typography.small,
+    textAlign: "center",
+    paddingHorizontal: Spacing.lg,
   },
   detailBody: {
     ...Typography.body,
