@@ -226,3 +226,34 @@ applied.
 Not verified here: Lock Screen widgets and tinted/clear Home Screen modes
 on device, Maestro flows (Maestro not installed), device timing with
 Instruments on a Release build.
+
+### G. Affordance and signifier pass (added 2026-10-14, Brett, build 105)
+
+Brett: open circles that mean "completed" or "opens a drawer" have always
+been hard to read, and the declutter pass did not catch it. The first audit
+judged clutter and hierarchy, not what each glyph promises. Observed on
+Journey (build 105): a milestone row with a leading open circle (looks like a
+checkbox) that actually expands a drawer (chevron on the right); day-list
+rows whose whole row toggles completion yet show a navigation chevron;
+strikethrough on completed habits; the same count three times ("5/21", "5 of
+21 days done", "5 days done"); a habit card nested inside the milestone card
+with "Ask Coach" floating outside; a target-date countdown ("6 days left")
+that reads as days remaining in the milestone.
+
+Rules (apply app-wide):
+
+- G1 A circle or check-circle is only ever a completion control the user can
+  tap. Status is shown with a filled badge, progress bar, or text.
+- G2 Chevron right means "opens another screen"; chevron down/up means
+  "expands here". Never both on one row, and never on a row whose tap does
+  something else.
+- G3 No strikethrough for done items: check plus secondary color.
+- G4 No card nested inside a card; one surface per object.
+- G5 Each fact once per view.
+- G6 Everything tappable looks tappable; nothing that looks tappable is not.
+- G7 Countdowns say what they count ("Target Oct 20", "16 more days to go").
+
+Accept: an audit table of every glyph/row pattern per screen with its rule
+verdict; all violations fixed; simulator screenshots of Journey (collapsed,
+expanded, day selected), Today (pending, completed rows), Profile, Coach;
+Maestro flows touching changed labels re-run green.
