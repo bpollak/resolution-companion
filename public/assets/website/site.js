@@ -25,16 +25,16 @@ document.addEventListener("click", (event) => {
 });
 const screens = {
   today: {
-    alt: "Today screen with a sample reading plan and full and two-minute action controls",
+    alt: "Today screen with a sample Spanish-learning plan, daily completion controls, and a completed habit",
   },
   journey: {
-    alt: "Journey screen showing a sample reading habit, consistency, and calendar",
+    alt: "Journey screen showing sample monthly consistency, a habit calendar, and milestone progress",
   },
   coach: {
-    alt: "Coach screen with a conversation entry point, monthly allowance, and weekly read",
+    alt: "Coach screen with Talk to Coach, remaining free check-ins, and an expanded weekly read",
   },
   plan: {
-    alt: "Plan review showing a reading habit, daily schedule, two-minute alternative, and Start button",
+    alt: "Version 1.5 plan review showing a Spanish-learning habit, daily schedule, two-minute alternative, and Start button",
   },
 };
 const screenStatus = document.getElementById("screen-status");
@@ -43,7 +43,7 @@ for (const button of document.querySelectorAll("[data-screen]"))
   button.addEventListener("click", async () => {
     const token = ++selection;
     const key = button.dataset.screen;
-    const src = "/assets/website/screen-" + key + "-v5.png";
+    const src = "/assets/website/screen-" + key + "-v6.png";
     const img = new Image();
     img.src = src;
     try {
