@@ -29,3 +29,12 @@ October 14 native verification is recorded in
 `2026-10-14-native-regression.md` and `2026-10-14-ui-declutter.md`.
 Premium-only year recap and a host-network offline flow were blocked by the
 simulator environment. Physical iPhone behavior was not independently verified.
+
+## Release preflight finding
+
+The October 17 dependency audit reports critical advisories in `proxy-addr`
+(server proxy/IP parsing) and `shell-quote` (development tooling), plus a high
+advisory in server `compression`. Apply only compatible updates for those three
+packages in the lockfile, retain the native framework versions, then repeat the
+checks before build/upload. Broader framework/tooling advisories remain outside
+this release and must be reported separately rather than applying major upgrades.
