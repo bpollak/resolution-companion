@@ -1,0 +1,13 @@
+appId: com.resolutioncompanion.app
+name: stateful-regression
+---
+# Run after maestro-regression.yaml creates and completes one daily habit.
+- runFlow: _reset-to-today.yaml
+- runFlow: maestro-tab-first-tap.yaml
+- runFlow: _reset-to-today.yaml
+- runFlow: maestro-today-undo.yaml
+- runFlow: _reset-to-today.yaml
+- runFlow: maestro-editors-persistence.yaml
+- stopApp
+- runFlow: _reset-to-today.yaml
+- runFlow: maestro-editors-relaunch.yaml

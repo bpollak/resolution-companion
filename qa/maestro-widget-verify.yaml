@@ -1,9 +1,16 @@
 appId: com.resolutioncompanion.app
 ---
 # Verify the app consumed an injected kickstart vote from App Group storage.
+# Inject with the app terminated, into the App Group container's plist path
+# (the bare "group.com.resolutioncompanion.app" domain is a different,
+# per-device store the app never reads):
+#   G=$(xcrun simctl get_app_container <udid> com.resolutioncompanion.app group.com.resolutioncompanion.app)
+#   xcrun simctl spawn <udid> defaults write \
+#     "$G/Library/Preferences/group.com.resolutioncompanion.app" pendingVotes \
+#     -string '[{"actionId":"<id>","date":"YYYY-MM-DD","kind":"kickstart","source":"widget"}]'
 - launchApp
 - extendedWaitUntil:
-    visible: "Momentum Builder.*"
+    visible: "Becoming My Future Self.*"
     timeout: 20000
 - scrollUntilVisible:
     element:
@@ -11,8 +18,9 @@ appId: com.resolutioncompanion.app
     direction: DOWN
     timeout: 30000
     centerElement: true
-- assertVisible: "Complete one action toward your goal, 2-minute vote.*"
+# The completed row's label names the small version it was logged as.
 - extendedWaitUntil:
-    visible: "Complete one action toward your goal, 2-minute vote.*"
+    visible: "Complete one action toward your goal completed. Undo, 2-minute.*"
     timeout: 20000
+- assertNotVisible: "Mark Complete one action toward your goal complete.*"
 - takeScreenshot: 21-widget-kickstart-reconciled

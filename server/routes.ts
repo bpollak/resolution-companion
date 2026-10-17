@@ -24,6 +24,8 @@ import {
   SignedDataVerifier,
 } from "@apple/app-store-server-library";
 import {
+  isGoogleAffirmativeRejection,
+  processGoogleSubscriptionNotification,
   validateGoogleSubscription,
   verifyGooglePubSubPush,
   type GoogleSubscriptionValidation,
@@ -37,6 +39,22 @@ import {
   ambientPlanTuneUpRequestSchema,
   parseAmbientPlanTuneUpResponse,
 } from "./ambient-plan-tune-up";
+import { TELEMETRY_DAY_RE, acceptTelemetryEvents } from "./telemetry-events";
+import {
+  LIFETIME_PRODUCT_ID,
+  VERIFICATION_UNAVAILABLE_BODY,
+  VerificationUnavailableError,
+  isLifetimeProduct,
+  validateAppleReceiptLegacy,
+  validateAppleTransactionV2,
+  type AppleValidationResult,
+} from "./iap-validation";
+import { DEVICE_ID_RE, aiUsageIdentity } from "./device-id";
+import {
+  OPENAI_CLIENT_OPTIONS,
+  abortOnClientDisconnect,
+  sendAiRouteError,
+} from "./ai-request";
 
 // Lazily construct the OpenAI client so a missing API key degrades the AI
 // endpoints instead of crashing the whole server (website, webhooks, legal pages).
@@ -45,14 +63,9 @@ let openaiClient: OpenAI | null = null;
 // gpt-5-mini outperforms gpt-4o on instruction-following and structured
 // output at roughly a tenth of the input cost; override via env if needed
 const OPENAI_MODEL = process.env.AI_MODEL || "gpt-5-mini";
-const LIFETIME_PRODUCT_ID = "com.resolutioncompanion.lifetime";
 const YEARLY_TEST_PRODUCT_ID =
   process.env.YEARLY_PRICE_TEST_PRODUCT_ID ||
   "com.resolutioncompanion.annual.2026b";
-
-function isLifetimeProduct(productId: string): boolean {
-  return productId === LIFETIME_PRODUCT_ID || productId.includes("lifetime");
-}
 
 function planForProduct(productId: string): "monthly" | "yearly" | "lifetime" {
   if (isLifetimeProduct(productId)) return "lifetime";
@@ -71,6 +84,7 @@ function getOpenAI(): OpenAI {
     openaiClient = new OpenAI({
       apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
       baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      ...OPENAI_CLIENT_OPTIONS,
     });
   }
   return openaiClient;
@@ -229,250 +243,52 @@ async function verifyAppleNotification(jws: string): Promise<{
   }
 }
 
-async function validateAppleReceiptV2(
-  transactionId: string,
-  productId: string,
-): Promise<{
-  valid: boolean;
-  expiresDate: Date | null;
-  originalTransactionId: string | null;
-}> {
-  try {
-    const jwt = await createAppStoreJWT();
-    const environment =
-      process.env.APPLE_SANDBOX === "true"
-        ? Environment.SANDBOX
-        : Environment.PRODUCTION;
-    const baseUrl =
-      environment === Environment.SANDBOX
-        ? "https://api.storekit-sandbox.itunes.apple.com"
-        : "https://api.storekit.itunes.apple.com";
-
-    const response = await fetch(
-      `${baseUrl}/inApps/v1/transactions/${transactionId}`,
-      { headers: { Authorization: `Bearer ${jwt}` } },
-    );
-
-    if (!response.ok) {
-      // If production fails with 4xx, try sandbox
-      if (
-        response.status >= 400 &&
-        response.status < 500 &&
-        process.env.APPLE_SANDBOX !== "true"
-      ) {
-        const sandboxResponse = await fetch(
-          `https://api.storekit-sandbox.itunes.apple.com/inApps/v1/transactions/${transactionId}`,
-          { headers: { Authorization: `Bearer ${jwt}` } },
-        );
-        if (!sandboxResponse.ok) {
-          console.error(
-            "App Store Server API v2: sandbox lookup failed",
-            sandboxResponse.status,
-          );
-          return {
-            valid: false,
-            expiresDate: null,
-            originalTransactionId: null,
-          };
-        }
-        const sandboxData = await sandboxResponse.json();
-        const txInfo = await verifyAppleTransaction(
-          sandboxData.signedTransactionInfo,
-          Environment.SANDBOX,
-        );
-        if (
-          txInfo.productId === productId &&
-          !txInfo.revocationDate &&
-          ((txInfo.expiresDate && txInfo.expiresDate > Date.now()) ||
-            (isLifetimeProduct(productId) && !txInfo.expiresDate))
-        ) {
-          return {
-            valid: true,
-            expiresDate: new Date(txInfo.expiresDate),
-            originalTransactionId: txInfo.originalTransactionId || null,
-          };
-        }
-        return { valid: false, expiresDate: null, originalTransactionId: null };
-      }
-      console.error("App Store Server API v2: lookup failed", response.status);
-      return { valid: false, expiresDate: null, originalTransactionId: null };
-    }
-
-    const data = await response.json();
-    // A successful HTTPS response alone is not the entitlement. Verify the
-    // Apple-signed transaction before trusting its product or expiry fields.
-    const txInfo = await verifyAppleTransaction(
-      data.signedTransactionInfo,
-      environment,
-    );
-
-    if (
-      txInfo.productId === productId &&
-      !txInfo.revocationDate &&
-      ((txInfo.expiresDate && txInfo.expiresDate > Date.now()) ||
-        (isLifetimeProduct(productId) && !txInfo.expiresDate))
-    ) {
-      console.log("Apple receipt validated via App Store Server API v2");
-      return {
-        valid: true,
-        expiresDate: new Date(txInfo.expiresDate),
-        originalTransactionId: txInfo.originalTransactionId || null,
-      };
-    }
-
-    return { valid: false, expiresDate: null, originalTransactionId: null };
-  } catch (error) {
-    console.error("App Store Server API v2 validation error:", error);
-    return { valid: false, expiresDate: null, originalTransactionId: null };
-  }
+function appleEnvironment(environment: "production" | "sandbox"): Environment {
+  return environment === "sandbox"
+    ? Environment.SANDBOX
+    : Environment.PRODUCTION;
 }
 
-// --- Legacy verifyReceipt (deprecated, used as fallback) ---
-
-async function validateAppleReceiptWithUrl(
-  receipt: string,
-  productId: string,
-  verifyUrl: string,
-): Promise<{ valid: boolean; status: number; expiresDateMs: number | null }> {
-  const sharedSecret = process.env.APPLE_SHARED_SECRET;
-
-  if (!sharedSecret) {
-    console.error(
-      "APPLE_SHARED_SECRET is not configured — cannot validate receipt",
-    );
-    return { valid: false, status: -1, expiresDateMs: null };
-  }
-
-  const response = await fetch(verifyUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      "receipt-data": receipt,
-      password: sharedSecret,
-      "exclude-old-transactions": true,
-    }),
-  });
-
-  const data = await response.json();
-
-  if (data.status === 0 && data.receipt) {
-    const inApp = data.receipt.in_app || [];
-    const latestReceipt = data.latest_receipt_info || [];
-    const allTransactions = [...inApp, ...latestReceipt];
-
-    for (const transaction of allTransactions) {
-      if (transaction.product_id === productId) {
-        const expiresDate = parseInt(transaction.expires_date_ms || "0");
-        if (
-          expiresDate > Date.now() ||
-          (isLifetimeProduct(productId) && !transaction.cancellation_date_ms)
-        ) {
-          return { valid: true, status: 0, expiresDateMs: expiresDate };
-        }
-      }
-    }
-    return { valid: false, status: 0, expiresDateMs: null };
-  }
-
-  return { valid: false, status: data.status, expiresDateMs: null };
-}
-
+// Resolves only with Apple's verdict; throws VerificationUnavailableError when
+// Apple or our own configuration could not produce one.
 async function validateAppleReceipt(
   receipt: string,
   productId: string,
   transactionId?: string,
-): Promise<{
-  valid: boolean;
-  expiresDate: Date | null;
-  originalTransactionId: string | null;
-}> {
+): Promise<AppleValidationResult> {
   // Prefer App Store Server API v2 when configured and transactionId is available
   if (isAppStoreServerAPIConfigured() && transactionId) {
-    console.log("Using App Store Server API v2 for validation");
-    return validateAppleReceiptV2(transactionId, productId);
+    return validateAppleTransactionV2(transactionId, productId, {
+      createJWT: createAppStoreJWT,
+      verifyTransaction: (jws, environment) =>
+        verifyAppleTransaction(jws, appleEnvironment(environment)),
+      sandboxOnly: process.env.APPLE_SANDBOX === "true",
+    });
   }
-
-  try {
-    // Legacy verifyReceipt endpoints (deprecated by Apple).
-    // Will be used as fallback until APPLE_ISSUER_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY are configured.
-    const productionUrl = "https://buy.itunes.apple.com/verifyReceipt";
-    const sandboxUrl = "https://sandbox.itunes.apple.com/verifyReceipt";
-
-    const prodResult = await validateAppleReceiptWithUrl(
-      receipt,
-      productId,
-      productionUrl,
-    );
-
-    if (prodResult.valid) {
-      console.log("Apple receipt validated via production endpoint");
-      return {
-        valid: true,
-        expiresDate: prodResult.expiresDateMs
-          ? new Date(prodResult.expiresDateMs)
-          : null,
-        originalTransactionId: null,
-      };
-    }
-
-    if (prodResult.status === -1) {
-      return { valid: false, expiresDate: null, originalTransactionId: null };
-    }
-
-    if (prodResult.status === 21007) {
-      console.log("Sandbox receipt detected, retrying with sandbox endpoint");
-      const sandboxResult = await validateAppleReceiptWithUrl(
-        receipt,
-        productId,
-        sandboxUrl,
-      );
-
-      if (sandboxResult.valid) {
-        console.log("Apple receipt validated via sandbox endpoint");
-        return {
-          valid: true,
-          expiresDate: sandboxResult.expiresDateMs
-            ? new Date(sandboxResult.expiresDateMs)
-            : null,
-          originalTransactionId: null,
-        };
-      }
-
-      console.log(
-        "Sandbox validation failed with status:",
-        sandboxResult.status,
-      );
-      return { valid: false, expiresDate: null, originalTransactionId: null };
-    }
-
-    if (prodResult.status === 21008) {
-      console.log("Production receipt rejected by production endpoint");
-      return { valid: false, expiresDate: null, originalTransactionId: null };
-    }
-
-    console.log(
-      "Apple receipt validation failed with status:",
-      prodResult.status,
-    );
-    return { valid: false, expiresDate: null, originalTransactionId: null };
-  } catch (error) {
-    console.error("Apple receipt validation error:", error);
-    return { valid: false, expiresDate: null, originalTransactionId: null };
-  }
+  // Legacy verifyReceipt endpoints (deprecated by Apple), used until
+  // APPLE_ISSUER_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY are configured.
+  return validateAppleReceiptLegacy(receipt, productId, {
+    sharedSecret: process.env.APPLE_SHARED_SECRET,
+  });
 }
 
 async function validateGoogleReceipt(
   receipt: string,
   _productId?: string,
 ): Promise<GoogleSubscriptionValidation> {
+  let purchaseToken = receipt;
   try {
-    let purchaseToken = receipt;
-    try {
-      purchaseToken = JSON.parse(receipt).purchaseToken || receipt;
-    } catch {}
+    purchaseToken = JSON.parse(receipt).purchaseToken || receipt;
+  } catch {}
+  try {
     return await validateGoogleSubscription(purchaseToken);
   } catch (error) {
-    console.error("Google receipt validation error:", error);
+    if (!isGoogleAffirmativeRejection(error)) {
+      throw new VerificationUnavailableError("Google Play lookup failed", {
+        cause: error,
+      });
+    }
+    console.error("Google receipt rejected:", error);
     return {
       valid: false,
       plan: null,
@@ -513,8 +329,10 @@ function aiQuota(endpoint: keyof typeof AI_QUOTAS) {
         return next();
       }
 
-      const deviceId = req.header("X-Device-Id");
-      const usageKey = deviceId || `ip:${req.ip}`;
+      const { deviceId, usageKey } = aiUsageIdentity(
+        req.header("X-Device-Id"),
+        req.ip,
+      );
       const month = new Date().toISOString().slice(0, 7);
 
       let isPremium = false;
@@ -592,6 +410,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     aiRateLimit,
     aiQuota("chat"),
     async (req: Request, res: Response) => {
+      const upstream = abortOnClientDisconnect(res);
       try {
         const { messages } = req.body;
 
@@ -606,25 +425,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.setHeader("Connection", "keep-alive");
         res.flushHeaders();
 
-        const stream = await getOpenAI().chat.completions.create({
-          model: OPENAI_MODEL,
-          messages,
-          // gpt-5 models reason before responding; minimal effort keeps
-          // first-token latency chat-grade and stops reasoning tokens from
-          // consuming the completion budget (which returned empty replies).
-          reasoning_effort: "minimal",
-          max_completion_tokens: 1024,
-          stream: true,
-          stream_options: { include_usage: true },
-        });
-
-        // Mobile clients drop connections often (backgrounding, network loss).
-        // Abort the upstream completion so we stop burning tokens on a dead socket.
-        req.on("close", () => {
-          try {
-            stream.controller?.abort();
-          } catch {}
-        });
+        // Mobile clients drop connections often (backgrounding, network loss);
+        // the signal aborts the completion so we stop paying for a dead socket.
+        const stream = await getOpenAI().chat.completions.create(
+          {
+            model: OPENAI_MODEL,
+            messages,
+            // gpt-5 models reason before responding; minimal effort keeps
+            // first-token latency chat-grade and stops reasoning tokens from
+            // consuming the completion budget (which returned empty replies).
+            reasoning_effort: "minimal",
+            max_completion_tokens: 1024,
+            stream: true,
+            stream_options: { include_usage: true },
+          },
+          { signal: upstream.signal },
+        );
 
         let modelUsage: ModelUsage | null = null;
         for await (const chunk of stream) {
@@ -640,14 +456,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.write("data: [DONE]\n\n");
         res.end();
       } catch (error) {
-        // A client disconnect aborts the stream (AbortError) — expected, not a
-        // failure; the socket is already gone so there's nothing to send.
-        if (req.destroyed || res.writableEnded) return;
-        console.error("Chat error:", error);
-        res.write(
-          `data: ${JSON.stringify({ error: "Failed to get AI response" })}\n\n`,
-        );
-        res.end();
+        sendAiRouteError(res, upstream, "Chat error:", error, {
+          status: 500,
+          body: { error: "Failed to get AI response" },
+        });
       }
     },
   );
@@ -658,6 +470,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     aiRateLimit,
     aiQuota("extract"),
     async (req: Request, res: Response) => {
+      const upstream = abortOnClientDisconnect(res);
       try {
         const { messages, extractionPrompt } = req.body;
 
@@ -684,22 +497,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           )
           .join("\n");
 
-        const response = await getOpenAI().chat.completions.create({
-          model: OPENAI_MODEL,
-          messages: [
-            {
-              role: "system",
-              content: extractionPrompt,
-            },
-            {
-              role: "user",
-              content: `Here is the conversation:\n\n${conversationText}`,
-            },
-          ],
-          response_format: personaPlanResponseFormat,
-          reasoning_effort: "minimal",
-          max_completion_tokens: 2048,
-        });
+        const response = await getOpenAI().chat.completions.create(
+          {
+            model: OPENAI_MODEL,
+            messages: [
+              {
+                role: "system",
+                content: extractionPrompt,
+              },
+              {
+                role: "user",
+                content: `Here is the conversation:\n\n${conversationText}`,
+              },
+            ],
+            response_format: personaPlanResponseFormat,
+            reasoning_effort: "minimal",
+            max_completion_tokens: 2048,
+          },
+          { signal: upstream.signal },
+        );
 
         await recordAiModelUsage("extract", response.usage);
 
@@ -708,8 +524,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         res.json(personaData);
       } catch (error) {
-        console.error("Extract persona error:", error);
-        res.status(500).json({ error: "Failed to extract persona" });
+        sendAiRouteError(res, upstream, "Extract persona error:", error, {
+          status: 500,
+          body: { error: "Failed to extract persona" },
+        });
       }
     },
   );
@@ -720,6 +538,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     aiRateLimit,
     aiQuota("reflection"),
     async (req: Request, res: Response) => {
+      const upstream = abortOnClientDisconnect(res);
       try {
         const { messages, stream } = req.body;
 
@@ -738,22 +557,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           res.setHeader("Connection", "keep-alive");
           res.flushHeaders();
 
-          const completion = await getOpenAI().chat.completions.create({
-            model: OPENAI_MODEL,
-            messages,
-            reasoning_effort: "minimal",
-            max_completion_tokens: 2048,
-            stream: true,
-            stream_options: { include_usage: true },
-          });
-
-          // Abort the upstream completion if the mobile client drops mid-stream,
-          // so we don't keep generating (and paying for) tokens on a dead socket.
-          req.on("close", () => {
-            try {
-              completion.controller?.abort();
-            } catch {}
-          });
+          const completion = await getOpenAI().chat.completions.create(
+            {
+              model: OPENAI_MODEL,
+              messages,
+              reasoning_effort: "minimal",
+              max_completion_tokens: 2048,
+              stream: true,
+              stream_options: { include_usage: true },
+            },
+            { signal: upstream.signal },
+          );
 
           let modelUsage: ModelUsage | null = null;
           for await (const chunk of completion) {
@@ -771,30 +585,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
-        const response = await getOpenAI().chat.completions.create({
-          model: OPENAI_MODEL,
-          messages,
-          reasoning_effort: "minimal",
-          max_completion_tokens: 2048,
-        });
+        const response = await getOpenAI().chat.completions.create(
+          {
+            model: OPENAI_MODEL,
+            messages,
+            reasoning_effort: "minimal",
+            max_completion_tokens: 2048,
+          },
+          { signal: upstream.signal },
+        );
 
         await recordAiModelUsage("reflection", response.usage);
 
         const content = response.choices[0]?.message?.content || "";
         res.json({ content });
       } catch (error) {
-        // Client disconnect aborts the stream (AbortError) — expected; the socket
-        // is gone, so don't try to write an error frame to it.
-        if (req.destroyed || res.writableEnded) return;
-        console.error("Reflection error:", error);
-        if (res.headersSent) {
-          res.write(
-            `data: ${JSON.stringify({ error: "Failed to get AI response" })}\n\n`,
-          );
-          res.end();
-        } else {
-          res.status(500).json({ error: "Failed to get AI response" });
-        }
+        sendAiRouteError(res, upstream, "Reflection error:", error, {
+          status: 500,
+          body: { error: "Failed to get AI response" },
+        });
       }
     },
   );
@@ -805,6 +614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     aiRateLimit,
     aiQuota("reflection"),
     async (req: Request, res: Response) => {
+      const upstream = abortOnClientDisconnect(res);
       try {
         const { completedMilestone, personaName } = req.body;
         if (
@@ -819,23 +629,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
-        const response = await getOpenAI().chat.completions.create({
-          model: OPENAI_MODEL,
-          messages: [
-            {
-              role: "system",
-              content:
-                "Suggest exactly one concrete next behavior milestone for an identity-based habit app. Build gently on the completed milestone, use 3-10 words, avoid numbers unless the completed milestone uses one, and never give medical or mental-health treatment advice. Return JSON with only a title field.",
-            },
-            {
-              role: "user",
-              content: `Identity: ${personaName.trim()}\nCompleted milestone: ${completedMilestone.trim()}`,
-            },
-          ],
-          response_format: { type: "json_object" },
-          reasoning_effort: "minimal",
-          max_completion_tokens: 256,
-        });
+        const response = await getOpenAI().chat.completions.create(
+          {
+            model: OPENAI_MODEL,
+            messages: [
+              {
+                role: "system",
+                content:
+                  "Suggest exactly one concrete next behavior milestone for an identity-based habit app. Build gently on the completed milestone, use 3-10 words, avoid numbers unless the completed milestone uses one, and never give medical or mental-health treatment advice. Return JSON with only a title field.",
+              },
+              {
+                role: "user",
+                content: `Identity: ${personaName.trim()}\nCompleted milestone: ${completedMilestone.trim()}`,
+              },
+            ],
+            response_format: { type: "json_object" },
+            reasoning_effort: "minimal",
+            max_completion_tokens: 256,
+          },
+          { signal: upstream.signal },
+        );
         await recordAiModelUsage("milestone-proposal", response.usage);
         const parsed = JSON.parse(
           response.choices[0]?.message?.content || "{}",
@@ -854,8 +667,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         res.json({ title });
       } catch (error) {
-        console.error("Milestone proposal error:", error);
-        res.status(500).json({ error: "Failed to suggest a milestone" });
+        sendAiRouteError(res, upstream, "Milestone proposal error:", error, {
+          status: 500,
+          body: { error: "Failed to suggest a milestone" },
+        });
       }
     },
   );
@@ -866,6 +681,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     aiRateLimit,
     aiQuota("plan-tune-up"),
     async (req: Request, res: Response) => {
+      const upstream = abortOnClientDisconnect(res);
       // Version 1.3.5 sends up to five opaque action slots. Keep the existing
       // single-action contract below for already-installed clients.
       if (Array.isArray(req.body?.actions)) {
@@ -894,7 +710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 { role: "user", content: JSON.stringify(ambientRequest) },
               ],
             },
-            { timeout: 20_000 },
+            { timeout: 20_000, signal: upstream.signal },
           );
           await recordAiModelUsage("plan-tune-up", response.usage);
           const content = response.choices[0]?.message?.content;
@@ -903,11 +719,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             parseAmbientPlanTuneUpResponse(JSON.parse(content), ambientRequest),
           );
         } catch (error) {
-          console.error("Ambient Plan Tune-Up error:", error);
-          res.status(503).json({
-            error:
-              "Plan Tune-Up is temporarily unavailable. Your plan was not changed.",
-          });
+          sendAiRouteError(
+            res,
+            upstream,
+            "Ambient Plan Tune-Up error:",
+            error,
+            {
+              status: 503,
+              body: {
+                error:
+                  "Plan Tune-Up is temporarily unavailable. Your plan was not changed.",
+              },
+            },
+          );
         }
         return;
       }
@@ -927,12 +751,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       try {
-        const response = await getOpenAI().chat.completions.create({
-          model: OPENAI_MODEL,
-          messages: [
-            {
-              role: "system",
-              content: `You tune one identity-based daily action using only bounded aggregate behavior evidence.
+        const response = await getOpenAI().chat.completions.create(
+          {
+            model: OPENAI_MODEL,
+            messages: [
+              {
+                role: "system",
+                content: `You tune one identity-based daily action using only bounded aggregate behavior evidence.
 
 Return JSON with exactly:
 {
@@ -952,19 +777,21 @@ Rules:
 - Treat factor counts as associations, never causes.
 - Do not diagnose, prescribe treatment, or infer facts not present.
 - Do not ask for more data and do not include markdown.`,
-            },
-            {
-              role: "user",
-              content: JSON.stringify({
-                action: request.action,
-                trailing28DayAggregate: request.evidence,
-              }),
-            },
-          ],
-          response_format: { type: "json_object" },
-          reasoning_effort: "minimal",
-          max_completion_tokens: 700,
-        });
+              },
+              {
+                role: "user",
+                content: JSON.stringify({
+                  action: request.action,
+                  trailing28DayAggregate: request.evidence,
+                }),
+              },
+            ],
+            response_format: { type: "json_object" },
+            reasoning_effort: "minimal",
+            max_completion_tokens: 700,
+          },
+          { signal: upstream.signal },
+        );
         await recordAiModelUsage("plan-tune-up", response.usage);
         let parsed: unknown;
         try {
@@ -989,10 +816,12 @@ Rules:
           });
         }
       } catch (error) {
-        console.error("Plan Tune-Up error:", error);
-        res.status(500).json({
-          error:
-            "Plan Tune-Up is temporarily unavailable. Your plan was not changed.",
+        sendAiRouteError(res, upstream, "Plan Tune-Up error:", error, {
+          status: 500,
+          body: {
+            error:
+              "Plan Tune-Up is temporarily unavailable. Your plan was not changed.",
+          },
         });
       }
     },
@@ -1054,7 +883,7 @@ Rules:
         const { deviceId, surface, message } = req.body ?? {};
         if (
           typeof deviceId !== "string" ||
-          !/^[A-Za-z0-9._-]{8,64}$/.test(deviceId) ||
+          !DEVICE_ID_RE.test(deviceId) ||
           (surface !== "coach" && surface !== "onboarding") ||
           typeof message !== "string" ||
           message.trim().length === 0 ||
@@ -1133,66 +962,6 @@ Rules:
   // per-day counters (see deviceEvents in shared/schema.ts). Fire-and-forget
   // from the client's perspective: always 204 unless the request is malformed,
   // so a telemetry outage can never surface as a user-visible error.
-  // Fixed allowlist — mirrors the TelemetryEvent union in client/lib/telemetry.ts.
-  // Free-form event names would let a caller with the (extractable) app key mint
-  // unbounded distinct rows; keying rows by (deviceId, day, event) means the only
-  // way to bound table growth is to bound the event and day dimensions here.
-  const TELEMETRY_EVENTS = new Set<string>([
-    "app_open",
-    "onboarding_started",
-    "onboarding_completed",
-    "onboarding_declined_ai",
-    "first_action_logged",
-    "action_logged",
-    "day_complete",
-    "milestone_complete",
-    "coach_session_started",
-    "weekly_review_started",
-    "paywall_viewed",
-    "paywall_purchase_success",
-    "paywall_restore_success",
-    "notification_tap",
-    "notification_mark_all_done",
-    "widget_action_logged",
-    "health_auto_vote",
-    "recap_viewed",
-    "recap_shared",
-    "insights_viewed",
-    "shield_earned",
-    "shield_used",
-    "reward_unlocked",
-    "coach_observation_opened",
-    "daily_context_saved",
-    "story_archive_opened",
-    "evidence_timeline_opened",
-    "context_pattern_viewed",
-    "plan_tune_up_requested",
-    "plan_tune_up_applied",
-    "micro_note_read",
-    "year_recap_shared",
-    "witness_progress_shared",
-    "icloud_backup_created",
-    "icloud_backup_restored",
-    "client_error",
-  ]);
-  const TELEMETRY_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
-  const TELEMETRY_DEVICE_RE = /^[A-Za-z0-9._-]{8,64}$/;
-  // Reject semantically-bogus days (e.g. 9999-99-99) and anything outside a sane
-  // recent window, so `day` can't be used as an unbounded distinct-row dimension.
-  const isValidTelemetryDay = (day: string): boolean => {
-    if (!TELEMETRY_DAY_RE.test(day)) return false;
-    const [y, m, d] = day.split("-").map(Number);
-    const dt = new Date(Date.UTC(y, m - 1, d));
-    if (
-      dt.getUTCFullYear() !== y ||
-      dt.getUTCMonth() !== m - 1 ||
-      dt.getUTCDate() !== d
-    )
-      return false;
-    const ms = dt.getTime();
-    // clean-slate app; no real telemetry predates 2024, allow ~2d future for TZ skew
-    return ms >= Date.UTC(2024, 0, 1) && ms <= Date.now() + 2 * 86_400_000;
-  };
   app.post(
     "/api/telemetry",
     requireApiKey,
@@ -1201,7 +970,7 @@ Rules:
       const { deviceId, events } = req.body ?? {};
       if (
         typeof deviceId !== "string" ||
-        !TELEMETRY_DEVICE_RE.test(deviceId) ||
+        !DEVICE_ID_RE.test(deviceId) ||
         !Array.isArray(events) ||
         events.length === 0 ||
         events.length > 50
@@ -1209,24 +978,13 @@ Rules:
         res.status(400).json({ error: "Invalid telemetry payload" });
         return;
       }
-      for (const entry of events) {
-        if (
-          !entry ||
-          typeof entry.event !== "string" ||
-          !TELEMETRY_EVENTS.has(entry.event) ||
-          typeof entry.day !== "string" ||
-          !isValidTelemetryDay(entry.day) ||
-          typeof entry.count !== "number" ||
-          !Number.isInteger(entry.count) ||
-          entry.count < 1 ||
-          entry.count > 1000
-        ) {
-          res.status(400).json({ error: "Invalid telemetry event" });
-          return;
-        }
+      const accepted = acceptTelemetryEvents(events);
+      if (!accepted) {
+        res.status(400).json({ error: "Invalid telemetry event" });
+        return;
       }
 
-      if (db) {
+      if (db && accepted.length > 0) {
         try {
           // Merge duplicate (day,event) tuples first: a single INSERT can't hit
           // the same ON CONFLICT row twice, and it collapses the old per-entry
@@ -1235,7 +993,7 @@ Rules:
             string,
             { day: string; event: string; count: number }
           >();
-          for (const e of events) {
+          for (const e of accepted) {
             const key = `${e.day}|${e.event}`;
             const prev = merged.get(key);
             if (prev) prev.count = Math.min(prev.count + e.count, 1_000_000);
@@ -1559,8 +1317,10 @@ Rules:
           if (result.plan) verifiedPlan = result.plan;
         }
 
-        // Apple's lifetime product has no expiry; legacy Apple validation can
-        // omit subscription expiry. Play v2 must always supply an exact expiry.
+        // Apple's lifetime product has no expiry and is stored with a null
+        // currentPeriodEnd, which every entitlement check reads as "never
+        // expires". Legacy Apple validation can omit subscription expiry;
+        // Play v2 must always supply an exact expiry.
         if (
           platform === "ios" &&
           isValid &&
@@ -1627,8 +1387,17 @@ Rules:
           expirationDate: expirationDate?.toISOString() || null,
         });
       } catch (error) {
-        console.error("IAP validation error:", error);
-        res.status(500).json({ error: "Validation failed", valid: false });
+        // Reaching here means no verdict was reached or it could not be
+        // recorded (store outage, our credentials, the database). A 200
+        // {valid:false} would read as "not entitled" and downgrade a paying
+        // user, so answer with the retryable contract instead.
+        console.error(
+          error instanceof VerificationUnavailableError
+            ? "IAP verification unavailable:"
+            : "IAP validation error:",
+          error,
+        );
+        res.status(503).json(VERIFICATION_UNAVAILABLE_BODY);
       }
     },
   );
@@ -1853,48 +1622,55 @@ Rules:
         `Google S2S notification: type=${notificationType} subscription=${subscriptionId}`,
       );
 
-      if (!db) {
+      const database = db;
+      if (!database) {
         res.status(503).json({ error: "Database unavailable" });
         return;
       }
 
-      const validation = await validateGoogleReceipt(
-        JSON.stringify({ purchaseToken }),
-        subscriptionId,
-      );
-      const results = await db
-        .select()
-        .from(deviceSubscriptions)
-        .where(
-          eq(
-            deviceSubscriptions.providerCustomerId,
-            `iap_android_${purchaseToken}`,
-          ),
-        );
-
-      if (results.length === 0) {
-        console.log("Google webhook: no matching subscription found");
-      } else {
-        await db
-          .update(deviceSubscriptions)
-          .set({
-            plan: validation.plan ?? results[0].plan,
-            status: validation.valid ? "active" : "inactive",
-            currentPeriodEnd: validation.expiresDate,
-            providerTransactionId: validation.orderId
-              ? `iap_${validation.orderId}`
-              : results[0].providerTransactionId,
-            updatedAt: new Date(),
-          })
-          .where(
-            eq(
-              deviceSubscriptions.providerCustomerId,
-              `iap_android_${purchaseToken}`,
+      const providerCustomerId = `iap_android_${purchaseToken}`;
+      const outcome = await processGoogleSubscriptionNotification({
+        findRows: () =>
+          database
+            .select()
+            .from(deviceSubscriptions)
+            .where(
+              eq(deviceSubscriptions.providerCustomerId, providerCustomerId),
             ),
+        validate: () =>
+          validateGoogleReceipt(
+            JSON.stringify({ purchaseToken }),
+            subscriptionId,
+          ),
+        update: async (row, validation) => {
+          await database
+            .update(deviceSubscriptions)
+            .set({
+              plan: validation.plan ?? row.plan,
+              status: validation.valid ? "active" : "inactive",
+              currentPeriodEnd: validation.expiresDate,
+              providerTransactionId: validation.orderId
+                ? `iap_${validation.orderId}`
+                : row.providerTransactionId,
+              updatedAt: new Date(),
+            })
+            .where(
+              eq(deviceSubscriptions.providerCustomerId, providerCustomerId),
+            );
+          console.log(
+            `Google webhook: type=${notificationType} state=${validation.subscriptionState} updated`,
           );
-        console.log(
-          `Google webhook: type=${notificationType} state=${validation.subscriptionState} updated=${results.length}`,
+        },
+      });
+
+      if (outcome === "no_match") {
+        console.log("Google webhook: no matching subscription found");
+      } else if (outcome === "retry") {
+        console.error(
+          `Google webhook: verification unavailable for type=${notificationType}; asking Pub/Sub to retry`,
         );
+        res.status(503).json(VERIFICATION_UNAVAILABLE_BODY);
+        return;
       }
 
       res.status(200).json({ ok: true });

@@ -86,7 +86,11 @@ export interface IAPPurchase {
 export interface IAPEntitlementCheck {
   /** StoreKit/Play Billing was reachable and returned current entitlements. */
   storeAvailable: boolean;
-  /** Every returned entitlement received a definitive server response. */
+  /**
+   * Every returned entitlement received a definitive server response. False
+   * with storeAvailable true means the store holds an active entitlement the
+   * server could not verify; callers must not downgrade on that result.
+   */
   verificationCompleted: boolean;
   /** Purchases confirmed by both the store and this app's validation server. */
   purchases: IAPPurchase[];
@@ -592,6 +596,9 @@ class IAPService {
           }),
         },
       );
+      // Only a 200 is Apple's verdict. A 5xx (the server returns 503
+      // { retryable: true } when Apple is unreachable) or any other status
+      // means "unknown", which must not read as "this purchase is invalid".
       if (!response.ok) {
         logger.error("Receipt validation server error:", response.status);
         return {
@@ -602,6 +609,14 @@ class IAPService {
         };
       }
       const data = await response.json();
+      if (data.valid !== true && data.retryable === true) {
+        return {
+          valid: false,
+          plan: null,
+          expirationDate: null,
+          verificationCompleted: false,
+        };
+      }
       return {
         valid: data.valid === true,
         plan:

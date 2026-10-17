@@ -105,6 +105,64 @@ describe("current StoreKit entitlement verification", () => {
     });
   });
 
+  it("treats the server's retryable 503 as unverified, not invalid", async () => {
+    mockGetAvailablePurchases.mockResolvedValue([annualPurchase]);
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({
+        valid: false,
+        retryable: true,
+        error: "verification_unavailable",
+      }),
+    }) as jest.Mock;
+
+    await expect(iapService.checkCurrentEntitlements()).resolves.toEqual({
+      storeAvailable: true,
+      verificationCompleted: false,
+      purchases: [],
+    });
+  });
+
+  it("treats a retryable body as unverified even with a 200", async () => {
+    mockGetAvailablePurchases.mockResolvedValue([annualPurchase]);
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ valid: false, retryable: true }),
+    }) as jest.Mock;
+
+    const result = await iapService.checkCurrentEntitlements();
+    expect(result.verificationCompleted).toBe(false);
+  });
+
+  it("treats a network failure as unverified", async () => {
+    mockGetAvailablePurchases.mockResolvedValue([annualPurchase]);
+    global.fetch = jest
+      .fn()
+      .mockRejectedValue(new TypeError("Network request failed"));
+
+    const result = await iapService.checkCurrentEntitlements();
+    expect(result).toEqual({
+      storeAvailable: true,
+      verificationCompleted: false,
+      purchases: [],
+    });
+  });
+
+  it("accepts Apple's affirmative invalid verdict as a completed check", async () => {
+    mockGetAvailablePurchases.mockResolvedValue([annualPurchase]);
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ valid: false }),
+    }) as jest.Mock;
+
+    await expect(iapService.checkCurrentEntitlements()).resolves.toEqual({
+      storeAvailable: true,
+      verificationCompleted: true,
+      purchases: [],
+    });
+  });
+
   it("treats an empty active-entitlements result as a completed check", async () => {
     await expect(iapService.checkCurrentEntitlements()).resolves.toEqual({
       storeAvailable: true,

@@ -1,0 +1,35 @@
+appId: com.resolutioncompanion.app
+---
+# Run after the clean-install regression creates a starter plan. The harness
+# disables connectivity before this flow and restores it afterward.
+
+- launchApp
+# The progress line and Ask Coach link show only while a habit is pending.
+- runFlow: _pending-today.yaml
+- tapOn:
+    id: "tab-today"
+- extendedWaitUntil:
+    # The always-visible progress line, e.g. "0 of 1 done today. Day 1 ..."
+    visible: ".* done today.*"
+    timeout: 20000
+- tapOn: "Ask Coach.*"
+- extendedWaitUntil:
+    visible: "Today’s signal.*"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Help me.*"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn: "Help me.*"
+- tapOn:
+    text: "Agree and continue.*"
+    optional: true
+- extendedWaitUntil:
+    visible: "Coach is unavailable"
+    timeout: 45000
+- assertVisible: "Your evidence is still here.*"
+- tapOn: "OK"
+- assertVisible: "Today’s signal.*"
+- tapOn: "Close Coach"

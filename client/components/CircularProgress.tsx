@@ -28,6 +28,8 @@ interface CircularProgressProps {
   animated?: boolean;
   /** Replaces the animated percentage in the ring's center (e.g. "2/3"). */
   valueText?: string;
+  /** The default large title overflows rings much smaller than 140pt. */
+  valueFontSize?: number;
 }
 
 const springConfig = {
@@ -43,6 +45,7 @@ export function CircularProgress({
   label,
   animated = true,
   valueText,
+  valueFontSize,
 }: CircularProgressProps) {
   const { theme, isDark } = useTheme();
   const radius = (size - strokeWidth) / 2;
@@ -125,16 +128,32 @@ export function CircularProgress({
       </Svg>
       <View style={[styles.labelContainer, { width: size, height: size }]}>
         {valueText !== undefined ? (
-          <ThemedText style={[styles.percentage, { color: progressColor }]}>
+          <ThemedText
+            style={[
+              styles.percentage,
+              { color: progressColor },
+              valueFontSize ? { fontSize: valueFontSize } : null,
+            ]}
+          >
             {valueText}
           </ThemedText>
         ) : (
           <AnimatedPercentage
             progress={displayProgress}
             color={progressColor}
+            fontSize={valueFontSize}
           />
         )}
-        {label ? <ThemedText style={styles.label}>{label}</ThemedText> : null}
+        {label ? (
+          <ThemedText
+            style={[styles.label, { maxWidth: size * 0.62 }]}
+            numberOfLines={2}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+          >
+            {label}
+          </ThemedText>
+        ) : null}
       </View>
     </Animated.View>
   );
@@ -143,9 +162,11 @@ export function CircularProgress({
 function AnimatedPercentage({
   progress,
   color,
+  fontSize,
 }: {
   progress: SharedValue<number>;
   color: string;
+  fontSize?: number;
 }) {
   const [displayValue, setDisplayValue] = React.useState(0);
 
@@ -169,7 +190,9 @@ function AnimatedPercentage({
 
   return (
     <Animated.View style={animatedStyle}>
-      <ThemedText style={[styles.percentage, { color }]}>
+      <ThemedText
+        style={[styles.percentage, { color }, fontSize ? { fontSize } : null]}
+      >
         {displayValue}%
       </ThemedText>
     </Animated.View>
@@ -194,5 +217,6 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     marginTop: 4,
     opacity: 0.7,
+    textAlign: "center",
   },
 });

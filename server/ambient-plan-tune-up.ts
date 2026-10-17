@@ -23,7 +23,8 @@ export const ambientPlanTuneUpRequestSchema = z.object({
       z.object({
         slot: z.number().int().min(0).max(4),
         frequency: z.array(weekdaySchema).min(1).max(7),
-        anchorLink: z.string().trim().min(1).max(200),
+        // A habit the user added in plan review has no anchor yet.
+        anchorLink: z.string().trim().max(200),
         kickstartVersion: z.string().trim().min(1).max(200),
         scheduled: z.number().int().min(0).max(31),
         completed: z.number().int().min(0).max(31),

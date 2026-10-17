@@ -2,8 +2,9 @@
 """Expose the two long-tenure roadmap moments in an onboarded sim manifest.
 
 Run after qa/seed_history.py. The helper clears the milestone celebration's
-seen set and suppresses higher-priority weekly/coach cards so the second-
-journey invitation can occupy Today's single story slot after the modal.
+seen set and suppresses higher-priority weekly/coach cards, the reminder
+primer, and the widget hint so the second-journey invitation can occupy
+Today's single optional slot after the modal.
 """
 
 import json
@@ -31,6 +32,11 @@ manifest["today_coach_observation_seen"] = (
     f"weekday-Monday-{current_monday.isoformat()}"
 )
 manifest.pop("second_persona_invite_seen_month", None)
+# Today has one optional slot and the teach-once tips outrank invites. A
+# 30-day user has long since answered the reminder primer and seen the
+# widget hint, so settle both here.
+manifest["reminder_primer_answer"] = "declined"
+manifest["today_widget_hint_seen"] = "true"
 
 with open(manifest_path, "w", encoding="utf-8") as handle:
     json.dump(manifest, handle)

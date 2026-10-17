@@ -33,7 +33,7 @@ export function WitnessCelebrationCard({
       </View>
       <ThemedText style={[styles.body, { color: theme.textSecondary }]}>
         Let {witnessName} witness last week’s progress. This is celebration
-        only—you choose the message and app in the share sheet.
+        only. You choose the message and app in the share sheet.
       </ThemedText>
       <Pressable
         onPress={onShare}

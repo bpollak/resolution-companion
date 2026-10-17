@@ -16,6 +16,7 @@ import * as Haptics from "expo-haptics";
 
 import { useApp } from "@/context/AppContext";
 import { useTheme } from "@/hooks/useTheme";
+import { withAlpha } from "@/lib/color";
 import { ThemedText } from "@/components/ThemedText";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { buildMonthRecap, MonthRecap } from "@/lib/recap";
@@ -76,10 +77,11 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
             {recap.votesCast}
           </ThemedText>
           <ThemedText style={styles.cardHeadline}>
-            {recap.votesCast === 1 ? "vote" : "votes"} for {recap.personaName}
+            {recap.votesCast === 1 ? "action" : "actions"} for{" "}
+            {recap.personaName}
           </ThemedText>
           <ThemedText style={styles.cardSub}>
-            Every action was a vote for who you&rsquo;re becoming.
+            Every one was proof of who you&rsquo;re becoming.
           </ThemedText>
         </>
       );
@@ -122,15 +124,17 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
               <ThemedText style={[styles.midNumber, { color: theme.success }]}>
                 {recap.healthVotes}
               </ThemedText>
-              <ThemedText style={styles.cardSub}>Health auto-votes</ThemedText>
+              <ThemedText style={styles.cardSub}>
+                Completed by Health
+              </ThemedText>
             </View>
           </View>
           <ThemedText style={styles.cardHeadline}>
             Small and automatic still count.
           </ThemedText>
           <ThemedText style={styles.cardSub}>
-            The floor exists for real life. Every smaller version was still a
-            vote for {recap.personaName}.
+            The floor exists for real life. Every smaller version still counted
+            for {recap.personaName}.
           </ThemedText>
         </>
       );
@@ -149,7 +153,7 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
             {recap.comeback.gapDays} days away
           </ThemedText>
           <ThemedText style={styles.cardSub}>
-            Coming back is the whole skill. Streaks are easy — returns are rare.
+            Coming back is the whole skill. Streaks are easy. Returns are rare.
           </ThemedText>
         </>
       ) : (
@@ -193,9 +197,9 @@ function CardBody({ recap, kind }: { recap: MonthRecap; kind: CardKind }) {
             </View>
           </View>
           <ThemedText style={styles.cardSub}>
-            You earned {recap.shieldsEarned} shield
-            {recap.shieldsEarned === 1 ? "" : "s"} by showing up — forgiveness
-            as a reward, not an apology.
+            You earned {recap.shieldsEarned} rest day
+            {recap.shieldsEarned === 1 ? "" : "s"} by showing up: forgiveness as
+            a reward, not an apology.
           </ThemedText>
         </>
       );
@@ -308,7 +312,10 @@ export default function MonthRecapScreen() {
       await Share.share(
         Platform.OS === "ios"
           ? { url: uri }
-          : { message: "My month in votes — Resolution Companion", url: uri },
+          : {
+              message: "My month in review, from Resolution Companion",
+              url: uri,
+            },
       );
       track("recap_shared");
     } catch (error) {
@@ -328,7 +335,7 @@ export default function MonthRecapScreen() {
       ]}
     >
       <View style={styles.header}>
-        <ThemedText style={styles.title}>Month in Votes</ThemedText>
+        <ThemedText style={styles.title}>Your Month in Review</ThemedText>
         <Pressable
           onPress={() => navigation.goBack()}
           hitSlop={12}
@@ -345,6 +352,7 @@ export default function MonthRecapScreen() {
       </View>
 
       <FlatList
+        delaysContentTouches={false}
         data={cards}
         keyExtractor={(item) => item.kind}
         horizontal
@@ -365,7 +373,14 @@ export default function MonthRecapScreen() {
               shotRefs.current.set(index, ref);
             }}
             options={{ format: "png", quality: 1 }}
-            style={[styles.card, { width: cardWidth, marginRight: Spacing.lg }]}
+            style={[
+              styles.card,
+              {
+                width: cardWidth,
+                marginRight: Spacing.lg,
+                borderColor: withAlpha(theme.accent, 0.3),
+              },
+            ]}
           >
             <CardBody recap={displayRecap} kind={item.kind} />
             <View style={styles.brandRow}>
@@ -442,7 +457,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#0f0f1a",
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    borderColor: "rgba(0, 217, 255, 0.3)",
     padding: Spacing["3xl"],
     justifyContent: "center",
     gap: Spacing.md,

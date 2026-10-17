@@ -1,0 +1,40 @@
+appId: com.resolutioncompanion.app
+name: coach-save-regression
+---
+# Separately exercise saving without the keyboard/composer path.
+- runFlow: _reset-to-today.yaml
+- tapOn:
+    id: "tab-coach"
+- tapOn: "Start a conversation with Coach"
+- tapOn: "Help me name what made today work.*"
+- extendedWaitUntil:
+    visible: "AI coach: .+"
+    timeout: 90000
+- extendedWaitUntil:
+    notVisible: "Stop Coach response"
+    timeout: 90000
+- tapOn: "Close Coach"
+- extendedWaitUntil:
+    visible: "Start a conversation with Coach"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: "Open check-in from .*"
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    text: "Open check-in from .*"
+    index: 0
+- assertVisible: ".*Help me name what made today work.*"
+- assertVisible: "AI coach: .+"
+- takeScreenshot: coach-saved-session
+- tapOn: "Back to check-in list"
+- scrollUntilVisible:
+    element:
+      text: "Start a conversation with Coach"
+    direction: UP
+    timeout: 20000
+- tapOn: "Start a conversation with Coach"
+- assertVisible: "Help me name what made today work.*"
+- assertNotVisible: "AI coach: .+"
+- tapOn: "Close Coach"

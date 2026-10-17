@@ -1,0 +1,143 @@
+appId: com.resolutioncompanion.app
+---
+# Stateful editor regression. Run after onboarding has created a persona with
+# at least one milestone and action; this preserves the plan so the same flow
+# can verify edits across navigation and a later cold relaunch.
+
+- extendedWaitUntil:
+    visible: "Today, .*"
+    timeout: 15000
+- waitForAnimationToEnd
+- tapOn: "Journey tab"
+- swipe:
+    direction: DOWN
+- swipe:
+    direction: DOWN
+- swipe:
+    direction: DOWN
+- swipe:
+    direction: DOWN
+# The header label continues with the caption ("16 more days to go"), and
+# Edit lives in the expanded card's footer, so expand the milestone first.
+- scrollUntilVisible:
+    element:
+      text: ".* milestone, .* days done.*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+    visibilityPercentage: 60
+- tapOn: ".* milestone, .* days done.*"
+- scrollUntilVisible:
+    element:
+      text: "Edit .* milestone"
+    direction: DOWN
+    timeout: 10000
+- tapOn: "Edit .* milestone"
+- assertVisible: "Edit Milestone"
+
+# Case-sensitive matching distinguishes input labels from uppercase headings.
+# Milestone field and target-date preset.
+- tapOn: "(?-i)Milestone goal"
+- waitForAnimationToEnd
+- eraseText: 20
+- tapOn: "(?-i)Milestone goal"
+- eraseText: 20
+- tapOn: "(?-i)Milestone goal"
+- eraseText: 20
+- tapOn: "(?-i)Milestone goal"
+- eraseText: 20
+- tapOn: "(?-i)Milestone goal"
+- eraseText: 20
+- inputText: "Navigation confidence"
+- assertVisible: "Navigation confidence"
+- tapOn: "Set target date 3 months from now"
+
+# Action fields opened from the milestone's action list.
+- scrollUntilVisible:
+    element:
+      text: "Edit action .*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn: "Edit action .*"
+- assertVisible: "Edit Action"
+- tapOn: "(?-i)Action title"
+- waitForAnimationToEnd
+- eraseText: 20
+- tapOn: "(?-i)Action title"
+- eraseText: 20
+- tapOn: "(?-i)Action title"
+- eraseText: 20
+- tapOn: "(?-i)Action title"
+- eraseText: 20
+- tapOn: "(?-i)Action title"
+- eraseText: 20
+- inputText: "Practice one map bearing"
+- assertVisible: "Practice one map bearing"
+- tapOn: "(?-i)120-second kickstart"
+- waitForAnimationToEnd
+- eraseText: 20
+- tapOn: "(?-i)120-second kickstart"
+- eraseText: 20
+- tapOn: "(?-i)120-second kickstart"
+- eraseText: 20
+- tapOn: "(?-i)120-second kickstart"
+- eraseText: 20
+- tapOn: "(?-i)120-second kickstart"
+- eraseText: 20
+- tapOn: "(?-i)120-second kickstart"
+- eraseText: 20
+- tapOn: "(?-i)120-second kickstart"
+- eraseText: 20
+- tapOn: "(?-i)120-second kickstart"
+- eraseText: 20
+- inputText: "Plot one quick bearing"
+- assertVisible: "Plot one quick bearing"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "(?-i)Anchor link"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn: "(?-i)Anchor link"
+- waitForAnimationToEnd
+- eraseText: 20
+- tapOn: "(?-i)Anchor link"
+- eraseText: 20
+- tapOn: "(?-i)Anchor link"
+- eraseText: 20
+- tapOn: "(?-i)Anchor link"
+- eraseText: 20
+- tapOn: "(?-i)Anchor link"
+- eraseText: 20
+- inputText: "After breakfast"
+- assertVisible: "After breakfast"
+- hideKeyboard
+- tapOn: "Save action"
+
+# The edited action must immediately propagate to its milestone editor.
+- extendedWaitUntil:
+    visible: "Practice one map bearing"
+    timeout: 10000
+- tapOn: "Save milestone"
+
+# The renamed milestone and action must propagate to Today and Journey.
+- tapOn: "Today tab"
+- extendedWaitUntil:
+    visible: ".*Practice one map bearing.*"
+    timeout: 15000
+- tapOn: "Journey tab"
+- extendedWaitUntil:
+    visible: ".*Navigation confidence.*"
+    timeout: 15000
+# The milestone is still expanded from opening its editor above (a tap here
+# would collapse it); the renamed habit must show in its row. Collapsed-start
+# plus expand is asserted after the cold relaunch.
+- scrollUntilVisible:
+    element:
+      text: ".*Practice one map bearing.*"
+    direction: DOWN
+    timeout: 10000
+- assertVisible: "Edit Navigation confidence milestone"
+# Cold-relaunch persistence is asserted by qa/maestro-editors-relaunch.yaml.

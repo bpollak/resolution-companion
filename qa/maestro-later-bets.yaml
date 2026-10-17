@@ -1,53 +1,34 @@
 appId: com.resolutioncompanion.app
 name: later-bets-settings-surfaces
 ---
-# From a clean install, create the no-network starter persona and verify the
-# opt-in witness and private backup settings under the simulator's active
-# accessibility preferences.
-- launchApp:
-    clearState: true
+# Run with an existing free test persona, after the AI onboarding flow or
+# fixture setup. These checks do not create or reset the user's plan.
+# The year recap and witness entries live in Journey's "Stories & Support"
+# section; Private iCloud Backup lives in Profile > Privacy & Data.
+- launchApp
+- runFlow:
+    when:
+      visible: "Dismiss milestone celebration.*"
+    commands:
+      - tapOn: "Dismiss milestone celebration.*"
+- tapOn:
+    id: "tab-journey"
 - extendedWaitUntil:
-    visible: "Start Your Journey.*"
-    timeout: 20000
-- tapOn: "Start Your Journey.*"
-- extendedWaitUntil:
-    visible: "Welcome to Resolution Companion.*"
-    timeout: 20000
-- tapOn: "Continue.*"
-- tapOn: "Continue.*"
-- assertVisible: "Free vs Premium.*"
-- tapOn: "Let's Get Started.*"
-- extendedWaitUntil:
-    visible: "Agree and continue.*"
-    timeout: 20000
-- tapOn: "Not now.*"
-- extendedWaitUntil:
-    visible: "Use Starter Plan.*"
-    timeout: 10000
-- tapOn: "Use Starter Plan.*"
-- extendedWaitUntil:
-    visible: "Momentum Builder.*"
-    timeout: 20000
-- tapOn: "Open profile and settings.*"
-- extendedWaitUntil:
-    visible: "My Personas.*"
-    timeout: 10000
+    visible: "Previous month"
+    timeout: 15000
 
-# All three later-bet entries remain reachable at maximum Dynamic Type.
-- scrollUntilVisible:
-    element:
-      text: "The Year You Became.*"
-    direction: DOWN
-    timeout: 30000
-- takeScreenshot: a11y-04-profile-later-bets
-
-# Witness is explicit opt-in: name first, then the prompt switch becomes
-# available. Sharing remains a user-initiated system share action.
+# Both later-bet entries remain reachable (also at maximum Dynamic Type).
 - scrollUntilVisible:
     element:
       text: "Someone in Your Corner.*"
     direction: DOWN
-    timeout: 30000
+    timeout: 45000
+    centerElement: true
+- assertVisible: "The Year You Became.*"
+- takeScreenshot: a11y-04-journey-later-bets
+
+# Witness is explicit opt-in: name first, then the prompt switch becomes
+# available. Sharing remains a user-initiated system share action.
 - tapOn: "Someone in Your Corner.*"
 - extendedWaitUntil:
     visible: "Witness name.*"
@@ -83,8 +64,48 @@ name: later-bets-settings-surfaces
     timeout: 30000
 - tapOn: "Close witness settings.*"
 
+# Free users see only the opening card plus a Premium teaser; the rhythm,
+# resilience, and closing cards must not leak. The teaser routes to the
+# premium explanation.
+- scrollUntilVisible:
+    element:
+      text: "The Year You Became.*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn: "The Year You Became.*"
+- extendedWaitUntil:
+    visible: "Close year recap.*"
+    timeout: 10000
+- assertVisible: "See the full year story with Premium"
+- swipe:
+    direction: LEFT
+- assertNotVisible: ".*% consistency across .*"
+- assertNotVisible: "The plan bent with you.*"
+- assertNotVisible: ".*still becoming.*"
+- tapOn: "See the full year story with Premium"
+- extendedWaitUntil:
+    visible: "Upgrade to Premium.*"
+    timeout: 15000
+- takeScreenshot: a11y-07-year-recap-premium-gate
+- tapOn: "Close"
+- tapOn: "Close year recap.*"
+
 # A simulator without an iCloud account must fail safely: the screen renders,
 # explains the boundary, and exposes disabled backup/restore controls.
+- tapOn:
+    id: "tab-today"
+- tapOn: "Open profile and settings.*"
+- extendedWaitUntil:
+    visible: "My plans.*"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Privacy & Data.*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn: "Privacy & Data.*"
 - scrollUntilVisible:
     element:
       text: "Private iCloud Backup.*"
@@ -116,16 +137,3 @@ name: later-bets-settings-surfaces
     direction: UP
     timeout: 30000
 - tapOn: "Close private backup.*"
-
-# Free users are routed to the premium explanation instead of leaking the
-# annual recap content.
-- scrollUntilVisible:
-    element:
-      text: "The Year You Became.*"
-    direction: UP
-    timeout: 30000
-- tapOn: "The Year You Became.*"
-- extendedWaitUntil:
-    visible: "Upgrade to Premium.*"
-    timeout: 15000
-- takeScreenshot: a11y-07-year-recap-premium-gate

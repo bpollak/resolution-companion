@@ -2,7 +2,7 @@ appId: com.resolutioncompanion.app
 ---
 # Remaining engagement items: micro-note expand (asserted via the card's
 # Expand→Collapse label change), live weekly-review coach session, and the
-# Dawn switch flipped back to midnight through the UI.
+# opt-in Dawn switch turned on and back to midnight through the UI.
 
 - launchApp
 
@@ -18,9 +18,10 @@ appId: com.resolutioncompanion.app
           optional: true
       - waitForAnimationToEnd
 - extendedWaitUntil:
-    visible: "Momentum Builder.*"
+    visible: "Becoming My Future Self.*"
     timeout: 20000
-- tapOn: "Coach, tab.*"
+- tapOn:
+    id: "tab-coach"
 - waitForAnimationToEnd
 
 # --- Micro-note: expand, verified by the accessibility state flip ---
@@ -36,33 +37,60 @@ appId: com.resolutioncompanion.app
 - takeScreenshot: 16-micro-note-expanded
 - scrollUntilVisible:
     element:
-      text: ".*3-minute weekly review.*"
+      text: "Start a conversation.*"
     direction: UP
     timeout: 30000
     centerElement: true
 
-# --- Live weekly review: consent-agree + real coach reply ---
-- tapOn: ".*3-minute weekly review.*"
+# --- Live weekly review via the sheet's review chip ---
+- tapOn: "Start a conversation with Coach"
+- extendedWaitUntil:
+    visible: "Help me review one win and one point of friction from last week.*"
+    timeout: 15000
+- tapOn: "Help me review one win and one point of friction from last week.*"
+# In the contextual sheet, AI consent is requested at send time (not on open)
 - tapOn:
     text: "Agree and continue.*"
     optional: true
-- extendedWaitUntil:
-    visible: "Message to your AI coach.*"
-    timeout: 45000
 - extendedWaitUntil:
     # Match a non-empty coach bubble. The old week regex matched the static
     # "Weekly Review" title while the response was still spinning.
     visible: "AI coach: .+"
     timeout: 90000
 - takeScreenshot: 17-weekly-review-live
+# Wait for the completed turn: a Save while still streaming has nothing in
+# the transcript to keep yet. The response controls render only once the
+# stream ends. (A trailing "?" was used before, but the model does not always
+# end on a question.)
+- extendedWaitUntil:
+    notVisible: "Stop Coach response"
+    timeout: 90000
+- assertVisible: "Copy coach response"
+- tapOn: "Save coaching session"
+- extendedWaitUntil:
+    visible:
+      id: "tab-today"
+    timeout: 15000
 
-# --- Flip the Dawn switch back to midnight via the UI ---
-- tapOn: "Today, tab.*"
+# --- Dawn: the unlocked reward is opt-in. Turn it on, then back to midnight
+# through the UI, asserting the switch state each time (the old flow tapped
+# once and assumed the unlock had already applied Dawn; it does not). ---
+- tapOn:
+    id: "tab-today"
 - waitForAnimationToEnd
 - tapOn: "Open profile and settings.*"
 - extendedWaitUntil:
-    visible: "My Personas.*"
-    timeout: 10000
+    # Post-AI-session modal presentation can lag; give it headroom
+    visible: "My plans.*"
+    timeout: 20000
+# Earned rewards live in the dedicated Appearance panel
+- scrollUntilVisible:
+    element:
+      text: "Appearance.*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn: "Appearance.*"
 - scrollUntilVisible:
     element:
       text: "Dawn Theme.*"
@@ -70,8 +98,32 @@ appId: com.resolutioncompanion.app
     timeout: 30000
     centerElement: true
 - waitForAnimationToEnd
+- assertVisible:
+    text: "Toggle Dawn Theme"
+    checked: false
 - tapOn: "Toggle Dawn Theme"
 - waitForAnimationToEnd
+- assertVisible:
+    text: "Toggle Dawn Theme"
+    checked: true
+- takeScreenshot: 18-profile-dawn-on
+- tapOn: "Back to profile.*"
+- tapOn: "Close profile.*"
+- takeScreenshot: 18b-today-dawn
+- tapOn: "Open profile and settings.*"
+- scrollUntilVisible:
+    element:
+      text: "Appearance.*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn: "Appearance.*"
+- tapOn: "Toggle Dawn Theme"
+- waitForAnimationToEnd
+- assertVisible:
+    text: "Toggle Dawn Theme"
+    checked: false
 - takeScreenshot: 19-profile-back-to-midnight
+- tapOn: "Back to profile.*"
 - tapOn: "Close profile.*"
 - takeScreenshot: 20-today-midnight-restored

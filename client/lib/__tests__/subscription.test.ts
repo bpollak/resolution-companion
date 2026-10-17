@@ -1,6 +1,8 @@
 import {
   getProfileSubscriptionCopy,
   reconcileSubscription,
+  resolveSubscriptionCheck,
+  sameSubscription,
   selectPreferredEntitlement,
 } from "@/lib/subscription";
 import type { Subscription } from "@/lib/storage";
@@ -135,6 +137,145 @@ describe("current entitlement selection", () => {
     const yearly = { productId: "annual", purchaseTime: 200 };
     expect(selectPreferredEntitlement([yearly, lifetime], planForProduct)).toBe(
       lifetime,
+    );
+  });
+});
+
+describe("resolveSubscriptionCheck", () => {
+  const planForProduct = (productId: string) =>
+    productId.includes("annual") ? ("yearly" as const) : ("monthly" as const);
+  // Renewed in StoreKit, but the local expiry predates the renewal
+  const afterLocalExpiry = new Date("2026-08-02T00:00:00.000Z").getTime();
+  const staleServer = {
+    isPremium: false,
+    plan: "free",
+    currentPeriodEnd: null,
+  };
+  const unverifiedStore = {
+    storeAvailable: true,
+    verificationCompleted: false,
+    purchases: [],
+  };
+
+  it("keeps Premium when StoreKit's entitlement could not be verified (upstream 503)", () => {
+    expect(
+      resolveSubscriptionCheck({
+        local,
+        server: staleServer,
+        store: unverifiedStore,
+        planForProduct,
+        nowMs: afterLocalExpiry,
+      }),
+    ).toEqual({ subscription: local, status: "unavailable" });
+  });
+
+  it("keeps Premium when both verification and the status endpoint are down", () => {
+    expect(
+      resolveSubscriptionCheck({
+        local,
+        server: null,
+        store: unverifiedStore,
+        planForProduct,
+        nowMs: afterLocalExpiry,
+      }),
+    ).toEqual({ subscription: local, status: "unavailable" });
+  });
+
+  it("does not call an unverified free account verified", () => {
+    const free = { ...local, isPremium: false, plan: "free" as const };
+    expect(
+      resolveSubscriptionCheck({
+        local: free,
+        server: staleServer,
+        store: unverifiedStore,
+        planForProduct,
+        nowMs: afterLocalExpiry,
+      }),
+    ).toEqual({ subscription: free, status: "unavailable" });
+  });
+
+  it("still lets the server record upgrade while StoreKit is unverified", () => {
+    const free = { ...local, isPremium: false, plan: "free" as const };
+    const result = resolveSubscriptionCheck({
+      local: free,
+      server: {
+        isPremium: true,
+        plan: "yearly",
+        currentPeriodEnd: "2027-08-01T00:00:00.000Z",
+      },
+      store: unverifiedStore,
+      planForProduct,
+    });
+    expect(result.subscription).toMatchObject({
+      isPremium: true,
+      plan: "yearly",
+    });
+    expect(result.status).toBe("verified");
+  });
+
+  it("downgrades only on a completed, empty StoreKit check", () => {
+    expect(
+      resolveSubscriptionCheck({
+        local,
+        server: null,
+        store: {
+          storeAvailable: true,
+          verificationCompleted: true,
+          purchases: [],
+        },
+        planForProduct,
+      }),
+    ).toEqual({
+      subscription: {
+        isPremium: false,
+        plan: "free",
+        expiresAt: local.expiresAt,
+        purchasedAt: local.purchasedAt,
+      },
+      status: "verified",
+    });
+  });
+
+  it("grants a verified StoreKit entitlement with its server expiry", () => {
+    const result = resolveSubscriptionCheck({
+      local,
+      server: null,
+      store: {
+        storeAvailable: true,
+        verificationCompleted: true,
+        purchases: [
+          {
+            productId: "com.resolutioncompanion.annual",
+            purchaseTime: Date.parse("2026-07-19T00:00:00.000Z"),
+            expirationDate: "2027-07-19T00:00:00.000Z",
+          },
+        ],
+      },
+      planForProduct,
+    });
+    expect(result).toEqual({
+      subscription: {
+        isPremium: true,
+        plan: "yearly",
+        expiresAt: "2027-07-19T00:00:00.000Z",
+        purchasedAt: "2026-07-19T00:00:00.000Z",
+      },
+      status: "verified",
+    });
+  });
+});
+
+describe("sameSubscription", () => {
+  it("is true for equal fields in distinct objects", () => {
+    expect(sameSubscription(local, { ...local })).toBe(true);
+  });
+
+  it("is false when any field differs", () => {
+    expect(sameSubscription(local, { ...local, isPremium: false })).toBe(false);
+    expect(sameSubscription(local, { ...local, plan: "monthly" })).toBe(false);
+    expect(sameSubscription(local, { ...local, expiresAt: null })).toBe(false);
+    expect(sameSubscription(local, { ...local, purchasedAt: null })).toBe(
+      false,
     );
   });
 });

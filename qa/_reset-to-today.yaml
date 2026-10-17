@@ -1,0 +1,16 @@
+appId: com.resolutioncompanion.app
+---
+# Harness helper: foreground the app on the Today tab without clearing state.
+# The stateful flows (tab-first-tap, today-undo, editors-*) assume this as
+# their starting point instead of launching themselves.
+- launchApp
+- runFlow:
+    when:
+      visible: "Dismiss milestone celebration.*"
+    commands:
+      - tapOn: "Dismiss milestone celebration.*"
+- tapOn:
+    id: "tab-today"
+- extendedWaitUntil:
+    visible: "Today, .*"
+    timeout: 20000

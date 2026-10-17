@@ -40,11 +40,11 @@ export function YearRecapCard({
         {recap.votesCast}
       </ThemedText>
       <ThemedText style={styles.headline}>
-        votes for {recap.personaName} in {recap.yearLabel}
+        actions for {recap.personaName} in {recap.yearLabel}
       </ThemedText>
       <ThemedText style={[styles.body, { color: theme.textSecondary }]}>
-        Your premium year-in-review celebrates the returns, floor saves, and
-        quiet evidence—not perfection.
+        Your premium year-in-review celebrates the returns, 2-minute saves, and
+        quiet proof, not perfection.
       </ThemedText>
       <Pressable
         onPress={onOpen}

@@ -1,5 +1,14 @@
 # Resolution Companion AI — Codebase Guide
 
+Current local checkout (2026-09-28): version 1.5.0 on
+`codex/consolidate-local-2026-09-28` combines PR #24 (including build 98's
+HealthKit fix), PR #25's server fixes, and PR #26's checkout guidance.
+See `docs/plans/2026-09-28-local-consolidation.md` for verification and scope.
+This supersedes the historical July status below. The consolidated branch is
+pushed, and 1.5.0 (100), including the Coach keyboard fix, is in internal
+TestFlight testing. See `docs/plans/2026-09-28-coach-keyboard-testflight.md`.
+Main and the production server have not been updated.
+
 Identity-based behavior-change app. Users define a **Target Persona** through
 an AI interview, set **Core Benchmarks** (milestones), and log daily
 **Elemental Actions**. The thesis is identity transformation over goal-setting:
@@ -7,6 +16,19 @@ an AI interview, set **Core Benchmarks** (milestones), and log daily
 
 Bundle `com.resolutioncompanion.app` · ASC app ID `6757996708` ·
 domain `resolutioncompanion.com`.
+
+## Where the code lives (never iCloud)
+
+- **GitHub (`bpollak/resolution-companion`) is the only source of truth.**
+  One local checkout per machine; agent sessions use `git worktree`s off it.
+- **No copy of this repo, or its untracked assets, may live in iCloud Drive**,
+  including a `~/Documents` or `~/Desktop` that has "Desktop & Documents"
+  sync on. iCloud evicts files (git, npm, and Metro hang), creates `" 2"`
+  duplicate refs, and hid build 98's HealthKit fix: that shipped 1.4.1
+  source lived only as uncommitted edits in an iCloud checkout until
+  2026-09-28 (recovered to `salvage/build-98-healthkit-from-icloud`).
+- Commit and push before a build is uploaded; never ship from uncommitted
+  edits. Don't make side-copies of the repo for a release; use a branch.
 
 ## Repo layout
 
@@ -72,13 +94,33 @@ domain `resolutioncompanion.com`.
 
 - **Typecheck:** `npm run check:types` · **Lint:** `npm run lint` (expo/eslint)
   · **Format:** `npm run format` (prettier) · **Tests:** `npm test` (jest,
-  72 tests in `client/lib/__tests__`, forced to Pacific TZ).
+  ~247 tests in `client/lib/__tests__`, forced to Pacific TZ).
 - **Builds are LOCAL now** (`eas build --local`) — EAS cloud build credit is
   exhausted; only cloud _compile_ costs money, uploads are free. Toolchain
   (Xcode 26.6 + CocoaPods + Fastlane, all via Homebrew) is installed. See the
   `local-builds` memory for the full setup. `/build/` is gitignored.
+  - **LANDMINE: iCloud-evicted files hang builds silently.** This repo lives
+    under iCloud-synced Documents and this Mac's iCloud sync is broken, so
+    "dataless" stub files (metadata only, content evicted) hang ANY process
+    that reads them — the EAS archiver freezes forever at "Compressing project
+    files" with 0% CPU and no error. Detect: `ls -lO <file>` shows `dataless`.
+    Fix: restore content from a materialized twin or the git pack
+    (`git show HEAD:path > path`); verify with `git hash-object`. Thousands of
+    dataless stubs remain in `marketing/`, `ios/`, `android/`, and `.git`
+    loose objects — any tool that walks those can hang the same way. (Node 22
+    remains the regression baseline; prefer
+    `PATH=/opt/homebrew/opt/node@22/bin:$PATH` since brew's default is now 25.)
   - **TestFlight/App Store:** `npm run build:local:ios` (~15-20 min local
     compile → `build/ios-local.ipa`) then `npm run submit:local:ios` (uploads).
+    **Signing landmine (since 2026-09):** this Mac's login keychain has two
+    local "Apple Distribution" certs, while EAS profiles use EAS's own
+    "iPhone Distribution" cert (`B736…`), which exists only in EAS. The
+    archive works with `GYM_CODE_SIGNING_IDENTITY=B7361570C46DD775268CEEF81EAC8244F90F48E3`,
+    but EAS's export still fails. Upload the saved archive from Xcode
+    Organizer instead (Distribute App > App Store Connect, automatic
+    signing); build 103 shipped this way 2026-10-13. Keep
+    `plugins/with-healthkit-access-cleanup` before `react-native-health`, or
+    automatic signing demands Verifiable Health Records on the App ID.
   - **Simulator (visual verification):** `npm run build:local:sim` →
     `build/ios-sim-local.tar.gz`; `tar -xzf`, then
     `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun simctl install <booted> ResolutionCompanionAI.app` +
@@ -161,9 +203,14 @@ domain `resolutioncompanion.com`.
     weekly review). Both full-passed 2026-07-17 on iPhone 16 Pro / iOS 18.
     Regression also caught+fixed a pending-widget-vote race: the AppState
     'active' listener could consume votes before the store loaded (guarded
-    by isLoading in AppContext). To inject App Group values in sim tests use
-    `simctl spawn <udid> defaults write group.com.resolutioncompanion.app` —
-    editing the plist file directly desyncs cfprefsd.
+    by isLoading in AppContext). To inject App Group values in sim tests,
+    write the App Group container's plist (path from `xcrun simctl
+get_app_container <udid> com.resolutioncompanion.app
+group.com.resolutioncompanion.app` plus
+    `/Library/Preferences/group.com.resolutioncompanion.app.plist`) while the
+    app is stopped. Corrected 2026-10-14: the older `simctl spawn defaults
+write group.com.resolutioncompanion.app` writes a domain the app never
+    reads (see docs/plans/2026-10-14-native-regression.md).
 - **Website** (2026-07-11): direct App Store CTAs, official badge, social
   share card, FAQ (+ FAQPage schema), Pricing nav — live.
 

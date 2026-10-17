@@ -1,0 +1,47 @@
+appId: com.resolutioncompanion.app
+---
+# Harness helper: clear state and create the AI-free
+# starter plan ("My Future Self") with all three starter habits. The seeded
+# flows (engagement, widgets, roadmap-completion, rewards, year-recap) expect
+# this plan's titles. Run seed scripts after it, with the app terminated.
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Make my plan"
+    timeout: 20000
+- tapOn: "Make my plan"
+- tapOn: "Set it up myself"
+- extendedWaitUntil:
+    visible: "Step 2 of 2. Review your plan"
+    timeout: 10000
+# Only the daily anchor starts selected; the other two are behind "ideas".
+- scrollUntilVisible:
+    element:
+      text: "See 2 other ideas"
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- tapOn: "See 2 other ideas"
+- scrollUntilVisible:
+    element:
+      text: "Include Practice mindful breathing"
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- tapOn: "Include Practice mindful breathing"
+- scrollUntilVisible:
+    element:
+      text: "Include Move your body intentionally"
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- tapOn: "Include Move your body intentionally"
+- scrollUntilVisible:
+    element:
+      text: "Start with 3 habits"
+    direction: DOWN
+    timeout: 20000
+- tapOn: "Start with 3 habits"
+- extendedWaitUntil:
+    visible: "Becoming My Future Self.*"
+    timeout: 20000

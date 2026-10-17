@@ -9,19 +9,21 @@ name: roadmap-completion-moments
 - extendedWaitUntil:
     visible: "Milestone complete.*"
     timeout: 20000
+# The local proposal ("Deepen <milestone>") shows instantly; with AI consent
+# on (granted by earlier Coach flows) a Coach suggestion replaces it when it
+# arrives. Either source is valid; the generated title is not a contract.
 - scrollUntilVisible:
     element:
-      text: "Suggested next milestone.*"
+      text: "(Suggested next milestone|Coach suggestion)\\. .+"
     direction: DOWN
     timeout: 30000
-- assertVisible: "Suggested next milestone. Deepen Build Daily Momentum.*"
 - scrollUntilVisible:
     element:
-      text: "Add next milestone: Deepen Build Daily Momentum.*"
+      text: "Add next milestone: .+"
     direction: DOWN
     timeout: 30000
 - takeScreenshot: 22-next-milestone-proposal
-- tapOn: "Add next milestone: Deepen Build Daily Momentum.*"
+- tapOn: "Add next milestone: .+"
 - extendedWaitUntil:
     visible: "Your next milestone is ready.*"
     timeout: 15000

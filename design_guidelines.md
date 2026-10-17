@@ -44,7 +44,11 @@ iOS. Keep all tabs mounted (`detachInactiveScreens={false}`, `lazy:false`,
 
 ### Today
 
-- Lead with the active persona and the day's completion ring.
+- Lead with the active persona and one interpretive Today's Signal card
+  (rest / complete / friction / pattern / ordinary day) that folds in the
+  completion count. On an ordinary day the signal names the next action but
+  leaves completing it to the action row — one completion affordance per
+  action.
 - Each scheduled action has a full-completion control and an explicit
   two-minute kickstart floor.
 - Completed rows may show their source, such as **Health** or **2-minute vote**.

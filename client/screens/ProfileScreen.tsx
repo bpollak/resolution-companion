@@ -68,7 +68,9 @@ import {
   supportsAlternateAppIcons,
   type AppIconStyle,
 } from "@/lib/app-icon";
+import { HEALTH_KIND_LABELS, HEALTH_STEPS_THRESHOLD } from "@/lib/health";
 import { platformCapabilities } from "@/lib/platform-capabilities";
+import { withAlpha } from "@/lib/color";
 
 const springConfig = {
   damping: 15,
@@ -82,9 +84,22 @@ interface SettingsRowProps {
   subtitle?: string;
   onPress: () => void;
   destructive?: boolean;
+  /** Inside a SettingsGroup: no own card, neutral icon, shared dividers. */
+  grouped?: boolean;
+  /**
+   * Trailing glyph: a chevron only when the row opens another screen,
+   * arrow-up-right when it leaves the app, nothing for an alert or action.
+   */
+  accessory?: "chevron" | "external" | "none";
 }
 
-type ProfilePanel = "main" | "reminders" | "privacy" | "about";
+type ProfilePanel =
+  | "main"
+  | "reminders"
+  | "appearance"
+  | "privacy"
+  | "about"
+  | "health";
 
 function SettingsRow({
   icon,
@@ -92,6 +107,8 @@ function SettingsRow({
   subtitle,
   onPress,
   destructive,
+  grouped,
+  accessory = "chevron",
 }: SettingsRowProps) {
   const { theme, isDark } = useTheme();
   const scale = useSharedValue(1);
@@ -132,8 +149,8 @@ function SettingsRow({
     >
       <Animated.View
         style={[
-          styles.settingsRow,
-          {
+          grouped ? styles.groupedRow : styles.settingsRow,
+          !grouped && {
             backgroundColor: isDark
               ? Colors.dark.backgroundDefault
               : Colors.light.backgroundDefault,
@@ -141,22 +158,32 @@ function SettingsRow({
           animatedStyle,
         ]}
       >
-        <View
-          style={[
-            styles.settingsIcon,
-            {
-              backgroundColor: destructive
-                ? "rgba(255, 107, 107, 0.1)"
-                : "rgba(0, 217, 255, 0.1)",
-            },
-          ]}
-        >
-          <Feather
-            name={icon}
-            size={20}
-            color={destructive ? theme.error : theme.accent}
-          />
-        </View>
+        {grouped ? (
+          <View style={styles.groupedIcon}>
+            <Feather
+              name={icon}
+              size={20}
+              color={destructive ? theme.error : theme.textSecondary}
+            />
+          </View>
+        ) : (
+          <View
+            style={[
+              styles.settingsIcon,
+              {
+                backgroundColor: destructive
+                  ? "rgba(255, 107, 107, 0.1)"
+                  : withAlpha(theme.accent, 0.1),
+              },
+            ]}
+          >
+            <Feather
+              name={icon}
+              size={20}
+              color={destructive ? theme.error : theme.accent}
+            />
+          </View>
+        )}
         <View style={styles.settingsContent}>
           <ThemedText
             style={[
@@ -174,12 +201,61 @@ function SettingsRow({
             </ThemedText>
           ) : null}
         </View>
-        <Animated.View style={chevronStyle}>
-          <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-        </Animated.View>
+        {accessory === "chevron" ? (
+          <Animated.View style={chevronStyle}>
+            <Feather
+              name="chevron-right"
+              size={20}
+              color={theme.textSecondary}
+            />
+          </Animated.View>
+        ) : accessory === "external" ? (
+          <Feather
+            name="arrow-up-right"
+            size={18}
+            color={theme.textSecondary}
+          />
+        ) : null}
       </Animated.View>
     </Pressable>
   );
+}
+
+// One container with hairline dividers reads as a single list; separate cards
+// per row made eight equal-weight blocks compete on one screen.
+function SettingsGroup({ children }: { children: React.ReactNode }) {
+  const { theme } = useTheme();
+  const rows = React.Children.toArray(children).filter(Boolean);
+  return (
+    <View style={[styles.group, { backgroundColor: theme.backgroundDefault }]}>
+      {rows.map((row, index) => (
+        <React.Fragment key={index}>
+          {index > 0 ? (
+            <View
+              style={[styles.groupDivider, { backgroundColor: theme.border }]}
+            />
+          ) : null}
+          {row}
+        </React.Fragment>
+      ))}
+    </View>
+  );
+}
+
+// Outside the component: a throw inside the screen's try/catch makes the
+// React Compiler skip the whole screen.
+async function deleteServerUserData(): Promise<void> {
+  const deviceId = await storage.getDeviceId();
+  const response = await fetch(
+    new URL(`/api/user-data/${deviceId}`, getApiUrl()).toString(),
+    {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(`Server deletion failed (${response.status})`);
+  }
 }
 
 export default function ProfileScreen() {
@@ -196,7 +272,6 @@ export default function ProfileScreen() {
     actions,
     dailyLogs,
     personaAlignment,
-    reflections,
     clearAllData,
     switchPersona,
     deletePersona,
@@ -227,13 +302,17 @@ export default function ProfileScreen() {
 
   useLayoutEffect(() => {
     const title =
-      activePanel === "reminders"
-        ? "Daily Reminder"
-        : activePanel === "privacy"
-          ? "Privacy & Data"
-          : activePanel === "about"
-            ? "About"
-            : "Profile";
+      activePanel === "health"
+        ? "Apple Health"
+        : activePanel === "reminders"
+          ? "Daily Reminder"
+          : activePanel === "appearance"
+            ? "Appearance"
+            : activePanel === "privacy"
+              ? "Privacy & Data"
+              : activePanel === "about"
+                ? "About"
+                : "Profile";
     const isMain = activePanel === "main";
 
     navigation.setOptions({
@@ -269,8 +348,8 @@ export default function ProfileScreen() {
     return () => cancelAnimationFrame(frame);
   }, [activePanel]);
 
-  // Dawn theme: a milestone reward — the Appearance row only exists once
-  // it has been earned
+  // Milestone rewards live in the Appearance panel; each row appears only
+  // once its reward has been earned
   const {
     mode: themeMode,
     setMode: setThemeMode,
@@ -423,7 +502,7 @@ export default function ProfileScreen() {
         const proceed = await new Promise<boolean>((resolve) => {
           Alert.alert(
             "Daily Reminders",
-            `Resolution Companion will send one reminder at ${resolved.label} on days you haven't finished your actions — it stays quiet once your day is complete. You can turn this off anytime.`,
+            `Resolution Companion will send one reminder at ${resolved.label} on days you haven't finished your habits. It stays quiet once your day is complete. You can turn this off anytime.`,
             [
               {
                 text: "Not Now",
@@ -508,20 +587,20 @@ export default function ProfileScreen() {
     if (personas.length <= 1) {
       if (Platform.OS === "web") {
         window.alert(
-          "You must have at least one persona. Create a new one first before deleting this one.",
+          "You need at least one plan. Create a new one before deleting this one.",
         );
       } else {
         Alert.alert(
           "Cannot Delete",
-          "You must have at least one persona. Create a new one first before deleting this one.",
+          "You need at least one plan. Create a new one before deleting this one.",
         );
       }
       return;
     }
 
     showAlert(
-      "Delete Persona",
-      `Delete "${name}"? This will also remove all benchmarks, actions, and logs for this persona.`,
+      "Delete plan",
+      `Delete "${name}"? This also removes its milestones, habits, and history.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -543,7 +622,7 @@ export default function ProfileScreen() {
   const handleClearData = () => {
     showAlert(
       "Clear All Data",
-      "This will permanently delete all your data including all personas, benchmarks, actions, and logs. This cannot be undone.",
+      "This will permanently delete all your data including all plans, milestones, habits, and history. This cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -573,17 +652,7 @@ export default function ProfileScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              const deviceId = await storage.getDeviceId();
-              const response = await fetch(
-                new URL(`/api/user-data/${deviceId}`, getApiUrl()).toString(),
-                {
-                  method: "DELETE",
-                  headers: getAuthHeaders(),
-                },
-              );
-              if (!response.ok) {
-                throw new Error(`Server deletion failed (${response.status})`);
-              }
+              await deleteServerUserData();
               await deletePrivateBackup();
               await clearAllData();
               // Server record is gone — drop the device identity too so a
@@ -606,12 +675,12 @@ export default function ProfileScreen() {
               await clearAllData();
               if (Platform.OS === "web") {
                 window.alert(
-                  "Local data deleted. Server data deletion may have failed — please contact support if needed.",
+                  "Local data deleted. Server data deletion may have failed. Please contact support if needed.",
                 );
               } else {
                 Alert.alert(
                   "Partial Deletion",
-                  "Local data deleted. Server data deletion may have failed — please contact support if needed.",
+                  "Local data deleted. Server data deletion may have failed. Please contact support if needed.",
                 );
               }
             }
@@ -620,19 +689,6 @@ export default function ProfileScreen() {
       ],
     );
   };
-
-  const currentPersonaBenchmarks = benchmarks.filter(
-    (b) => b.personaId === persona?.id,
-  );
-  const currentPersonaActions = actions.filter((a) =>
-    currentPersonaBenchmarks.some((b) => b.id === a.benchmarkId),
-  );
-
-  const stats = [
-    { label: "Milestones", value: currentPersonaBenchmarks.length },
-    { label: "Actions", value: currentPersonaActions.length },
-    { label: "Coaching", value: reflections.length },
-  ];
 
   return (
     <ScrollView
@@ -649,81 +705,22 @@ export default function ProfileScreen() {
     >
       {activePanel === "main" ? (
         <>
-          {hasOnboarded && persona ? (
+          {!hasOnboarded || !persona ? (
             <View
               style={[
                 styles.profileCard,
-                {
-                  backgroundColor: isDark
-                    ? Colors.dark.backgroundDefault
-                    : Colors.light.backgroundDefault,
-                },
+                { backgroundColor: theme.backgroundDefault },
               ]}
             >
-              <View style={styles.avatarContainer}>
-                <View
-                  style={[styles.avatar, { backgroundColor: theme.accent }]}
-                >
-                  <Feather name="user" size={32} color={theme.buttonText} />
-                </View>
-              </View>
-              <ThemedText style={styles.personaName}>{persona.name}</ThemedText>
-              {persona.description ? (
-                <ThemedText
-                  style={[
-                    styles.personaDescription,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  {persona.description}
-                </ThemedText>
-              ) : null}
-
-              <View style={styles.statsRow}>
-                {stats.map((stat) => (
-                  <View key={stat.label} style={styles.statItem}>
-                    <ThemedText
-                      style={[styles.statValue, { color: theme.accent }]}
-                    >
-                      {stat.value}
-                    </ThemedText>
-                    <ThemedText
-                      style={[styles.statLabel, { color: theme.textSecondary }]}
-                    >
-                      {stat.label}
-                    </ThemedText>
-                  </View>
-                ))}
-              </View>
-            </View>
-          ) : (
-            <View
-              style={[
-                styles.profileCard,
-                {
-                  backgroundColor: isDark
-                    ? Colors.dark.backgroundDefault
-                    : Colors.light.backgroundDefault,
-                },
-              ]}
-            >
-              <View style={styles.avatarContainer}>
-                <View
-                  style={[
-                    styles.avatar,
-                    { backgroundColor: theme.backgroundSecondary },
-                  ]}
-                >
-                  <Feather name="user" size={32} color={theme.textSecondary} />
-                </View>
-              </View>
               <ThemedText
                 style={[styles.notOnboarded, { color: theme.textSecondary }]}
               >
-                Complete onboarding to define your persona
+                Make a plan to get started
               </ThemedText>
               <Pressable
                 onPress={() => navigation.navigate("Onboarding")}
+                hitSlop={8}
+                pressRetentionOffset={16}
                 accessibilityRole="button"
                 accessibilityLabel="Start journey"
                 style={({ pressed }) => [
@@ -742,194 +739,383 @@ export default function ProfileScreen() {
                 </ThemedText>
               </Pressable>
             </View>
-          )}
+          ) : null}
+
+          {!subscription.isPremium ? (
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+                  () => {},
+                );
+                verifySubscription().catch(() => {});
+                navigation.navigate("Subscription");
+              }}
+              hitSlop={8}
+              pressRetentionOffset={16}
+              accessibilityRole="button"
+              accessibilityLabel={`${subscriptionCopy.title}. ${subscriptionCopy.subtitle}`}
+              style={({ pressed }) => [
+                styles.upgradeRow,
+                { backgroundColor: theme.backgroundDefault },
+                pressed && styles.rowPressed,
+              ]}
+            >
+              <Feather
+                name={
+                  subscriptionVerificationStatus === "checking"
+                    ? "refresh-cw"
+                    : "zap"
+                }
+                size={18}
+                color={theme.accent}
+              />
+              <View style={styles.settingsContent}>
+                <ThemedText style={styles.settingsTitle}>
+                  {subscriptionCopy.title}
+                </ThemedText>
+                {/* The quota already lives on Coach; only a status the user
+                    must act on earns a second line here. */}
+                {subscriptionVerificationStatus === "unavailable" ? (
+                  <ThemedText
+                    style={[
+                      styles.settingsSubtitle,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    {subscriptionCopy.subtitle}
+                  </ThemedText>
+                ) : null}
+              </View>
+              <Feather
+                name="chevron-right"
+                size={18}
+                color={theme.textSecondary}
+              />
+            </Pressable>
+          ) : null}
 
           {personas.length > 0 ? (
             <>
               <View style={styles.sectionHeader}>
-                <ThemedText style={styles.sectionTitle}>My Personas</ThemedText>
+                <ThemedText style={styles.sectionTitle}>My plans</ThemedText>
                 <Pressable
                   onPress={handleAddNewPersona}
                   hitSlop={10}
+                  pressRetentionOffset={16}
                   accessibilityRole="button"
                   accessibilityLabel={
                     canAddPersona()
-                      ? "Add a new persona"
-                      : "Upgrade to Premium to add more personas"
+                      ? "Add another plan"
+                      : "Premium lets you add more plans"
                   }
                   style={({ pressed }) => [
                     styles.addPersonaButton,
                     { opacity: pressed ? 0.7 : 1 },
                   ]}
                 >
-                  {!canAddPersona() ? (
-                    <Feather name="lock" size={14} color={theme.accent} />
-                  ) : (
-                    <Feather name="plus" size={18} color={theme.accent} />
-                  )}
+                  <Feather
+                    name={canAddPersona() ? "plus" : "lock"}
+                    size={canAddPersona() ? 18 : 14}
+                    color={theme.accent}
+                  />
                   <ThemedText
                     style={[styles.addPersonaText, { color: theme.accent }]}
                   >
-                    {canAddPersona() ? "Add" : "PRO"}
+                    Add
                   </ThemedText>
                 </Pressable>
               </View>
 
-              <View style={styles.personasList}>
-                {personas.map((p) => (
-                  <Pressable
-                    key={p.id}
-                    onPress={() => handleSwitchPersona(p.id)}
-                    onLongPress={() => handleDeletePersona(p.id, p.name)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${p.name}${
-                      p.id === persona?.id ? ", active persona" : ""
-                    }`}
-                    accessibilityHint="Switches to this persona. Long press to delete."
-                    accessibilityState={{ selected: p.id === persona?.id }}
-                    style={({ pressed }) => [
-                      styles.personaItem,
-                      {
-                        backgroundColor: isDark
-                          ? Colors.dark.backgroundDefault
-                          : Colors.light.backgroundDefault,
-                        borderColor:
-                          p.id === persona?.id ? theme.accent : "transparent",
-                        borderWidth: 2,
-                        opacity: pressed ? 0.8 : 1,
-                      },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.personaItemAvatar,
-                        {
-                          backgroundColor:
-                            p.id === persona?.id
-                              ? theme.accent
-                              : theme.backgroundSecondary,
-                        },
+              <SettingsGroup>
+                {personas.map((p) => {
+                  const isActive = p.id === persona?.id;
+                  return (
+                    <Pressable
+                      key={p.id}
+                      onPress={() => handleSwitchPersona(p.id)}
+                      onLongPress={() => handleDeletePersona(p.id, p.name)}
+                      pressRetentionOffset={16}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${p.name}${isActive ? ", active plan" : ""}`}
+                      accessibilityHint="Switches to this plan. Long press to delete."
+                      accessibilityState={{ selected: isActive }}
+                      style={({ pressed }) => [
+                        styles.personaItem,
+                        pressed && styles.rowPressed,
                       ]}
                     >
-                      <Feather
-                        name="user"
-                        size={16}
-                        color={
-                          p.id === persona?.id ? "#000000" : theme.textSecondary
-                        }
-                      />
-                    </View>
-                    <View style={styles.personaItemContent}>
-                      <ThemedText style={styles.personaItemName}>
-                        {p.name}
-                      </ThemedText>
-                      {p.id === persona?.id ? (
+                      <View style={styles.personaItemContent}>
                         <ThemedText
                           style={[
-                            styles.personaItemBadge,
-                            { color: theme.accent },
+                            styles.personaItemName,
+                            isActive && styles.personaItemNameActive,
                           ]}
                         >
-                          Active
+                          {p.name}
                         </ThemedText>
-                      ) : null}
-                    </View>
-                    {p.id !== persona?.id ? (
-                      <Pressable
-                        onPress={() => handleDeletePersona(p.id, p.name)}
-                        hitSlop={14}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Delete persona ${p.name}`}
-                        style={({ pressed }) => [
-                          { opacity: pressed ? 0.5 : 1 },
-                        ]}
-                      >
-                        <Feather name="trash-2" size={18} color={theme.error} />
-                      </Pressable>
-                    ) : null}
-                  </Pressable>
-                ))}
-              </View>
-
-              <View style={styles.personaHintContainer}>
-                <View style={styles.personaHintRow}>
-                  <Feather
-                    name="repeat"
-                    size={14}
-                    color={theme.textSecondary}
-                  />
-                  <ThemedText
-                    style={[styles.personaHint, { color: theme.textSecondary }]}
-                  >
-                    Tap to switch
-                  </ThemedText>
-                </View>
-                <View style={styles.personaHintRow}>
-                  <Feather
-                    name="trash-2"
-                    size={14}
-                    color={theme.textSecondary}
-                  />
-                  <ThemedText
-                    style={[styles.personaHint, { color: theme.textSecondary }]}
-                  >
-                    Tap trash icon to delete
-                  </ThemedText>
-                </View>
-              </View>
+                        {isActive && p.description ? (
+                          <ThemedText
+                            numberOfLines={2}
+                            style={[
+                              styles.settingsSubtitle,
+                              { color: theme.textSecondary },
+                            ]}
+                          >
+                            {p.description}
+                          </ThemedText>
+                        ) : null}
+                      </View>
+                      {isActive ? (
+                        <Feather name="check" size={20} color={theme.accent} />
+                      ) : (
+                        <Pressable
+                          onPress={() => handleDeletePersona(p.id, p.name)}
+                          hitSlop={14}
+                          pressRetentionOffset={16}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Delete plan ${p.name}`}
+                          style={({ pressed }) => [
+                            { opacity: pressed ? 0.5 : 1 },
+                          ]}
+                        >
+                          <Feather
+                            name="trash-2"
+                            size={18}
+                            color={theme.textSecondary}
+                          />
+                        </Pressable>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </SettingsGroup>
             </>
           ) : null}
 
-          <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
+          <ThemedText
+            style={[
+              styles.sectionTitle,
+              { marginTop: Spacing.xl, marginBottom: Spacing.md },
+            ]}
+          >
             Settings
           </ThemedText>
 
-          <SettingsRow
-            icon={
-              subscriptionVerificationStatus === "checking"
-                ? "refresh-cw"
-                : subscription.isPremium
-                  ? "check-circle"
-                  : "zap"
-            }
-            title={subscriptionCopy.title}
-            subtitle={subscriptionCopy.subtitle}
-            onPress={() => {
-              verifySubscription().catch(() => {});
-              navigation.navigate("Subscription");
-            }}
-          />
+          <SettingsGroup>
+            {subscription.isPremium ? (
+              <SettingsRow
+                grouped
+                icon={
+                  subscriptionVerificationStatus === "checking"
+                    ? "refresh-cw"
+                    : "star"
+                }
+                title={subscriptionCopy.title}
+                subtitle={subscriptionCopy.subtitle}
+                onPress={() => {
+                  verifySubscription().catch(() => {});
+                  navigation.navigate("Subscription");
+                }}
+              />
+            ) : null}
 
-          <SettingsRow
-            icon="bell"
-            title="Daily Reminder"
-            subtitle={
-              Platform.OS === "web"
-                ? "Available on mobile"
-                : notificationsEnabled
-                  ? `On${reminderTime ? ` · ${reminderTime.label}` : ""}`
-                  : "Off"
-            }
-            onPress={() => setActivePanel("reminders")}
-          />
+            {Platform.OS === "ios" ? (
+              <SettingsRow
+                grouped
+                icon="heart"
+                title="Apple Health"
+                onPress={() => setActivePanel("health")}
+              />
+            ) : null}
 
-          <SettingsRow
-            icon="shield"
-            title="Privacy & Data"
-            subtitle={
-              platformCapabilities.supportsPrivateCloudBackup
-                ? "AI sharing, iCloud backup, and data controls"
-                : "AI sharing and data controls"
-            }
-            onPress={() => setActivePanel("privacy")}
-          />
+            <SettingsRow
+              grouped
+              icon="bell"
+              title="Daily Reminder"
+              subtitle={
+                Platform.OS === "web"
+                  ? "Available on mobile"
+                  : notificationsEnabled
+                    ? `On${reminderTime ? ` · ${reminderTime.label}` : ""}`
+                    : "Off"
+              }
+              onPress={() => setActivePanel("reminders")}
+            />
 
-          <SettingsRow
-            icon="info"
-            title="About"
-            subtitle={`Version ${Constants.expoConfig?.version || "1.0.0"}`}
-            onPress={() => setActivePanel("about")}
-          />
+            <SettingsRow
+              grouped
+              icon="sunrise"
+              title="Appearance"
+              onPress={() => setActivePanel("appearance")}
+            />
+
+            {Platform.OS === "ios" ? (
+              <SettingsRow
+                grouped
+                icon="grid"
+                title="Widget & Siri"
+                // Shows a how-to alert, not another screen
+                accessory="none"
+                onPress={() =>
+                  Alert.alert(
+                    "Log from your Home Screen",
+                    "Touch and hold your Home or Lock Screen, tap +, and search for Resolution Companion to add the “Take the Next Step” widget.\n\nSiri works too. Try “Log my kickstart in Resolution Companion.”",
+                    [{ text: "Got it" }],
+                  )
+                }
+              />
+            ) : null}
+
+            <SettingsRow
+              grouped
+              icon="shield"
+              title="Privacy & Data"
+              onPress={() => setActivePanel("privacy")}
+            />
+
+            <SettingsRow
+              grouped
+              icon="info"
+              title="About"
+              subtitle={`Version ${Constants.expoConfig?.version || "1.0.0"}`}
+              onPress={() => setActivePanel("about")}
+            />
+          </SettingsGroup>
+        </>
+      ) : null}
+
+      {activePanel === "health" ? (
+        <>
+          <View style={styles.detailIntro}>
+            <Feather name="heart" size={28} color={theme.accent} />
+            <ThemedText style={styles.detailTitle}>Apple Health</ThemedText>
+            <ThemedText
+              style={[
+                styles.detailBody,
+                {
+                  color: theme.textSecondary,
+                  textAlign: "left",
+                  maxWidth: "100%",
+                },
+              ]}
+            >
+              Resolution Companion uses HealthKit to read activity from Apple
+              Health and complete habits you choose. This is optional and off
+              for each habit until you turn it on.
+            </ThemedText>
+          </View>
+          <ThemedText
+            style={[
+              styles.sectionTitle,
+              { marginTop: Spacing.lg, marginBottom: Spacing.sm },
+            ]}
+          >
+            What it reads
+          </ThemedText>
+          <ThemedText
+            style={[
+              styles.detailBody,
+              {
+                color: theme.textSecondary,
+                textAlign: "left",
+                maxWidth: "100%",
+              },
+            ]}
+          >
+            Workouts: any workout recorded today. Steps: at least{" "}
+            {HEALTH_STEPS_THRESHOLD.toLocaleString()} steps today. Mindful
+            sessions: any session recorded today.
+          </ThemedText>
+          <ThemedText
+            style={[
+              styles.sectionTitle,
+              { marginTop: Spacing.lg, marginBottom: Spacing.sm },
+            ]}
+          >
+            How it works
+          </ThemedText>
+          <ThemedText
+            style={[
+              styles.detailBody,
+              {
+                color: theme.textSecondary,
+                textAlign: "left",
+                maxWidth: "100%",
+              },
+            ]}
+          >
+            Choose a habit below, then select Workout, Steps, or Mindful under
+            Apple Health. Review Apple&apos;s permission prompt and save the
+            habit. When you open or return to the app, matching activity
+            completes that habit on its scheduled days. Choose Off in the habit
+            to stop.
+          </ThemedText>
+          <ThemedText
+            style={[
+              styles.sectionTitle,
+              { marginTop: Spacing.lg, marginBottom: Spacing.sm },
+            ]}
+          >
+            Your permission and privacy
+          </ThemedText>
+          <ThemedText
+            style={[
+              styles.detailBody,
+              {
+                color: theme.textSecondary,
+                textAlign: "left",
+                maxWidth: "100%",
+              },
+            ]}
+          >
+            HealthKit access is read-only. Raw health records stay on this
+            device and are not sent to AI Coach. You can change access in the
+            Health app under your profile, Apps, then Resolution Companion.
+            Without access or matching data, you can still complete habits by
+            hand.
+          </ThemedText>
+          <ThemedText
+            style={[
+              styles.sectionTitle,
+              { marginTop: Spacing.lg, marginBottom: Spacing.sm },
+            ]}
+          >
+            Choose a habit
+          </ThemedText>
+          {actions.length ? (
+            actions.map((action) => (
+              <SettingsRow
+                key={action.id}
+                icon="activity"
+                title={action.title}
+                subtitle={
+                  action.healthAutoComplete
+                    ? `Apple Health: ${HEALTH_KIND_LABELS[action.healthAutoComplete]}`
+                    : "Apple Health: Off"
+                }
+                onPress={() =>
+                  navigation.navigate("ActionEditor", {
+                    actionId: action.id,
+                    benchmarkId: action.benchmarkId,
+                  })
+                }
+              />
+            ))
+          ) : (
+            <ThemedText
+              style={[
+                styles.detailBody,
+                {
+                  color: theme.textSecondary,
+                  textAlign: "left",
+                  maxWidth: "100%",
+                },
+              ]}
+            >
+              Create your plan first. Then return here to choose a habit, or
+              open a habit from Journey and tap Edit habit.
+            </ThemedText>
+          )}
         </>
       ) : null}
 
@@ -986,7 +1172,7 @@ export default function ProfileScreen() {
             <View
               style={[
                 styles.settingsIcon,
-                { backgroundColor: "rgba(0, 217, 255, 0.1)" },
+                { backgroundColor: withAlpha(theme.accent, 0.1) },
               ]}
             >
               <Feather name="bell" size={20} color={theme.accent} />
@@ -1006,7 +1192,7 @@ export default function ProfileScreen() {
                   : notificationsEnabled && reminderTime
                     ? `Personalized reminder at ${reminderTime.label}${
                         reminderTime.source === "routine"
-                          ? " — based on your routine"
+                          ? ", based on your routine"
                           : ""
                       } · quiet once your day is done`
                     : notificationsEnabled
@@ -1056,7 +1242,7 @@ export default function ProfileScreen() {
                       style={({ pressed }) => [
                         styles.bucketOption,
                         selected && {
-                          backgroundColor: "rgba(0, 217, 255, 0.15)",
+                          backgroundColor: withAlpha(theme.accent, 0.15),
                           borderColor: theme.accent,
                         },
                         { opacity: pressed ? 0.7 : 1 },
@@ -1109,7 +1295,7 @@ export default function ProfileScreen() {
             <View
               style={[
                 styles.settingsIcon,
-                { backgroundColor: "rgba(0, 217, 255, 0.1)" },
+                { backgroundColor: withAlpha(theme.accent, 0.1) },
               ]}
             >
               <Feather name="message-circle" size={20} color={theme.accent} />
@@ -1125,8 +1311,8 @@ export default function ProfileScreen() {
                 ]}
               >
                 {aiConsent
-                  ? "On — chat messages are sent to OpenAI"
-                  : "Off — AI coaching disabled"}
+                  ? "On. Chat messages are sent to OpenAI"
+                  : "Off. AI coaching is turned off"}
               </ThemedText>
             </View>
             <Switch
@@ -1154,6 +1340,7 @@ export default function ProfileScreen() {
               subtitle="Delete local data and start fresh"
               onPress={handleClearData}
               destructive
+              accessory="none"
             />
           ) : null}
 
@@ -1163,6 +1350,7 @@ export default function ProfileScreen() {
             subtitle="Remove all data from device and servers"
             onPress={handleDeleteAccount}
             destructive
+            accessory="none"
           />
         </>
       ) : null}
@@ -1174,7 +1362,10 @@ export default function ProfileScreen() {
             <ThemedText style={styles.detailTitle}>
               Resolution Companion
             </ThemedText>
-            <ThemedText style={[styles.detailVersion, { color: theme.accent }]}>
+            {/* Static text: accent would read as a link */}
+            <ThemedText
+              style={[styles.detailVersion, { color: theme.textSecondary }]}
+            >
               Version {Constants.expoConfig?.version || "1.0.0"}
             </ThemedText>
             <ThemedText
@@ -1182,6 +1373,21 @@ export default function ProfileScreen() {
             >
               An identity-based companion for becoming who you want to be, one
               small action at a time.
+            </ThemedText>
+          </View>
+        </>
+      ) : null}
+
+      {activePanel === "appearance" ? (
+        <>
+          <View style={styles.detailIntro}>
+            <Feather name="sunrise" size={28} color={theme.accent} />
+            <ThemedText style={styles.detailTitle}>Make it yours</ThemedText>
+            <ThemedText
+              style={[styles.detailBody, { color: theme.textSecondary }]}
+            >
+              Completed milestones unlock personalization rewards: a theme, an
+              accent, a coach voice, celebrations, and an app icon.
             </ThemedText>
           </View>
 
@@ -1195,7 +1401,15 @@ export default function ProfileScreen() {
             >
               Earned Personalization
             </ThemedText>
-          ) : null}
+          ) : (
+            // Plain text, not a row: a card with an icon looked tappable
+            <ThemedText
+              style={[styles.lockedRewardsNote, { color: theme.textSecondary }]}
+            >
+              Nothing unlocked yet. Your first completed milestone unlocks the
+              Dawn theme.
+            </ThemedText>
+          )}
 
           {dawnUnlocked ? (
             <View
@@ -1311,7 +1525,7 @@ export default function ProfileScreen() {
               <View
                 style={[
                   styles.settingsIcon,
-                  { backgroundColor: "rgba(0, 217, 255, 0.1)" },
+                  { backgroundColor: withAlpha(theme.accent, 0.1) },
                 ]}
               >
                 <Feather name="message-circle" size={20} color={theme.accent} />
@@ -1415,7 +1629,7 @@ export default function ProfileScreen() {
               <View
                 style={[
                   styles.settingsIcon,
-                  { backgroundColor: "rgba(0, 217, 255, 0.1)" },
+                  { backgroundColor: withAlpha(theme.accent, 0.1) },
                 ]}
               >
                 <Feather name="compass" size={20} color={theme.accent} />
@@ -1462,6 +1676,32 @@ export default function ProfileScreen() {
               />
             </View>
           ) : null}
+        </>
+      ) : null}
+
+      {activePanel === "about" ? (
+        <>
+          {Platform.OS === "ios" ? (
+            <>
+              <ThemedText
+                style={[styles.sectionTitle, { marginTop: Spacing.xl }]}
+              >
+                Support
+              </ThemedText>
+
+              <SettingsRow
+                icon="star"
+                title="Rate Resolution Companion"
+                subtitle="Share your experience on the App Store"
+                accessory="external"
+                onPress={() =>
+                  Linking.openURL(
+                    "https://apps.apple.com/app/id6757996708?action=write-review",
+                  )
+                }
+              />
+            </>
+          ) : null}
 
           <ThemedText style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
             Legal
@@ -1471,6 +1711,7 @@ export default function ProfileScreen() {
             icon="file-text"
             title="Privacy Policy"
             subtitle="How we handle your data"
+            accessory="external"
             onPress={() =>
               Linking.openURL(new URL("/privacy", getApiUrl()).toString())
             }
@@ -1480,6 +1721,7 @@ export default function ProfileScreen() {
             icon="book-open"
             title="Terms of Use"
             subtitle="App usage terms and conditions"
+            accessory="external"
             onPress={() =>
               Linking.openURL(new URL("/terms", getApiUrl()).toString())
             }
@@ -1518,6 +1760,11 @@ const styles = StyleSheet.create({
     ...Typography.small,
     fontWeight: "600",
   },
+  lockedRewardsNote: {
+    ...Typography.small,
+    textAlign: "center",
+    paddingHorizontal: Spacing.lg,
+  },
   detailBody: {
     ...Typography.body,
     lineHeight: 23,
@@ -1530,57 +1777,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.xl,
   },
-  avatarContainer: {
-    marginBottom: Spacing.lg,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  personaName: {
-    ...Typography.title,
-    textAlign: "center",
-    marginBottom: Spacing.xs,
-  },
-  personaDescription: {
-    ...Typography.body,
-    textAlign: "center",
-    marginBottom: Spacing.lg,
-  },
   notOnboarded: {
     ...Typography.body,
     textAlign: "center",
     marginBottom: Spacing.lg,
   },
-  statsRow: {
-    flexDirection: "row",
-    width: "100%",
-    justifyContent: "space-around",
-    paddingTop: Spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.1)",
-  },
-  statItem: {
-    alignItems: "center",
-  },
-  statValue: {
-    ...Typography.title,
-  },
-  statLabel: {
-    ...Typography.caption,
-  },
   onboardButton: {
-    backgroundColor: Colors.dark.accent,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing["2xl"],
     borderRadius: BorderRadius.full,
   },
   onboardButtonText: {
     ...Typography.headline,
-    color: "#000000",
+  },
+  upgradeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.xl,
+  },
+  rowPressed: {
+    opacity: 0.7,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -1602,22 +1822,33 @@ const styles = StyleSheet.create({
     ...Typography.small,
     fontWeight: "600",
   },
-  personasList: {
-    gap: Spacing.sm,
+  group: {
+    borderRadius: BorderRadius.md,
+    overflow: "hidden",
+  },
+  groupDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: Spacing.lg,
+  },
+  groupedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 52,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+  },
+  groupedIcon: {
+    width: 24,
+    alignItems: "center",
+    marginRight: Spacing.md,
   },
   personaItem: {
     flexDirection: "row",
     alignItems: "center",
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-  },
-  personaItemAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: BorderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.md,
+    gap: Spacing.md,
+    minHeight: 52,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
   },
   personaItemContent: {
     flex: 1,
@@ -1626,24 +1857,8 @@ const styles = StyleSheet.create({
     ...Typography.body,
     fontWeight: "500",
   },
-  personaItemBadge: {
-    ...Typography.caption,
+  personaItemNameActive: {
     fontWeight: "600",
-  },
-  personaHintContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: Spacing.xl,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  personaHintRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-  },
-  personaHint: {
-    ...Typography.caption,
   },
   settingsRow: {
     flexDirection: "row",

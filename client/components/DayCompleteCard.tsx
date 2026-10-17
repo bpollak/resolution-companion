@@ -13,6 +13,7 @@ import Animated, {
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
+import { dayCompleteProgressText } from "@/lib/today-layout";
 
 // Same palette as the onboarding logo's gradient dots. Exported (with
 // BurstDot) so the milestone celebration reuses the same visual language.
@@ -75,6 +76,9 @@ interface DayCompleteCardProps {
   personaName: string;
   momentum: number;
   momentumDelta: number;
+  /** Journey's month-ring rule; false until the month has enough planned days. */
+  showMonthConsistency: boolean;
+  planDay: number;
   tomorrowCount: number;
   tomorrowFirstTitle?: string;
   isFirstEver: boolean;
@@ -88,6 +92,8 @@ export function DayCompleteCard({
   personaName,
   momentum,
   momentumDelta,
+  showMonthConsistency,
+  planDay,
   tomorrowCount,
   tomorrowFirstTitle,
   isFirstEver,
@@ -107,6 +113,14 @@ export function DayCompleteCard({
       );
     }
   }, [celebrate, opacity, translateY]);
+
+  const progressText = dayCompleteProgressText({
+    showConsistency: showMonthConsistency,
+    monthName: new Date().toLocaleDateString("en-US", { month: "long" }),
+    consistency: momentum,
+    planDay,
+    streak,
+  });
 
   const cardStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
@@ -145,29 +159,36 @@ export function DayCompleteCard({
         {personaName}.
       </ThemedText>
       {isFirstEver ? (
-        <ThemedText style={[styles.firstEver, { color: theme.accent }]}>
+        // Static line: accent text reads as a link in this app
+        <ThemedText style={[styles.firstEver, { color: theme.text }]}>
           This is how it starts.
         </ThemedText>
       ) : null}
 
-      <View style={styles.momentumRow}>
-        <Feather name="zap" size={16} color={theme.warning} />
-        <ThemedText style={styles.momentumText}>
-          {new Date().toLocaleDateString("en-US", { month: "long" })}{" "}
-          consistency: {momentum}%
-        </ThemedText>
-        {momentumDelta > 0 ? (
-          <ThemedText style={[styles.momentumDelta, { color: theme.success }]}>
-            +{momentumDelta} today
-          </ThemedText>
-        ) : null}
-      </View>
+      {progressText ? (
+        <View style={styles.momentumRow}>
+          <Feather name="zap" size={16} color={theme.warning} />
+          <ThemedText style={styles.momentumText}>{progressText}</ThemedText>
+          {/* On the first day the whole score is today's, so a "+100" reads as noise. */}
+          {showMonthConsistency &&
+          momentumDelta > 0 &&
+          momentumDelta < momentum ? (
+            <ThemedText
+              style={[styles.momentumDelta, { color: theme.success }]}
+            >
+              Up {momentumDelta} points today
+            </ThemedText>
+          ) : null}
+        </View>
+      ) : (
+        <View style={styles.momentumSpacer} />
+      )}
 
       {tomorrowCount > 0 ? (
         <Pressable
           onPress={onTomorrowPress}
           accessibilityRole="button"
-          accessibilityLabel={`View tomorrow's ${tomorrowCount} ${tomorrowCount === 1 ? "action" : "actions"} in the calendar`}
+          accessibilityLabel={`View tomorrow's ${tomorrowCount} ${tomorrowCount === 1 ? "habit" : "habits"} in the calendar`}
           style={({ pressed }) => [
             styles.tomorrowRow,
             { opacity: pressed ? 0.7 : 1 },
@@ -177,7 +198,7 @@ export function DayCompleteCard({
             style={[styles.tomorrowText, { color: theme.textSecondary }]}
             numberOfLines={1}
           >
-            Tomorrow: {tomorrowCount} action{tomorrowCount === 1 ? "" : "s"}
+            Tomorrow: {tomorrowCount} habit{tomorrowCount === 1 ? "" : "s"}
             {tomorrowFirstTitle ? ` · ${tomorrowFirstTitle}` : ""}
           </ThemedText>
           <Feather name="chevron-right" size={16} color={theme.accent} />
@@ -244,6 +265,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
     paddingHorizontal: Spacing.sm,
   },
+  // Keeps the tomorrow row's spacing when the progress line is omitted
+  momentumSpacer: { height: Spacing.lg },
   momentumText: {
     ...Typography.body,
     fontWeight: "600",

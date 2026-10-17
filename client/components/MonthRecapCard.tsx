@@ -6,6 +6,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import type { MonthRecap } from "@/lib/recap";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
+import { withAlpha } from "@/lib/color";
 
 interface MonthRecapCardProps {
   recap: MonthRecap;
@@ -14,7 +15,7 @@ interface MonthRecapCardProps {
 }
 
 /**
- * Entry card for the "Month in Votes" story, shown on Today during the first
+ * Entry card for the "Month in Motion" story, shown on Today during the first
  * days of a new month — the clean slate gets a closing ceremony before the
  * fresh start.
  */
@@ -33,6 +34,7 @@ export function MonthRecapCard({
           backgroundColor: isDark
             ? Colors.dark.backgroundDefault
             : Colors.light.backgroundDefault,
+          borderColor: withAlpha(theme.accent, 0.3),
         },
       ]}
     >
@@ -48,14 +50,17 @@ export function MonthRecapCard({
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel="Dismiss month recap"
-          style={styles.close}
+          style={({ pressed }) => [
+            styles.close,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
         >
           <Feather name="x" size={18} color={theme.textSecondary} />
         </Pressable>
       </View>
 
       <ThemedText style={styles.headline}>
-        {recap.votesCast} {recap.votesCast === 1 ? "vote" : "votes"} for{" "}
+        {recap.votesCast} {recap.votesCast === 1 ? "action" : "actions"} for{" "}
         {recap.personaName}
       </ThemedText>
       <ThemedText style={[styles.sub, { color: theme.textSecondary }]}>
@@ -69,7 +74,7 @@ export function MonthRecapCard({
         hitSlop={8}
         pressRetentionOffset={12}
         accessibilityRole="button"
-        accessibilityLabel="Open your Month in Votes story"
+        accessibilityLabel="Open your Month in Motion story"
         style={({ pressed }) => [styles.cta, { opacity: pressed ? 0.7 : 1 }]}
       >
         <ThemedText style={[styles.ctaText, { color: theme.accent }]}>
@@ -87,7 +92,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.xl,
     borderWidth: 1,
-    borderColor: "rgba(0, 217, 255, 0.3)",
   },
   header: {
     flexDirection: "row",

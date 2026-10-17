@@ -1,0 +1,79 @@
+appId: com.resolutioncompanion.app
+---
+# Run after qa/maestro-regression.yaml creates a local starter plan.
+# State-dependent discovery, quota, Premium, malformed-server, offline, large
+# text, screen-reader, and orientation cases remain explicit manual/device
+# matrix rows in docs/ambient-coach-release.md until deterministic fixtures are
+# available to Maestro.
+
+- launchApp
+- tapOn:
+    text: "Discard"
+    optional: true
+# The progress line and Ask Coach link show only while a habit is pending.
+- runFlow: _pending-today.yaml
+# The progress line replaced the signal card's stats row on ordinary days.
+- extendedWaitUntil:
+    visible: ".* done today.*"
+    timeout: 20000
+- takeScreenshot: ambient-today-signal
+
+- tapOn:
+    text: "Ask Coach.*"
+    optional: true
+- extendedWaitUntil:
+    visible: "Coach"
+    timeout: 10000
+    optional: true
+- assertVisible:
+    text: "Today’s signal.*"
+    optional: true
+- tapOn: "Close Coach"
+- tapOn:
+    text: "Discard"
+    optional: true
+
+- extendedWaitUntil:
+    visible:
+      id: "tab-journey"
+    timeout: 10000
+- tapOn:
+    id: "tab-journey"
+# Rhythm status sits inline under each habit in the expanded milestone card;
+# the separate rhythm card appears only when a habit is worth simplifying.
+# Expand the milestone unless an earlier step left it open.
+- scrollUntilVisible:
+    element:
+      text: ".* milestone, .* days done.*"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- runFlow:
+    when:
+      notVisible: "Edit .* milestone"
+    commands:
+      - tapOn: ".* milestone, .* days done.*"
+- scrollUntilVisible:
+    element:
+      text: "Adjust .*"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- assertVisible: "Adjust .*(Still learning your rhythm|Working well|Still forming|Worth simplifying).*"
+- takeScreenshot: ambient-journey-framing
+
+- tapOn:
+    id: "tab-coach"
+- extendedWaitUntil:
+    visible: "What do you need help with?.*"
+    timeout: 10000
+# The lobby has one primary entry; plan adjustment is a chip in the sheet.
+- tapOn: "Start a conversation with Coach"
+- scrollUntilVisible:
+    element:
+      text: "Request a previewed plan adjustment"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- takeScreenshot: ambient-coach-sheet
+- tapOn: "Close Coach"

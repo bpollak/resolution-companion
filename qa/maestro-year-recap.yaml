@@ -2,6 +2,10 @@ appId: com.resolutioncompanion.app
 name: premium-year-recap
 ---
 # Run after qa/seed_premium.py modifies an onboarded simulator manifest.
+# Simulator limit: StoreKit reports no active entitlement there, and the
+# launch check correctly clears a local-only Premium flag (review fix B,
+# resolveSubscriptionCheck). The seeded entitlement survives only until that
+# check lands, so this flow needs a real or StoreKit-test entitlement.
 - launchApp
 - repeat:
     times: 3
@@ -10,18 +14,14 @@ name: premium-year-recap
           text: "Dismiss milestone celebration.*"
           optional: true
       - waitForAnimationToEnd
-- extendedWaitUntil:
-    visible: "Momentum Builder.*"
-    timeout: 20000
-- tapOn: "Open profile and settings.*"
-- extendedWaitUntil:
-    visible: "My Personas.*"
-    timeout: 10000
+# The annual story lives in Journey's Stories & Support (bottom of scroll)
+- tapOn:
+    id: "tab-journey"
 - scrollUntilVisible:
     element:
       text: "The Year You Became.*"
     direction: DOWN
-    timeout: 30000
+    timeout: 45000
 - tapOn: "The Year You Became.*"
 - extendedWaitUntil:
     visible: "The Year You Became.*"
@@ -31,9 +31,16 @@ name: premium-year-recap
     visible: "Close year recap.*"
     timeout: 10000
 - assertVisible: "Share this year recap card as an image.*"
+# Premium sees every card. A free user sees the opening card, the same Share
+# button, and a teaser, so the old Share-only assertions also passed for a
+# free user. Assert the teaser is absent and the second (rhythm) card shows.
+- assertNotVisible: "See the full year story with Premium"
 - takeScreenshot: a11y-08-year-recap-card-one
 - swipe:
     direction: LEFT
+- extendedWaitUntil:
+    visible: ".*% consistency across .*"
+    timeout: 5000
 - assertVisible: "Share this year recap card as an image.*"
 - takeScreenshot: a11y-09-year-recap-card-two
 - tapOn: "Close year recap.*"

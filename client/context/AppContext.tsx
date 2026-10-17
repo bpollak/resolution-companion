@@ -4,11 +4,12 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useLayoutEffect,
   useMemo,
   useRef,
   ReactNode,
 } from "react";
-import { AppState, Platform } from "react-native";
+import { AppState, InteractionManager, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   storage,
@@ -17,13 +18,11 @@ import {
   Benchmark,
   ElementalAction,
   DailyLog,
-  DailyContextEntry,
-  DailyContextInput,
   PlanAdjustment,
+  PlanAdjustmentChanges,
   Reflection,
   Subscription,
 } from "@/lib/storage";
-import type { PlanTuneUpResponse } from "@shared/plan-tune-up";
 import {
   buildProgressSnapshot,
   computeLapse,
@@ -34,26 +33,37 @@ import {
 import {
   ensureReminderScheduled,
   enableDefaultPersonalizedReminders,
+  getReminderPrimerState,
+  recordReminderPrimerAnswer,
   registerReminderActions,
   recordOrganicAppOpen,
   recordReminderHookTap,
+  selectMarkAllDoneActions,
   MARK_ALL_DONE_ACTION,
 } from "@/lib/notifications";
 import * as Notifications from "expo-notifications";
 import { logger } from "@/lib/logger";
+import { navigationRef } from "@/navigation/navigationRef";
 import { track, flushTelemetry } from "@/lib/telemetry";
-import { inferBenchmarkCompletedAt } from "@/lib/evidence";
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { syncWidgetData, consumePendingVotes } from "@/lib/widget";
+import { createTrailingDebounce } from "@/lib/debounce";
 import { unlockRewardsForMilestoneCount, Reward } from "@/lib/rewards";
 import { isHealthAvailable, initHealth, isHealthGoalMet } from "@/lib/health";
 import {
-  reconcileSubscription,
-  selectPreferredEntitlement,
+  resolveSubscriptionCheck,
+  sameSubscription,
   type ServerSubscriptionStatus,
   type SubscriptionVerificationStatus,
 } from "@/lib/subscription";
+import {
+  completeLogIn,
+  logDateKey,
+  upsertLogIn,
+  type DailyLogCompletion,
+} from "@/lib/daily-log";
 import { iapService } from "@/lib/iap";
+import { canDeleteMilestone } from "@/lib/plan-editing";
 import {
   createPrivateBackup,
   getPrivateBackupEnabled,
@@ -67,7 +77,6 @@ interface AppContextType {
   benchmarks: Benchmark[];
   actions: ElementalAction[];
   dailyLogs: DailyLog[];
-  dailyContexts: DailyContextEntry[];
   planAdjustments: PlanAdjustment[];
   reflections: Reflection[];
   momentumScore: number;
@@ -113,27 +122,51 @@ interface AppContextType {
     date: string,
     completion?: Pick<DailyLog, "completionSource" | "completionKind">,
   ) => Promise<DailyLog>;
+  /**
+   * Idempotent completion for automatic votes (Health, widget, Siri,
+   * notification). Never un-completes; resolves to null when the day was
+   * already complete, otherwise to the new log once it is persisted.
+   */
+  completeDailyLog: (
+    actionId: string,
+    date: string,
+    completion: DailyLogCompletion,
+  ) => Promise<DailyLog | null>;
   setDailyLogNote: (
     actionId: string,
     date: string,
     note: string,
   ) => Promise<void>;
-  upsertDailyContext: (input: DailyContextInput) => Promise<DailyContextEntry>;
-  deleteDailyContext: (logDate: string) => Promise<void>;
-  applyPlanTuneUp: (
+  applyPlanAdjustment: (
     actionId: string,
-    proposal: PlanTuneUpResponse,
-  ) => Promise<PlanAdjustment>;
+    changes: PlanAdjustmentChanges,
+    rationale: string,
+  ) => Promise<PlanAdjustment | null>;
+  dismissPlanAdjustment: (
+    actionId: string,
+    changes: PlanAdjustmentChanges,
+    rationale: string,
+  ) => Promise<PlanAdjustment | null>;
   addReflection: (
     reflection: Omit<Reflection, "id" | "createdAt">,
   ) => Promise<Reflection>;
   refreshData: () => Promise<void>;
-  verifySubscription: () => Promise<SubscriptionVerificationStatus>;
+  /**
+   * Concurrent calls share one check. `force` waits for any in-flight check
+   * and then runs a fresh one, for callers that just changed the store's
+   * state (a completed purchase or restore) and need a check that saw it.
+   */
+  verifySubscription: (options?: {
+    force?: boolean;
+  }) => Promise<SubscriptionVerificationStatus>;
   clearAllData: () => Promise<void>;
   incrementReflectionCount: () => Promise<number>;
   canUseReflection: () => boolean;
   canAddPersona: () => boolean;
   canAddBenchmark: () => boolean;
+  /** A new plan is waiting for the reminder primer on Today. */
+  reminderPrimerPending: boolean;
+  answerReminderPrimer: (accept: boolean) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -144,6 +177,53 @@ const FREE_REFLECTION_LIMIT = 10;
 // milestone is celebrated exactly once, ever (survives restarts)
 const MILESTONE_CELEBRATION_SEEN_KEY = "milestone_celebration_seen_ids";
 
+// try/catch lives in these module helpers, outside AppProvider: the React
+// Compiler skips the whole provider over conditional expressions in a try.
+function parseSeenIds(raw: string | null): string[] {
+  try {
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Whether `key` already holds `marker`; false when storage fails. */
+async function markerMatches(key: string, marker: string): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(key)) === marker;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Records `marker` under `key` unless it is already there. False only when
+ * it was already recorded; storage failures claim it (the guard fails open).
+ */
+async function claimMarker(key: string, marker: string): Promise<boolean> {
+  try {
+    if ((await AsyncStorage.getItem(key)) === marker) return false;
+    await AsyncStorage.setItem(key, marker);
+  } catch {
+    // Fail open
+  }
+  return true;
+}
+
+// A promise resolved once stored data has loaded. Built by useState's lazy
+// initializer rather than in a ref during render, which the React Compiler
+// rejects.
+function createStoreReadySignal(): {
+  promise: Promise<void>;
+  resolve: () => void;
+} {
+  let resolve = () => {};
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [hasOnboarded, setHasOnboardedState] = useState(false);
   const [persona, setPersonaState] = useState<Persona | null>(null);
@@ -151,9 +231,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [benchmarks, setBenchmarksState] = useState<Benchmark[]>([]);
   const [actions, setActionsState] = useState<ElementalAction[]>([]);
   const [dailyLogs, setDailyLogsState] = useState<DailyLog[]>([]);
-  const [dailyContexts, setDailyContextsState] = useState<DailyContextEntry[]>(
-    [],
-  );
   const [planAdjustments, setPlanAdjustmentsState] = useState<PlanAdjustment[]>(
     [],
   );
@@ -201,7 +278,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         benchmarksData,
         actionsData,
         logsData,
-        dailyContextsData,
         planAdjustmentsData,
         reflectionsData,
         subscriptionData,
@@ -214,7 +290,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         storage.getBenchmarks(),
         storage.getElementalActions(),
         storage.getDailyLogs(),
-        storage.getDailyContexts(),
         storage.getPlanAdjustments(),
         storage.getReflections(),
         storage.getSubscription(),
@@ -246,40 +321,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setBenchmarksState(personaBenchmarks);
         setActionsState(personaActions);
         setDailyLogsState(personaLogs);
-        setDailyContextsState(
-          dailyContextsData.filter(
-            (entry) => entry.personaId === personaData.id,
-          ),
-        );
         setPlanAdjustmentsState(
           planAdjustmentsData.filter(
             (entry) => entry.personaId === personaData.id,
+          ),
+        );
+        setReflectionsState(
+          reflectionsData.filter(
+            (entry) => !entry.personaId || entry.personaId === personaData.id,
           ),
         );
       } else {
         setBenchmarksState([]);
         setActionsState([]);
         setDailyLogsState([]);
-        setDailyContextsState([]);
         setPlanAdjustmentsState([]);
+        setReflectionsState([]);
       }
-      setReflectionsState(reflectionsData);
     } catch (error) {
       logger.error("Error refreshing data:", error);
-    } finally {
-      setIsLoading(false);
     }
+    // After the try rather than in `finally`: the React Compiler skips the
+    // whole provider over try/finally, and the catch above never throws.
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
     refreshData();
   }, [refreshData]);
 
-  const verifySubscription = useCallback(() => {
-    if (subscriptionVerificationPromiseRef.current) {
-      return subscriptionVerificationPromiseRef.current;
-    }
-
+  const startSubscriptionVerification = useCallback(() => {
     setSubscriptionVerificationStatus("checking");
     const verification = (async (): Promise<SubscriptionVerificationStatus> => {
       const local = await storage.getSubscription();
@@ -300,85 +371,77 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch {
         // StoreKit below can still recover a current entitlement. Its receipt
         // will be server-validated before Premium is granted.
-      } finally {
-        clearTimeout(timeout);
       }
+      clearTimeout(timeout);
 
-      if (Platform.OS !== "web") {
-        const store = await iapService.checkCurrentEntitlements();
-        const purchase = selectPreferredEntitlement(
-          store.purchases,
-          (productId) => iapService.getPlanFromProductId(productId),
-        );
-
-        if (purchase) {
-          const plan = iapService.getPlanFromProductId(purchase.productId);
-          const next: Subscription = {
-            isPremium: true,
-            plan,
-            expiresAt:
-              plan === "lifetime"
-                ? null
-                : (purchase.expirationDate ??
-                  (local.plan === plan ? local.expiresAt : null)),
-            purchasedAt: new Date(purchase.purchaseTime).toISOString(),
-          };
-          await storage.setSubscription(next);
-          setSubscriptionState(next);
-          setSubscriptionVerificationStatus("verified");
-          return "verified";
-        }
-
-        if (store.storeAvailable && store.verificationCompleted) {
-          // StoreKit's active-entitlements list is current account truth. An
-          // empty completed result clears stale local/server Premium flags,
-          // including lifetime access left behind by a missed revocation.
-          const next: Subscription = {
-            isPremium: false,
-            plan: "free",
-            expiresAt: local.expiresAt,
-            purchasedAt: local.purchasedAt,
-          };
-          await storage.setSubscription(next);
-          setSubscriptionState(next);
-          setSubscriptionVerificationStatus("verified");
-          return "verified";
-        }
-      }
-
-      if (server) {
-        const next = reconcileSubscription(local, server);
-        await storage.setSubscription(next);
-        setSubscriptionState(next);
-        const status =
-          server.isPremium || !next.isPremium ? "verified" : "unavailable";
-        setSubscriptionVerificationStatus(status);
-        return status;
-      }
-
-      // Offline or validation service unavailable. Preserve any local access,
-      // but do not describe it as verified until a store-backed check succeeds.
-      setSubscriptionState(local);
-      setSubscriptionVerificationStatus("unavailable");
-      return "unavailable";
+      const store =
+        Platform.OS !== "web"
+          ? await iapService.checkCurrentEntitlements()
+          : null;
+      const { subscription: next, status } = resolveSubscriptionCheck({
+        local,
+        server,
+        store,
+        planForProduct: (productId) =>
+          iapService.getPlanFromProductId(productId),
+      });
+      if (next !== local) await storage.setSubscription(next);
+      // Storage hands back a fresh object on every check; keep the current
+      // one when nothing changed so context consumers don't re-render.
+      setSubscriptionState((current) =>
+        sameSubscription(current, next) ? current : next,
+      );
+      setSubscriptionVerificationStatus(status);
+      return status;
     })().finally(() => {
-      subscriptionVerificationPromiseRef.current = null;
+      if (subscriptionVerificationPromiseRef.current === verification) {
+        subscriptionVerificationPromiseRef.current = null;
+      }
     });
 
     subscriptionVerificationPromiseRef.current = verification;
     return verification;
   }, []);
 
+  const verifySubscription = useCallback(
+    (options?: { force?: boolean }) => {
+      const inFlight = subscriptionVerificationPromiseRef.current;
+      if (!inFlight) return startSubscriptionVerification();
+      if (!options?.force) return inFlight;
+      // The in-flight check may have read StoreKit before a purchase landed
+      // and would report (and save) the pre-purchase state. Wait it out, then
+      // share whichever check started after it, which saw the purchase.
+      return inFlight
+        .catch(() => undefined)
+        .then(
+          () =>
+            subscriptionVerificationPromiseRef.current ??
+            startSubscriptionVerification(),
+        );
+    },
+    [startSubscriptionVerification],
+  );
+
   // Private iCloud backup is opt-in. Once enabled, coalesce local changes
   // into one quiet snapshot; manual Backup Now remains available in Profile.
   useEffect(() => {
     if (Platform.OS !== "ios" || isLoading || !hasOnboarded) return;
+    // Serializing the snapshot is synchronous JS work; waiting for
+    // interactions keeps it from landing mid-gesture or mid-animation.
+    let task: { cancel: () => void } | undefined;
     const timeout = setTimeout(() => {
-      getPrivateBackupEnabled()
-        .then((enabled) => (enabled ? createPrivateBackup() : null))
-        .catch((error) => logger.warn("Private iCloud backup skipped:", error));
+      task = InteractionManager.runAfterInteractions(() => {
+        getPrivateBackupEnabled()
+          .then((enabled) => (enabled ? createPrivateBackup() : null))
+          .catch((error) =>
+            logger.warn("Private iCloud backup skipped:", error),
+          );
+      });
     }, 2500);
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+      task?.cancel();
+    };
   }, [
     isLoading,
     hasOnboarded,
@@ -386,7 +449,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     benchmarks,
     actions,
     dailyLogs,
-    dailyContexts,
     planAdjustments,
     reflections,
     aiConsent,
@@ -456,8 +518,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setBenchmarksState([]);
       setActionsState([]);
       setDailyLogsState([]);
-      setDailyContextsState([]);
-      setPlanAdjustmentsState([]);
       await storage.deletePersona(id);
       await refreshData();
     },
@@ -497,7 +557,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteBenchmark = useCallback(async (id: string) => {
     // Read actions from storage rather than the closure so the id list is
     // never stale (this callback is intentionally dependency-free)
-    const currentActions = await storage.getElementalActions();
+    const [currentActions, currentBenchmarks] = await Promise.all([
+      storage.getElementalActions(),
+      storage.getBenchmarks(),
+    ]);
+    if (!canDeleteMilestone(id, currentBenchmarks, currentActions)) {
+      throw new Error("Keep at least one action in this persona.");
+    }
     const actionIdsToDelete = currentActions
       .filter((a) => a.benchmarkId === id)
       .map((a) => a.id);
@@ -507,20 +573,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDailyLogsState((prev) =>
       prev.filter((l) => !actionIdsToDelete.includes(l.actionId)),
     );
-    setPlanAdjustmentsState((previous) =>
-      previous.filter(
-        (adjustment) => !actionIdsToDelete.includes(adjustment.actionId),
-      ),
-    );
   }, []);
 
   const addAction = useCallback(
     async (action: Omit<ElementalAction, "id" | "createdAt">) => {
-      const newAction = await storage.addElementalAction(action);
+      const newAction = await storage.addElementalAction(
+        action,
+        persona?.createdAt,
+      );
       setActionsState((prev) => [...prev, newAction]);
       return newAction;
     },
-    [],
+    [persona?.createdAt],
   );
 
   const updateAction = useCallback(
@@ -541,9 +605,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await storage.deleteElementalAction(id);
     setActionsState((prev) => prev.filter((a) => a.id !== id));
     setDailyLogsState((prev) => prev.filter((l) => l.actionId !== id));
-    setPlanAdjustmentsState((previous) =>
-      previous.filter((adjustment) => adjustment.actionId !== id),
-    );
   }, []);
 
   const setActions = useCallback(async (actionsData: ElementalAction[]) => {
@@ -557,7 +618,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // (Today, Calendar) only operate on the active persona's actions, so the
   // persona-scoped state invariant holds.
   const dailyLogsRef = useRef(dailyLogs);
-  dailyLogsRef.current = dailyLogs;
+  // Synced at commit, not during render (the React Compiler skips a
+  // component that writes refs in render). Toggles also write it directly
+  // so rapid taps chain on the newest logs before the commit.
+  useLayoutEffect(() => {
+    dailyLogsRef.current = dailyLogs;
+  }, [dailyLogs]);
   const toggleDailyLog = useCallback(
     async (
       actionId: string,
@@ -595,16 +661,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         track("action_logged");
       }
-      setDailyLogsState((prev) =>
-        prev.some((l) => l.id === log.id)
-          ? prev.map((l) => (l.id === log.id ? log : l))
-          : [...prev, log],
-      );
+      // Same (action, day) dedupe as storage.upsertDailyLog so a legacy
+      // duplicate can't keep the UI showing a state storage no longer has.
+      setDailyLogsState((prev) => upsertLogIn(prev, log));
       storage.upsertDailyLog(log).catch(() => {
         // Persist failed — reload persisted truth so the UI doesn't drift
         refreshData();
       });
       return log;
+    },
+    [refreshData],
+  );
+
+  const completeDailyLog = useCallback(
+    async (
+      actionId: string,
+      date: string,
+      completion: DailyLogCompletion,
+    ): Promise<DailyLog | null> => {
+      const dateStr = logDateKey(date);
+      const result = completeLogIn(
+        dailyLogsRef.current,
+        actionId,
+        dateStr,
+        completion,
+        () => ({
+          id: generateStorageId(),
+          createdAt: new Date().toISOString(),
+        }),
+      );
+      if (!result.changed) return null;
+      if (!dailyLogsRef.current.some((l) => l.status)) {
+        track("first_action_logged");
+      }
+      track("action_logged");
+      // Votes arrive in loops (widget queue, Health, Mark all done) faster
+      // than React re-renders; advancing the ref now lets the next call in
+      // the same pass see this completion instead of writing a duplicate.
+      dailyLogsRef.current = result.logs;
+      const created = { id: result.log.id, createdAt: result.log.createdAt };
+      setDailyLogsState(
+        (prev) =>
+          completeLogIn(prev, actionId, dateStr, completion, () => created)
+            .logs,
+      );
+      await storage
+        .completeDailyLog(actionId, dateStr, {
+          ...completion,
+          id: result.log.id,
+        })
+        .catch((error) => {
+          // Persist failed: reload persisted truth so the UI doesn't drift
+          refreshData();
+          throw error;
+        });
+      return result.log;
     },
     [refreshData],
   );
@@ -627,65 +738,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...existing,
         note: trimmed.length > 0 ? trimmed : undefined,
       };
-      setDailyLogsState((prev) =>
-        prev.map((l) => (l.id === updated.id ? updated : l)),
-      );
+      setDailyLogsState((prev) => upsertLogIn(prev, updated));
       storage.upsertDailyLog(updated).catch(() => {
         refreshData();
       });
     },
     [refreshData],
-  );
-
-  const upsertDailyContext = useCallback(
-    async (input: DailyContextInput) => {
-      if (!persona) {
-        throw new Error("Choose an active identity before adding context.");
-      }
-      const entry = await storage.upsertDailyContext(persona.id, input);
-      setDailyContextsState((previous) => {
-        const existing = previous.some((item) => item.id === entry.id);
-        return existing
-          ? previous.map((item) => (item.id === entry.id ? entry : item))
-          : [...previous, entry];
-      });
-      track("daily_context_saved");
-      return entry;
-    },
-    [persona],
-  );
-
-  const deleteDailyContext = useCallback(
-    async (logDate: string) => {
-      if (!persona) return;
-      await storage.deleteDailyContext(persona.id, logDate);
-      setDailyContextsState((previous) =>
-        previous.filter((entry) => entry.logDate !== logDate),
-      );
-    },
-    [persona],
-  );
-
-  const applyPlanTuneUp = useCallback(
-    async (actionId: string, proposal: PlanTuneUpResponse) => {
-      if (!persona) {
-        throw new Error("Choose an active identity before tuning a plan.");
-      }
-      const result = await storage.applyPlanTuneUp(
-        persona.id,
-        actionId,
-        proposal,
-      );
-      setActionsState((previous) =>
-        previous.map((action) =>
-          action.id === result.action.id ? result.action : action,
-        ),
-      );
-      setPlanAdjustmentsState((previous) => [...previous, result.adjustment]);
-      track("plan_tune_up_applied");
-      return result.adjustment;
-    },
-    [persona],
   );
 
   const addReflection = useCallback(
@@ -697,6 +755,64 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const applyPlanAdjustment = useCallback(
+    async (
+      actionId: string,
+      changes: PlanAdjustmentChanges,
+      rationale: string,
+    ) => {
+      if (!persona) return null;
+      const result = await storage.applyPlanAdjustment(
+        actionId,
+        persona.id,
+        changes,
+        rationale,
+      );
+      if (!result) return null;
+      setActionsState((previous) =>
+        previous.map((action) =>
+          action.id === result.action.id ? result.action : action,
+        ),
+      );
+      setPlanAdjustmentsState((previous) => [...previous, result.adjustment]);
+      track("plan_tuneup_applied");
+      return result.adjustment;
+    },
+    [persona],
+  );
+
+  const dismissPlanAdjustment = useCallback(
+    async (
+      actionId: string,
+      changes: PlanAdjustmentChanges,
+      rationale: string,
+    ) => {
+      if (!persona) return null;
+      const action = actions.find((candidate) => candidate.id === actionId);
+      if (!action) return null;
+      const before: PlanAdjustmentChanges = {};
+      for (const key of [
+        "frequency",
+        "anchorLink",
+        "kickstartVersion",
+      ] as const) {
+        if (changes[key] !== undefined) before[key] = action[key] as never;
+      }
+      const adjustment = await storage.recordPlanAdjustment({
+        personaId: persona.id,
+        actionId,
+        before,
+        after: changes,
+        rationale: rationale.trim().slice(0, 500),
+        status: "dismissed",
+      });
+      setPlanAdjustmentsState((previous) => [...previous, adjustment]);
+      track("plan_tuneup_dismissed");
+      return adjustment;
+    },
+    [actions, persona],
+  );
+
   const clearAllData = useCallback(async () => {
     await setPrivateBackupEnabled(false);
     await storage.clearAll();
@@ -706,7 +822,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setBenchmarksState([]);
     setActionsState([]);
     setDailyLogsState([]);
-    setDailyContextsState([]);
     setPlanAdjustmentsState([]);
     setReflectionsState([]);
     setSubscriptionState({
@@ -735,31 +850,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isLoading) return;
     for (const benchmark of benchmarks) {
-      if (benchmark.status === "completed") {
-        if (
-          !benchmark.completedAt &&
-          !milestoneFlipsInFlight.current.has(benchmark.id)
-        ) {
-          const inferred = inferBenchmarkCompletedAt(
-            benchmark,
-            actions,
-            dailyLogs,
-          );
-          if (inferred) {
-            milestoneFlipsInFlight.current.add(benchmark.id);
-            updateBenchmark(benchmark.id, { completedAt: inferred }).catch(
-              (error) => {
-                milestoneFlipsInFlight.current.delete(benchmark.id);
-                logger.error(
-                  "Failed to infer milestone completion date:",
-                  error,
-                );
-              },
-            );
-          }
-        }
-        continue;
-      }
+      if (benchmark.status === "completed") continue;
       const completed =
         progressSnapshot.milestoneProgressByBenchmarkId.get(benchmark.id)
           ?.completed ?? false;
@@ -769,23 +860,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       milestoneFlipsInFlight.current.add(benchmark.id);
       track("milestone_complete");
       (async () => {
-        const completedAt =
-          inferBenchmarkCompletedAt(benchmark, actions, dailyLogs) ??
-          new Date().toISOString();
         const updated = await updateBenchmark(benchmark.id, {
           status: "completed",
-          completedAt,
         });
         // Dedup FIRST: if this milestone was already celebrated, bail before
         // unlocking/persisting a reward — otherwise an edge-triggered re-flip
         // silently consumes the reward and the celebration is never shown.
         const raw = await AsyncStorage.getItem(MILESTONE_CELEBRATION_SEEN_KEY);
-        let seen: string[] = [];
-        try {
-          seen = raw ? JSON.parse(raw) : [];
-        } catch {
-          seen = [];
-        }
+        const seen = parseSeenIds(raw);
         if (seen.includes(benchmark.id)) return;
         // Rewards key off the lifetime completed count across ALL personas
         // (read from storage post-write, so this flip is included)
@@ -810,14 +892,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         logger.error("Failed to mark milestone completed:", error);
       });
     }
-  }, [
-    isLoading,
-    benchmarks,
-    actions,
-    dailyLogs,
-    progressSnapshot,
-    updateBenchmark,
-  ]);
+  }, [isLoading, benchmarks, progressSnapshot, updateBenchmark]);
 
   const dismissMilestoneCelebration = useCallback(() => {
     setMilestoneCelebration(null);
@@ -832,6 +907,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [benchmarks],
   );
   const defaultReminderInitializationStartedRef = useRef(false);
+  const [reminderPrimerPending, setReminderPrimerPending] = useState(false);
+  const answerReminderPrimer = useCallback(
+    async (accept: boolean) => {
+      setReminderPrimerPending(false);
+      await recordReminderPrimerAnswer(accept).catch(() => {});
+      if (!accept || !persona) return;
+      await enableDefaultPersonalizedReminders({
+        streakCount: computeStreak(actions, dailyLogs).current,
+        missedRun: computeLapse(actions, dailyLogs).missedDays,
+        personaName: persona.name,
+        monthlyConsistency: personaAlignment,
+        actions,
+        dailyLogs,
+        milestoneTitles: reminderMilestoneTitles,
+      }).catch((error) =>
+        logger.error("Failed to enable reminders from primer:", error),
+      );
+    },
+    [actions, dailyLogs, persona, personaAlignment, reminderMilestoneTitles],
+  );
   useEffect(() => {
     if (
       Platform.OS === "web" ||
@@ -844,17 +939,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
     defaultReminderInitializationStartedRef.current = true;
-    enableDefaultPersonalizedReminders({
-      streakCount: computeStreak(actions, dailyLogs).current,
-      missedRun: computeLapse(actions, dailyLogs).missedDays,
-      personaName: persona.name,
-      monthlyConsistency: personaAlignment,
-      actions,
-      dailyLogs,
-      milestoneTitles: reminderMilestoneTitles,
-    }).catch((error) =>
-      logger.error("Failed to initialize personalized reminders:", error),
-    );
+    // New plans ask through the Today primer first; iOS only prompts after
+    // the person taps Turn on. Earlier users keep their existing setting.
+    getReminderPrimerState()
+      .then((state) => {
+        if (state === "pending") {
+          setReminderPrimerPending(true);
+          return;
+        }
+        if (state === "declined") return;
+        return enableDefaultPersonalizedReminders({
+          streakCount: computeStreak(actions, dailyLogs).current,
+          missedRun: computeLapse(actions, dailyLogs).missedDays,
+          personaName: persona.name,
+          monthlyConsistency: personaAlignment,
+          actions,
+          dailyLogs,
+          milestoneTitles: reminderMilestoneTitles,
+        });
+      })
+      .catch((error) =>
+        logger.error("Failed to initialize personalized reminders:", error),
+      );
   }, [
     actions,
     dailyLogs,
@@ -909,19 +1015,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => subscription.remove();
   }, []);
 
+  // Resolves once stored data has loaded and reminderStateRef reflects it
+  // (this effect is declared after the ref sync above, so it runs after it in
+  // the same commit). isLoading never returns to true.
+  const [storeReady] = useState(createStoreReadySignal);
+  useEffect(() => {
+    if (!isLoading) storeReady.resolve();
+  }, [isLoading, storeReady]);
+
   // "Mark all done ✓" quick action on the daily reminder. The response can
   // arrive live (listener) or on the next launch (last-response) when iOS ran
-  // the action without waking JS — the handled-key guard makes the two paths
-  // idempotent. Logs are written for the notification's FIRE date, so a tap
-  // on last night's reminder processed this morning still credits yesterday.
+  // the action without waking JS, and on a background cold launch both paths
+  // deliver the same response at once. The in-flight map joins concurrent
+  // deliveries; the persisted handled-key skips later replays. Logs are
+  // written for the notification's FIRE date, so a tap on last night's
+  // reminder processed this morning still credits yesterday.
+  const reminderResponsesInFlightRef = useRef(new Map<string, Promise<void>>());
   useEffect(() => {
     if (Platform.OS === "web") return;
     registerReminderActions();
 
-    const handleResponse = async (
-      response: Notifications.NotificationResponse | null,
+    // The reminder is about today's plan — land its tap on Today rather than
+    // whatever tab was last open. On a cold launch this response arrives
+    // before the NavigationContainer is ready, so poll briefly.
+    const navigateToTodayTab = () => {
+      let attempts = 0;
+      const attempt = () => {
+        if (!navigationRef.isReady()) return false;
+        navigationRef.navigate("Main", { screen: "TodayTab" });
+        return true;
+      };
+      if (attempt()) return;
+      const timer = setInterval(() => {
+        attempts += 1;
+        if (attempt() || attempts >= 20) clearInterval(timer);
+      }, 250);
+    };
+
+    const processResponse = async (
+      response: Notifications.NotificationResponse,
     ) => {
-      if (!response) return;
       const data = response.notification.request.content.data as
         | {
             type?: string;
@@ -940,17 +1073,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         response.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER
       ) {
         const tapMarker = `${response.notification.request.identifier}|${response.notification.date}`;
-        try {
-          const tapHandledKey = "evolve_reminder_tap_handled";
-          if ((await AsyncStorage.getItem(tapHandledKey)) === tapMarker) {
-            return;
-          }
-          await AsyncStorage.setItem(tapHandledKey, tapMarker);
-        } catch {
-          // Guard failed open — an over-count nudges the portfolio, nothing more.
+        // Guard fails open: an over-count nudges the portfolio, nothing more.
+        if (!(await claimMarker("evolve_reminder_tap_handled", tapMarker))) {
+          return;
         }
         track("notification_tap");
         recordReminderHookTap(data.hook).catch(() => {});
+        navigateToTodayTab();
         return;
       }
       if (response.actionIdentifier !== MARK_ALL_DONE_ACTION) return;
@@ -959,40 +1088,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const dateKey = data.dateKey ?? getLocalDateString(firedAt);
       const handledKey = `evolve_reminder_action_handled`;
       const marker = `${response.notification.request.identifier}|${dateKey}`;
-      try {
-        if ((await AsyncStorage.getItem(handledKey)) === marker) return;
-        await AsyncStorage.setItem(handledKey, marker);
-      } catch {
-        // Guard failed open — a duplicate pass is harmless (toggles below
-        // skip already-completed actions).
-      }
+      // Guard fails open: completion below is idempotent.
+      if (await markerMatches(handledKey, marker)) return;
+
+      // The action runs without opening the app, so this can be a cold
+      // background launch where the store hasn't loaded yet. Completing
+      // against the empty pre-load action list would mark nothing.
+      await storeReady.promise;
+      const currentActions = reminderStateRef.current.actions;
+      if (currentActions.length === 0) return;
 
       track("notification_mark_all_done");
-      const { actions: currentActions, dailyLogs: currentLogs } =
-        reminderStateRef.current;
-      const [year, month, day] = dateKey.split("-").map(Number);
-      const intendedDate = new Date(year, month - 1, day);
-      const weekday = intendedDate.toLocaleDateString("en-US", {
-        weekday: "long",
-      });
-      const intendedActionIds = new Set(data.actionIds ?? []);
-      for (const action of currentActions) {
-        if (intendedActionIds.size > 0 && !intendedActionIds.has(action.id)) {
-          continue;
-        }
-        if (!action.frequency.includes(weekday)) continue;
-        const created = getLocalDateString(new Date(action.createdAt));
-        if (created > dateKey) continue;
-        const existing = currentLogs.find(
-          (l) =>
-            l.actionId === action.id && l.logDate.split("T")[0] === dateKey,
-        );
-        if (existing?.status) continue;
-        await toggleDailyLog(action.id, dateKey, {
+      for (const action of selectMarkAllDoneActions(
+        currentActions,
+        dateKey,
+        data.actionIds,
+      )) {
+        await completeDailyLog(action.id, dateKey, {
           completionSource: "notification",
           completionKind: "full",
         });
       }
+      // Recorded only after every write landed: a failed pass throws above,
+      // leaving the response uncleared for a retry on the next launch.
+      await AsyncStorage.setItem(handledKey, marker).catch(() => {});
+    };
+
+    const handleResponse = (
+      response: Notifications.NotificationResponse,
+    ): Promise<void> => {
+      const key = `${response.notification.request.identifier}|${response.notification.date}|${response.actionIdentifier}`;
+      const inFlight = reminderResponsesInFlightRef.current;
+      const existing = inFlight.get(key);
+      if (existing) return existing;
+      const run = processResponse(response).finally(() => {
+        inFlight.delete(key);
+      });
+      inFlight.set(key, run);
+      return run;
     };
 
     const subscription = Notifications.addNotificationResponseReceivedListener(
@@ -1011,31 +1144,82 @@ export function AppProvider({ children }: { children: ReactNode }) {
           await recordOrganicAppOpen();
         }
       })
-      .catch(() => {});
+      .catch((error) =>
+        logger.error("Failed to handle last reminder response:", error),
+      );
     return () => subscription.remove();
-  }, [toggleDailyLog]);
+    // storeReady is stable (useState); listed for the lint rule only
+  }, [completeDailyLog, storeReady]);
 
-  // Keep the home/lock-screen widget's snapshot in step with the store, and
-  // fold in votes cast from the widget while the app was closed. Widget taps
-  // only ever complete (never un-complete): a queued vote for an action the
-  // user has since completed in-app is dropped, not toggled.
+  // Fold in votes cast from the widget or Siri while the app was closed or
+  // backgrounded. Votes only ever complete (never un-complete): a queued vote
+  // for an action the user has since completed in-app is dropped, not
+  // toggled. Votes for actions outside the active persona are dropped too.
+  const applyPendingWidgetVotes = useCallback(
+    (currentActions: ElementalAction[]) => {
+      for (const vote of consumePendingVotes()) {
+        if (!currentActions.some((a) => a.id === vote.actionId)) continue;
+        completeDailyLog(vote.actionId, vote.date, {
+          completionSource: vote.source ?? "widget",
+          completionKind: vote.kind,
+        })
+          .then((log) => {
+            if (log) track("widget_action_logged");
+          })
+          .catch((error) =>
+            logger.error("Failed to apply widget vote:", error),
+          );
+      }
+    },
+    [completeDailyLog],
+  );
+
+  // Keep the home/lock-screen widget's snapshot in step with the store.
+  // Writing the App Group and reloading timelines is synchronous native work;
+  // a burst of check-offs collapses into one sync after the taps settle.
+  const [widgetSync] = useState(() =>
+    createTrailingDebounce<Parameters<typeof syncWidgetData>>(
+      (args) => syncWidgetData(...args),
+      500,
+    ),
+  );
+
+  // Leaving the app must not strand a pending sync, or the widget would
+  // show yesterday's state until the next launch.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") widgetSync.flush();
+    });
+    return () => {
+      sub.remove();
+      widgetSync.flush();
+    };
+  }, [widgetSync]);
+
   useEffect(() => {
     if (Platform.OS !== "ios" || isLoading) return;
-    for (const vote of consumePendingVotes()) {
-      const existing = dailyLogsRef.current.find(
-        (l) =>
-          l.actionId === vote.actionId && l.logDate.split("T")[0] === vote.date,
-      );
-      if (existing?.status) continue;
-      if (!actions.some((a) => a.id === vote.actionId)) continue;
-      track("widget_action_logged");
-      toggleDailyLog(vote.actionId, vote.date, {
-        completionSource: vote.source ?? "widget",
-        completionKind: vote.kind,
-      }).catch((error) => logger.error("Failed to apply widget vote:", error));
-    }
-    syncWidgetData(actions, dailyLogs, persona);
-  }, [isLoading, actions, dailyLogs, persona, toggleDailyLog]);
+    applyPendingWidgetVotes(actions);
+    widgetSync.schedule([
+      actions,
+      dailyLogs,
+      persona,
+      {
+        streak: progressSnapshot.streak.current,
+        shieldUsed: progressSnapshot.streak.shieldUsed,
+      },
+    ]);
+    // Background launches (notification actions) never change AppState, so
+    // sync now rather than risk suspension before the timer fires.
+    if (AppState.currentState !== "active") widgetSync.flush();
+  }, [
+    widgetSync,
+    isLoading,
+    actions,
+    dailyLogs,
+    persona,
+    applyPendingWidgetVotes,
+    progressSnapshot.streak,
+  ]);
 
   // Widget votes cast while the app stayed backgrounded (state changes don't
   // fire above): reconcile on every foreground. Never consume before the
@@ -1048,32 +1232,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const subscription = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
       if (reminderStateRef.current.isLoading) return;
-      const { actions: currentActions } = reminderStateRef.current;
-      for (const vote of consumePendingVotes()) {
-        const existing = dailyLogsRef.current.find(
-          (l) =>
-            l.actionId === vote.actionId &&
-            l.logDate.split("T")[0] === vote.date,
-        );
-        if (existing?.status) continue;
-        if (!currentActions.some((a) => a.id === vote.actionId)) continue;
-        track("widget_action_logged");
-        toggleDailyLog(vote.actionId, vote.date, {
-          completionSource: vote.source ?? "widget",
-          completionKind: vote.kind,
-        }).catch((error) =>
-          logger.error("Failed to apply widget vote:", error),
-        );
-      }
+      applyPendingWidgetVotes(reminderStateRef.current.actions);
     });
     return () => subscription.remove();
-  }, [toggleDailyLog]);
+  }, [applyPendingWidgetVotes]);
 
   // Apple Health auto-votes: actions opted into Health auto-completion get
   // their vote cast when a matching sample exists for today. Runs once per
-  // foreground; a cast vote flows through the normal optimistic toggle, so
-  // rings, streaks, and the widget all update the same way a tap would.
+  // foreground; a cast vote flows through the idempotent completion, so
+  // rings, streaks, and the widget update the same way a tap would. Runs are
+  // single-flight: a second foreground while HealthKit is still answering
+  // joins the running pass instead of starting an overlapping one.
   const healthCheckDoneRef = useRef(false);
+  const healthRunRef = useRef<Promise<void> | null>(null);
   useEffect(() => {
     if (Platform.OS !== "ios" || isLoading || !isHealthAvailable()) return;
 
@@ -1088,8 +1259,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (getLocalDateString(new Date(action.createdAt)) > todayStr)
           return false;
         const existing = dailyLogsRef.current.find(
-          (l) =>
-            l.actionId === action.id && l.logDate.split("T")[0] === todayStr,
+          (l) => l.actionId === action.id && logDateKey(l.logDate) === todayStr,
         );
         return !existing?.status;
       });
@@ -1097,29 +1267,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!(await initHealth())) return;
       for (const action of candidates) {
         if (await isHealthGoalMet(action.healthAutoComplete!, today)) {
-          track("health_auto_vote");
-          await toggleDailyLog(action.id, todayStr, {
+          const log = await completeDailyLog(action.id, todayStr, {
             completionSource: "health",
             completionKind: "full",
           });
+          if (log) track("health_auto_vote");
         }
       }
     };
 
+    const runOnce = () => {
+      if (!healthRunRef.current) {
+        healthRunRef.current = runHealthAutoVotes()
+          .catch((error) => logger.error("Health auto-vote failed:", error))
+          .finally(() => {
+            healthRunRef.current = null;
+          });
+      }
+      return healthRunRef.current;
+    };
+
     if (!healthCheckDoneRef.current) {
       healthCheckDoneRef.current = true;
-      runHealthAutoVotes().catch((error) =>
-        logger.error("Health auto-vote failed:", error),
-      );
+      runOnce();
     }
     const subscription = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
-      runHealthAutoVotes().catch((error) =>
-        logger.error("Health auto-vote failed:", error),
-      );
+      runOnce();
     });
     return () => subscription.remove();
-  }, [isLoading, toggleDailyLog]);
+  }, [isLoading, completeDailyLog]);
 
   const canUseReflection = useCallback(() => {
     if (subscription.isPremium) return true;
@@ -1143,7 +1320,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       benchmarks,
       actions,
       dailyLogs,
-      dailyContexts,
       planAdjustments,
       reflections,
       momentumScore,
@@ -1172,10 +1348,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteAction,
       setActions,
       toggleDailyLog,
+      completeDailyLog,
       setDailyLogNote,
-      upsertDailyContext,
-      deleteDailyContext,
-      applyPlanTuneUp,
+      applyPlanAdjustment,
+      dismissPlanAdjustment,
       addReflection,
       refreshData,
       verifySubscription,
@@ -1184,6 +1360,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       canUseReflection,
       canAddPersona,
       canAddBenchmark,
+      reminderPrimerPending,
+      answerReminderPrimer,
     }),
     [
       hasOnboarded,
@@ -1192,7 +1370,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       benchmarks,
       actions,
       dailyLogs,
-      dailyContexts,
       planAdjustments,
       reflections,
       momentumScore,
@@ -1221,10 +1398,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteAction,
       setActions,
       toggleDailyLog,
+      completeDailyLog,
       setDailyLogNote,
-      upsertDailyContext,
-      deleteDailyContext,
-      applyPlanTuneUp,
+      applyPlanAdjustment,
+      dismissPlanAdjustment,
       addReflection,
       refreshData,
       verifySubscription,
@@ -1233,6 +1410,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       canUseReflection,
       canAddPersona,
       canAddBenchmark,
+      reminderPrimerPending,
+      answerReminderPrimer,
     ],
   );
 

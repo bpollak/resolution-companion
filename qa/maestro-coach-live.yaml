@@ -1,0 +1,103 @@
+appId: com.resolutioncompanion.app
+---
+# Run after qa/maestro-regression.yaml creates the plan (AI consent already
+# granted there). This deliberately uses production AI, then verifies the
+# response controls, saved contextual history, and preview-before-apply flow.
+
+- launchApp
+# The progress line and Ask Coach link show only while a habit is pending.
+- runFlow: _pending-today.yaml
+- extendedWaitUntil:
+    # The always-visible progress line, e.g. "0 of 1 done today. Day 1 ..."
+    visible: ".* done today.*"
+    timeout: 20000
+- tapOn: "Ask Coach.*"
+- extendedWaitUntil:
+    visible: "Coach"
+    timeout: 10000
+- assertVisible: "Today’s signal.*"
+- scrollUntilVisible:
+    element:
+      text: "Help me.*"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn: "Help me.*"
+- tapOn:
+    text: "Agree and continue.*"
+    optional: true
+- extendedWaitUntil:
+    visible: "AI coach: .+"
+    timeout: 90000
+# Response controls render once the stream completes, not on the first chunk.
+- extendedWaitUntil:
+    notVisible: "Stop Coach response"
+    timeout: 90000
+- assertVisible: "Copy coach response"
+- assertVisible: "Mark coach response helpful"
+- assertVisible: "Mark coach response not helpful"
+- assertVisible: "Report this AI response"
+- tapOn: "Copy coach response"
+- tapOn: "Mark coach response helpful"
+- tapOn: "Save coaching session"
+- extendedWaitUntil:
+    visible:
+      id: "tab-coach"
+    timeout: 15000
+
+# The saved contextual session must be discoverable from the persistent lobby.
+- tapOn:
+    id: "tab-coach"
+- scrollUntilVisible:
+    element:
+      text: "Past Sessions.*"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- extendedWaitUntil:
+    visible: "Past Sessions.*"
+    timeout: 15000
+- assertVisible: ".*momentum.*"
+
+# Plan tuning may reuse the already-counted session, but never mutates until
+# the field-level preview is explicitly confirmed.
+# The lobby has one primary entry; plan adjustment is a chip in the sheet
+# (labelled "Request a previewed plan adjustment").
+- scrollUntilVisible:
+    element:
+      text: "Start a conversation with Coach"
+    direction: UP
+    timeout: 15000
+    centerElement: true
+- tapOn: "Start a conversation with Coach"
+- scrollUntilVisible:
+    element:
+      text: "Request a previewed plan adjustment"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn: "Request a previewed plan adjustment"
+- scrollUntilVisible:
+    element:
+      text: "Preview changes"
+    direction: DOWN
+    timeout: 90000
+    centerElement: true
+- assertVisible: "Before:.*"
+- assertVisible: "After:.*"
+- assertVisible: "Keep current plan"
+- assertVisible: "Apply previewed plan changes"
+- tapOn: "Keep current plan"
+- assertNotVisible: "Preview changes"
+
+# Request a fresh recommendation and exercise the atomic apply path.
+- tapOn: "Request a previewed plan adjustment"
+- scrollUntilVisible:
+    element:
+      text: "Preview changes"
+    direction: DOWN
+    timeout: 90000
+    centerElement: true
+- tapOn: "Apply previewed plan changes"
+- assertNotVisible: "Preview changes"
+- tapOn: "Close Coach"

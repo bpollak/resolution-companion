@@ -17,6 +17,9 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
+import { useLocalDateKey } from "@/hooks/useLocalDateKey";
+import { actionIsScheduledOnDate } from "@/lib/journey-date";
+import { getTodayTabBadge, isSelectedTab } from "@/lib/tab-badge";
 import { Spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { ThemedText } from "@/components/ThemedText";
@@ -55,7 +58,7 @@ function AnimatedTabIcon({
 
 export type MainTabParamList = {
   TodayTab: undefined;
-  JourneyTab: undefined;
+  JourneyTab: { date?: string; intentId?: string } | undefined;
   ReflectTab: undefined;
 };
 
@@ -133,8 +136,9 @@ const headerButtonStyles = StyleSheet.create({
   },
 });
 
-// A two-line header keeps the current tab's context (date / persona) pinned
-// even after the screen's in-body header scrolls away
+// Today keeps its date pinned as a second line after the in-body header
+// scrolls away. Journey and Coach use the title alone: the plan name lives in
+// Journey's body and Profile, and pinning it on every tab was clutter.
 function HeaderTitle({
   title,
   subtitle,
@@ -218,27 +222,27 @@ const MONTHS = [
 
 export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
-  const { actions, dailyLogs, persona } = useApp();
+  const { actions, dailyLogs } = useApp();
   const insets = useSafeAreaInsets();
 
   // "Wednesday, July 8" — pinned under the Today title so the day stays
   // visible after the screen's own date header scrolls away. Formatted
   // manually rather than via toLocaleDateString(options), which Hermes on
   // iOS can return empty for when Intl data is absent.
+  const todayStr = useLocalDateKey();
   const todayLabel = useMemo(() => {
-    const now = new Date();
+    const now = new Date(`${todayStr}T12:00:00`);
     return `${DAYS_OF_WEEK[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}`;
-  }, []);
+  }, [todayStr]);
 
   // The badge is an invite, not a nag: it shows only before the first log of
   // the day, then hands off to the Today ring
   const { remainingTasksCount, hasLoggedToday } = useMemo(() => {
-    const today = new Date();
-    const dayOfWeek = DAYS_OF_WEEK[today.getDay()];
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-
+    // Same rule as Today: a habit that hasn't started (a January 1 plan set
+    // up in December) isn't due yet.
+    const today = new Date(`${todayStr}T12:00:00`);
     const todayActions = actions.filter((action) =>
-      action.frequency.includes(dayOfWeek),
+      actionIsScheduledOnDate(action, today),
     );
     const completedToday = dailyLogs.filter(
       (log) => log.logDate.split("T")[0] === todayStr && log.status,
@@ -255,7 +259,7 @@ export default function MainTabNavigator() {
         completedActionIds.has(action.id),
       ),
     };
-  }, [actions, dailyLogs]);
+  }, [actions, dailyLogs, todayStr]);
 
   const screenListeners = useMemo(
     () => ({
@@ -370,8 +374,10 @@ export default function MainTabNavigator() {
       <Tab.Screen
         name="TodayTab"
         component={TodayScreen}
-        options={({ navigation }) => ({
+        options={({ navigation, route }) => ({
           title: "Today",
+          tabBarAccessibilityLabel: "Today tab",
+          tabBarButtonTestID: "tab-today",
           headerTitle: () => (
             <HeaderTitle title="Today" subtitle={todayLabel} />
           ),
@@ -383,13 +389,14 @@ export default function MainTabNavigator() {
             />
           ),
           headerRight: () => <ProfileHeaderButton navigation={navigation} />,
-          tabBarBadge:
-            !hasLoggedToday && remainingTasksCount > 0
-              ? remainingTasksCount
-              : undefined,
+          tabBarBadge: getTodayTabBadge({
+            isTodayFocused: isSelectedTab(navigation.getState(), route.key),
+            hasLoggedToday,
+            remainingTasksCount,
+          }),
           tabBarBadgeStyle: {
-            backgroundColor: "#FF6B9D",
-            color: "#FFFFFF",
+            backgroundColor: theme.accent,
+            color: theme.buttonText,
             fontSize: 11,
             fontWeight: "600",
             minWidth: 18,
@@ -402,9 +409,9 @@ export default function MainTabNavigator() {
         component={JourneyScreen}
         options={({ navigation }) => ({
           title: "Journey",
-          headerTitle: () => (
-            <HeaderTitle title="Journey" subtitle={persona?.name} />
-          ),
+          tabBarAccessibilityLabel: "Journey tab",
+          tabBarButtonTestID: "tab-journey",
+          headerTitle: () => <HeaderTitle title="Journey" />,
           tabBarIcon: ({ focused }) => (
             <TabBarIcon focused={focused} filled="map" outline="map-outline" />
           ),
@@ -414,8 +421,11 @@ export default function MainTabNavigator() {
       <Tab.Screen
         name="ReflectTab"
         component={ReflectScreen}
-        options={{
+        options={({ navigation }) => ({
           title: "Coach",
+          tabBarAccessibilityLabel: "Coach tab",
+          tabBarButtonTestID: "tab-coach",
+          headerTitle: () => <HeaderTitle title="Coach" />,
           tabBarIcon: ({ focused }) => (
             <TabBarIcon
               focused={focused}
@@ -423,7 +433,8 @@ export default function MainTabNavigator() {
               outline="chatbubble-ellipses-outline"
             />
           ),
-        }}
+          headerRight: () => <ProfileHeaderButton navigation={navigation} />,
+        })}
       />
     </Tab.Navigator>
   );

@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Grant a future-dated local yearly entitlement in a simulator manifest.
 
-This is QA-only state setup. The production reconciliation logic keeps a
-store-validated local entitlement until its expiry when the server has not yet
-observed it, which makes the annual recap test deterministic and offline.
+This is QA-only state setup. Since review fix B (2026-10-13) the launch check
+treats StoreKit's completed, empty entitlement list as account truth and
+clears this flag, so on a simulator without a StoreKit entitlement the
+seeded Premium state lasts only until that check lands. Use it for checks
+that run before the reconciliation, or pair it with a StoreKit test
+entitlement.
 """
 
 import json

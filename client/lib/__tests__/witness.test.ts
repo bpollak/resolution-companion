@@ -20,7 +20,7 @@ describe("one-person witness accountability", () => {
       71,
     );
     expect(message).toContain("Hi Maya");
-    expect(message).toContain("5 votes for Consistent Runner");
+    expect(message).toContain("5 actions for Consistent Runner");
     expect(message).toContain("No fixing needed");
     expect(message).not.toMatch(/owe|failed|disappoint|must/i);
   });

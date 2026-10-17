@@ -16,6 +16,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import type { ElementalAction, DailyLog } from "@/lib/storage";
+import { CompletionCheck } from "@/components/CompletionCheck";
 
 const springConfig = {
   damping: 12,
@@ -26,8 +27,10 @@ const springConfig = {
 interface ActionCardProps {
   action: ElementalAction;
   log: DailyLog | null;
-  onToggle: (actionId: string) => void;
-  benchmarkTitle?: string;
+  onToggle: (actionId: string, kind?: "full" | "kickstart") => void;
+  /** Omitted when the plan has one milestone, where it only repeats the plan. */
+  /** Footer link to the coach; given only to the habit the coach would open on. */
+  onAskCoach?: (actionId: string) => void;
 }
 
 // Memoized: TodayScreen renders one card per action, and a toggle should only
@@ -36,7 +39,7 @@ export const ActionCard = React.memo(function ActionCard({
   action,
   log,
   onToggle,
-  benchmarkTitle,
+  onAskCoach,
 }: ActionCardProps) {
   const { theme, isDark } = useTheme();
   const buttonScale = useSharedValue(1);
@@ -105,8 +108,10 @@ export const ActionCard = React.memo(function ActionCard({
     transform: [{ scale: checkScale.value }],
   }));
 
+  const kickstart = action.kickstartVersion?.trim();
+
   return (
-    <Animated.View
+    <View
       style={[
         styles.container,
         {
@@ -114,101 +119,119 @@ export const ActionCard = React.memo(function ActionCard({
             ? Colors.dark.backgroundDefault
             : Colors.light.backgroundDefault,
         },
-        isCompleted ? glowStyle : undefined,
       ]}
     >
-      <View style={styles.voteHeader}>
-        <View style={styles.voteCopy}>
-          {benchmarkTitle ? (
-            <ThemedText style={[styles.benchmark, { color: theme.accent }]}>
-              {benchmarkTitle}
-            </ThemedText>
-          ) : null}
-          <ThemedText style={styles.title}>{action.title}</ThemedText>
-        </View>
-        <Pressable
-          onPress={handlePress}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          hitSlop={8}
-          pressRetentionOffset={20}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: isCompleted }}
-          accessibilityLabel={
-            isCompleted
-              ? `${action.title} completed. Tap to undo`
-              : `Cast today's vote for ${action.title}`
-          }
-        >
-          <Animated.View
-            style={[
-              styles.voteButton,
-              {
-                backgroundColor: isCompleted
-                  ? theme.success
-                  : isDark
-                    ? Colors.dark.backgroundTertiary
-                    : Colors.light.backgroundTertiary,
-                borderColor: isCompleted ? "transparent" : theme.accent,
-              },
-              buttonAnimatedStyle,
-            ]}
-          >
-            <Animated.View style={checkAnimatedStyle}>
-              <Feather
-                name={isCompleted ? "check" : "circle"}
-                size={18}
-                color={isCompleted ? theme.buttonText : theme.accent}
-              />
-            </Animated.View>
-            <ThemedText
-              style={[
-                styles.voteButtonText,
-                { color: isCompleted ? theme.buttonText : theme.accent },
-              ]}
-            >
-              {isCompleted ? "Cast" : "Vote"}
-            </ThemedText>
-          </Animated.View>
-        </Pressable>
-      </View>
-
+      <ThemedText style={styles.title}>{action.title}</ThemedText>
       {action.anchorLink ? (
-        <View style={styles.detailRow}>
-          <Feather name="link" size={13} color={theme.accent} />
-          <ThemedText
-            style={[styles.detailText, { color: theme.textSecondary }]}
-            numberOfLines={2}
-          >
-            {action.anchorLink}
-          </ThemedText>
-        </View>
+        <ThemedText style={[styles.cue, { color: theme.textSecondary }]}>
+          When: {action.anchorLink}
+        </ThemedText>
       ) : null}
 
-      <View
-        style={[
-          styles.kickstartRow,
-          {
-            backgroundColor: isDark
-              ? Colors.dark.backgroundSecondary
-              : Colors.light.backgroundSecondary,
-          },
-        ]}
+      <Pressable
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        hitSlop={8}
+        pressRetentionOffset={20}
+        accessibilityRole="button"
+        accessibilityState={{ selected: isCompleted }}
+        accessibilityLabel={
+          isCompleted
+            ? `${action.title} completed. Tap to undo`
+            : `Mark ${action.title} complete`
+        }
+        style={styles.togglePressable}
       >
-        <Feather name="zap" size={13} color={theme.warning} />
-        <ThemedText
-          style={[styles.kickstartText, { color: theme.textSecondary }]}
-          numberOfLines={2}
+        <Animated.View
+          style={[
+            styles.toggleButton,
+            {
+              // Every pending habit is a peer, so each gets the same filled
+              // button; a single filled card read as "this one matters more".
+              backgroundColor: isCompleted ? theme.success : theme.accent,
+              borderColor: isCompleted ? "transparent" : theme.accent,
+            },
+            buttonAnimatedStyle,
+            isCompleted ? glowStyle : undefined,
+          ]}
         >
+          <Animated.View style={checkAnimatedStyle}>
+            <Feather
+              name={isCompleted ? "check" : "circle"}
+              size={24}
+              color={theme.buttonText}
+            />
+          </Animated.View>
           <ThemedText
-            style={[styles.kickstartPrefix, { color: theme.warning }]}
+            style={[
+              styles.toggleText,
+              {
+                color: theme.buttonText,
+              },
+            ]}
           >
-            2-minute version:{" "}
+            {isCompleted ? "Completed" : "Mark Complete"}
           </ThemedText>
-          {action.kickstartVersion}
-        </ThemedText>
-      </View>
-    </Animated.View>
+        </Animated.View>
+      </Pressable>
+
+      {/* Only while pending: a done habit has no fallback to log, and a
+          static copy of this row looked tappable. */}
+      {kickstart && !isCompleted ? (
+        <Pressable
+          onPress={() => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            onToggle(action.id, "kickstart");
+          }}
+          hitSlop={8}
+          pressRetentionOffset={16}
+          accessibilityRole="button"
+          accessibilityLabel={`I did the 2-minute version of ${action.title}`}
+          accessibilityHint={`Logs the 2-minute version: ${kickstart}`}
+          style={({ pressed }) => [
+            styles.backupRow,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
+        >
+          <Feather name="zap" size={16} color={theme.warning} />
+          <ThemedText
+            style={[styles.backupText, { color: theme.textSecondary }]}
+          >
+            Too busy? Just: {kickstart}
+          </ThemedText>
+          <ThemedText style={styles.backupAction}>I did this</ThemedText>
+        </Pressable>
+      ) : null}
+
+      {onAskCoach && !isCompleted ? (
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onAskCoach(action.id);
+          }}
+          hitSlop={10}
+          pressRetentionOffset={12}
+          accessibilityRole="button"
+          accessibilityLabel={`Ask Coach about ${action.title}`}
+          style={({ pressed }) => [
+            styles.coachLink,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
+        >
+          <Feather
+            name="message-circle"
+            size={15}
+            color={theme.textSecondary}
+          />
+          <ThemedText
+            style={[styles.coachLinkText, { color: theme.textSecondary }]}
+          >
+            Ask Coach
+          </ThemedText>
+        </Pressable>
+      ) : null}
+    </View>
   );
 });
 
@@ -253,9 +276,9 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
 
   const completionBadge =
     log.completionSource === "health"
-      ? { icon: "heart" as const, label: "Health auto-vote" }
+      ? { icon: "heart" as const, label: "Completed by Health" }
       : log.completionKind === "kickstart"
-        ? { icon: "zap" as const, label: "2-minute vote" }
+        ? { icon: "zap" as const, label: "2-minute version" }
         : null;
 
   return (
@@ -276,18 +299,14 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
           pressRetentionOffset={20}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: true }}
-          accessibilityLabel={`${action.title}${completionBadge ? `, ${completionBadge.label}` : ""}`}
+          accessibilityLabel={`${action.title} completed. Undo${completionBadge ? `, ${completionBadge.label}` : ""}`}
           accessibilityHint="Marks this action as not done"
           style={({ pressed }) => [
             styles.compactMain,
             { opacity: pressed ? 0.8 : 1 },
           ]}
         >
-          <View
-            style={[styles.compactCheck, { backgroundColor: theme.success }]}
-          >
-            <Feather name="check" size={14} color={theme.buttonText} />
-          </View>
+          <CompletionCheck checked />
           <View style={styles.compactTextCol}>
             <ThemedText
               style={[styles.compactTitle, { color: theme.textSecondary }]}
@@ -300,10 +319,13 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
                 <Feather
                   name={completionBadge.icon}
                   size={11}
-                  color={theme.accent}
+                  color={theme.textSecondary}
                 />
                 <ThemedText
-                  style={[styles.completionBadgeText, { color: theme.accent }]}
+                  style={[
+                    styles.completionBadgeText,
+                    { color: theme.textSecondary },
+                  ]}
                 >
                   {completionBadge.label}
                 </ThemedText>
@@ -318,6 +340,9 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
               </ThemedText>
             ) : null}
           </View>
+          <ThemedText style={[styles.compactUndo, { color: theme.accent }]}>
+            Undo
+          </ThemedText>
         </Pressable>
         {onNotePress ? (
           <Pressable
@@ -350,61 +375,8 @@ export const CompletedActionRow = React.memo(function CompletedActionRow({
 const styles = StyleSheet.create({
   container: {
     borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  voteHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-  },
-  voteCopy: {
-    flex: 1,
-  },
-  voteButton: {
-    minWidth: 70,
-    minHeight: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.xs,
-    borderWidth: 1.5,
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.md,
-  },
-  voteButtonText: {
-    ...Typography.small,
-    fontWeight: "700",
-  },
-  detailRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.sm,
-    marginTop: Spacing.sm,
-    paddingHorizontal: Spacing.xs,
-  },
-  detailText: {
-    ...Typography.small,
-    lineHeight: 18,
-    flex: 1,
-  },
-  kickstartRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.sm,
-    borderRadius: BorderRadius.sm,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    marginTop: Spacing.sm,
-  },
-  kickstartText: {
-    ...Typography.small,
-    lineHeight: 18,
-    flex: 1,
-  },
-  kickstartPrefix: {
-    ...Typography.small,
-    fontWeight: "700",
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   compactRow: {
     flexDirection: "row",
@@ -415,14 +387,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.sm,
   },
-  compactCheck: {
-    width: 22,
-    height: 22,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.dark.success,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   compactMain: {
     flex: 1,
     flexDirection: "row",
@@ -432,9 +396,15 @@ const styles = StyleSheet.create({
   compactTextCol: {
     flex: 1,
   },
+  compactUndo: {
+    ...Typography.caption,
+    fontWeight: "700",
+    marginLeft: Spacing.sm,
+  },
+  // Done reads as the check plus secondary text; strikethrough made a
+  // finished habit look cancelled.
   compactTitle: {
     ...Typography.body,
-    textDecorationLine: "line-through",
   },
   compactNote: {
     ...Typography.caption,
@@ -455,14 +425,57 @@ const styles = StyleSheet.create({
     padding: Spacing.xs,
     marginLeft: Spacing.sm,
   },
-  benchmark: {
-    ...Typography.caption,
-    fontWeight: "600",
-    marginBottom: 2,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
   title: {
-    ...Typography.headline,
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: "700",
+  },
+  cue: {
+    fontSize: 15,
+    lineHeight: 20,
+    marginTop: Spacing.xs,
+  },
+  togglePressable: {
+    marginTop: Spacing.md,
+  },
+  backupRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    minHeight: 44,
+    marginTop: Spacing.sm,
+  },
+  backupText: {
+    fontSize: 15,
+    lineHeight: 20,
+    flex: 1,
+  },
+  backupAction: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  coachLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: Spacing.xs,
+    minHeight: 44,
+  },
+  coachLinkText: {
+    ...Typography.small,
+    fontWeight: "600",
+  },
+  toggleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1.5,
+    gap: Spacing.sm,
+  },
+  toggleText: {
+    ...Typography.body,
+    fontWeight: "600",
   },
 });

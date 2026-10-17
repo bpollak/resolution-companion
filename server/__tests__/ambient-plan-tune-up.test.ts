@@ -31,6 +31,14 @@ describe("ambient plan tune-up compatibility", () => {
     expect(Object.keys(request)).not.toContain("persona");
   });
 
+  it("accepts a habit added in plan review without an anchor", () => {
+    const parsed = ambientPlanTuneUpRequestSchema.safeParse({
+      ...request,
+      actions: [{ ...request.actions[0], anchorLink: "" }],
+    });
+    expect(parsed.success).toBe(true);
+  });
+
   it("rejects unknown slots, unsupported fields, and no-op changes", () => {
     expect(() =>
       parseAmbientPlanTuneUpResponse(

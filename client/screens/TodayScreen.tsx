@@ -2,6 +2,7 @@ import React, {
   useMemo,
   useEffect,
   useCallback,
+  useLayoutEffect,
   useState,
   useRef,
 } from "react";
@@ -14,13 +15,14 @@ import {
   Alert,
   Platform,
   Share,
+  AppState,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useNavigation } from "@react-navigation/native";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as StoreReview from "expo-store-review";
 import Animated, {
@@ -34,32 +36,39 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { useTheme } from "@/hooks/useTheme";
+import { useLocalDateKey } from "@/hooks/useLocalDateKey";
 import { useApp } from "@/context/AppContext";
-import { computeMomentumScore } from "@/lib/progress";
+import type { DailyLog, ElementalAction } from "@/lib/storage";
+import {
+  actionIsScheduledOnDate,
+  tomorrowDateKey,
+  nextScheduledDay,
+} from "@/lib/journey-date";
+import { computeMomentumScore, withLogInIndex } from "@/lib/progress";
 import {
   suppressReminderForToday,
   ensureReminderScheduled,
   applySuggestedReminderBucket,
   suggestReminderBucket,
+  getReminderPrimerShownDays,
+  saveReminderPrimerShownDays,
+  type ReminderOptions,
 } from "@/lib/notifications";
+import { createTrailingDebounce } from "@/lib/debounce";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
-import { CircularProgress } from "@/components/CircularProgress";
 import { ActionCard, CompletedActionRow } from "@/components/ActionCard";
-import { StatChip } from "@/components/StatChip";
 import { DayCompleteCard } from "@/components/DayCompleteCard";
+import { TodaySignalCard } from "@/components/TodaySignalCard";
 import { getMainTabHeaderClearance } from "@/navigation/tab-bar-layout";
 import {
   WeeklyRecapCard,
   BeatLastWeekCard,
 } from "@/components/WeeklyRecapCard";
-import { LapseRecoveryCard } from "@/components/LapseRecoveryCard";
 import { MonthRecapCard } from "@/components/MonthRecapCard";
-import { CoachObservationCard } from "@/components/CoachObservationCard";
 import { WitnessCelebrationCard } from "@/components/WitnessCelebrationCard";
 import { YearRecapCard } from "@/components/YearRecapCard";
 import { SecondPersonaInviteCard } from "@/components/SecondPersonaInviteCard";
-import { DailyContextCard } from "@/components/DailyContextCard";
 import { Toast } from "@/components/Toast";
 import { logger } from "@/lib/logger";
 import {
@@ -69,6 +78,7 @@ import {
 } from "@/lib/recap";
 import { computeCoachObservation } from "@/lib/insights";
 import { track } from "@/lib/telemetry";
+import { computeTodaySignal } from "@/lib/ambient-coach";
 import {
   buildWitnessCelebration,
   getWitnessSettings,
@@ -79,13 +89,31 @@ import {
   SECOND_PERSONA_INVITE_SEEN_KEY,
   shouldOfferSecondPersona,
 } from "@/lib/persona-invitation";
+import { PlanCountdownCard } from "@/components/PlanCountdownCard";
+import { ReminderPrimerCard } from "@/components/ReminderPrimerCard";
+import { withAlpha } from "@/lib/color";
+import {
+  buildTodayProgressLine,
+  canShowReminderPrimer,
+  countCompletedDays,
+  isWeeklyRecapFresh,
+  parseReminderPrimerDays,
+  planDayNumber,
+  recordReminderPrimerDay,
+  selectTodayOptionalCard,
+  WIDGET_HINT_MIN_COMPLETED_DAYS,
+} from "@/lib/today-layout";
+import {
+  getMonthProgressDisplay,
+  showsMonthConsistency,
+} from "@/lib/journey-layout";
 
 const FIRST_DAY_COMPLETE_KEY = "today_first_day_complete_seen";
 // {count, lastDate} of distinct fully-complete days, for timing the one-time
-// App Store review ask at the third day-complete celebration
+// App Store review ask at the seventh day-complete celebration
 const REVIEW_COMPLETE_DAYS_KEY = "today_review_complete_days";
 const REVIEW_REQUESTED_KEY = "today_review_requested";
-const REVIEW_ASK_AFTER_DAYS = 3;
+const REVIEW_ASK_AFTER_DAYS = 7;
 // Monday of the last-recapped week — the recap card shows once per week
 const WEEKLY_RECAP_SEEN_KEY = "today_weekly_recap_seen_week";
 const WEEKLY_NUDGE_SEEN_KEY = "today_weekly_nudge_seen_week";
@@ -104,6 +132,133 @@ const SHIELD_STATE_KEY = "today_shield_state";
 const COACH_OBSERVATION_SEEN_KEY = "today_coach_observation_seen";
 const WITNESS_CELEBRATION_SEEN_KEY = "today_witness_celebration_seen_week";
 const YEAR_RECAP_SEEN_KEY = "today_year_recap_seen_year";
+// One-time widget/Siri hint shown at a day-complete moment — the habit loop's
+// best trigger surface is invisible unless the app says it exists once
+const WIDGET_HINT_SEEN_KEY = "today_widget_hint_seen";
+
+// Reminder rescheduling cancels and re-adds every pending notification, so
+// it runs after taps settle instead of once per check-off. Only the final
+// state matters; a burst of taps collapses into one run.
+const REMINDER_RESCHEDULE_DEBOUNCE_MS = 1500;
+
+interface ReminderMaintenance {
+  copy: ReminderOptions & { actions: { anchorLink?: string }[] };
+  dayComplete: boolean;
+}
+
+// Records the anchor-derived time suggestion, then goes quiet once the day
+// is done or restores the chain otherwise.
+function maintainReminders({ copy, dayComplete }: ReminderMaintenance) {
+  (async () => {
+    await applySuggestedReminderBucket(
+      suggestReminderBucket(copy.actions.map((a) => a.anchorLink)),
+      copy,
+    );
+    if (dayComplete) {
+      await suppressReminderForToday(copy);
+    } else {
+      await ensureReminderScheduled(copy);
+    }
+  })().catch((error) => {
+    logger.error("Failed to maintain reminder schedule:", error);
+  });
+}
+
+// try/catch lives in these module helpers, outside the component: the
+// React Compiler skips a whole component over try/catch with conditional
+// expressions inside it.
+interface ShieldState {
+  latestShieldedDay?: string | null;
+  latestShieldEarnedDay?: string | null;
+}
+
+async function readShieldState(): Promise<ShieldState | null> {
+  try {
+    const raw = await AsyncStorage.getItem(SHIELD_STATE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseReviewDays(raw: string | null): {
+  count: number;
+  lastDate: string;
+} {
+  try {
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // Corrupt marker: restart the count; worst case the ask comes later
+  }
+  return { count: 0, lastDate: "" };
+}
+
+async function requestStoreReviewOnce(): Promise<void> {
+  try {
+    if (await StoreReview.hasAction()) {
+      await StoreReview.requestReview();
+      await AsyncStorage.setItem(REVIEW_REQUESTED_KEY, "true");
+    }
+  } catch (error) {
+    logger.error("Failed to request store review:", error);
+  }
+}
+
+// Focus is read here rather than in TodayScreen so a tab switch re-renders
+// only the toast, not the whole Today tree.
+function FocusedToast(props: React.ComponentProps<typeof Toast>) {
+  const isFocused = useIsFocused();
+  return <Toast {...props} visible={props.visible && isFocused} />;
+}
+
+interface ToggleContext {
+  todayActions: ElementalAction[];
+  dailyLogs: DailyLog[];
+  actions: ElementalAction[];
+  personaName: string;
+  personaAlignment: number;
+  logIndex: Map<string, DailyLog>;
+}
+
+/**
+ * Toast copy after a completion, or null when it finished the day (the
+ * celebration card takes over). `ctx` may predate the toggle, so the log is
+ * upserted before counting.
+ */
+function toggleToastMessage(
+  log: DailyLog,
+  ctx: ToggleContext,
+  todayDateStr: string,
+  variantIndex: number,
+): string | null {
+  const newLogs = ctx.dailyLogs.some((l) => l.id === log.id)
+    ? ctx.dailyLogs.map((l) => (l.id === log.id ? log : l))
+    : [...ctx.dailyLogs, log];
+  const isDone = (id: string) =>
+    newLogs.some(
+      (l) =>
+        l.actionId === id &&
+        l.logDate.split("T")[0] === todayDateStr &&
+        l.status,
+    );
+  const remaining = ctx.todayActions.filter((a) => !isDone(a.id)).length;
+  if (remaining === 0 && ctx.todayActions.length > 0) return null;
+
+  // Identity-framed toast variants (variable reward, rotating). Delta uses
+  // the month-to-date window so the number matches the Monthly Consistency
+  // chip and Progress ring.
+  const delta =
+    computeMomentumScore(
+      ctx.actions,
+      newLogs,
+      new Date().getDate(),
+      withLogInIndex(ctx.logIndex, log),
+    ) - ctx.personaAlignment;
+  const variants = [`${ctx.personaName} in action ✓`];
+  if (delta > 0) variants.push(`Consistency +${delta}%`);
+  variants.push(`${remaining} to go. The ring is filling up`);
+  return variants[variantIndex % variants.length];
+}
 
 function getLocalDateString(date: Date): string {
   const year = date.getFullYear();
@@ -118,7 +273,38 @@ const springConfig = {
   mass: 0.8,
 };
 
+function TomorrowLink({
+  count,
+  centered,
+  onPress,
+}: {
+  count: number;
+  centered?: boolean;
+  onPress: () => void;
+}) {
+  const { theme } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`View ${count} ${count === 1 ? "habit" : "habits"} planned for tomorrow in the calendar`}
+      style={({ pressed }) => [
+        styles.tomorrowLink,
+        centered && styles.tomorrowLinkCentered,
+        { opacity: pressed ? 0.7 : 1 },
+      ]}
+    >
+      <Feather name="calendar" size={16} color={theme.accent} />
+      <ThemedText style={[styles.tomorrowLinkText, { color: theme.accent }]}>
+        {count} habit{count !== 1 ? "s" : ""} tomorrow
+      </ThemedText>
+      <Feather name="chevron-right" size={16} color={theme.accent} />
+    </Pressable>
+  );
+}
+
 function StylizedAppLogo() {
+  const { theme } = useTheme();
   const rotation = useSharedValue(0);
   const pulse = useSharedValue(1);
   const glow = useSharedValue(0.3);
@@ -157,15 +343,39 @@ function StylizedAppLogo() {
 
   return (
     <View style={logoStyles.container}>
-      <Animated.View style={[logoStyles.glowOuter, glowStyle]} />
-      <Animated.View style={[logoStyles.outerRing, outerRingStyle]}>
-        <View style={logoStyles.gradientDot1} />
+      <Animated.View
+        style={[
+          logoStyles.glowOuter,
+          { backgroundColor: theme.accent },
+          glowStyle,
+        ]}
+      />
+      <Animated.View
+        style={[
+          logoStyles.outerRing,
+          { borderColor: withAlpha(theme.accent, 0.4) },
+          outerRingStyle,
+        ]}
+      >
+        <View
+          style={[logoStyles.gradientDot1, { backgroundColor: theme.accent }]}
+        />
         <View style={logoStyles.gradientDot2} />
         <View style={logoStyles.gradientDot3} />
         <View style={logoStyles.gradientDot4} />
       </Animated.View>
-      <View style={logoStyles.innerCircle}>
-        <View style={logoStyles.compassCore}>
+      <View
+        style={[
+          logoStyles.innerCircle,
+          { backgroundColor: withAlpha(theme.accent, 0.2) },
+        ]}
+      >
+        <View
+          style={[
+            logoStyles.compassCore,
+            { backgroundColor: withAlpha(theme.accent, 0.3) },
+          ]}
+        >
           <Feather name="compass" size={40} color="#FFFFFF" />
         </View>
       </View>
@@ -186,7 +396,6 @@ const logoStyles = StyleSheet.create({
     width: 140,
     height: 140,
     borderRadius: 70,
-    backgroundColor: Colors.dark.accent,
   },
   outerRing: {
     position: "absolute",
@@ -194,7 +403,6 @@ const logoStyles = StyleSheet.create({
     height: 110,
     borderRadius: 55,
     borderWidth: 2,
-    borderColor: "rgba(0, 217, 255, 0.4)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -204,7 +412,6 @@ const logoStyles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.dark.accent,
   },
   gradientDot2: {
     position: "absolute",
@@ -234,7 +441,6 @@ const logoStyles = StyleSheet.create({
     width: 90,
     height: 90,
     borderRadius: 45,
-    backgroundColor: "rgba(0, 217, 255, 0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -242,7 +448,6 @@ const logoStyles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: "rgba(0, 217, 255, 0.3)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -282,7 +487,7 @@ function AnimatedStartButton({ onPress }: { onPress: () => void }) {
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       accessibilityRole="button"
-      accessibilityLabel="Start your journey"
+      accessibilityLabel="Make my plan"
     >
       <Animated.View
         style={[
@@ -294,7 +499,7 @@ function AnimatedStartButton({ onPress }: { onPress: () => void }) {
         <ThemedText
           style={[styles.startButtonText, { color: theme.buttonText }]}
         >
-          Start Your Journey
+          Make my plan
         </ThemedText>
         <Animated.View style={arrowStyle}>
           <Feather name="arrow-right" size={20} color={theme.buttonText} />
@@ -318,24 +523,28 @@ export default function TodayScreen() {
     benchmarks,
     actions,
     dailyLogs,
-    dailyContexts,
     personaAlignment,
     progressSnapshot,
     subscription,
     toggleDailyLog,
     setDailyLogNote,
-    upsertDailyContext,
-    deleteDailyContext,
     canAddPersona,
+    reminderPrimerPending,
+    answerReminderPrimer,
+    milestoneCelebration,
   } = useApp();
 
+  // Re-renders on a date change, so everything below that reads `today`
+  // follows it (including a January 1 plan flipping on at midnight).
+  const todayDateStr = useLocalDateKey();
   const today = new Date();
-  const dayOfWeek = today.toLocaleDateString("en-US", { weekday: "long" });
-  const dateString = today.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  // A plan set up ahead of time (for January 1) starts at its createdAt.
+  const personaCreatedAt = persona?.createdAt;
+  const planStart = useMemo(() => {
+    if (!personaCreatedAt) return null;
+    const start = new Date(personaCreatedAt);
+    return getLocalDateString(start) > todayDateStr ? start : null;
+  }, [personaCreatedAt, todayDateStr]);
 
   const personaBenchmarkIds = useMemo(() => {
     return benchmarks
@@ -343,21 +552,23 @@ export default function TodayScreen() {
       .map((b) => b.id);
   }, [benchmarks, persona?.id]);
 
+  // Scheduled means the weekday matches AND the habit has started, so a plan
+  // set up for January 1 shows nothing to check off (or miss) before then.
   const todayActions = useMemo(() => {
+    const day = new Date(`${todayDateStr}T12:00:00`);
     return actions
       .filter((action) => personaBenchmarkIds.includes(action.benchmarkId))
-      .filter((action) => action.frequency.includes(dayOfWeek));
-  }, [actions, personaBenchmarkIds, dayOfWeek]);
-
-  const todayDateStr = getLocalDateString(today);
-  const todayContext = useMemo(
-    () => dailyContexts.find((entry) => entry.logDate === todayDateStr),
-    [dailyContexts, todayDateStr],
-  );
-
-  const benchmarkById = useMemo(
-    () => new Map(benchmarks.map((benchmark) => [benchmark.id, benchmark])),
-    [benchmarks],
+      .filter((action) => actionIsScheduledOnDate(action, day));
+  }, [actions, personaBenchmarkIds, todayDateStr]);
+  const nextDay = useMemo(
+    () =>
+      nextScheduledDay(
+        actions.filter((action) =>
+          personaBenchmarkIds.includes(action.benchmarkId),
+        ),
+        new Date(`${todayDateStr}T12:00:00`),
+      ),
+    [actions, personaBenchmarkIds, todayDateStr],
   );
 
   const todayLogByActionId = useMemo(() => {
@@ -406,8 +617,52 @@ export default function TodayScreen() {
   }, [actions, dailyLogs, todayDateStr]);
   const momentumDelta = personaAlignment - consistencyBeforeToday;
 
+  const completedDayCount = useMemo(
+    () => countCompletedDays(dailyLogs),
+    [dailyLogs],
+  );
+  const planDay = persona?.createdAt
+    ? planDayNumber(
+        getLocalDateString(new Date(persona.createdAt)),
+        todayDateStr,
+      )
+    : 1;
+  // Journey's rule decides whether a month percentage is meaningful yet, so
+  // Today never shows "100% this month" while Journey still says "Day 1".
+  const showMonthConsistency = useMemo(
+    () =>
+      showsMonthConsistency(
+        getMonthProgressDisplay({
+          actions: actions.filter((action) =>
+            personaBenchmarkIds.includes(action.benchmarkId),
+          ),
+          logIndex: progressSnapshot.logIndex,
+          planStartedAt: persona?.createdAt,
+          now: new Date(`${todayDateStr}T12:00:00`),
+        }),
+      ),
+    [
+      actions,
+      personaBenchmarkIds,
+      progressSnapshot.logIndex,
+      persona?.createdAt,
+      todayDateStr,
+    ],
+  );
+  const progressLine = buildTodayProgressLine({
+    completed: completedTodayCount,
+    scheduled: scheduledTodayCount,
+    streak: streakCurrent,
+    shieldUsed: streak.shieldUsed,
+    planDay,
+    consistency: personaAlignment,
+    showConsistency: showMonthConsistency,
+  });
+
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
+  // Stable so the Toast's timer isn't restarted by every Today re-render
+  const hideToast = useCallback(() => setToastVisible(false), []);
   // True only when the final action was checked in this session, so
   // reopening the app shows the completed state without re-animating
   const [celebrateDayComplete, setCelebrateDayComplete] = useState(false);
@@ -416,6 +671,9 @@ export default function TodayScreen() {
   // Weekly recap / nudge / lapse-card dismissal state loads from AsyncStorage
   // once; nothing renders until it has, so cards never flash-then-vanish
   const [recapPrefsLoaded, setRecapPrefsLoaded] = useState(false);
+  const [widgetHintSeen, setWidgetHintSeen] = useState(true);
+  // null until loaded, so the primer never flashes on a day past its cap
+  const [primerShownDays, setPrimerShownDays] = useState<string[] | null>(null);
   const [recapSeenWeek, setRecapSeenWeek] = useState<string | null>(null);
   const [nudgeSeenWeek, setNudgeSeenWeek] = useState<string | null>(null);
   const [lapseDismissedFor, setLapseDismissedFor] = useState<string | null>(
@@ -443,6 +701,7 @@ export default function TodayScreen() {
       AsyncStorage.getItem(WITNESS_CELEBRATION_SEEN_KEY),
       AsyncStorage.getItem(YEAR_RECAP_SEEN_KEY),
       AsyncStorage.getItem(SECOND_PERSONA_INVITE_SEEN_KEY),
+      AsyncStorage.getItem(WIDGET_HINT_SEEN_KEY),
     ]).then(
       ([
         recapSeen,
@@ -454,6 +713,7 @@ export default function TodayScreen() {
         witnessSeen,
         yearSeen,
         secondPersonaSeen,
+        widgetHint,
       ]) => {
         setRecapSeenWeek(recapSeen);
         setNudgeSeenWeek(nudgeSeen);
@@ -464,10 +724,22 @@ export default function TodayScreen() {
         setWitnessSeenWeek(witnessSeen);
         setYearRecapSeen(yearSeen);
         setSecondPersonaInviteSeen(secondPersonaSeen);
+        setWidgetHintSeen(widgetHint === "true");
         setRecapPrefsLoaded(true);
       },
     );
   }, []);
+
+  useEffect(() => {
+    getReminderPrimerShownDays().then((raw) =>
+      setPrimerShownDays(parseReminderPrimerDays(raw)),
+    );
+  }, []);
+
+  const dismissWidgetHint = () => {
+    setWidgetHintSeen(true);
+    AsyncStorage.setItem(WIDGET_HINT_SEEN_KEY, "true");
+  };
 
   const dismissWeeklyRecap = () => {
     setRecapSeenWeek(weeklyRecap.weekKey);
@@ -489,24 +761,47 @@ export default function TodayScreen() {
   // during the first week of a new month, once, and only when last month had
   // any votes to tell a story about. Takes precedence over the weekly card
   // (the 1st is often a Monday — the weekly card returns after this one).
-  const prevMonthKey = getPreviousMonthKey(today);
-  const monthRecap = useMemo(
-    () =>
-      buildMonthRecap(
-        actions,
-        dailyLogs,
-        persona,
-        prevMonthKey,
-        new Date(),
-        subscription.isPremium ? 2 : 1,
-      ),
-    [actions, dailyLogs, persona, prevMonthKey, subscription.isPremium],
+  // Recaps are built only while their card can show: every check-off
+  // changes dailyLogs, and a hidden recap would otherwise rewalk history on
+  // each tap. The snapshot's index and streak share the recap's maxShields.
+  // Derived from the date key, not the shared `today` Date: the compiler
+  // treats Date method calls as possible mutation, so values taken from it
+  // could not feed memo dependencies.
+  const prevMonthKey = getPreviousMonthKey(
+    new Date(`${todayDateStr}T12:00:00`),
   );
-  const showMonthRecapCard =
+  const monthRecapEligible =
     recapPrefsLoaded &&
     today.getDate() <= MONTH_RECAP_WINDOW_DAYS &&
-    monthRecap.votesCast > 0 &&
     monthRecapSeen !== prevMonthKey;
+  const monthRecap = useMemo(
+    () =>
+      monthRecapEligible
+        ? buildMonthRecap(
+            actions,
+            dailyLogs,
+            persona,
+            prevMonthKey,
+            new Date(),
+            subscription.isPremium ? 2 : 1,
+            {
+              logIndex: progressSnapshot.logIndex,
+              streak: progressSnapshot.streak,
+            },
+          )
+        : null,
+    [
+      monthRecapEligible,
+      actions,
+      dailyLogs,
+      persona,
+      prevMonthKey,
+      subscription.isPremium,
+      progressSnapshot.logIndex,
+      progressSnapshot.streak,
+    ],
+  );
+  const showMonthRecapCard = monthRecap !== null && monthRecap.votesCast > 0;
 
   const dismissMonthRecap = () => {
     setMonthRecapSeen(prevMonthKey);
@@ -516,22 +811,46 @@ export default function TodayScreen() {
   const showWeeklyRecap =
     recapPrefsLoaded &&
     !showMonthRecapCard &&
+    isWeeklyRecapFresh(today) &&
     weeklyRecap.lastWeek.scheduled > 0 &&
     recapSeenWeek !== weeklyRecap.weekKey;
 
+  const todayYear = Number(todayDateStr.slice(0, 4));
   const annualYear =
-    today.getMonth() === 0 ? today.getFullYear() - 1 : today.getFullYear();
-  const yearRecap = useMemo(
-    () =>
-      buildYearRecap(actions, dailyLogs, persona, annualYear, new Date(), 2),
-    [actions, dailyLogs, persona, annualYear],
-  );
-  const showYearRecap =
+    todayDateStr.slice(5, 7) === "01" ? todayYear - 1 : todayYear;
+  const yearRecapEligible =
     recapPrefsLoaded &&
     subscription.isPremium &&
     (today.getMonth() === 11 || today.getMonth() === 0) &&
-    yearRecap.votesCast > 0 &&
     yearRecapSeen !== String(annualYear);
+  const yearRecap = useMemo(
+    () =>
+      yearRecapEligible
+        ? buildYearRecap(
+            actions,
+            dailyLogs,
+            persona,
+            annualYear,
+            new Date(),
+            subscription.isPremium ? 2 : 1,
+            {
+              logIndex: progressSnapshot.logIndex,
+              streak: progressSnapshot.streak,
+            },
+          )
+        : null,
+    [
+      yearRecapEligible,
+      actions,
+      dailyLogs,
+      persona,
+      annualYear,
+      subscription.isPremium,
+      progressSnapshot.logIndex,
+      progressSnapshot.streak,
+    ],
+  );
+  const showYearRecap = yearRecap !== null && yearRecap.votesCast > 0;
   const dismissYearRecap = () => {
     setYearRecapSeen(String(annualYear));
     AsyncStorage.setItem(YEAR_RECAP_SEEN_KEY, String(annualYear));
@@ -540,8 +859,15 @@ export default function TodayScreen() {
   // The coach's one proactive weekly observation — locally computed, shown
   // once per pattern per week, and never stacked on top of a recap card
   const coachObservation = useMemo(
-    () => computeCoachObservation(actions, dailyLogs, persona?.name ?? "you"),
-    [actions, dailyLogs, persona?.name],
+    () =>
+      computeCoachObservation(
+        actions,
+        dailyLogs,
+        persona?.name ?? "you",
+        new Date(),
+        progressSnapshot.logIndex,
+      ),
+    [actions, dailyLogs, persona?.name, progressSnapshot.logIndex],
   );
   const showCoachObservation =
     recapPrefsLoaded &&
@@ -558,20 +884,35 @@ export default function TodayScreen() {
     weeklyRecap.lastWeek.completed > 0 &&
     witnessSeenWeek !== weeklyRecap.weekKey;
 
-  const showSecondPersonaInvite =
+  // Memoized because the eligibility check rescans 30 days of logs; it
+  // only needs to rerun when its inputs or the local date change.
+  const secondPersonaGate =
     recapPrefsLoaded &&
     !showMonthRecapCard &&
     !showWeeklyRecap &&
     !showWitnessCelebration &&
-    !showCoachObservation &&
-    shouldOfferSecondPersona(
+    !showCoachObservation;
+  const showSecondPersonaInvite = useMemo(
+    () =>
+      secondPersonaGate &&
+      shouldOfferSecondPersona(
+        personas,
+        persona,
+        actions,
+        dailyLogs,
+        secondPersonaInviteSeen,
+        new Date(`${todayDateStr}T12:00:00`),
+      ),
+    [
+      secondPersonaGate,
       personas,
       persona,
       actions,
       dailyLogs,
       secondPersonaInviteSeen,
-      today,
-    );
+      todayDateStr,
+    ],
+  );
 
   const dismissSecondPersonaInvite = () => {
     const month = getMonthKey(today);
@@ -631,14 +972,39 @@ export default function TodayScreen() {
     lapse.lastMissedDate !== null &&
     lapse.lastMissedDate !== lapseDismissedFor;
 
+  const todaySignal = useMemo(
+    () =>
+      computeTodaySignal({
+        personaName: persona?.name ?? "you",
+        todayKey: todayDateStr,
+        todayActions,
+        completedActionIds: new Set(
+          completedTodayActions.map((action) => action.id),
+        ),
+        missedDays: showLapseCard ? lapse.missedDays : 0,
+        coachObservation: showCoachObservation ? coachObservation : null,
+      }),
+    [
+      coachObservation,
+      completedTodayActions,
+      lapse.missedDays,
+      persona?.name,
+      showCoachObservation,
+      showLapseCard,
+      todayActions,
+      todayDateStr,
+    ],
+  );
+
   // Latest per-render data for the stable handleToggle callback — widening
   // its deps would re-render every memoized ActionCard on each toggle
-  const latestRef = useRef({
+  const latestRef = useRef<ToggleContext>({
     todayActions,
     dailyLogs,
     actions,
     personaName: persona?.name ?? "",
     personaAlignment,
+    logIndex: progressSnapshot.logIndex,
   });
   useEffect(() => {
     latestRef.current = {
@@ -647,98 +1013,133 @@ export default function TodayScreen() {
       actions,
       personaName: persona?.name ?? "",
       personaAlignment,
+      logIndex: progressSnapshot.logIndex,
     };
   });
   const toastVariantRef = useRef(0);
 
-  // Stable reference so memoized ActionCards skip re-rendering on each toggle
+  // Stable reference so memoized ActionCards skip re-rendering on each toggle.
+  // A promise chain rather than try/catch keeps this compiler-optimizable.
   const handleToggle = useCallback(
-    async (actionId: string) => {
-      try {
-        const log = await toggleDailyLog(actionId, todayDateStr);
-        if (!log.status) return;
-
-        const {
-          todayActions: currentActions,
-          dailyLogs: currentLogs,
-          actions: allActions,
-          personaName,
-          personaAlignment: currentAlignment,
-        } = latestRef.current;
-        // The ref may not hold the post-toggle state yet — upsert the log
-        const newLogs = currentLogs.some((l) => l.id === log.id)
-          ? currentLogs.map((l) => (l.id === log.id ? log : l))
-          : [...currentLogs, log];
-        const isDone = (id: string) =>
-          newLogs.some((l) => {
-            const logDateStr = l.logDate.includes("T")
-              ? l.logDate.split("T")[0]
-              : l.logDate;
-            return l.actionId === id && logDateStr === todayDateStr && l.status;
-          });
-        const remaining = currentActions.filter((a) => !isDone(a.id)).length;
-
-        if (remaining === 0 && currentActions.length > 0) {
-          // Final action of the day: the celebration card takes over, with a
-          // double haptic so it reads as an event, not an acknowledgment
-          setCelebrateDayComplete(true);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          setTimeout(() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-          }, 300);
-          return;
-        }
-
-        // Identity-framed toast variants (variable reward, rotating).
-        // Delta uses the month-to-date window so the number matches the
-        // Monthly Consistency chip and Progress ring.
-        const monthWindow = new Date().getDate();
-        const delta =
-          computeMomentumScore(allActions, newLogs, monthWindow) -
-          currentAlignment;
-        const variants = [`A vote for ${personaName} ✓`];
-        if (delta > 0) variants.push(`Consistency +${delta}%`);
-        variants.push(`${remaining} to go — ring's filling up`);
-        setToastMessage(variants[toastVariantRef.current % variants.length]);
-        toastVariantRef.current += 1;
-        setToastVisible(true);
-      } catch (error) {
-        logger.error("Failed to toggle action:", error);
-      }
-    },
+    (actionId: string, completionKind: "full" | "kickstart" = "full") =>
+      toggleDailyLog(actionId, todayDateStr, {
+        completionSource: "manual",
+        completionKind,
+      })
+        .then((log) => {
+          if (!log.status) return;
+          const message = toggleToastMessage(
+            log,
+            latestRef.current,
+            todayDateStr,
+            toastVariantRef.current,
+          );
+          if (message === null) {
+            // Final action of the day: the celebration card takes over, with
+            // a double haptic so it reads as an event, not an acknowledgment
+            setCelebrateDayComplete(true);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setTimeout(() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            }, 300);
+            return;
+          }
+          setToastMessage(message);
+          toastVariantRef.current += 1;
+          setToastVisible(true);
+        })
+        .catch((error) => {
+          logger.error("Failed to toggle action:", error);
+        }),
     [toggleDailyLog, todayDateStr],
   );
 
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowDayOfWeek = tomorrow.toLocaleDateString("en-US", {
-    weekday: "long",
-  });
+  const openTomorrow = useCallback(() => {
+    navigation.navigate(
+      "JourneyTab" as never,
+      {
+        date: tomorrowDateKey(),
+        intentId: String(Date.now()),
+      } as never,
+    );
+  }, [navigation]);
+
+  const handleSignalPrimary = useCallback(() => {
+    track("today_signal_actioned");
+    if (todaySignal.primaryKind === "journey") {
+      if (todaySignal.kind === "rest") openTomorrow();
+      else navigation.navigate("JourneyTab" as never);
+      return;
+    }
+    if (todaySignal.actionId) {
+      handleToggle(todaySignal.actionId, todaySignal.primaryKind ?? "full");
+    }
+  }, [handleToggle, navigation, openTomorrow, todaySignal]);
+
+  const openSignalCoach = () => {
+    track("today_signal_actioned");
+    if (todaySignal.kind === "protect-pattern") dismissCoachObservation();
+    if (todaySignal.kind === "reduce-friction") dismissLapseCard();
+    navigation.navigate("CoachSheet", {
+      origin:
+        todaySignal.kind === "reduce-friction"
+          ? "lapse-recovery"
+          : "today-signal",
+      actionId: todaySignal.actionId,
+      promptId:
+        todaySignal.kind === "reduce-friction"
+          ? "reduce-friction"
+          : todaySignal.kind === "protect-pattern"
+            ? "understand-pattern"
+            : "start-today",
+    });
+  };
+
+  // The ordinary "Up next" signal only repeated the habit card, so its
+  // coach entry moved into that card's footer with the same origin/prompt
+  const openHabitCoach = useCallback(
+    (actionId: string) => {
+      track("today_signal_actioned");
+      navigation.navigate("CoachSheet", {
+        origin: "today-signal",
+        actionId,
+        promptId: "start-today",
+      });
+    },
+    [navigation],
+  );
+  const habitCoachLink = todaySignal.kind === "next-action";
+  const showSignalCard =
+    todaySignal.kind === "reduce-friction" ||
+    todaySignal.kind === "protect-pattern";
 
   const tomorrowActions = useMemo(() => {
+    const day = new Date(
+      `${tomorrowDateKey(new Date(`${todayDateStr}T12:00:00`))}T12:00:00`,
+    );
     return actions
       .filter((action) => personaBenchmarkIds.includes(action.benchmarkId))
-      .filter((action) => action.frequency.includes(tomorrowDayOfWeek));
-  }, [actions, personaBenchmarkIds, tomorrowDayOfWeek]);
+      .filter((action) => actionIsScheduledOnDate(action, day));
+  }, [actions, personaBenchmarkIds, todayDateStr]);
 
   const todayRows = useMemo(
     () => [
-      ...pendingTodayActions.map((action) => ({
+      ...pendingTodayActions.map((action, index) => ({
         kind: "pending" as const,
         action,
         log: todayLogByActionId.get(action.id) ?? null,
-        benchmarkTitle: benchmarkById.get(action.benchmarkId)?.title,
+        askCoach: index === 0 && habitCoachLink,
       })),
       ...completedTodayActions.map((action) => ({
         kind: "completed" as const,
         action,
         log: todayLogByActionId.get(action.id) ?? null,
-        benchmarkTitle: undefined,
+        askCoach: false,
       })),
     ],
     [
-      benchmarkById,
       completedTodayActions,
+      habitCoachLink,
       pendingTodayActions,
       todayLogByActionId,
     ],
@@ -747,7 +1148,9 @@ export default function TodayScreen() {
   // Optional "how it went" note on a completed action. One native prompt,
   // fully skippable — the completion tap itself stays friction-free.
   const todayLogByActionIdRef = useRef(todayLogByActionId);
-  todayLogByActionIdRef.current = todayLogByActionId;
+  useLayoutEffect(() => {
+    todayLogByActionIdRef.current = todayLogByActionId;
+  }, [todayLogByActionId]);
   const handleNotePress = useCallback(
     (actionId: string) => {
       const currentNote = todayLogByActionIdRef.current.get(actionId)?.note;
@@ -764,7 +1167,7 @@ export default function TodayScreen() {
       }
       Alert.prompt(
         currentNote ? "Edit your note" : "How did it go?",
-        "One line for future you — your coach reads these too.",
+        "One line for future you. Your coach reads these too.",
         [
           { text: "Cancel", style: "cancel" },
           { text: "Save", onPress: (text?: string) => save(text ?? "") },
@@ -783,7 +1186,7 @@ export default function TodayScreen() {
           action={item.action}
           log={item.log}
           onToggle={handleToggle}
-          benchmarkTitle={item.benchmarkTitle}
+          onAskCoach={item.askCoach ? openHabitCoach : undefined}
         />
       ) : (
         <CompletedActionRow
@@ -794,7 +1197,7 @@ export default function TodayScreen() {
           onNotePress={handleNotePress}
         />
       ),
-    [handleToggle, handleNotePress],
+    [handleToggle, handleNotePress, openHabitCoach],
   );
 
   // Shield spend/recharge moments: the shield mechanic already worked
@@ -807,16 +1210,7 @@ export default function TodayScreen() {
   useEffect(() => {
     if (!hasOnboarded) return;
     (async () => {
-      let previous: {
-        latestShieldedDay?: string | null;
-        latestShieldEarnedDay?: string | null;
-      } | null = null;
-      try {
-        const raw = await AsyncStorage.getItem(SHIELD_STATE_KEY);
-        previous = raw ? JSON.parse(raw) : null;
-      } catch {
-        previous = null;
-      }
+      const previous = await readShieldState();
       const hasVersionedState =
         previous !== null &&
         ("latestShieldedDay" in previous ||
@@ -828,7 +1222,7 @@ export default function TodayScreen() {
         ) {
           track("shield_used");
           setToastMessage(
-            "Your shield covered a missed day — streak intact. That's what it was for. 🛡",
+            "An earned rest day covered a missed day. Your streak is safe.",
           );
           setToastVisible(true);
         } else if (
@@ -838,7 +1232,7 @@ export default function TodayScreen() {
         ) {
           track("shield_earned");
           setToastMessage(
-            "Seven clean action-days earned you a shield. Grace, banked. 🛡",
+            "Seven days in a row earned you a rest day. Use it when life happens.",
           );
           setToastVisible(true);
         }
@@ -867,11 +1261,27 @@ export default function TodayScreen() {
     });
   }, [celebrateDayComplete]);
 
-  // Daily reminder maintenance: record the anchor-derived time suggestion,
-  // go quiet once the day is done, restore the chain otherwise
+  // Daily reminder maintenance, debounced off the tap path (see
+  // maintainReminders). Leaving the screen or the app flushes the latest
+  // state so the schedule never stays behind the last check-off.
+  const [reminderDebounce] = useState(() =>
+    createTrailingDebounce(maintainReminders, REMINDER_RESCHEDULE_DEBOUNCE_MS),
+  );
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") reminderDebounce.flush();
+    });
+    return () => {
+      subscription.remove();
+      reminderDebounce.flush();
+    };
+  }, [reminderDebounce]);
   const lapseMissedDays = lapse.missedDays;
   useEffect(() => {
-    if (Platform.OS === "web" || !hasOnboarded) return;
+    if (Platform.OS === "web" || !hasOnboarded) {
+      reminderDebounce.cancel();
+      return;
+    }
     const copy = {
       streakCount: streakCurrent,
       missedRun: lapseMissedDays,
@@ -883,20 +1293,12 @@ export default function TodayScreen() {
         benchmarks.map((item) => [item.id, item.title]),
       ),
     };
-    (async () => {
-      await applySuggestedReminderBucket(
-        suggestReminderBucket(actions.map((a) => a.anchorLink)),
-        copy,
-      );
-      if (dayComplete) {
-        await suppressReminderForToday(copy);
-      } else {
-        await ensureReminderScheduled(copy);
-      }
-    })().catch((error) => {
-      logger.error("Failed to maintain reminder schedule:", error);
-    });
+    reminderDebounce.schedule({ copy, dayComplete });
+    // A background launch (notification "Mark all done") never changes
+    // AppState, so a pending timer could be suspended before it runs.
+    if (AppState.currentState !== "active") reminderDebounce.flush();
   }, [
+    reminderDebounce,
     dayComplete,
     hasOnboarded,
     streakCurrent,
@@ -908,26 +1310,26 @@ export default function TodayScreen() {
     personaAlignment,
   ]);
 
-  // One-time App Store review ask at the third day-complete celebration —
+  // One-time App Store review ask at the seventh day-complete celebration —
   // peak-moment timing, and disjoint from the first-day notification ask.
   // StoreReview.requestReview is a no-op when Apple declines to show it.
+  // Never stacked on the milestone modal or a toast; a skipped ask retries
+  // at the next day-complete because the key is written only once it runs.
+  const reviewBlocked = toastVisible || milestoneCelebration !== null;
+  const reviewBlockedRef = useRef(reviewBlocked);
+  useLayoutEffect(() => {
+    reviewBlockedRef.current = reviewBlocked;
+  }, [reviewBlocked]);
   useEffect(() => {
     if (!celebrateDayComplete || Platform.OS === "web") return;
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     (async () => {
       const [rawDays, requested] = await Promise.all([
         AsyncStorage.getItem(REVIEW_COMPLETE_DAYS_KEY),
         AsyncStorage.getItem(REVIEW_REQUESTED_KEY),
       ]);
-      let days: { count: number; lastDate: string } = {
-        count: 0,
-        lastDate: "",
-      };
-      try {
-        if (rawDays) days = JSON.parse(rawDays);
-      } catch {
-        // Corrupt marker — restart the count; worst case the ask comes later
-      }
+      let days = parseReviewDays(rawDays);
       if (days.lastDate !== todayDateStr) {
         days = { count: days.count + 1, lastDate: todayDateStr };
         await AsyncStorage.setItem(
@@ -936,27 +1338,115 @@ export default function TodayScreen() {
         );
       }
       if (requested || days.count < REVIEW_ASK_AFTER_DAYS || cancelled) return;
-      await AsyncStorage.setItem(REVIEW_REQUESTED_KEY, "true");
-      setTimeout(async () => {
-        try {
-          if (await StoreReview.hasAction()) {
-            await StoreReview.requestReview();
-          }
-        } catch (error) {
-          logger.error("Failed to request store review:", error);
-        }
+      timer = setTimeout(async () => {
+        if (cancelled || reviewBlockedRef.current) return;
+        await requestStoreReviewOnce();
       }, 4000);
     })().catch((error) => {
       logger.error("Failed to track review timing:", error);
     });
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
     };
   }, [celebrateDayComplete, todayDateStr]);
+
+  // Recaps and the witness celebration expire within days, so they get the
+  // slot ahead of the teach-once tips (see selectTodayOptionalCard).
+  const timeLimitedCard = showMonthRecapCard ? (
+    <MonthRecapCard
+      recap={monthRecap}
+      onOpen={() => {
+        dismissMonthRecap();
+        navigation.navigate("MonthRecap", { monthKey: prevMonthKey });
+      }}
+      onDismiss={dismissMonthRecap}
+    />
+  ) : showYearRecap ? (
+    <YearRecapCard
+      recap={yearRecap}
+      onOpen={() => {
+        dismissYearRecap();
+        navigation.navigate("YearRecap", { year: annualYear });
+      }}
+      onDismiss={dismissYearRecap}
+    />
+  ) : showWeeklyRecap ? (
+    <WeeklyRecapCard
+      recap={weeklyRecap}
+      streak={streak}
+      personaName={persona?.name ?? "you"}
+      onDismiss={dismissWeeklyRecap}
+      onStartReview={() =>
+        navigation.navigate("CoachSheet", {
+          origin: "recap",
+          promptId: "review-week",
+        })
+      }
+    />
+  ) : showWitnessCelebration && witnessSettings ? (
+    <WitnessCelebrationCard
+      witnessName={witnessSettings.name}
+      onShare={shareWitnessCelebration}
+      onDismiss={dismissWitnessCelebration}
+    />
+  ) : null;
+
+  const secondaryCard =
+    showSecondPersonaInvite && persona ? (
+      <SecondPersonaInviteCard
+        personaName={persona.name}
+        onExplore={exploreSecondPersona}
+        onDismiss={dismissSecondPersonaInvite}
+      />
+    ) : showBeatLastWeekNudge ? (
+      <BeatLastWeekCard
+        lastWeekCompleted={weeklyRecap.lastWeek.completed}
+        onDismiss={dismissBeatLastWeek}
+      />
+    ) : null;
+
+  const showReminderPrimer =
+    reminderPrimerPending &&
+    actions.length > 0 &&
+    primerShownDays !== null &&
+    canShowReminderPrimer(primerShownDays, todayDateStr);
+  const showWidgetHint =
+    Platform.OS === "ios" &&
+    recapPrefsLoaded &&
+    !widgetHintSeen &&
+    dayComplete &&
+    completedDayCount >= WIDGET_HINT_MIN_COMPLETED_DAYS;
+  const optionalCard = selectTodayOptionalCard({
+    timeLimited: timeLimitedCard !== null,
+    primer: showReminderPrimer,
+    widgetHint: showWidgetHint,
+    secondary: secondaryCard !== null,
+  });
+
+  // A day counts toward the primer's cap only when it actually held the slot
+  useEffect(() => {
+    if (optionalCard !== "primer" || primerShownDays === null) return;
+    const next = recordReminderPrimerDay(primerShownDays, todayDateStr);
+    if (next === primerShownDays) return;
+    setPrimerShownDays(next);
+    saveReminderPrimerShownDays(next).catch((error) =>
+      logger.warn("Failed to record reminder primer day:", error),
+    );
+  }, [optionalCard, primerShownDays, todayDateStr]);
+
+  const showWidgetHowTo = () => {
+    Alert.alert(
+      "Check off without opening the app",
+      "Add the “Take the Next Step” widget to your Home or Lock Screen to check off your habit with one tap. Siri works too: “Log my kickstart in Resolution Companion.” Walks and workouts can even check themselves off with Apple Health: turn it on when you edit a habit.",
+      [{ text: "Got it", onPress: dismissWidgetHint }],
+    );
+  };
 
   if (!hasOnboarded || !persona) {
     return (
       <ScrollView
+        delaysContentTouches={false}
         style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
         contentContainerStyle={[
           styles.emptyContainer,
@@ -969,10 +1459,12 @@ export default function TodayScreen() {
         decelerationRate="fast"
       >
         <StylizedAppLogo />
-        <ThemedText style={styles.emptyTitle}>Begin Your Evolution</ThemedText>
+        <ThemedText style={styles.emptyTitle}>
+          What&rsquo;s your resolution?
+        </ThemedText>
         <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
-          Define who you are becoming and build the habits that will get you
-          there.
+          Turn it into one small habit, with a coach that keeps you going past
+          January.
         </ThemedText>
         <AnimatedStartButton
           onPress={() => navigation.navigate("Onboarding")}
@@ -1005,183 +1497,53 @@ export default function TodayScreen() {
         ListHeaderComponent={
           <>
             <View style={styles.header}>
-              <ThemedText
-                style={[styles.personaLabel, { color: theme.accent }]}
-              >
-                Becoming
-              </ThemedText>
-              <ThemedText style={styles.personaName}>{persona.name}</ThemedText>
-            </View>
-
-            {showMonthRecapCard ? (
-              <MonthRecapCard
-                recap={monthRecap}
-                onOpen={() => {
-                  dismissMonthRecap();
-                  navigation.navigate("MonthRecap", {
-                    monthKey: prevMonthKey,
-                  });
-                }}
-                onDismiss={dismissMonthRecap}
-              />
-            ) : showYearRecap ? (
-              <YearRecapCard
-                recap={yearRecap}
-                onOpen={() => {
-                  dismissYearRecap();
-                  navigation.navigate("YearRecap", { year: annualYear });
-                }}
-                onDismiss={dismissYearRecap}
-              />
-            ) : showWeeklyRecap ? (
-              <WeeklyRecapCard
-                recap={weeklyRecap}
-                streak={streak}
-                personaName={persona.name}
-                onDismiss={dismissWeeklyRecap}
-                onStartReview={() => {
-                  navigation.navigate(
-                    "ReflectTab" as never,
-                    { startWeekly: Date.now() } as never,
-                  );
-                }}
-              />
-            ) : showWitnessCelebration && witnessSettings ? (
-              <WitnessCelebrationCard
-                witnessName={witnessSettings.name}
-                onShare={shareWitnessCelebration}
-                onDismiss={dismissWitnessCelebration}
-              />
-            ) : showCoachObservation && coachObservation ? (
-              <CoachObservationCard
-                observation={coachObservation}
-                onOpenCoach={() => {
-                  track("coach_observation_opened");
-                  dismissCoachObservation();
-                  navigation.navigate("ReflectTab" as never);
-                }}
-                onDismiss={dismissCoachObservation}
-              />
-            ) : showSecondPersonaInvite ? (
-              <SecondPersonaInviteCard
-                personaName={persona.name}
-                onExplore={exploreSecondPersona}
-                onDismiss={dismissSecondPersonaInvite}
-              />
-            ) : showBeatLastWeekNudge ? (
-              <BeatLastWeekCard
-                lastWeekCompleted={weeklyRecap.lastWeek.completed}
-                onDismiss={dismissBeatLastWeek}
-              />
-            ) : null}
-
-            <View style={styles.alignmentContainer}>
-              <CircularProgress
-                progress={
-                  scheduledTodayCount === 0
-                    ? 100
-                    : (completedTodayCount / scheduledTodayCount) * 100
-                }
-                size={160}
-                label="Today"
-                valueText={
-                  scheduledTodayCount === 0
-                    ? "Rest"
-                    : `${completedTodayCount}/${scheduledTodayCount}`
-                }
-              />
-              <View style={styles.chipRow}>
-                <StatChip
-                  icon={
-                    streak.shieldUsed ? (
-                      <Feather
-                        name="shield"
-                        size={14}
-                        color={theme.textSecondary}
-                      />
-                    ) : (
-                      <MaterialCommunityIcons
-                        name="fire"
-                        size={16}
-                        color={
-                          streak.current > 0
-                            ? theme.warning
-                            : theme.textSecondary
-                        }
-                      />
-                    )
-                  }
-                  text={
-                    streak.shieldUsed
-                      ? "Streak protected"
-                      : `${streak.current}-day streak`
-                  }
-                  detailIcon={
-                    // Make the grace shield legible BEFORE it's needed: a
-                    // quiet "armed" marker once there's a streak worth keeping.
-                    streak.shieldsAvailable > 0 ? (
-                      <Feather
-                        name="shield"
-                        size={12}
-                        color={theme.textSecondary}
-                      />
-                    ) : undefined
-                  }
-                  detail={
-                    streak.shieldsAvailable > 0
-                      ? `${streak.shieldsAvailable}/${streak.maxShields} ready`
-                      : undefined
-                  }
-                  accessibilityLabel={
-                    streak.shieldUsed
-                      ? `Streak protected by your shield, ${streak.shieldsAvailable} of ${streak.maxShields} shields ready`
-                      : `${streak.current}-day streak, ${streak.shieldsAvailable} of ${streak.maxShields} earned shields ready`
-                  }
-                />
-                <StatChip
-                  icon={<Feather name="zap" size={14} color={theme.accent} />}
-                  text={`${today.toLocaleDateString("en-US", { month: "long" })} · ${personaAlignment}%`}
-                  detail={
-                    momentumDelta > 0
-                      ? `▲${momentumDelta}`
-                      : momentumDelta < 0
-                        ? `▼${Math.abs(momentumDelta)}`
-                        : undefined
-                  }
-                  detailColor={momentumDelta > 0 ? theme.success : theme.error}
-                />
-              </View>
-            </View>
-
-            <View style={styles.dateContainer}>
-              <View style={styles.votesHeading}>
-                <ThemedText style={styles.votesTitle}>
-                  Today&apos;s Votes
-                </ThemedText>
-                <ThemedText
-                  style={[styles.dateText, { color: theme.textSecondary }]}
-                >
-                  {dateString}
-                </ThemedText>
-              </View>
-              <View style={styles.actionCount}>
+              <ThemedText style={styles.personaLine}>
                 <ThemedText
                   style={[
-                    styles.actionCountText,
+                    styles.personaLine,
+                    styles.personaLabel,
                     { color: theme.textSecondary },
                   ]}
                 >
-                  {completedTodayCount}/{todayActions.length} cast
+                  Becoming{" "}
                 </ThemedText>
-              </View>
+                {persona.name}
+              </ThemedText>
+              {persona.resolution ? (
+                <ThemedText
+                  style={[styles.resolution, { color: theme.textSecondary }]}
+                  numberOfLines={1}
+                >
+                  Resolution: {persona.resolution}
+                </ThemedText>
+              ) : null}
             </View>
 
-            {showLapseCard ? (
-              <LapseRecoveryCard
-                onCoachPress={() => {
-                  navigation.navigate("ReflectTab" as never);
-                }}
-                onDismiss={dismissLapseCard}
+            {/* Always visible: the streak was hidden behind a tap, so an
+                engaged user's Today looked the same as day one. The finished
+                day's card states these facts itself. */}
+            {todayActions.length > 0 && !dayComplete && !planStart ? (
+              <ThemedText
+                style={[styles.progressLine, { color: theme.textSecondary }]}
+                accessibilityLabel={progressLine.accessibilityLabel}
+              >
+                {progressLine.parts.join(" · ")}
+              </ThemedText>
+            ) : null}
+
+            {todayActions.length > 0 &&
+            !dayComplete &&
+            !planStart &&
+            showSignalCard ? (
+              <TodaySignalCard
+                signal={todaySignal}
+                onPrimary={
+                  // Logging belongs to the action row, including small versions.
+                  todaySignal.primaryKind === "journey"
+                    ? handleSignalPrimary
+                    : undefined
+                }
+                onCoach={todaySignal.coachPrompt ? openSignalCoach : undefined}
               />
             ) : null}
 
@@ -1191,14 +1553,16 @@ export default function TodayScreen() {
                 personaName={persona.name}
                 momentum={personaAlignment}
                 momentumDelta={momentumDelta}
+                showMonthConsistency={showMonthConsistency}
+                planDay={planDay}
                 tomorrowCount={tomorrowActions.length}
                 tomorrowFirstTitle={tomorrowActions[0]?.title}
                 isFirstEver={isFirstDayComplete}
                 celebrate={celebrateDayComplete}
-                onTomorrowPress={() => {
-                  navigation.navigate("JourneyTab" as never);
-                }}
+                onTomorrowPress={openTomorrow}
               />
+            ) : planStart ? (
+              <PlanCountdownCard start={planStart} firstAction={actions[0]} />
             ) : todayActions.length === 0 ? (
               <View
                 style={[
@@ -1210,34 +1574,58 @@ export default function TodayScreen() {
                   },
                 ]}
               >
-                <Feather name="check-circle" size={32} color={theme.success} />
+                <Feather
+                  name={dailyLogs.length === 0 ? "calendar" : "moon"}
+                  size={32}
+                  color={theme.accent}
+                />
                 <ThemedText style={styles.noActionsText}>
-                  No actions scheduled for today. Rest and recharge!
+                  {dailyLogs.length === 0
+                    ? "Your plan is ready."
+                    : "Nothing planned for today. Rest counts too."}
                 </ThemedText>
-                {tomorrowActions.length > 0 ? (
+                {nextDay ? (
                   <Pressable
-                    onPress={() => {
-                      navigation.navigate("JourneyTab" as never);
-                    }}
+                    onPress={() =>
+                      navigation.navigate(
+                        "JourneyTab" as never,
+                        {
+                          date: nextDay.dateKey,
+                          intentId: String(Date.now()),
+                        } as never,
+                      )
+                    }
                     accessibilityRole="button"
-                    accessibilityLabel={`View ${tomorrowActions.length} ${tomorrowActions.length === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
+                    accessibilityLabel={`View next scheduled day, ${nextDay.date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}, in Journey`}
+                    hitSlop={8}
+                    pressRetentionOffset={12}
                     style={({ pressed }) => [
-                      styles.tomorrowLink,
-                      { opacity: pressed ? 0.7 : 1 },
+                      styles.nextDayLink,
+                      { opacity: pressed ? 0.6 : 1 },
                     ]}
                   >
-                    <Feather name="calendar" size={16} color={theme.accent} />
                     <ThemedText
-                      style={[styles.tomorrowLinkText, { color: theme.accent }]}
+                      style={{
+                        color: theme.accent,
+                        fontWeight: "600",
+                        textAlign: "center",
+                      }}
                     >
-                      {tomorrowActions.length} action
-                      {tomorrowActions.length !== 1 ? "s" : ""} tomorrow
+                      Next up:{" "}
+                      {nextDay.date.toLocaleDateString("en-US", {
+                        weekday: "long",
+                        month: "short",
+                        day: "numeric",
+                      })}
                     </ThemedText>
-                    <Feather
-                      name="chevron-right"
-                      size={16}
-                      color={theme.accent}
-                    />
+                    <ThemedText style={{ textAlign: "center" }}>
+                      {nextDay.actions[0].title}
+                    </ThemedText>
+                    <ThemedText
+                      style={{ color: theme.accent, textAlign: "center" }}
+                    >
+                      View scheduled day
+                    </ThemedText>
                   </Pressable>
                 ) : null}
               </View>
@@ -1245,49 +1633,100 @@ export default function TodayScreen() {
           </>
         }
         ListFooterComponent={
-          <View>
-            <DailyContextCard
-              logDate={todayDateStr}
-              entry={todayContext}
-              onSave={upsertDailyContext}
-              onDelete={
-                todayContext
-                  ? () => deleteDailyContext(todayDateStr)
-                  : undefined
-              }
-            />
+          <>
+            {/* One optional card at a time, always below the habit (and below
+                a finished day's card), never between the user and the tap. */}
+            {optionalCard === "primer" ? (
+              <ReminderPrimerCard
+                actions={actions}
+                startLabel={planStart?.toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                })}
+                filled={pendingTodayActions.length === 0}
+                onAnswer={(accept) => {
+                  void answerReminderPrimer(accept);
+                }}
+              />
+            ) : optionalCard === "widget-hint" ? (
+              <View
+                style={[
+                  styles.widgetHintCard,
+                  {
+                    backgroundColor: isDark
+                      ? Colors.dark.backgroundDefault
+                      : Colors.light.backgroundDefault,
+                    borderColor: withAlpha(theme.accent, 0.25),
+                  },
+                ]}
+              >
+                <View style={styles.widgetHintHeader}>
+                  <Feather
+                    name="grid"
+                    size={18}
+                    color={theme.accent}
+                    style={{ marginTop: 1 }}
+                  />
+                  <ThemedText
+                    style={[
+                      styles.widgetHintBody,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Check off your habit from the Home Screen with the widget.
+                  </ThemedText>
+                  <Pressable
+                    onPress={dismissWidgetHint}
+                    hitSlop={12}
+                    pressRetentionOffset={16}
+                    accessibilityRole="button"
+                    accessibilityLabel="Dismiss widget hint"
+                    style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+                  >
+                    <Feather name="x" size={18} color={theme.textSecondary} />
+                  </Pressable>
+                </View>
+                <Pressable
+                  onPress={showWidgetHowTo}
+                  hitSlop={8}
+                  pressRetentionOffset={12}
+                  accessibilityRole="button"
+                  accessibilityLabel="Show me how to add the widget"
+                  style={({ pressed }) => [
+                    styles.widgetHintLink,
+                    { opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  <ThemedText
+                    style={[styles.widgetHintLinkText, { color: theme.accent }]}
+                  >
+                    Show me how
+                  </ThemedText>
+                </Pressable>
+              </View>
+            ) : optionalCard === "time-limited" ? (
+              timeLimitedCard
+            ) : optionalCard === "secondary" ? (
+              secondaryCard
+            ) : null}
             {!dayComplete &&
             todayActions.length > 0 &&
             tomorrowActions.length > 0 ? (
-              <Pressable
-                onPress={() => {
-                  navigation.navigate("JourneyTab" as never);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`View ${tomorrowActions.length} ${tomorrowActions.length === 1 ? "action" : "actions"} scheduled for tomorrow in the calendar`}
-                style={({ pressed }) => [
-                  styles.tomorrowLink,
-                  styles.tomorrowLinkCentered,
-                  { opacity: pressed ? 0.7 : 1 },
-                ]}
-              >
-                <Feather name="calendar" size={16} color={theme.accent} />
-                <ThemedText
-                  style={[styles.tomorrowLinkText, { color: theme.accent }]}
-                >
-                  {tomorrowActions.length} action
-                  {tomorrowActions.length !== 1 ? "s" : ""} tomorrow
-                </ThemedText>
-                <Feather name="chevron-right" size={16} color={theme.accent} />
-              </Pressable>
+              <TomorrowLink
+                count={tomorrowActions.length}
+                centered
+                onPress={openTomorrow}
+              />
             ) : null}
-          </View>
+          </>
         }
       />
-      <Toast
+      <FocusedToast
         message={toastMessage}
-        visible={toastVisible}
-        onHide={() => setToastVisible(false)}
+        // Held, not dropped, while the milestone modal or a sheet it opened
+        // (Add next milestone) covers Today; it plays once Today is back.
+        visible={toastVisible && milestoneCelebration === null}
+        onHide={hideToast}
         type="success"
         topOffset={headerClearance + Spacing.md}
       />
@@ -1296,6 +1735,7 @@ export default function TodayScreen() {
 }
 
 const styles = StyleSheet.create({
+  nextDayLink: { minHeight: 48, gap: Spacing.sm, padding: Spacing.sm },
   container: {
     flex: 1,
     paddingHorizontal: Spacing.lg,
@@ -1306,18 +1746,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: Spacing.xl,
   },
-  emptyIcon: {
-    marginBottom: Spacing["2xl"],
-  },
-  phoenixIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.full,
-    backgroundColor: "rgba(0, 217, 255, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing["2xl"],
-  },
+  resolution: { ...Typography.small, marginTop: Spacing.xs },
   emptyTitle: {
     ...Typography.title,
     textAlign: "center",
@@ -1331,7 +1760,6 @@ const styles = StyleSheet.create({
   startButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.dark.accent,
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing["2xl"],
     borderRadius: BorderRadius.full,
@@ -1342,49 +1770,19 @@ const styles = StyleSheet.create({
     color: "#000000",
   },
   header: {
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.md,
+  },
+  personaLine: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: "700",
   },
   personaLabel: {
-    ...Typography.caption,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: Spacing.xs,
+    fontWeight: "400",
   },
-  personaName: {
-    ...Typography.title,
-  },
-  alignmentContainer: {
-    alignItems: "center",
-    marginBottom: Spacing["3xl"],
-  },
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    marginTop: Spacing.lg,
-    paddingHorizontal: Spacing.lg,
-  },
-  dateContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    marginBottom: Spacing.lg,
-  },
-  votesHeading: {
-    flex: 1,
-  },
-  votesTitle: {
-    ...Typography.headline,
-  },
-  dateText: {
-    ...Typography.caption,
-    marginTop: 3,
-  },
-  actionCount: {},
-  actionCountText: {
+  progressLine: {
     ...Typography.small,
+    marginBottom: Spacing.md,
   },
   noActionsCard: {
     alignItems: "center",
@@ -1409,6 +1807,34 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   tomorrowLinkText: {
+    ...Typography.small,
+    fontWeight: "600",
+  },
+  widgetHintCard: {
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    padding: Spacing.lg,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.lg,
+    gap: Spacing.xs,
+  },
+  widgetHintHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+  },
+  widgetHintBody: {
+    ...Typography.small,
+    lineHeight: 20,
+    flex: 1,
+  },
+  widgetHintLink: {
+    alignSelf: "flex-start",
+    minHeight: 44,
+    justifyContent: "center",
+    paddingLeft: 18 + Spacing.sm,
+  },
+  widgetHintLinkText: {
     ...Typography.small,
     fontWeight: "600",
   },

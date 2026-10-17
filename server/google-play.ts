@@ -1,4 +1,5 @@
 import { GoogleAuth, OAuth2Client } from "google-auth-library";
+import { VerificationUnavailableError } from "./iap-validation";
 
 const ANDROID_PUBLISHER_SCOPE =
   "https://www.googleapis.com/auth/androidpublisher";
@@ -114,14 +115,56 @@ export async function validateGoogleSubscription(
     validation.productId
   ) {
     const subscriptionId = encodeURIComponent(validation.productId);
-    await client.request({
-      method: "POST",
-      url: `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/purchases/subscriptions/${subscriptionId}/tokens/${encodedToken}:acknowledge`,
-      data: {},
-    });
+    // The purchase is already verified. A failed acknowledgement must not
+    // withhold access: it stays pending and is retried on the next validation.
+    try {
+      await client.request({
+        method: "POST",
+        url: `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/purchases/subscriptions/${subscriptionId}/tokens/${encodedToken}:acknowledge`,
+        data: {},
+      });
+    } catch (error) {
+      console.error("Google Play acknowledgement failed:", error);
+    }
   }
 
   return validation;
+}
+
+// 400 (malformed token), 404 and 410 (unknown or purged purchase) are Google's
+// answer about this purchase. Everything else (401/403 from our service
+// account, 429, 5xx, network errors, missing credentials) is "unknown".
+export function isGoogleAffirmativeRejection(error: unknown): boolean {
+  const status = (error as { response?: { status?: unknown } } | null)?.response
+    ?.status;
+  return status === 400 || status === 404 || status === 410;
+}
+
+export type GoogleNotificationOutcome = "no_match" | "updated" | "retry";
+
+export interface GoogleNotificationDeps<Row> {
+  findRows: () => Promise<Row[]>;
+  validate: () => Promise<GoogleSubscriptionValidation>;
+  update: (row: Row, validation: GoogleSubscriptionValidation) => Promise<void>;
+}
+
+// Pub/Sub retries every non-2xx for days. A token we never stored has nothing
+// to update, so it must be acknowledged before validation can throw; only a
+// row we hold justifies asking Pub/Sub to retry an unverifiable notification.
+export async function processGoogleSubscriptionNotification<Row>(
+  deps: GoogleNotificationDeps<Row>,
+): Promise<GoogleNotificationOutcome> {
+  const rows = await deps.findRows();
+  if (rows.length === 0) return "no_match";
+  let validation: GoogleSubscriptionValidation;
+  try {
+    validation = await deps.validate();
+  } catch (error) {
+    if (error instanceof VerificationUnavailableError) return "retry";
+    throw error;
+  }
+  await deps.update(rows[0], validation);
+  return "updated";
 }
 
 export async function verifyGooglePubSubPush(

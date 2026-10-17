@@ -18,6 +18,7 @@ import * as WebBrowser from "expo-web-browser";
 
 import { useTheme } from "@/hooks/useTheme";
 import { useApp } from "@/context/AppContext";
+import { getCoachQuotaMessage } from "@/lib/coach-quota";
 import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
@@ -33,11 +34,48 @@ import { logger } from "@/lib/logger";
 import { track } from "@/lib/telemetry";
 import { chooseYearlyProductId } from "@/lib/pricing";
 import { getSubscriptionPlanLabel } from "@/lib/subscription";
+import { withAlpha } from "@/lib/color";
+import { getModalSheetTopInset } from "@/lib/modal-layout";
 
 type PlanType = "monthly" | "yearly" | "lifetime";
 
 type SubscriptionRouteParams = {
-  Subscription: { source?: "coach-limit" | "milestone-proposal" } | undefined;
+  Subscription: { source?: SubscriptionSource } | undefined;
+};
+
+type SubscriptionSource =
+  | "coach-limit"
+  | "milestone-proposal"
+  | "milestone-limit"
+  | "insights"
+  | "year-recap";
+
+// "Here's what you just hit" — every gated entry point names the cap so the
+// paywall never opens as a generic ad
+const SOURCE_CONTEXT: Record<
+  SubscriptionSource,
+  { icon: keyof typeof Feather.glyphMap; text: string }
+> = {
+  "coach-limit": {
+    icon: "message-circle",
+    text: "",
+  },
+  "milestone-proposal": {
+    icon: "flag",
+    text: "Your next milestone is ready. Premium lets you add it while keeping the full proposal visible first.",
+  },
+  "milestone-limit": {
+    icon: "flag",
+    text: "Your starter milestones are set. Premium lets you add new ones as your goals evolve.",
+  },
+  insights: {
+    icon: "bar-chart-2",
+    text: "Insights show when you show up best and the one thing to protect. Premium unlocks the full panel.",
+  },
+  "year-recap": {
+    icon: "award",
+    text: "The full “The Year You Became” story is part of Premium: your rhythm, your comebacks, and how the year closes.",
+  },
 };
 
 // Fallback expiry estimate when the server didn't return a store-validated date
@@ -118,7 +156,7 @@ function PlanCard({
         styles.planCard,
         {
           backgroundColor: selected
-            ? "rgba(0, 217, 255, 0.08)"
+            ? withAlpha(theme.accent, 0.08)
             : isDark
               ? Colors.dark.backgroundDefault
               : Colors.light.backgroundDefault,
@@ -128,10 +166,13 @@ function PlanCard({
       ]}
     >
       {badge ? (
-        <View style={[styles.planBadge, { backgroundColor: theme.accent }]}>
-          <ThemedText
-            style={[styles.planBadgeText, { color: theme.buttonText }]}
-          >
+        <View
+          style={[
+            styles.planBadge,
+            { backgroundColor: withAlpha(theme.accent, 0.15) },
+          ]}
+        >
+          <ThemedText style={[styles.planBadgeText, { color: theme.text }]}>
             {badge}
           </ThemedText>
         </View>
@@ -228,15 +269,9 @@ function CompareRow({
       </View>
       <View style={styles.compareValueCol}>
         {premium === null ? (
-          <Feather name="check" size={16} color={theme.accent} />
+          <Feather name="check" size={16} color={theme.text} />
         ) : (
-          <ThemedText
-            style={[
-              styles.compareValue,
-              styles.compareValuePremium,
-              { color: theme.accent },
-            ]}
-          >
+          <ThemedText style={[styles.compareValue, styles.compareValuePremium]}>
             {premium}
           </ThemedText>
         )}
@@ -247,19 +282,29 @@ function CompareRow({
 
 export default function SubscriptionScreen() {
   const insets = useSafeAreaInsets();
+  const headerTopPadding =
+    getModalSheetTopInset(Platform.OS, insets.top) + Spacing.md;
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<SubscriptionRouteParams, "Subscription">>();
-  // Presentation-only framing: arriving from the coach 10/10 gate explains
-  // which cap was hit before the generic hero
-  const fromCoachLimit = route.params?.source === "coach-limit";
-  const fromMilestoneProposal = route.params?.source === "milestone-proposal";
+  // Presentation-only framing: arriving from a gate explains which cap was
+  // hit before the generic hero
   const { theme, isDark } = useTheme();
   const {
     subscription,
     subscriptionVerificationStatus,
     refreshData,
     verifySubscription,
+    monthlyReflectionCount,
   } = useApp();
+  const sourceContext = route.params?.source
+    ? {
+        ...SOURCE_CONTEXT[route.params.source],
+        text:
+          route.params.source === "coach-limit"
+            ? getCoachQuotaMessage(monthlyReflectionCount)
+            : SOURCE_CONTEXT[route.params.source].text,
+      }
+    : null;
   const [selectedPlan, setSelectedPlan] = useState<PlanType>("yearly");
   const [isLoading, setIsLoading] = useState(false);
   const [iapProducts, setIapProducts] = useState<IAPProduct[]>([]);
@@ -348,7 +393,7 @@ export default function SubscriptionScreen() {
                 };
                 await storage.setSubscription(newSubscription);
                 await refreshData();
-                await verifySubscription();
+                await verifySubscription({ force: true });
                 setIsLoading(false);
                 track("paywall_purchase_success");
                 Alert.alert(
@@ -389,6 +434,18 @@ export default function SubscriptionScreen() {
                   "Approval Pending",
                   "Your purchase is awaiting approval (such as Ask to Buy). Once approved, your subscription will activate automatically.",
                 );
+                return;
+              }
+
+              // Subscribing while already entitled (StoreKit reports the
+              // existing transaction as a duplicate) is a restore, not a
+              // failure — run it instead of alarming the subscriber.
+              if (
+                errorMessage.includes("Duplicate purchase") ||
+                errorMessage.includes("ALREADY_OWNED") ||
+                errorMessage.includes("already owned")
+              ) {
+                handleRestorePurchases();
                 return;
               }
 
@@ -555,7 +612,7 @@ export default function SubscriptionScreen() {
         };
         await storage.setSubscription(newSubscription);
         await refreshData();
-        await verifySubscription();
+        await verifySubscription({ force: true });
         track("paywall_restore_success");
         Alert.alert("Success", "Your subscription has been restored!");
         setCheckingStatus(false);
@@ -603,7 +660,7 @@ export default function SubscriptionScreen() {
         };
         await storage.setSubscription(newSubscription);
         await refreshData();
-        await verifySubscription();
+        await verifySubscription({ force: true });
         track("paywall_restore_success");
         Alert.alert("Success", "Your subscription has been restored!");
       } else {
@@ -649,10 +706,12 @@ export default function SubscriptionScreen() {
   const yearlyTrialEligible =
     !!yearlyProduct && introEligibleProductIds.has(yearlyProduct.productId);
   const yearlyBadge = yearlyTrialEligible
-    ? `${yearlyIntroDuration?.toUpperCase()} FREE`
+    ? yearlyIntroDuration
+      ? `${yearlyIntroDuration} free`
+      : "Free trial"
     : savingsPercent !== null
-      ? `BEST VALUE · SAVE ${savingsPercent}%`
-      : "BEST VALUE";
+      ? `Save ${savingsPercent}%`
+      : "Best value";
   const yearlySubline = yearlyTrialEligible
     ? `${yearlyIntroDuration} free, then ${yearlyProduct!.price}/year`
     : yearlyPerMonth
@@ -675,9 +734,11 @@ export default function SubscriptionScreen() {
       <View
         style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
       >
-        <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+        <View style={[styles.header, { paddingTop: headerTopPadding }]}>
           <Pressable
             onPress={() => navigation.goBack()}
+            hitSlop={12}
+            pressRetentionOffset={16}
             style={({ pressed }) => [
               styles.closeButton,
               { opacity: pressed ? 0.5 : 1 },
@@ -739,7 +800,7 @@ export default function SubscriptionScreen() {
               accessibilityLabel="Manage subscription in store settings"
               style={({ pressed }) => [
                 styles.manageButton,
-                { opacity: pressed ? 0.8 : 1 },
+                { borderColor: theme.accent, opacity: pressed ? 0.8 : 1 },
               ]}
             >
               <Feather name="settings" size={16} color={theme.accent} />
@@ -757,10 +818,15 @@ export default function SubscriptionScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+      <View style={[styles.header, { paddingTop: headerTopPadding }]}>
         <Pressable
           onPress={() => navigation.goBack()}
-          style={styles.closeButton}
+          hitSlop={12}
+          pressRetentionOffset={16}
+          style={({ pressed }) => [
+            styles.closeButton,
+            { opacity: pressed ? 0.5 : 1 },
+          ]}
           accessibilityRole="button"
           accessibilityLabel="Close"
         >
@@ -812,7 +878,7 @@ export default function SubscriptionScreen() {
           </View>
         ) : null}
 
-        {fromCoachLimit || fromMilestoneProposal ? (
+        {sourceContext ? (
           <View
             style={[
               styles.contextCard,
@@ -820,103 +886,24 @@ export default function SubscriptionScreen() {
                 backgroundColor: isDark
                   ? Colors.dark.backgroundDefault
                   : Colors.light.backgroundDefault,
+                borderColor: withAlpha(theme.accent, 0.3),
               },
             ]}
           >
-            <Feather name="message-circle" size={20} color={theme.accent} />
+            <Feather name={sourceContext.icon} size={20} color={theme.accent} />
             <ThemedText style={styles.contextCardText}>
-              {fromCoachLimit
-                ? "You’ve used all 10 free check-ins this month — Premium removes the cap."
-                : "Your next milestone is ready — Premium lets you add it while keeping the full proposal visible first."}
+              {sourceContext.text}
             </ThemedText>
           </View>
         ) : null}
 
         <View style={styles.heroSection}>
-          <View style={[styles.heroIcon, { backgroundColor: theme.accent }]}>
-            <Feather name="zap" size={32} color={theme.buttonText} />
-          </View>
           <ThemedText style={styles.heroTitle}>
-            Become who you&rsquo;re becoming &mdash; without limits
-          </ThemedText>
-          <ThemedText
-            style={[styles.heroSubtitle, { color: theme.textSecondary }]}
-          >
-            Premium takes the caps off everything you use to grow.
+            Become who you&rsquo;re becoming, without limits
           </ThemedText>
         </View>
 
-        <View
-          style={[
-            styles.compareCard,
-            {
-              backgroundColor: isDark
-                ? Colors.dark.backgroundDefault
-                : Colors.light.backgroundDefault,
-            },
-          ]}
-        >
-          <View
-            style={styles.compareHeaderRow}
-            accessible
-            accessibilityLabel="Comparison of the Free and Premium plans"
-          >
-            <View style={styles.compareFeatureCol} />
-            <View style={styles.compareValueCol}>
-              <ThemedText
-                style={[styles.compareColLabel, { color: theme.textSecondary }]}
-              >
-                FREE
-              </ThemedText>
-            </View>
-            <View style={styles.compareValueCol}>
-              <ThemedText
-                style={[styles.compareColLabel, { color: theme.accent }]}
-              >
-                PREMIUM
-              </ThemedText>
-            </View>
-          </View>
-
-          <CompareRow
-            title="Personas"
-            description={"Every identity you’re building, side by side"}
-            free="1"
-            premium="Unlimited"
-          />
-          <CompareRow
-            title="AI coaching check-ins"
-            description="Reflect with your coach as often as you need"
-            free="10/mo"
-            premium="Unlimited"
-          />
-          <CompareRow
-            title="Milestones per persona"
-            description="Add new milestones as your goals evolve"
-            free="Starter set"
-            premium="Unlimited"
-          />
-          <CompareRow
-            title="Streak shields"
-            description="Missed days bridged — extra grace, earned by consistency"
-            free="1"
-            premium="2"
-          />
-          <CompareRow
-            title="Insights"
-            description="When you show up, and the one thing to protect"
-            free="—"
-            premium="Included"
-          />
-          <CompareRow
-            title="Daily action tracking"
-            description="Log actions and build momentum every day"
-            free={null}
-            premium={null}
-            isLast
-          />
-        </View>
-
+        {/* Plans first: people came here to choose one. */}
         {Platform.OS === "web" ? (
           <View
             style={[
@@ -1016,7 +1003,7 @@ export default function SubscriptionScreen() {
                 price={lifetimeProduct.price}
                 period="one time"
                 subline="Premium without a subscription"
-                badge="PAY ONCE"
+                badge="Pay once"
                 selected={selectedPlan === "lifetime"}
                 onSelect={() => setSelectedPlan("lifetime")}
               />
@@ -1026,10 +1013,93 @@ export default function SubscriptionScreen() {
             >
               {selectedPlan === "lifetime"
                 ? "Honest pricing, no dark patterns. One payment, no subscription, no automatic renewal."
-                : `Honest pricing, no dark patterns. Cancel anytime in ${Platform.OS === "ios" ? "Settings" : "Google Play"} — you keep Premium until your period ends.`}
+                : `Honest pricing, no dark patterns. Cancel anytime in ${Platform.OS === "ios" ? "Settings" : "Google Play"}. You keep Premium until your period ends.`}
             </ThemedText>
           </View>
         )}
+
+        <View
+          style={[
+            styles.compareCard,
+            {
+              backgroundColor: isDark
+                ? Colors.dark.backgroundDefault
+                : Colors.light.backgroundDefault,
+            },
+          ]}
+        >
+          <View
+            style={styles.compareHeaderRow}
+            accessible
+            accessibilityLabel="Comparison of the Free and Premium plans"
+          >
+            <View style={styles.compareFeatureCol} />
+            <View style={styles.compareValueCol}>
+              <ThemedText
+                style={[styles.compareColLabel, { color: theme.textSecondary }]}
+              >
+                Free
+              </ThemedText>
+            </View>
+            <View style={styles.compareValueCol}>
+              <ThemedText
+                style={[styles.compareColLabel, { color: theme.text }]}
+              >
+                Premium
+              </ThemedText>
+            </View>
+          </View>
+
+          <CompareRow
+            title="Plans"
+            description={"Every identity you’re building, side by side"}
+            free="1"
+            premium="Unlimited"
+          />
+          <CompareRow
+            title="AI coaching check-ins"
+            description="One conversation, including follow-up messages"
+            free="10/mo"
+            premium="Unlimited"
+          />
+          <CompareRow
+            title="Milestones per plan"
+            description="Add new milestones as your goals evolve"
+            free="Starter set"
+            premium="Unlimited"
+          />
+          <CompareRow
+            title="Earned rest days"
+            description="Rest days you've earned, so a miss doesn't break your run"
+            free="1"
+            premium="2"
+          />
+          <CompareRow
+            title="Insights"
+            description="When you show up, and the one thing to protect"
+            free="—"
+            premium={null}
+          />
+          <CompareRow
+            title="Coach memory"
+            description="A coach that remembers your past sessions"
+            free="—"
+            premium={null}
+          />
+          <CompareRow
+            title="Quick reads"
+            description="60-second habit science, matched to your journey"
+            free="Weekly"
+            premium="Daily"
+          />
+          <CompareRow
+            title={"“The Year You Became”"}
+            description="Your year, told as a story worth sharing"
+            free="1 card"
+            premium="Full story"
+            isLast
+          />
+        </View>
 
         {storeReady && selectedProduct ? (
           <ThemedText
@@ -1212,7 +1282,6 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: "rgba(0, 217, 255, 0.3)",
     marginBottom: Spacing.xl,
   },
   contextCardText: {
@@ -1224,24 +1293,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.xl,
   },
-  heroIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: BorderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing.lg,
-  },
   heroTitle: {
     ...Typography.h3,
     textAlign: "center",
     maxWidth: 320,
-    marginBottom: Spacing.sm,
-  },
-  heroSubtitle: {
-    ...Typography.small,
-    textAlign: "center",
-    maxWidth: 300,
   },
   compareCard: {
     borderRadius: BorderRadius.md,
@@ -1256,9 +1311,7 @@ const styles = StyleSheet.create({
   },
   compareColLabel: {
     ...Typography.caption,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-    fontSize: 11,
+    fontWeight: "600",
   },
   compareRow: {
     flexDirection: "row",
@@ -1324,10 +1377,7 @@ const styles = StyleSheet.create({
   },
   planBadgeText: {
     ...Typography.caption,
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-    color: "#000000",
+    fontWeight: "600",
   },
   planHeader: {
     flexDirection: "row",
@@ -1382,7 +1432,6 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
   },
   subscribeButton: {
-    backgroundColor: Colors.dark.accent,
     minHeight: 56,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.lg,
@@ -1393,7 +1442,6 @@ const styles = StyleSheet.create({
   },
   subscribeButtonText: {
     ...Typography.headline,
-    color: "#000000",
     flexShrink: 1,
     textAlign: "center",
   },
@@ -1449,7 +1497,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: Colors.dark.accent,
   },
   manageButtonText: {
     ...Typography.body,

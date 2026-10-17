@@ -353,7 +353,7 @@ function renderRelease(release: Release): string {
     </article>`;
 }
 
-function releaseJsonLd(releases: Release[]): string {
+function releaseJsonLd(latest: Release | undefined): string {
   const payload = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
@@ -364,8 +364,8 @@ function releaseJsonLd(releases: Release[]): string {
     url: `${SITE_URL}/release-notes`,
     downloadUrl:
       "https://apps.apple.com/us/app/resolution-habit-tracker/id6757996708",
-    softwareVersion: releases[0]?.version,
-    releaseNotes: `${SITE_URL}/release-notes#${releaseAnchor(releases[0]?.version || "latest")}`,
+    softwareVersion: latest?.version,
+    releaseNotes: `${SITE_URL}/release-notes#${releaseAnchor(latest?.version || "latest")}`,
   };
   return JSON.stringify(payload).replaceAll("<", "\\u003c");
 }
@@ -537,7 +537,7 @@ function configureExpoAndLanding(app: express.Application) {
   app.get("/release-notes", (_req: Request, res: Response) => {
     const html = releaseNotesTemplate
       .replace(/BASE_URL_PLACEHOLDER/g, SITE_URL)
-      .replace(/RELEASE_JSON_LD_PLACEHOLDER/g, releaseJsonLd(releases))
+      .replace(/RELEASE_JSON_LD_PLACEHOLDER/g, releaseJsonLd(latestReleased))
       .replace(/RELEASE_ENTRIES_PLACEHOLDER/g, releaseEntries)
       .replace(/RELEASE_NAVIGATION_PLACEHOLDER/g, releaseNavigation);
 

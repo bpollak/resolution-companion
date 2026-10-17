@@ -5,6 +5,7 @@ import {
   getLocalDateString,
   startOfWeek,
   WEEKDAY_ORDER,
+  weekdayName,
 } from "@/lib/progress";
 
 /**
@@ -31,8 +32,8 @@ export function computeWeekdayProfile(
   logs: DailyLog[],
   weeks = 8,
   today: Date = new Date(),
+  logIndex: Map<string, DailyLog> = buildLogIndex(logs),
 ): WeekdayProfile {
-  const logIndex = buildLogIndex(logs);
   const counts = new Map<string, number>(WEEKDAY_ORDER.map((d) => [d, 0]));
 
   const todayLocal = new Date(today);
@@ -42,7 +43,7 @@ export function computeWeekdayProfile(
 
   while (cursor <= todayLocal) {
     const dateStr = getLocalDateString(cursor);
-    const dayOfWeek = cursor.toLocaleDateString("en-US", { weekday: "long" });
+    const dayOfWeek = weekdayName(cursor);
     for (const action of actions) {
       const log = logIndex.get(`${action.id}|${dateStr}`);
       if (log?.status) {
@@ -91,8 +92,8 @@ export function computeWeeklyTrend(
   logs: DailyLog[],
   weeks = 8,
   today: Date = new Date(),
+  logIndex: Map<string, DailyLog> = buildLogIndex(logs),
 ): WeeklyTrendPoint[] {
-  const logIndex = buildLogIndex(logs);
   const actionStartDates = new Map<string, string>(
     actions.map((a) => [a.id, getLocalDateString(new Date(a.createdAt))]),
   );
@@ -139,8 +140,8 @@ export function computeCoachObservation(
   logs: DailyLog[],
   personaName: string,
   today: Date = new Date(),
+  logIndex: Map<string, DailyLog> = buildLogIndex(logs),
 ): CoachObservation | null {
-  const logIndex = buildLogIndex(logs);
   const weekKey = getLocalDateString(startOfWeek(today));
 
   // Pattern 1: a weekday held for 3+ consecutive weeks, walking back from
@@ -148,8 +149,6 @@ export function computeCoachObservation(
   // is still pending and must never break a pattern)
   const todayLocal = new Date(today);
   todayLocal.setHours(0, 0, 0, 0);
-  const dayName = (d: Date) =>
-    d.toLocaleDateString("en-US", { weekday: "long" });
   for (const weekday of WEEKDAY_ORDER) {
     const scheduledActions = actions.filter((a) =>
       a.frequency.includes(weekday),
@@ -158,7 +157,7 @@ export function computeCoachObservation(
 
     const occurrence = new Date(todayLocal);
     occurrence.setDate(occurrence.getDate() - 1);
-    while (dayName(occurrence) !== weekday) {
+    while (weekdayName(occurrence) !== weekday) {
       occurrence.setDate(occurrence.getDate() - 1);
     }
 
@@ -181,14 +180,14 @@ export function computeCoachObservation(
     if (weeksHeld >= 3) {
       return {
         id: `weekday-${weekday}-${weekKey}`,
-        text: `You've completed every ${weekday} for ${weeksHeld} weeks straight — ${weekday} ${personaName} is real. Want to look at what makes it work?`,
+        text: `You've completed every ${weekday} for ${weeksHeld} weeks straight. ${weekday} ${personaName} is real. Want to look at what makes it work?`,
       };
     }
   }
 
   // Pattern 2: three consecutive rising weekly consistency scores across
   // COMPLETE weeks (the current partial week would mask any climb)
-  const completeWeeks = computeWeeklyTrend(actions, logs, 5, today)
+  const completeWeeks = computeWeeklyTrend(actions, logs, 5, today, logIndex)
     .slice(0, -1)
     .filter((p) => p.scheduled > 0);
   if (completeWeeks.length >= 3) {
@@ -221,8 +220,8 @@ export function buildInsightsNarrative(
   const activeWeeks = trend.filter((p) => p.scheduled > 0);
   if (activeWeeks.length === 0 || weekdayProfile.maxCompletions === 0) {
     return {
-      headline: `The portrait starts with the first vote.`,
-      recommendation: `Log one small action — even the 2-minute version — and the pattern begins.`,
+      headline: `The portrait starts with the first action.`,
+      recommendation: `Do one small thing, even the 2-minute version, and the pattern begins.`,
     };
   }
 
@@ -237,8 +236,8 @@ export function buildInsightsNarrative(
     : `Consistency is ${trendWord}.`;
 
   const recommendation = bestDay
-    ? `Protect your ${bestDay} anchor — it carries the week. On harder days, the 2-minute floor keeps the vote alive.`
-    : `Anchor one action to a moment you already own — after coffee, before bed — and let the floor version cover the rest.`;
+    ? `Protect your ${bestDay} anchor. It carries the week. On harder days, the 2-minute floor keeps momentum alive.`
+    : `Anchor one habit to a moment you already own, like after coffee or before bed, and let the floor version cover the rest.`;
 
   return { headline, recommendation };
 }

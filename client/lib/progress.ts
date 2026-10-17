@@ -26,6 +26,25 @@ function parseLocalDate(dateStr: string): Date {
   return new Date(year, month - 1, day);
 }
 
+// Indexed by Date#getDay(). A lookup rather than toLocaleDateString(options):
+// the builders below call this once per day per action (thousands of times
+// per check-off), where Intl formatting was about 15x slower, and Hermes on
+// iOS can return "" for it when Intl data is absent.
+const WEEKDAY_BY_INDEX = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
+
+/** Full English weekday name of a date in the local timezone. */
+export function weekdayName(date: Date): string {
+  return WEEKDAY_BY_INDEX[date.getDay()];
+}
+
 export const WEEKDAY_ORDER = [
   "Monday",
   "Tuesday",
@@ -44,9 +63,11 @@ export function sortWeekdays(days: string[]): string[] {
 }
 
 /**
- * Gentle countdown label for an optional milestone target date, or null when
- * unset. Deliberately soft past the date ("past target") — deadlines create
- * pull here, never guilt (see docs/ux-redesign-proposal.md principles).
+ * Time to an optional milestone target date ("in 6 days"), or null when
+ * unset. It reads after the date it counts toward ("Target: Oct 20 · in 6
+ * days"); on its own "6 days left" read as days left in the milestone.
+ * Deliberately soft past the date: deadlines create pull here, never guilt
+ * (see docs/ux-redesign-proposal.md principles).
  */
 export function formatTargetCountdown(
   targetDate: string | null,
@@ -62,12 +83,12 @@ export function formatTargetCountdown(
   const diffDays = Math.round(
     (target.getTime() - startOfToday.getTime()) / 86400000,
   );
-  if (diffDays < 0) return "past target";
-  if (diffDays === 0) return "target today";
-  if (diffDays === 1) return "1 day left";
-  if (diffDays < 14) return `${diffDays} days left`;
+  if (diffDays < 0) return "already passed";
+  if (diffDays === 0) return "today";
+  if (diffDays === 1) return "tomorrow";
+  if (diffDays < 14) return `in ${diffDays} days`;
   const weeks = Math.round(diffDays / 7);
-  return `${weeks} weeks left`;
+  return `in ${weeks} weeks`;
 }
 
 /** Human schedule summary: "Every day", "Weekdays", or "Mon · Wed · Fri". */
@@ -94,6 +115,23 @@ export function buildLogIndex(logs: DailyLog[]): Map<string, DailyLog> {
     }
   }
   return index;
+}
+
+/**
+ * A copy of `index` with `log` upserted the way buildLogIndex would see the
+ * log list after replacing (or appending) that log by id. Lets a caller
+ * holding a slightly stale index score a just-toggled log without rebuilding
+ * the index from every log.
+ */
+export function withLogInIndex(
+  index: Map<string, DailyLog>,
+  log: DailyLog,
+): Map<string, DailyLog> {
+  const next = new Map(index);
+  const key = logDateKey(log);
+  const existing = next.get(key);
+  if (!existing || existing.id === log.id) next.set(key, log);
+  return next;
 }
 
 /**
@@ -146,9 +184,7 @@ export function computeBenchmarkProgress(
 ): BenchmarkProgressResult[] {
   const dayInfos = trackableDays.map((dateStr) => ({
     dateStr,
-    dayOfWeek: parseLocalDate(dateStr).toLocaleDateString("en-US", {
-      weekday: "long",
-    }),
+    dayOfWeek: weekdayName(parseLocalDate(dateStr)),
   }));
 
   return benchmarks.map((benchmark) => {
@@ -277,7 +313,7 @@ export function computeMilestoneProgress(
   const cursor = new Date(startDate);
   while (cursor <= today) {
     const dateStr = getLocalDateString(cursor);
-    const dayOfWeek = cursor.toLocaleDateString("en-US", { weekday: "long" });
+    const dayOfWeek = weekdayName(cursor);
 
     let scheduled = 0;
     let completed = 0;
@@ -347,7 +383,7 @@ export function computeMomentumScore(
     const date = new Date(today);
     date.setDate(date.getDate() - i);
     const dateStr = getLocalDateString(date);
-    const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
+    const dayOfWeek = weekdayName(date);
 
     for (const action of actions) {
       if (action.frequency.includes(dayOfWeek)) {
@@ -427,9 +463,7 @@ export function computeWeekStats(
   for (let i = 0; i < 7; i++) {
     if (endCap && cursor > endCap) break;
     const dateStr = getLocalDateString(cursor);
-    const dayOfWeek = cursor.toLocaleDateString("en-US", {
-      weekday: "long",
-    });
+    const dayOfWeek = weekdayName(cursor);
 
     let dayCompleted = 0;
     for (const action of actions) {
@@ -538,7 +572,7 @@ export function computeLapse(
 
   for (let i = 0; i < LAPSE_LOOKBACK_DAYS; i++) {
     const dateStr = getLocalDateString(cursor);
-    const dayOfWeek = cursor.toLocaleDateString("en-US", { weekday: "long" });
+    const dayOfWeek = weekdayName(cursor);
 
     let scheduled = 0;
     let completed = 0;
@@ -657,7 +691,7 @@ export function computeStreak(
 
   while (cursor <= today) {
     const dateStr = getLocalDateString(cursor);
-    const dayOfWeek = cursor.toLocaleDateString("en-US", { weekday: "long" });
+    const dayOfWeek = weekdayName(cursor);
 
     let scheduled = 0;
     let completed = 0;
