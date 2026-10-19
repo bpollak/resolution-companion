@@ -300,7 +300,7 @@ function renderReleaseMedia(media: ReleaseMedia, anchor: string): string {
     </section>`;
 }
 
-function renderRelease(release: Release): string {
+function renderRelease(release: Release, isUpcoming: boolean): string {
   const anchor = releaseAnchor(release.version);
   const status = releaseStatus(release);
   const notes = release.appStoreNotes
@@ -330,16 +330,17 @@ function renderRelease(release: Release): string {
         </div>
         <h2>${escapeHtml(release.title)}</h2>
         <p class="release-summary">${escapeHtml(release.summary)}</p>
+        ${!isUpcoming ? "" : '<p class="availability">This version is not yet available on the App Store. The features below describe the upcoming update.</p>'}
       </header>
 
       <div class="release-body">
         <section class="release-section" aria-labelledby="${anchor}-notes-title">
-          <h3 id="${anchor}-notes-title">What changed</h3>
+          <h3 id="${anchor}-notes-title">${isUpcoming ? "Planned changes" : "What changed"}</h3>
           <ul class="app-store-notes">${notes}</ul>
         </section>
 
         <section class="release-section" aria-labelledby="${anchor}-details-title">
-          <h3 id="${anchor}-details-title">What you can do now</h3>
+          <h3 id="${anchor}-details-title">${isUpcoming ? "What to expect after release" : "What you can do now"}</h3>
           <ul class="highlight-grid">${highlights}</ul>
         </section>
 
@@ -419,7 +420,17 @@ function configureExpoAndLanding(app: express.Application) {
       "utf-8",
     ),
   ) as Release[];
-  const releaseEntries = releases.map(renderRelease).join("\n");
+  const latestReleasedIndex = releases.findIndex(
+    (release) => release.status === "released",
+  );
+  const releaseEntries = releases
+    .map((release, index) =>
+      renderRelease(
+        release,
+        latestReleasedIndex < 0 || index < latestReleasedIndex,
+      ),
+    )
+    .join("\n");
   const releaseNavigation = releases
     .map((release) => {
       const date = release.releasedAt || release.submittedAt;
