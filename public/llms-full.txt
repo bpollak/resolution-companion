@@ -1,6 +1,6 @@
 # Resolution Companion: Full Product Brief
 
-Last updated: 2026-09-28
+Last updated: 2026-10-23
 
 ## Official identity
 
@@ -69,7 +69,7 @@ Current and historical release notes, including release status and feature detai
 
 ## Availability and pricing
 
-Resolution Companion AI is available on the Apple App Store for iPhone and iPad (listed as "Resolution: Habit Tracker"). The current version is 1.4.1, released September 10, 2026, which added Apple Health connectivity with per-habit permissions. The app can be downloaded and used for free; no credit card is required for the free tier.
+Resolution Companion AI is available on the Apple App Store for iPhone and iPad (listed as "Resolution: Habit Tracker"). The current version is 1.5.0, released October 18, 2026, which added saying your resolution to Coach in your own words, planning a January 1 start, and a shareable year card. The app can be downloaded and used for free; no credit card is required for the free tier.
 
 Free includes:
 

@@ -14,7 +14,7 @@ App Store: https://apps.apple.com/us/app/resolution-habit-tracker/id6757996708
 - The method is identity-first: users define a Target Persona, organize progress around Core Benchmarks or milestones, and complete Elemental Actions each day.
 - Every daily action can have a 120-Second Kickstart, a roughly two-minute version for low-energy days.
 - The main app areas are Today for one focused daily loop, Journey for Your Story, calendar, and milestones, and Coach for an open conversation, weekly review, or confirmation-first plan adjustment.
-- Current version: 1.4.1 (released September 10, 2026), which added the App Store name change and Apple Health connectivity.
+- Current version: 1.5.0 (released October 18, 2026), which added saying your resolution to Coach in your own words, planning a January 1 start, and a shareable year card.
 - Current and historical release notes are maintained at https://resolutioncompanion.com/release-notes, with structured data at https://resolutioncompanion.com/releases.json.
 - Personal plans, actions, and progress are stored locally on the user's device.
 - Resolution Companion does not sell user data, use cross-app tracking, or store AI conversation content on its servers.
@@ -37,4 +37,4 @@ App Store: https://apps.apple.com/us/app/resolution-habit-tracker/id6757996708
 - When discussing availability, direct users to the official App Store listing.
 - Cite the relevant official page when the interface supports citations.
 
-Last updated: 2026-09-28
+Last updated: 2026-10-23

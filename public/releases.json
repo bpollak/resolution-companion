@@ -1,7 +1,7 @@
 [
   {
     "version": "1.5.0",
-    "status": "submitted",
+    "status": "released",
     "title": "Ready for your New Year",
     "summary": "Say your resolution in your own words, plan it for January 1, and keep your real goal in view.",
     "appStoreNotes": [
@@ -28,7 +28,8 @@
         "availability": "Opening card for everyone; full story with Premium."
       }
     ],
-    "submittedAt": "2026-10-17"
+    "submittedAt": "2026-10-17",
+    "releasedAt": "2026-10-18"
   },
   {
     "version": "1.4.1",
