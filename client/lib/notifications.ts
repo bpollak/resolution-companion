@@ -758,6 +758,9 @@ async function scheduleDailyReminderLocked(
     const now = new Date();
 
     if (options.actions && options.dailyLogs) {
+      // Issued together: up to 60 sequential native round trips could
+      // outlast the reminder lock's timeout on a slow cold launch.
+      const scheduling: Promise<string>[] = [];
       for (const {
         dateKey,
         fireDate,
@@ -765,52 +768,56 @@ async function scheduleDailyReminderLocked(
         timedSlots,
       } of planReminderDays(options, hour, minute, now)) {
         for (const slot of timedSlots) {
-          const id = await Notifications.scheduleNotificationAsync({
-            content: {
-              title: habitReminderTitle(slot.actions),
-              body: habitReminderBody(slot.actions),
-              sound: true,
-              data: {
-                type: "habit-reminder",
-                dateKey,
-                actionIds: slot.actions.map((action) => action.id),
+          scheduling.push(
+            Notifications.scheduleNotificationAsync({
+              content: {
+                title: habitReminderTitle(slot.actions),
+                body: habitReminderBody(slot.actions),
+                sound: true,
+                data: {
+                  type: "habit-reminder",
+                  dateKey,
+                  actionIds: slot.actions.map((action) => action.id),
+                },
+                categoryIdentifier: HABIT_REMINDER_CATEGORY,
               },
-              categoryIdentifier: HABIT_REMINDER_CATEGORY,
-            },
-            trigger: {
-              type: Notifications.SchedulableTriggerInputTypes.DATE,
-              date: slot.fireDate,
-              channelId:
-                Platform.OS === "android" ? "daily-reminder" : undefined,
-            },
-          });
-          ids.push(id);
+              trigger: {
+                type: Notifications.SchedulableTriggerInputTypes.DATE,
+                date: slot.fireDate,
+                channelId:
+                  Platform.OS === "android" ? "daily-reminder" : undefined,
+              },
+            }),
+          );
         }
         if (!fireDate) continue;
         const hook = selectReminderHook(stats, dateKey);
         const dayOptions = { ...options, remainingActions };
-        const id = await Notifications.scheduleNotificationAsync({
-          content: {
-            title: reminderTitle(dayOptions),
-            body: reminderBody(hook, dayOptions),
-            sound: true,
-            data: {
-              type: "daily-reminder",
-              hook,
-              dateKey,
-              actionIds: remainingActions.map((action) => action.id),
+        scheduling.push(
+          Notifications.scheduleNotificationAsync({
+            content: {
+              title: reminderTitle(dayOptions),
+              body: reminderBody(hook, dayOptions),
+              sound: true,
+              data: {
+                type: "daily-reminder",
+                hook,
+                dateKey,
+                actionIds: remainingActions.map((action) => action.id),
+              },
+              categoryIdentifier: DAILY_REMINDER_CATEGORY,
             },
-            categoryIdentifier: DAILY_REMINDER_CATEGORY,
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DATE,
-            date: fireDate,
-            channelId: Platform.OS === "android" ? "daily-reminder" : undefined,
-          },
-        });
-        ids.push(id);
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              date: fireDate,
+              channelId:
+                Platform.OS === "android" ? "daily-reminder" : undefined,
+            },
+          }),
+        );
         await recordReminderHookOpportunity(hook, dateKey);
       }
+      ids.push(...(await Promise.all(scheduling)));
     } else {
       // Safe migration fallback until a screen with local action context runs.
       const dateKey = getLocalDateString(now);

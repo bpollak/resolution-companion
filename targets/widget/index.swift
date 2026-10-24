@@ -1,6 +1,7 @@
 import WidgetKit
 import SwiftUI
 import AppIntents
+import UserNotifications
 
 // Shared contract with client/lib/widget.ts: the app writes `widgetData` as a
 // JSON string into the app-group defaults; the widget's CastVoteIntent writes
@@ -306,6 +307,40 @@ func saveWidgetData(_ data: WidgetData) {
 }
 
 @discardableResult
+/// The app reschedules reminders only when it next opens, so a habit voted
+/// here would still buzz at its own reminder time. Removes today's pending
+/// habit reminders whose habits are all voted (a combined slot stays until
+/// every habit in it is). Matches the `habit-reminder` data that
+/// client/lib/notifications.ts schedules; expo stores a local
+/// notification's data directly in userInfo.
+func clearVotedHabitReminders() async {
+    let today = localDateString()
+    let defaults = UserDefaults(suiteName: kAppGroup)
+    guard let raw = defaults?.string(forKey: kPendingVotesKey),
+          let data = raw.data(using: .utf8),
+          let votes = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+    else { return }
+    let voted = Set(votes.compactMap { vote -> String? in
+        vote["date"] as? String == today ? vote["actionId"] as? String : nil
+    })
+    guard !voted.isEmpty else { return }
+
+    let center = UNUserNotificationCenter.current()
+    let ids = await center.pendingNotificationRequests().compactMap { request -> String? in
+        let info = request.content.userInfo
+        guard info["type"] as? String == "habit-reminder",
+              info["dateKey"] as? String == today,
+              let actionIds = info["actionIds"] as? [String],
+              !actionIds.isEmpty,
+              actionIds.allSatisfy(voted.contains)
+        else { return nil }
+        return request.identifier
+    }
+    if !ids.isEmpty {
+        center.removePendingNotificationRequests(withIdentifiers: ids)
+    }
+}
+
 func enqueueVote(
     actionId: String,
     isKickstart: Bool,
@@ -398,6 +433,7 @@ struct CastVoteIntent: AppIntent {
             isKickstart: isKickstart,
             source: "widget"
         )
+        await clearVotedHabitReminders()
         return .result()
     }
 }

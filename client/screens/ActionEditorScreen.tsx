@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   StyleSheet,
@@ -28,6 +28,7 @@ import {
   formatReminderTime,
   parseReminderTime,
   reminderTimeLabel,
+  REMINDER_OFF,
   suggestReminderTime,
 } from "@/lib/habit-reminders";
 import { areNotificationsEnabled } from "@/lib/notifications";
@@ -135,11 +136,14 @@ export default function ActionEditorScreen() {
   const [healthAutoComplete, setHealthAutoComplete] = useState<
     "workout" | "steps" | "mindful" | null
   >(existingAction?.healthAutoComplete ?? null);
-  const [reminderTime, setReminderTime] = useState<string | null>(
-    existingAction?.reminderTime ?? null,
+  // null = no reminder of its own; stored "off" also reads as null here.
+  const [reminderTime, setReminderTime] = useState<string | null>(() =>
+    parseReminderTime(existingAction?.reminderTime)
+      ? existingAction!.reminderTime!
+      : null,
   );
   // A new habit's time follows its anchor until the person picks one.
-  const [reminderTouched, setReminderTouched] = useState(isEditing);
+  const [reminderTouched, setReminderTouched] = useState(false);
   const [remindersOn, setRemindersOn] = useState(true);
   React.useEffect(() => {
     areNotificationsEnabled()
@@ -149,7 +153,9 @@ export default function ActionEditorScreen() {
 
   const handleAnchorChange = (text: string) => {
     setAnchorLink(text);
-    if (!reminderTouched) setReminderTime(suggestReminderTime(text));
+    if (!isEditing && !reminderTouched) {
+      setReminderTime(suggestReminderTime(text));
+    }
   };
 
   const handleReminderToggle = (on: boolean) => {
@@ -160,12 +166,23 @@ export default function ActionEditorScreen() {
     if (Platform.OS !== "web") Haptics.selectionAsync();
   };
 
-  const reminderDate = (() => {
+  // Stable per time, so an open picker popover isn't handed a new value on
+  // every render.
+  const reminderDate = useMemo(() => {
     const parsed = parseReminderTime(reminderTime ?? FALLBACK_REMINDER_TIME);
     const date = new Date();
     date.setHours(parsed?.hour ?? 8, parsed?.minute ?? 0, 0, 0);
     return date;
-  })();
+  }, [reminderTime]);
+
+  // "Off" is stored only once the person has seen the switch off and saved
+  // (a new habit, or a toggle), so an untouched older habit stays eligible
+  // for the one-time suggested-time backfill.
+  const savedReminderTime =
+    reminderTime ??
+    (isEditing && !reminderTouched
+      ? existingAction?.reminderTime
+      : REMINDER_OFF);
 
   const handleReminderPicked = (event: DateTimePickerEvent, date?: Date) => {
     if (event.type !== "set" || !date) return;
@@ -213,7 +230,7 @@ export default function ActionEditorScreen() {
             kickstartVersion || `Do ${actionTitle.toLowerCase()} for 2 minutes`,
           anchorLink: anchorLink || "After I wake up",
           healthAutoComplete: healthAutoComplete ?? undefined,
-          reminderTime: reminderTime ?? undefined,
+          reminderTime: savedReminderTime,
         });
       } else {
         await addAction({
@@ -224,7 +241,7 @@ export default function ActionEditorScreen() {
             kickstartVersion || `Do ${actionTitle.toLowerCase()} for 2 minutes`,
           anchorLink: anchorLink || "After I wake up",
           healthAutoComplete: healthAutoComplete ?? undefined,
-          reminderTime: reminderTime ?? undefined,
+          reminderTime: savedReminderTime,
         });
       }
 

@@ -1,4 +1,5 @@
 import {
+  REMINDER_OFF,
   fitToBudget,
   formatReminderTime,
   parseReminderTime,
@@ -64,6 +65,16 @@ describe("withSuggestedReminderTime", () => {
       withSuggestedReminderTime({ anchorLink: "At my desk" }),
     ).not.toHaveProperty("reminderTime");
   });
+
+  it("keeps a reminder the person switched off", () => {
+    expect(
+      withSuggestedReminderTime({
+        anchorLink: "Before bed",
+        reminderTime: REMINDER_OFF,
+      }).reminderTime,
+    ).toBe(REMINDER_OFF);
+    expect(parseReminderTime(REMINDER_OFF)).toBeNull();
+  });
 });
 
 describe("reminder time format", () => {
@@ -123,6 +134,16 @@ describe("planTimedSlots", () => {
       new Date(2026, 9, 19, 9, 0),
     );
     expect(slots.map((s) => s.actions[0].id)).toEqual(["b"]);
+  });
+
+  it("does not merge an upcoming habit into a slot that already fired", () => {
+    const slots = planTimedSlots(
+      monday,
+      [action("a", "07:30"), action("b", "07:40")],
+      new Date(2026, 9, 19, 7, 35),
+    );
+    expect(slots.map((s) => s.actions.map((a) => a.id))).toEqual([["b"]]);
+    expect(slots[0].fireDate).toEqual(new Date(2026, 9, 19, 7, 40));
   });
 
   it("fires at local wall-clock time across the DST change", () => {

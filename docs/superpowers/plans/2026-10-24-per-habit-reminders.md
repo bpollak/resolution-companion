@@ -69,7 +69,7 @@ in-app stepper, since 1.6 is a new native binary anyway.)
 **Files:** Modify `client/context/AppContext.tsx`, `client/lib/onboarding-plan.ts`, `client/lib/notifications.ts`; tests in existing onboarding-plan tests.
 
 - Listener accepts `daily-reminder` and `habit-reminder`. Default tap: hook credit only for `daily-reminder`; `track("habit_reminder_tap")` for timed. Done: same path (`selectMarkAllDoneActions` with `data.actionIds`), `track("habit_reminder_done")` for timed.
-- `addAction` and `approvePlan` pass actions through `withSuggestedReminderTime`.
+- `approvePlan` passes actions through `withSuggestedReminderTime`. The editor owns `addAction`'s time (pre-filled, editable), so `addAction` does not re-suggest; a switched-off reminder is stored as `REMINDER_OFF` so the backfill keeps it off.
 - Backfill: new context mutator `applySuggestedReminderTimes(): Promise<void>` sets `reminderTime` on active actions lacking one, once (AsyncStorage `evolve_habit_times_backfilled`). Called when reminders are turned on (Profile toggle on, primer accept).
 - [ ] Test `approvePlan` sets `reminderTime` from anchor; `"After I wake up"` stays unset. PASS. Commit.
 

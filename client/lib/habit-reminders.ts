@@ -9,6 +9,13 @@ export const COALESCE_WINDOW_MINUTES = 15;
  */
 export const PENDING_NOTIFICATION_BUDGET = 60;
 
+/**
+ * Stored when the person switches a habit's reminder off, so a later
+ * "turn reminders on" backfill can tell "chose off" from "never set".
+ * Not a valid time, so scheduling treats it as untimed.
+ */
+export const REMINDER_OFF = "off";
+
 // The Action editor saves this when the anchor field is left blank, so it
 // says nothing about when the person actually does the habit.
 const BLANK_ANCHOR_FALLBACK = "after i wake up";
@@ -90,8 +97,11 @@ export function planTimedSlots(
       fireDate.setHours(parsed.hour, parsed.minute, 0, 0);
       return { action, fireDate };
     })
-    .filter((entry): entry is { action: ElementalAction; fireDate: Date } =>
-      Boolean(entry),
+    // Past times go before grouping: an upcoming habit merged into a slot
+    // that already fired would never fire itself.
+    .filter(
+      (entry): entry is { action: ElementalAction; fireDate: Date } =>
+        entry !== null && entry.fireDate > now,
     )
     .sort((a, b) => a.fireDate.getTime() - b.fireDate.getTime());
 
@@ -108,7 +118,7 @@ export function planTimedSlots(
       slots.push({ fireDate, actions: [action] });
     }
   }
-  return slots.filter((slot) => slot.fireDate > now);
+  return slots;
 }
 
 /** Leading whole days whose notification count fits within `max`. */
