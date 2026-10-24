@@ -205,6 +205,32 @@ async function markerMatches(key: string, marker: string): Promise<boolean> {
 }
 
 /**
+ * Gives untimed habits their anchor-suggested reminder time, once per
+ * install. Resolves to `current` itself when nothing changed or it fails.
+ */
+async function backfillSuggestedReminderTimes(
+  current: ElementalAction[],
+): Promise<ElementalAction[]> {
+  try {
+    if ((await AsyncStorage.getItem(HABIT_TIMES_BACKFILLED_KEY)) === "true") {
+      return current;
+    }
+    const next = current.map(withSuggestedReminderTime);
+    const changed = next.filter((action, index) => action !== current[index]);
+    for (const action of changed) {
+      await storage.updateElementalAction(action.id, {
+        reminderTime: action.reminderTime,
+      });
+    }
+    await AsyncStorage.setItem(HABIT_TIMES_BACKFILLED_KEY, "true");
+    return changed.length > 0 ? next : current;
+  } catch (error) {
+    logger.error("Failed to apply suggested reminder times:", error);
+    return current;
+  }
+}
+
+/**
  * Records `marker` under `key` unless it is already there. False only when
  * it was already recorded; storage failures claim it (the guard fails open).
  */
@@ -624,31 +650,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // would add notifications nobody asked for, so this waits for an explicit
   // "turn on" and runs once: a time cleared later stays cleared.
   const applySuggestedReminderTimes = useCallback(async () => {
-    const current = reminderStateRef.current.actions;
-    try {
-      if ((await AsyncStorage.getItem(HABIT_TIMES_BACKFILLED_KEY)) === "true") {
-        return current;
-      }
-      const next = current.map(withSuggestedReminderTime);
-      for (const action of next) {
-        const before = current.find((item) => item.id === action.id);
-        if (
-          action.reminderTime &&
-          action.reminderTime !== before?.reminderTime
-        ) {
-          await storage.updateElementalAction(action.id, {
-            reminderTime: action.reminderTime,
-          });
-        }
-      }
-      setActionsState(next);
-      await AsyncStorage.setItem(HABIT_TIMES_BACKFILLED_KEY, "true");
-      return next;
-    } catch (error) {
-      logger.error("Failed to apply suggested reminder times:", error);
-      return current;
-    }
-  }, []);
+    const next = await backfillSuggestedReminderTimes(actions);
+    if (next !== actions) setActionsState(next);
+    return next;
+  }, [actions]);
 
   // Optimistic: the ring/streak/chips must respond on the same frame as the
   // tap. State is computed and applied synchronously; the AsyncStorage write
