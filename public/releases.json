@@ -1,5 +1,30 @@
 [
   {
+    "version": "1.6.0",
+    "status": "submitted",
+    "title": "Reminders at the right time",
+    "summary": "Give any habit its own reminder time, so the nudge arrives when the habit actually happens.",
+    "appStoreNotes": [
+      "Set a reminder time for any habit. It arrives at that time on the days the habit is planned, and only if it's still open.",
+      "Tap Done right from the reminder to log it without opening the app.",
+      "New habits get a suggested time from when you said you'd do them, like after your morning coffee. Change it or turn it off anytime.",
+      "Habits close together share one reminder, and your daily reminder still covers any habit without its own time."
+    ],
+    "highlights": [
+      {
+        "title": "A reminder for each habit",
+        "description": "Pick a time for any habit. You only hear about it on its planned days, and never once it's done.",
+        "availability": "Available to everyone."
+      },
+      {
+        "title": "Done from the lock screen",
+        "description": "Tap Done on the reminder to log the habit without opening the app.",
+        "availability": "Available to everyone."
+      }
+    ],
+    "submittedAt": "2026-10-24"
+  },
+  {
     "version": "1.5.0",
     "status": "released",
     "title": "Ready for your New Year",

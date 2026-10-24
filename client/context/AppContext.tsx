@@ -44,6 +44,7 @@ import {
 import * as Notifications from "expo-notifications";
 import { logger } from "@/lib/logger";
 import { navigationRef } from "@/navigation/navigationRef";
+import { withSuggestedReminderTime } from "@/lib/habit-reminders";
 import { track, flushTelemetry } from "@/lib/telemetry";
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { syncWidgetData, consumePendingVotes } from "@/lib/widget";
@@ -167,6 +168,12 @@ interface AppContextType {
   /** A new plan is waiting for the reminder primer on Today. */
   reminderPrimerPending: boolean;
   answerReminderPrimer: (accept: boolean) => Promise<void>;
+  /**
+   * Once per install, gives the active plan's untimed habits their
+   * anchor-suggested reminder time. Call when the person turns reminders on;
+   * resolves to the (possibly updated) actions to schedule with.
+   */
+  applySuggestedReminderTimes: () => Promise<ElementalAction[]>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -176,6 +183,7 @@ const FREE_REFLECTION_LIMIT = 10;
 // Milestone ids whose completion celebration has already been shown — each
 // milestone is celebrated exactly once, ever (survives restarts)
 const MILESTONE_CELEBRATION_SEEN_KEY = "milestone_celebration_seen_ids";
+const HABIT_TIMES_BACKFILLED_KEY = "evolve_habit_times_backfilled";
 
 // try/catch lives in these module helpers, outside AppProvider: the React
 // Compiler skips the whole provider over conditional expressions in a try.
@@ -193,6 +201,32 @@ async function markerMatches(key: string, marker: string): Promise<boolean> {
     return (await AsyncStorage.getItem(key)) === marker;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Gives untimed habits their anchor-suggested reminder time, once per
+ * install. Resolves to `current` itself when nothing changed or it fails.
+ */
+async function backfillSuggestedReminderTimes(
+  current: ElementalAction[],
+): Promise<ElementalAction[]> {
+  try {
+    if ((await AsyncStorage.getItem(HABIT_TIMES_BACKFILLED_KEY)) === "true") {
+      return current;
+    }
+    const next = current.map(withSuggestedReminderTime);
+    const changed = next.filter((action, index) => action !== current[index]);
+    for (const action of changed) {
+      await storage.updateElementalAction(action.id, {
+        reminderTime: action.reminderTime,
+      });
+    }
+    await AsyncStorage.setItem(HABIT_TIMES_BACKFILLED_KEY, "true");
+    return changed.length > 0 ? next : current;
+  } catch (error) {
+    logger.error("Failed to apply suggested reminder times:", error);
+    return current;
   }
 }
 
@@ -612,6 +646,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActionsState(actionsData);
   }, []);
 
+  // Existing habits predate reminder times. Filling them silently on upgrade
+  // would add notifications nobody asked for, so this waits for an explicit
+  // "turn on" and runs once: a time cleared later stays cleared.
+  const applySuggestedReminderTimes = useCallback(async () => {
+    const next = await backfillSuggestedReminderTimes(actions);
+    if (next !== actions) setActionsState(next);
+    return next;
+  }, [actions]);
+
   // Optimistic: the ring/streak/chips must respond on the same frame as the
   // tap. State is computed and applied synchronously; the AsyncStorage write
   // happens behind it on a FIFO queue (upsertDailyLog). Both toggle surfaces
@@ -913,19 +956,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setReminderPrimerPending(false);
       await recordReminderPrimerAnswer(accept).catch(() => {});
       if (!accept || !persona) return;
+      const planActions = await applySuggestedReminderTimes();
       await enableDefaultPersonalizedReminders({
-        streakCount: computeStreak(actions, dailyLogs).current,
-        missedRun: computeLapse(actions, dailyLogs).missedDays,
+        streakCount: computeStreak(planActions, dailyLogs).current,
+        missedRun: computeLapse(planActions, dailyLogs).missedDays,
         personaName: persona.name,
         monthlyConsistency: personaAlignment,
-        actions,
+        actions: planActions,
         dailyLogs,
         milestoneTitles: reminderMilestoneTitles,
       }).catch((error) =>
         logger.error("Failed to enable reminders from primer:", error),
       );
     },
-    [actions, dailyLogs, persona, personaAlignment, reminderMilestoneTitles],
+    [
+      applySuggestedReminderTimes,
+      dailyLogs,
+      persona,
+      personaAlignment,
+      reminderMilestoneTitles,
+    ],
   );
   useEffect(() => {
     if (
@@ -1063,7 +1113,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             actionIds?: string[];
           }
         | undefined;
-      if (data?.type !== "daily-reminder") return;
+      const isHabitReminder = data?.type === "habit-reminder";
+      if (data?.type !== "daily-reminder" && !isHabitReminder) return;
       // A plain tap opened the app from the reminder: credit the voice that
       // earned it so the hook portfolio learns what this user responds to.
       // getLastNotificationResponseAsync replays the same response on every
@@ -1077,8 +1128,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!(await claimMarker("evolve_reminder_tap_handled", tapMarker))) {
           return;
         }
-        track("notification_tap");
-        recordReminderHookTap(data.hook).catch(() => {});
+        if (isHabitReminder) {
+          track("habit_reminder_tap");
+        } else {
+          track("notification_tap");
+          // Hooks voice only the digest; a timed habit's copy is fixed.
+          recordReminderHookTap(data.hook).catch(() => {});
+        }
         navigateToTodayTab();
         return;
       }
@@ -1098,7 +1154,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const currentActions = reminderStateRef.current.actions;
       if (currentActions.length === 0) return;
 
-      track("notification_mark_all_done");
+      track(
+        isHabitReminder ? "habit_reminder_done" : "notification_mark_all_done",
+      );
       for (const action of selectMarkAllDoneActions(
         currentActions,
         dateKey,
@@ -1362,6 +1420,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       canAddBenchmark,
       reminderPrimerPending,
       answerReminderPrimer,
+      applySuggestedReminderTimes,
     }),
     [
       hasOnboarded,
@@ -1412,6 +1471,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       canAddBenchmark,
       reminderPrimerPending,
       answerReminderPrimer,
+      applySuggestedReminderTimes,
     ],
   );
 

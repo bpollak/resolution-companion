@@ -65,6 +65,8 @@ export interface ElementalAction {
    * you"). HealthKit reads are on-device — consistent with local-first.
    */
   healthAutoComplete?: "workout" | "steps" | "mindful";
+  /** Local "HH:MM" (24h) for this habit's own reminder; absent = digest only. */
+  reminderTime?: string;
 }
 
 export interface DailyLog {

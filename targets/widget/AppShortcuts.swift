@@ -40,6 +40,7 @@ struct LogKickstartIntent: AppIntent {
         }
 
         let after = enqueueVote(actionId: actionId, isKickstart: true, source: "siri")
+        await clearVotedHabitReminders()
         return .result(dialog: loggedDialog(after))
     }
 }
@@ -91,6 +92,7 @@ struct LogNamedActionIntent: AppIntent {
         let wasPending = before.remainingActions?.contains(where: { $0.id == action.id })
             ?? (before.nextActionId == action.id)
         let after = enqueueVote(actionId: action.id, isKickstart: false, source: "siri")
+        await clearVotedHabitReminders()
         if !wasPending {
             return .result(dialog: "Already logged today.")
         }

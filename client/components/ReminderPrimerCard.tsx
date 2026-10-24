@@ -6,9 +6,10 @@ import { useTheme } from "@/hooks/useTheme";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { withAlpha } from "@/lib/color";
 import { REMINDER_BUCKETS, suggestReminderBucket } from "@/lib/notifications";
+import { parseReminderTime, reminderTimeLabel } from "@/lib/habit-reminders";
 import type { ElementalAction } from "@/lib/storage";
 
-// Explains the one reminder before iOS asks, so the permission prompt arrives
+// Explains the reminders before iOS asks, so the permission prompt arrives
 // with context instead of cold after setup.
 export function ReminderPrimerCard({
   actions,
@@ -28,6 +29,22 @@ export function ReminderPrimerCard({
   const anchors = actions.map((action) => action.anchorLink).filter(Boolean);
   const time = REMINDER_BUCKETS[suggestReminderBucket(anchors)].label;
   const routine = anchors[0];
+  // Habits with their own time get their own nudge; the daily reminder only
+  // covers the rest, so it is mentioned only when some habit has no time.
+  const timed = actions.filter((action) =>
+    parseReminderTime(action.reminderTime),
+  );
+  const times = [
+    ...new Set(
+      timed
+        .map((action) => action.reminderTime as string)
+        .sort()
+        .map(reminderTimeLabel),
+    ),
+  ];
+  const hasUntimed = timed.length < actions.length;
+  const allTimes =
+    hasUntimed && !times.includes(time) ? [...times, time] : times;
 
   const answer = (accept: boolean) => {
     if (busy) return;
@@ -52,17 +69,20 @@ export function ReminderPrimerCard({
         <ThemedText style={styles.title}>Want a nudge?</ThemedText>
       </View>
       <ThemedText style={{ color: theme.textSecondary }}>
-        One reminder at {time}
-        {routine ? `, around “${routine}”` : ""}, only on days your habit
-        isn&rsquo;t done yet. It stays quiet once you&rsquo;re done
-        {startLabel ? `, and starts ${startLabel}` : ""}.
+        {times.length > 0
+          ? `Reminders at ${joinTimes(allTimes)}, only on days a habit isn’t done yet. Each stays quiet once its habit is done${startLabel ? `, and they start ${startLabel}` : ""}.`
+          : `One reminder at ${time}${routine ? `, around “${routine}”` : ""}, only on days your habit isn’t done yet. It stays quiet once you’re done${startLabel ? `, and starts ${startLabel}` : ""}.`}
       </ThemedText>
       <View style={styles.buttons}>
         <Pressable
           onPress={() => answer(true)}
           disabled={busy}
           accessibilityRole="button"
-          accessibilityLabel={`Turn on a reminder at ${time}`}
+          accessibilityLabel={
+            times.length > 0
+              ? `Turn on reminders at ${joinTimes(allTimes)}`
+              : `Turn on a reminder at ${time}`
+          }
           hitSlop={8}
           pressRetentionOffset={12}
           style={({ pressed }) => [
@@ -129,3 +149,8 @@ const styles = StyleSheet.create({
   },
   secondary: { minHeight: 44, justifyContent: "center" },
 });
+
+function joinTimes(times: string[]): string {
+  if (times.length <= 1) return times[0] ?? "";
+  return `${times.slice(0, -1).join(", ")} and ${times[times.length - 1]}`;
+}

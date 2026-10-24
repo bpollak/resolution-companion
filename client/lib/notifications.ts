@@ -5,6 +5,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getLocalDateString, weekdayName } from "@/lib/progress";
 import { logger } from "@/lib/logger";
 import type { DailyLog, ElementalAction } from "@/lib/storage";
+import {
+  PENDING_NOTIFICATION_BUDGET,
+  fitToBudget,
+  parseReminderTime,
+  planTimedSlots,
+  type TimedSlot,
+} from "@/lib/habit-reminders";
 
 const NOTIFICATION_ID_KEY = "evolve_daily_reminder_id";
 const NOTIFICATIONS_ENABLED_KEY = "evolve_notifications_enabled";
@@ -174,6 +181,8 @@ export function selectReminderHook(
 // action completes the day without opening the app (AppContext handles the
 // response), so a busy evening still counts with one press.
 export const DAILY_REMINDER_CATEGORY = "daily-reminder";
+export const HABIT_REMINDER_CATEGORY = "habit-reminder";
+/** Shared by the digest's "Mark all done" and a timed habit's "Done". */
 export const MARK_ALL_DONE_ACTION = "mark-all-done";
 
 /**
@@ -199,7 +208,7 @@ export function selectMarkAllDoneActions(
 }
 
 /**
- * Registers the "Mark all done" quick action on the daily reminder.
+ * Registers the lock-screen completion actions on both reminder kinds.
  * Idempotent; call once on app start (no-op on web).
  */
 export async function registerReminderActions(): Promise<void> {
@@ -211,6 +220,13 @@ export async function registerReminderActions(): Promise<void> {
       {
         identifier: MARK_ALL_DONE_ACTION,
         buttonTitle: "Mark all done ✓",
+        options: { opensAppToForeground: false },
+      },
+    ]);
+    await Notifications.setNotificationCategoryAsync(HABIT_REMINDER_CATEGORY, [
+      {
+        identifier: MARK_ALL_DONE_ACTION,
+        buttonTitle: "Done ✓",
         options: { opensAppToForeground: false },
       },
     ]);
@@ -539,7 +555,7 @@ export function createTimedSerialQueue(timeoutMs: number) {
 }
 
 // Every schedule and cancel runs on this one chain. A run cancels and then
-// re-adds up to 14 requests across many awaits; two interleaved runs each
+// re-adds up to 60 requests across many awaits; two interleaved runs each
 // saved only their own ids and orphaned the other's, leaving duplicate
 // reminders that even turning reminders off could not remove.
 const withReminderLock = createTimedSerialQueue(REMINDER_LOCK_TIMEOUT_MS);
@@ -547,9 +563,12 @@ const withReminderLock = createTimedSerialQueue(REMINDER_LOCK_TIMEOUT_MS);
 function isDailyReminderRequest(
   request: Notifications.NotificationRequest,
 ): boolean {
+  const { data, categoryIdentifier } = request.content;
   return (
-    request.content.data?.type === "daily-reminder" ||
-    request.content.categoryIdentifier === DAILY_REMINDER_CATEGORY
+    data?.type === "daily-reminder" ||
+    data?.type === "habit-reminder" ||
+    categoryIdentifier === DAILY_REMINDER_CATEGORY ||
+    categoryIdentifier === HABIT_REMINDER_CATEGORY
   );
 }
 
@@ -591,11 +610,20 @@ async function cancelScheduled(): Promise<void> {
 interface PlannedReminderDay {
   dateKey: string;
   day: Date;
-  fireDate: Date;
+  /** Digest fire time; null when the day has no untimed habit left to list. */
+  fireDate: Date | null;
+  /** Open habits without their own time: the digest's list. */
   remainingActions: ElementalAction[];
+  timedSlots: TimedSlot[];
 }
 
-/** The rolling plan's days: scheduled, still-open, and not yet fired. */
+const notificationCount = (day: PlannedReminderDay) =>
+  day.timedSlots.length + (day.fireDate ? 1 : 0);
+
+/**
+ * The rolling plan's days: scheduled, still-open, and not yet fired, cut to
+ * whole days that fit the pending-notification budget.
+ */
 function planReminderDays(
   options: ReminderOptions,
   hour: number,
@@ -618,24 +646,48 @@ function planReminderDays(
   for (let offset = 0; offset < REMINDER_HORIZON_DAYS; offset++) {
     const day = new Date(firstDay);
     day.setDate(day.getDate() + offset);
-    const fireDate = new Date(day);
-    fireDate.setHours(hour, minute, 0, 0);
-    if (fireDate <= now) continue;
     if (startsOn && getLocalDateString(day) < startsOn) continue;
-    const remainingActions = getRemainingReminderActions(
+    const open = getRemainingReminderActions(
       options.actions,
       options.dailyLogs,
       day,
     );
-    if (remainingActions.length === 0) continue;
+    const timedSlots = planTimedSlots(day, open, now);
+    const remainingActions = open.filter(
+      (action) => !parseReminderTime(action.reminderTime),
+    );
+    const digestAt = new Date(day);
+    digestAt.setHours(hour, minute, 0, 0);
+    const fireDate =
+      remainingActions.length > 0 && digestAt > now ? digestAt : null;
+    if (!fireDate && timedSlots.length === 0) continue;
     days.push({
       dateKey: getLocalDateString(day),
       day,
       fireDate,
       remainingActions,
+      timedSlots,
     });
   }
-  return days;
+  return fitToBudget(days, notificationCount, PENDING_NOTIFICATION_BUDGET);
+}
+
+export function habitReminderTitle(actions: { title: string }[]): string {
+  const first = truncateReminderText(actions[0]?.title ?? "", 40);
+  if (actions.length === 2) {
+    return `${first} + ${truncateReminderText(actions[1].title, 28)}`;
+  }
+  if (actions.length > 2) return `${first} + ${actions.length - 1} more`;
+  return first;
+}
+
+export function habitReminderBody(
+  actions: { kickstartVersion: string }[],
+): string {
+  const kickstart = actions[0]?.kickstartVersion?.trim();
+  return kickstart
+    ? `The 2-minute version counts: ${truncateReminderText(kickstart, 60)}`
+    : "The 2-minute version counts.";
 }
 
 // Describes what would be scheduled rather than how the caller asked for it,
@@ -654,8 +706,14 @@ function reminderPlanSignature(
     hour,
     minute,
     days: planReminderDays(options, hour, minute, now).map((day) => ({
-      fireAt: day.fireDate.getTime(),
-      actionIds: day.remainingActions.map((action) => action.id),
+      fireAt: day.fireDate?.getTime() ?? null,
+      actionIds: day.fireDate
+        ? day.remainingActions.map((action) => action.id)
+        : [],
+      timed: day.timedSlots.map((slot) => ({
+        fireAt: slot.fireDate.getTime(),
+        actionIds: slot.actions.map((action) => action.id),
+      })),
     })),
     streakCount: options.streakCount ?? null,
     missedRun: options.missedRun ?? null,
@@ -669,6 +727,7 @@ function reminderPlanSignature(
       title: action.title,
       kickstartVersion: action.kickstartVersion,
       benchmarkId: action.benchmarkId,
+      reminderTime: action.reminderTime ?? null,
     })),
     milestoneTitles: options.milestoneTitles ?? null,
   });
@@ -699,36 +758,66 @@ async function scheduleDailyReminderLocked(
     const now = new Date();
 
     if (options.actions && options.dailyLogs) {
-      for (const { dateKey, fireDate, remainingActions } of planReminderDays(
-        options,
-        hour,
-        minute,
-        now,
-      )) {
+      // Issued together: up to 60 sequential native round trips could
+      // outlast the reminder lock's timeout on a slow cold launch.
+      const scheduling: Promise<string>[] = [];
+      for (const {
+        dateKey,
+        fireDate,
+        remainingActions,
+        timedSlots,
+      } of planReminderDays(options, hour, minute, now)) {
+        for (const slot of timedSlots) {
+          scheduling.push(
+            Notifications.scheduleNotificationAsync({
+              content: {
+                title: habitReminderTitle(slot.actions),
+                body: habitReminderBody(slot.actions),
+                sound: true,
+                data: {
+                  type: "habit-reminder",
+                  dateKey,
+                  actionIds: slot.actions.map((action) => action.id),
+                },
+                categoryIdentifier: HABIT_REMINDER_CATEGORY,
+              },
+              trigger: {
+                type: Notifications.SchedulableTriggerInputTypes.DATE,
+                date: slot.fireDate,
+                channelId:
+                  Platform.OS === "android" ? "daily-reminder" : undefined,
+              },
+            }),
+          );
+        }
+        if (!fireDate) continue;
         const hook = selectReminderHook(stats, dateKey);
         const dayOptions = { ...options, remainingActions };
-        const id = await Notifications.scheduleNotificationAsync({
-          content: {
-            title: reminderTitle(dayOptions),
-            body: reminderBody(hook, dayOptions),
-            sound: true,
-            data: {
-              type: "daily-reminder",
-              hook,
-              dateKey,
-              actionIds: remainingActions.map((action) => action.id),
+        scheduling.push(
+          Notifications.scheduleNotificationAsync({
+            content: {
+              title: reminderTitle(dayOptions),
+              body: reminderBody(hook, dayOptions),
+              sound: true,
+              data: {
+                type: "daily-reminder",
+                hook,
+                dateKey,
+                actionIds: remainingActions.map((action) => action.id),
+              },
+              categoryIdentifier: DAILY_REMINDER_CATEGORY,
             },
-            categoryIdentifier: DAILY_REMINDER_CATEGORY,
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DATE,
-            date: fireDate,
-            channelId: Platform.OS === "android" ? "daily-reminder" : undefined,
-          },
-        });
-        ids.push(id);
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              date: fireDate,
+              channelId:
+                Platform.OS === "android" ? "daily-reminder" : undefined,
+            },
+          }),
+        );
         await recordReminderHookOpportunity(hook, dateKey);
       }
+      ids.push(...(await Promise.all(scheduling)));
     } else {
       // Safe migration fallback until a screen with local action context runs.
       const dateKey = getLocalDateString(now);

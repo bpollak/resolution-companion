@@ -1,13 +1,12 @@
 # Resolution Companion AI — Codebase Guide
 
-Current local checkout (2026-09-28): version 1.5.0 on
-`codex/consolidate-local-2026-09-28` combines PR #24 (including build 98's
-HealthKit fix), PR #25's server fixes, and PR #26's checkout guidance.
-See `docs/plans/2026-09-28-local-consolidation.md` for verification and scope.
-This supersedes the historical July status below. The consolidated branch is
-pushed, and 1.5.0 (100), including the Coach keyboard fix, is in internal
-TestFlight testing. See `docs/plans/2026-09-28-coach-keyboard-testflight.md`.
-Main and the production server have not been updated.
+Current status (2026-10-24): 1.5.0 (106) is live. 1.6.0 (108), per-habit
+reminder times, was submitted to App Review on 2026-10-24 (auto-release
+after approval) from branch `claude/per-habit-reminders` (PR #30, not yet
+merged; main and the production server do not have it). Spec and plan:
+`docs/superpowers/specs/2026-10-24-per-habit-reminders-design.md`,
+`docs/superpowers/plans/2026-10-24-per-habit-reminders.md`. This supersedes
+the historical status below.
 
 Identity-based behavior-change app. Users define a **Target Persona** through
 an AI interview, set **Core Benchmarks** (milestones), and log daily
@@ -118,7 +117,14 @@ domain `resolutioncompanion.com`.
     archive works with `GYM_CODE_SIGNING_IDENTITY=B7361570C46DD775268CEEF81EAC8244F90F48E3`,
     but EAS's export still fails. Upload the saved archive from Xcode
     Organizer instead (Distribute App > App Store Connect, automatic
-    signing); build 103 shipped this way 2026-10-13. Keep
+    signing); build 103 shipped this way 2026-10-13. **Headless path
+    (build 107, 2026-10-24):** the archive gym leaves in
+    `~/Library/Developer/Xcode/Archives/<date>/` is already final-signed
+    (iPhone Distribution + the [expo] App Store profiles), so zip
+    `Payload/<App>.app` from it into an IPA (no re-sign), then
+    `xcrun altool --validate-app` / `--upload-app` with the team API key
+    (`~/.appstoreconnect/private_keys/AuthKey_4KH79536L9.p8`). That key
+    uploads and reads but 403s on creating versions and profiles. Keep
     `plugins/with-healthkit-access-cleanup` before `react-native-health`, or
     automatic signing demands Verifiable Health Records on the App ID.
   - **Simulator (visual verification):** `npm run build:local:sim` →
