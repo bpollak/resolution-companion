@@ -1,8 +1,9 @@
 # Website feature-demo video
 
 Real simulator footage of the current build, composited into a 16:9 cut
-with captions and tap indicators. Waits (AI replies, typing) are sped up
-and badged "Sped up" in the video.
+with intro cards, plain-language captions and tap indicators. Waits (AI
+replies, typing) are sped up. The backdrop is light by default so the dark
+app stands out; `DEMO_THEME=ocean` renders a deep-teal alternative.
 
 1. Install a simulator build (`npm run build:local:sim`) on the booted sim.
 2. `./record-take.sh 01-onboarding.yaml ../../build/demo-video/take01`

@@ -7,10 +7,11 @@ Inputs (build/demo-video/, gitignored), made by record-take.sh:
   takeNN/debug/...   Maestro log, the source of tap times and points
 
 Output: build/demo-video/resolution-companion-demo.mp4 (1920x1080, 30 fps).
-Every frame is real app footage; waits are sped up and badged as such.
+Every frame is real app footage; waits are sped up.
 """
 import datetime
 import glob
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -26,7 +27,17 @@ ICON = ROOT / "assets/images/icon.png"
 SF = "/System/Library/Fonts/SFNS.ttf"
 
 W, H, FPS = 1920, 1080, 30
-ACCENT = (0, 217, 255)
+# The app is dark, so a dark backdrop swallows the phone. "light" (default)
+# matches the website's paper sections; "ocean" is a deep teal alternative.
+THEMES = {
+    "light": dict(top=(246, 248, 250), bottom=(224, 236, 240), glow=(0, 122, 145), glow_k=-0.06,
+                  head=(23, 28, 33), sub=(82, 96, 107), tag=(0, 122, 145), link=(0, 122, 145),
+                  shadow=70, bezel=(70, 75, 82), bezel_in=(30, 32, 36)),
+    "ocean": dict(top=(10, 70, 88), bottom=(4, 32, 44), glow=(0, 217, 255), glow_k=0.10,
+                  head=(245, 248, 250), sub=(178, 206, 214), tag=(0, 217, 255), link=(0, 217, 255),
+                  shadow=150, bezel=(120, 128, 136), bezel_in=(26, 28, 31)),
+}
+T = THEMES[os.environ.get("DEMO_THEME", "light")]
 # Device points of the recorded iPhone 17 Pro, for mapping Maestro taps
 PTS_W, PTS_H = 402, 874
 SCR_H = 940
@@ -44,38 +55,42 @@ def font(size, weight="Regular"):
 
 
 CAPTIONS = {
-    "A": ("PLAN", "Start with who you want to become",
-          "Tap Make my plan and talk it through with Coach."),
-    "B": ("PLAN", "AI coaching is opt-in",
-          "Coach explains what's shared before you chat. You can also set it up yourself."),
-    "C": ("PLAN", "Say it in your own words",
-          "Pick a starter or type your resolution."),
-    "D": ("PLAN", "Coach turns it into one small habit",
-          "With a 2-minute version for busy days."),
-    "E": ("PLAN", "Review it before it starts",
-          "Edit who you're becoming, the habit and the days. One habit is enough."),
-    "F": ("REMINDERS", "Nudges only when it matters",
-          "One reminder, and it stays quiet once you're done."),
-    "G": ("FIVE WEEKS IN", "Milestones worth celebrating",
-          "21 planned days done. Coach suggests what's next."),
-    "H": ("TODAY", "Coach notices what's working",
-          "Patterns from your own history. Earned rest days protect your streak."),
-    "I": ("TODAY", "Full habit or the 2-minute version",
-          "Both count as showing up."),
-    "J": ("TODAY", "One line for future you",
-          "Quick notes after a habit. Your coach reads them too."),
-    "K": ("JOURNEY", "Your progress at a glance",
-          "Consistency calendar, streaks and milestone progress."),
-    "L": ("NEW IN 1.6", "A reminder time for each habit",
-          "Set it per habit. It only nudges if that habit is still open."),
-    "M": ("COACH", "A weekly review with Coach",
-          "Grounded in what you actually did. One win, one point of friction."),
+    "A": ("SET UP", "Make a plan with the coach",
+          "Tap Make my plan. Chat with the AI coach, or set it up yourself."),
+    "B": ("SET UP", "See what’s shared before you chat",
+          "The app explains what it sends to the AI coach. You agree before it starts."),
+    "C": ("SET UP", "Type what you want to work on",
+          "Use your own words, or pick an example."),
+    "D": ("SET UP", "The coach suggests a small daily habit",
+          "Each habit has a shorter version for busy days."),
+    "E": ("SET UP", "Check the plan before you start",
+          "Change the goal, the habit or the days. One habit is enough to start."),
+    "F": ("REMINDERS", "Turn on a daily reminder",
+          "It stays quiet on days you’ve already checked in."),
+    "G": ("MILESTONES", "See when you reach a milestone",
+          "Here, 21 planned days are done. The app suggests a next step."),
+    "H": ("TODAY", "Get a note when something is working",
+          "The coach looks at your history. Rest days you’ve earned keep your streak going."),
+    "I": ("TODAY", "Check off a habit, or its short version",
+          "On a busy day, the 2-minute version still counts."),
+    "J": ("TODAY", "Add a quick note",
+          "Write down how it went. The coach can read your notes."),
+    "K": ("JOURNEY", "See your progress",
+          "A calendar of the days you checked in, your streak, and how close you are to each milestone."),
+    "L": ("NEW IN 1.6", "Set a reminder time for each habit",
+          "You only get a reminder if that habit isn’t done yet."),
+    "M": ("COACH", "Look back on your week with the coach",
+          "It uses what you actually did. Talk through one thing that went well and one that didn’t."),
 }
 
 # (take, src_start, src_end, speed, caption). Ranges within a take are
 # contiguous so the cuts never jump; only the playback rate changes.
 SEGMENTS = [
     ("title", 3.0),
+    ("what", 5.5),
+    ("who", 5.0),
+    ("how", 5.0),
+    ("bridge", 2.0),
     ("take01", 17.6, 24.6, 1.0, "A"),
     ("take01", 24.6, 32.8, 1.4, "B"),
     ("take01", 32.8, 43.7, 1.6, "C"),
@@ -90,10 +105,10 @@ SEGMENTS = [
     ("take02", 49.0, 61.0, 1.15, "K"),
     ("take02", 61.0, 82.9, 1.5, "L"),
     ("take02", 82.9, 96.5, 1.6, "M"),
-    ("take02", 96.5, 101.0, 1.0, "M"),  # time to read the finished reply
-    ("end", 5.0),
+    ("take02", 96.5, 98.5, 1.0, "M"),  # beat to see the finished reply
+    ("recap", 7.0),
+    ("end", 6.5),
 ]
-SPED_UP = 1.4  # badge segments at or above this rate
 
 
 def taps(take):
@@ -120,30 +135,36 @@ def rounded_mask(w, h, r, scale=4):
 def background():
     y = np.linspace(0, 1, H)[:, None]
     base = np.zeros((H, W, 3), np.float32)
-    top, bottom = np.array([13, 17, 22]), np.array([5, 7, 10])
+    top, bottom = np.array(T["top"]), np.array(T["bottom"])
     base[:] = (top * (1 - y) + bottom * y)[:, None, :][:, 0:1, :]
     yy, xx = np.mgrid[0:H, 0:W]
     glow = np.exp(-(((xx - PHONE_CX) / 520) ** 2 + ((yy - PHONE_CY) / 420) ** 2))
-    base += glow[..., None] * np.array(ACCENT) * 0.10
+    base += glow[..., None] * glow_tint()
     # PIL layer: phone shadow and bezel, drawn once
     img = Image.fromarray(np.clip(base, 0, 255).astype(np.uint8)).convert("RGBA")
     shadow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     ox, oy = SX - BEZEL, SY - BEZEL
     ow, oh, orr = SCR_W + 2 * BEZEL, SCR_H + 2 * BEZEL, SCR_R + BEZEL
-    ImageDraw.Draw(shadow).rounded_rectangle((ox + 10, oy + 30, ox + ow + 10, oy + oh + 30), orr, fill=(0, 0, 0, 170))
+    ImageDraw.Draw(shadow).rounded_rectangle((ox + 10, oy + 30, ox + ow + 10, oy + oh + 30), orr, fill=(0, 0, 0, T["shadow"]))
     img = Image.alpha_composite(img, shadow.filter(ImageFilter.GaussianBlur(40)))
     body = Image.new("RGBA", (W * 2, H * 2), (0, 0, 0, 0))
     d = ImageDraw.Draw(body)
-    d.rounded_rectangle((ox * 2, oy * 2, (ox + ow) * 2, (oy + oh) * 2), orr * 2, fill=(46, 50, 56, 255))
-    d.rounded_rectangle((ox * 2 + 4, oy * 2 + 4, (ox + ow) * 2 - 4, (oy + oh) * 2 - 4), orr * 2 - 4, fill=(22, 24, 27, 255))
+    d.rounded_rectangle((ox * 2, oy * 2, (ox + ow) * 2, (oy + oh) * 2), orr * 2, fill=(*T["bezel"], 255))
+    d.rounded_rectangle((ox * 2 + 4, oy * 2 + 4, (ox + ow) * 2 - 4, (oy + oh) * 2 - 4), orr * 2 - 4, fill=(*T["bezel_in"], 255))
     d.rounded_rectangle((SX * 2 - 6, SY * 2 - 6, (SX + SCR_W) * 2 + 6, (SY + SCR_H) * 2 + 6), SCR_R * 2 + 6, fill=(0, 0, 0, 255))
     img = Image.alpha_composite(img, body.resize((W, H), Image.LANCZOS))
     # Side buttons
     d = ImageDraw.Draw(img)
     for y0, y1 in ((SY + 150, SY + 230), (SY + 260, SY + 340)):
-        d.rounded_rectangle((ox - 4, y0, ox + 2, y1), 3, fill=(46, 50, 56))
-    d.rounded_rectangle((ox + ow - 2, SY + 210, ox + ow + 4, SY + 330), 3, fill=(46, 50, 56))
+        d.rounded_rectangle((ox - 4, y0, ox + 2, y1), 3, fill=T["bezel"])
+    d.rounded_rectangle((ox + ow - 2, SY + 210, ox + ow + 4, SY + 330), 3, fill=T["bezel"])
     return img.convert("RGB")
+
+
+def glow_tint():
+    """Per-channel glow: adds accent light on dark themes, a teal wash on light."""
+    g = np.array(T["glow"], np.float32)
+    return g * T["glow_k"] if T["glow_k"] > 0 else (255 - g) * T["glow_k"]
 
 
 def brand(img):
@@ -151,8 +172,7 @@ def brand(img):
     m = Image.new("L", (56, 56), 0)
     ImageDraw.Draw(m).rounded_rectangle((0, 0, 55, 55), 13, fill=255)
     img.paste(icon, (150, 96), m)
-    ImageDraw.Draw(img).text((222, 124), "Resolution Companion", font=font(28, "Semibold"), fill=(235, 240, 244), anchor="lm")
-    ImageDraw.Draw(img).text((150, 984), "Real app footage on iPhone. Waits are sped up.", font=font(20), fill=(110, 120, 128))
+    ImageDraw.Draw(img).text((222, 124), "Resolution Companion", font=font(28, "Semibold"), fill=T["head"], anchor="lm")
     return img
 
 
@@ -179,48 +199,30 @@ def caption_layer(key):
     y = H // 2 - block // 2
     x = 150
     tw = d.textlength(tag, font=f_tag) + 6 * len(tag)
-    d.rounded_rectangle((x - 2, y - 6, x + tw + 26, y + 34), 20, fill=(*ACCENT, 38))
+    d.rounded_rectangle((x - 2, y - 6, x + tw + 26, y + 34), 20, fill=(*T["tag"], 38))
     cx = x + 12
     for ch in tag:  # letterspacing
-        d.text((cx, y + 14), ch, font=f_tag, fill=(*ACCENT, 255), anchor="lm")
+        d.text((cx, y + 14), ch, font=f_tag, fill=(*T["tag"], 255), anchor="lm")
         cx += d.textlength(ch, font=f_tag) + 6
     y += 58
     for line in head_lines:
-        d.text((x, y), line, font=f_head, fill=(245, 248, 250, 255))
+        d.text((x, y), line, font=f_head, fill=(*T["head"], 255))
         y += 74
     y += 22
     for line in sub_lines:
-        d.text((x, y), line, font=f_sub, fill=(160, 170, 178, 255))
+        d.text((x, y), line, font=f_sub, fill=(*T["sub"], 255))
         y += 44
     return np.asarray(layer, np.float32)
 
-
-def badge_layer():
-    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    d = ImageDraw.Draw(layer)
-    f = font(20, "Semibold")
-    text = "SPED UP"
-    tw = d.textlength(text, font=f) + 4 * len(text)
-    x1 = SX + SCR_W + BEZEL + 26
-    d.rounded_rectangle((x1, SY + 40, x1 + tw + 34, SY + 76), 18, fill=(255, 255, 255, 30))
-    # Fast-forward glyph
-    gx, gy = x1 + 14, SY + 58
-    d.polygon([(gx, gy - 7), (gx + 8, gy), (gx, gy + 7)], fill=(220, 228, 234, 255))
-    d.polygon([(gx + 8, gy - 7), (gx + 16, gy), (gx + 8, gy + 7)], fill=(220, 228, 234, 255))
-    cx = x1 + 38
-    for ch in text:
-        d.text((cx, gy), ch, font=f, fill=(220, 228, 234, 255), anchor="lm")
-        cx += d.textlength(ch, font=f) + 4
-    return np.asarray(layer, np.float32)
 
 
 def card(lines, icon_size=0):
     """Full-frame text card on the plain background (no phone)."""
     y = np.linspace(0, 1, H)[:, None]
-    top, bottom = np.array([13, 17, 22]), np.array([5, 7, 10])
+    top, bottom = np.array(T["top"]), np.array(T["bottom"])
     arr = np.repeat((top * (1 - y) + bottom * y)[:, None, :], W, axis=1)
     yy, xx = np.mgrid[0:H, 0:W]
-    arr += np.exp(-(((xx - W / 2) / 700) ** 2 + ((yy - H / 2) / 420) ** 2))[..., None] * np.array(ACCENT) * 0.08
+    arr += np.exp(-(((xx - W / 2) / 700) ** 2 + ((yy - H / 2) / 420) ** 2))[..., None] * glow_tint() * 0.8
     img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
     d = ImageDraw.Draw(img)
     total = icon_size + (40 if icon_size else 0) + sum(s[1] + s[3] for s in lines)
@@ -237,22 +239,102 @@ def card(lines, icon_size=0):
     return np.asarray(img, np.float32)
 
 
+# Framing before the footage: what the app is, who it's for, how it works
+INTRO = {
+    "what": ("WHAT IT IS", "Pick a goal. Build a small daily habit to reach it.",
+             "An AI coach helps you make the plan, and change it when life gets busy."),
+    "who": ("WHO IT’S FOR", "Anyone who wants to build a habit and keep it",
+            "Learning a language, exercising, reading, or anything you’ve started and stopped before."),
+    "how": ("HOW IT WORKS", "Make a plan, check in each day, and see your progress.",
+            "Free to download on iPhone and iPad. No account needed."),
+}
+
+
+def intro_card(tag, head, sub):
+    """Centered card with a letterspaced tag, a wrapped headline and a subline."""
+    base = Image.fromarray(card([]).astype(np.uint8)).convert("RGBA")
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    f_tag, f_head, f_sub = font(26, "Semibold"), font(76, "Bold"), font(36)
+    head_lines = wrap(d, head, f_head, 1300)
+    sub_lines = wrap(d, sub, f_sub, 1100)
+    block = 44 + 40 + len(head_lines) * 92 + 30 + len(sub_lines) * 52
+    y = H // 2 - block // 2
+    tw = sum(d.textlength(ch, font=f_tag) + 7 for ch in tag) - 7
+    x = W // 2 - tw / 2
+    d.rounded_rectangle((x - 18, y - 4, x + tw + 18, y + 40), 22, fill=(*T["tag"], 38))
+    for ch in tag:  # letterspacing
+        d.text((x, y + 18), ch, font=f_tag, fill=(*T["tag"], 255), anchor="lm")
+        x += d.textlength(ch, font=f_tag) + 7
+    y += 44 + 40
+    for line in head_lines:
+        d.text((W // 2, y), line, font=f_head, fill=(*T["head"], 255), anchor="mt")
+        y += 92
+    y += 30
+    for line in sub_lines:
+        d.text((W // 2, y), line, font=f_sub, fill=(*T["sub"], 255), anchor="mt")
+        y += 52
+    return np.asarray(Image.alpha_composite(base, layer).convert("RGB"), np.float32)
+
+
+RECAP = ("WHAT YOU GET", "Build one habit at a time, with help along the way", [
+    "A small daily habit, with a 2-minute version for busy days",
+    "Reminders at the time you pick, only if a habit isn’t done",
+    "A coach that looks at what you actually did",
+    "Your streaks, milestones and progress in one place",
+])
+
+
+def recap_card(tag, head, items):
+    """Closing summary: tag, headline, then a left-aligned checklist block."""
+    base = Image.fromarray(card([]).astype(np.uint8)).convert("RGBA")
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    f_tag, f_head, f_item = font(26, "Semibold"), font(60, "Bold"), font(36)
+    head_lines = wrap(d, head, f_head, 1600)
+    block = 44 + 40 + len(head_lines) * 74 + 56 + len(items) * 66
+    y = H // 2 - block // 2
+    tw = sum(d.textlength(ch, font=f_tag) + 7 for ch in tag) - 7
+    x = W // 2 - tw / 2
+    d.rounded_rectangle((x - 18, y - 4, x + tw + 18, y + 40), 22, fill=(*T["tag"], 38))
+    for ch in tag:  # letterspacing
+        d.text((x, y + 18), ch, font=f_tag, fill=(*T["tag"], 255), anchor="lm")
+        x += d.textlength(ch, font=f_tag) + 7
+    y += 44 + 40
+    for line in head_lines:
+        d.text((W // 2, y), line, font=f_head, fill=(*T["head"], 255), anchor="mt")
+        y += 74
+    y += 56
+    iw = max(d.textlength(t, font=f_item) for t in items) + 60
+    x0 = W // 2 - iw / 2
+    for t in items:
+        cy = y + 22
+        d.ellipse((x0, cy - 16, x0 + 32, cy + 16), fill=(*T["tag"], 255))
+        d.line([(x0 + 9, cy), (x0 + 14, cy + 6), (x0 + 24, cy - 6)], fill=(255, 255, 255, 255), width=4)
+        d.text((x0 + 60, cy), t, font=f_item, fill=(*T["sub"], 255), anchor="lm")
+        y += 66
+    return np.asarray(Image.alpha_composite(base, layer).convert("RGB"), np.float32)
+
+
 def main():
     bg = np.asarray(brand(background()), np.float32)
     mask = rounded_mask(SCR_W, SCR_H, SCR_R)[..., None]
     caps = {k: caption_layer(k) for k in CAPTIONS}
-    badge = badge_layer()
     title = card([
-        ("Resolution Companion", 76, "Bold", 26, (245, 248, 250)),
-        ("Who you're becoming. One day at a time.", 38, "Regular", 0, (160, 170, 178)),
+        ("Resolution Companion", 76, "Bold", 26, T["head"]),
+        ("A habit app with an AI coach", 38, "Regular", 0, T["sub"]),
     ], icon_size=180)
-    later = card([("Five weeks later", 64, "Bold", 0, (245, 248, 250))])
+    later = card([("Five weeks later", 64, "Bold", 0, T["head"])])
     end = card([
-        ("Download free on the App Store", 64, "Bold", 26, (245, 248, 250)),
-        ("resolutioncompanion.com", 40, "Semibold", 22, ACCENT),
-        ("iPhone & iPad · No account required", 30, "Regular", 0, (160, 170, 178)),
-    ], icon_size=150)
-    cards = {"title": title, "later": later, "end": end}
+        ("Resolution Companion", 40, "Semibold", 20, T["sub"]),
+        ("Download it free on the App Store", 72, "Bold", 34, T["head"]),
+        ("resolutioncompanion.com", 44, "Semibold", 30, T["link"]),
+        ("iPhone & iPad · No account needed", 30, "Regular", 0, T["sub"]),
+    ], icon_size=160)
+    bridge = card([("Here’s what that looks like in the app", 56, "Bold", 0, T["head"])])
+    fade_to = np.array(T["bottom"], np.float32)
+    cards = {"title": title, "later": later, "end": end, "bridge": bridge, "recap": recap_card(*RECAP)}
+    cards.update({k: intro_card(*v) for k, v in INTRO.items()})
     tap_log = {t: taps(t) for t in ("take01", "take02")}
     caps_used = [s[4] for s in SEGMENTS if len(s) == 5]
 
@@ -275,10 +357,13 @@ def main():
                 a = min(1, i / (0.4 * FPS))
                 if prev_frame is not None and a < 1:
                     frame = prev_frame * (1 - a) + frame * a
+                # Fade from and to the theme's backdrop rather than black
                 if name == "end":
-                    frame = frame * min(1, (n - i) / (0.8 * FPS))
+                    k = min(1, (n - i) / (0.8 * FPS))
+                    frame = frame * k + fade_to * (1 - k)
                 elif name == "title":
-                    frame = frame * min(1, i / (0.6 * FPS))
+                    k = min(1, i / (0.6 * FPS))
+                    frame = frame * k + fade_to * (1 - k)
                 enc.stdin.write(np.clip(frame, 0, 255).astype(np.uint8).tobytes())
                 last = frame
             prev_frame = last
@@ -331,9 +416,6 @@ def main():
             ca = max(0.0, min(1.0, ca))
             a = c[..., 3:4] / 255 * ca
             frame = frame * (1 - a) + c[..., :3] * a
-            if speed >= SPED_UP:
-                ba = badge[..., 3:4] / 255 * min(1, i / 8, (n - 1 - i) / 8)
-                frame = frame * (1 - ba) + badge[..., :3] * ba
             # Cross-fade in from a card
             if i < 0.4 * FPS and prev_frame is not None and len(SEGMENTS[seg_index - 1]) == 2:
                 k = i / (0.4 * FPS)
