@@ -118,7 +118,14 @@ domain `resolutioncompanion.com`.
     archive works with `GYM_CODE_SIGNING_IDENTITY=B7361570C46DD775268CEEF81EAC8244F90F48E3`,
     but EAS's export still fails. Upload the saved archive from Xcode
     Organizer instead (Distribute App > App Store Connect, automatic
-    signing); build 103 shipped this way 2026-10-13. Keep
+    signing); build 103 shipped this way 2026-10-13. **Headless path
+    (build 107, 2026-10-24):** the archive gym leaves in
+    `~/Library/Developer/Xcode/Archives/<date>/` is already final-signed
+    (iPhone Distribution + the [expo] App Store profiles), so zip
+    `Payload/<App>.app` from it into an IPA (no re-sign), then
+    `xcrun altool --validate-app` / `--upload-app` with the team API key
+    (`~/.appstoreconnect/private_keys/AuthKey_4KH79536L9.p8`). That key
+    uploads and reads but 403s on creating versions and profiles. Keep
     `plugins/with-healthkit-access-cleanup` before `react-native-health`, or
     automatic signing demands Verifiable Health Records on the App ID.
   - **Simulator (visual verification):** `npm run build:local:sim` →
