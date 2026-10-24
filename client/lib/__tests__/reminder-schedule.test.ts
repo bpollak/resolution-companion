@@ -290,3 +290,121 @@ describe("selectMarkAllDoneActions", () => {
     ).toEqual(["walk", "read"]);
   });
 });
+
+describe("per-habit reminder times", () => {
+  const meditate: ElementalAction = {
+    ...walk,
+    id: "meditate",
+    title: "Meditate",
+    kickstartVersion: "Sit for two minutes",
+    reminderTime: "07:30",
+  };
+  const read: ElementalAction = {
+    ...walk,
+    id: "read",
+    title: "Read",
+    kickstartVersion: "Read one page",
+    reminderTime: "21:00",
+  };
+  const timedOptions = (
+    actions: ElementalAction[],
+    dailyLogs: DailyLog[] = [],
+  ): ReminderOptions => ({ personaName: "Walker", actions, dailyLogs });
+  const habitRequests = () =>
+    [...mockScheduled.values()].filter(
+      (request) => request.content.data?.type === "habit-reminder",
+    );
+  const digestActionIds = () =>
+    [...mockScheduled.values()]
+      .filter((request) => request.content.data?.type === "daily-reminder")
+      .map((request) => request.content.data?.actionIds);
+
+  it("gives timed habits their own reminders and keeps them out of the digest", async () => {
+    await scheduleDailyReminder(timedOptions([walk, meditate, read]));
+    // Tuesday 9 AM: today's 7:30 has passed, so 13 meditate + 14 read.
+    expect(habitRequests()).toHaveLength(27);
+    expect(digestActionIds()).toHaveLength(14);
+    for (const ids of digestActionIds()) expect(ids).toEqual(["walk"]);
+    const first = habitRequests()[0].content as {
+      data: Record<string, unknown>;
+      categoryIdentifier: string;
+      title: string;
+      body: string;
+    };
+    expect(first.categoryIdentifier).toBe("habit-reminder");
+    expect(first.data.dateKey).toBe("2026-10-13");
+    expect(first.data.actionIds).toEqual(["read"]);
+    expect(first.title).toBe("Read");
+    expect(first.body).toBe("The 2-minute version counts: Read one page");
+  });
+
+  it("sends no digest when every habit has a time", async () => {
+    await scheduleDailyReminder(timedOptions([meditate, read]));
+    expect(digestActionIds()).toEqual([]);
+    expect(habitRequests()).toHaveLength(27);
+  });
+
+  it("combines habits within 15 minutes into one notification", async () => {
+    const journal = {
+      ...read,
+      id: "journal",
+      title: "Journal",
+      reminderTime: "21:10",
+    };
+    const stretch = {
+      ...read,
+      id: "stretch",
+      title: "Stretch",
+      reminderTime: "21:15",
+    };
+    await scheduleDailyReminder(timedOptions([read, journal, stretch]));
+    expect(habitRequests()).toHaveLength(14);
+    const content = habitRequests()[0].content as {
+      title: string;
+      data: Record<string, unknown>;
+    };
+    expect(content.title).toBe("Read + 2 more");
+    expect(content.data.actionIds).toEqual(["read", "journal", "stretch"]);
+  });
+
+  it("stays within the pending-notification budget", async () => {
+    const many = ["10:00", "12:00", "14:00", "16:00", "18:00"].map(
+      (time, index) => ({ ...read, id: `h${index}`, reminderTime: time }),
+    );
+    await scheduleDailyReminder(timedOptions(many));
+    expect(habitRequests()).toHaveLength(60);
+  });
+
+  it("drops today's reminder once that habit is logged", async () => {
+    await scheduleDailyReminder(timedOptions([walk, read]));
+    const done: DailyLog = {
+      id: "l1",
+      actionId: "read",
+      logDate: "2026-10-13",
+      status: true,
+      createdAt: "2026-10-13T16:00:00.000Z",
+    };
+    await ensureReminderScheduled(timedOptions([walk, read], [done]));
+    const dates = habitRequests().map(
+      (request) => request.content.data?.dateKey,
+    );
+    expect(dates).not.toContain("2026-10-13");
+    expect(dates).toHaveLength(13);
+  });
+
+  it("only reminds on the habit's scheduled weekdays", async () => {
+    await scheduleDailyReminder(
+      timedOptions([{ ...read, frequency: ["Monday"] }]),
+    );
+    expect(habitRequests().map((r) => r.content.data?.dateKey)).toEqual([
+      "2026-10-19",
+      "2026-10-26",
+    ]);
+  });
+
+  it("cancels timed reminders when reminders are turned off", async () => {
+    await scheduleDailyReminder(timedOptions([walk, read]));
+    await cancelDailyReminder();
+    expect(mockScheduled.size).toBe(0);
+  });
+});
