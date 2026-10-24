@@ -414,6 +414,10 @@ function configureExpoAndLanding(app: express.Application) {
     path.resolve(process.cwd(), "server", "templates", "release-notes.html"),
     "utf-8",
   );
+  const newYearTemplate = fs.readFileSync(
+    path.resolve(process.cwd(), "server", "templates", "new-year.html"),
+    "utf-8",
+  );
   const releases = JSON.parse(
     fs.readFileSync(
       path.resolve(process.cwd(), "public", "releases.json"),
@@ -535,6 +539,11 @@ function configureExpoAndLanding(app: express.Application) {
 
   app.get("/privacy", (_req: Request, res: Response) => {
     sendHtml(res, privacyTemplate);
+  });
+
+  app.get("/new-year", (_req: Request, res: Response) => {
+    const html = newYearTemplate.replace(/BASE_URL_PLACEHOLDER/g, SITE_URL);
+    sendHtml(res, html);
   });
 
   app.get("/terms", (_req: Request, res: Response) => {

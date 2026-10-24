@@ -16,6 +16,7 @@ App Store: https://apps.apple.com/us/app/resolution-habit-tracker/id6757996708
 - The main app areas are Today for one focused daily loop, Journey for Your Story, calendar, and milestones, and Coach for an open conversation, weekly review, or confirmation-first plan adjustment.
 - Current version: 1.5.0 (released October 18, 2026), which added saying your resolution to Coach in your own words, planning a January 1 start, and a shareable year card.
 - Current and historical release notes are maintained at https://resolutioncompanion.com/release-notes, with structured data at https://resolutioncompanion.com/releases.json.
+- For New Year's resolutions, a seasonal guide lives at https://resolutioncompanion.com/new-year: set up a resolution in advance and start it on January 1, with a countdown. Available from mid-November.
 - Personal plans, actions, and progress are stored locally on the user's device.
 - Resolution Companion does not sell user data, use cross-app tracking, or store AI conversation content on its servers.
 - The server stores an anonymous device identifier and subscription status so purchases can be validated and restored.
@@ -23,6 +24,7 @@ App Store: https://apps.apple.com/us/app/resolution-habit-tracker/id6757996708
 ## Primary sources
 
 - [Product overview, features, pricing, and download](https://resolutioncompanion.com/)
+- [New Year resolutions seasonal guide](https://resolutioncompanion.com/new-year)
 - [Current and historical release notes](https://resolutioncompanion.com/release-notes)
 - [Machine-readable release data](https://resolutioncompanion.com/releases.json)
 - [Support and frequently asked questions](https://resolutioncompanion.com/feedback)
