@@ -12,6 +12,7 @@ import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import {
   suggestReminderBucket,
+  routineForBucket,
   getResolvedReminderTime,
   getUserReminderBucket,
   selectReminderHook,
@@ -85,6 +86,39 @@ describe("suggestReminderBucket", () => {
 
   it("is case-insensitive", () => {
     expect(suggestReminderBucket(["After My MORNING Coffee"])).toBe("morning");
+  });
+});
+
+describe("routineForBucket", () => {
+  // The seeded multi-habit plan whose primer read "8:00 PM, around 'after
+  // morning coffee'": the time came from the vote, the routine from anchors[0].
+  const mixed = [
+    "after morning coffee",
+    "on the evening commute",
+    "before bed",
+  ];
+
+  it("names an anchor from the winning bucket, not the first anchor", () => {
+    const bucket = suggestReminderBucket(mixed);
+    expect(bucket).toBe("evening");
+    expect(routineForBucket(mixed, bucket)).toBe("on the evening commute");
+  });
+
+  it("returns undefined when no anchor matches the bucket", () => {
+    expect(routineForBucket(["at my desk", "in the car"], "evening")).toBe(
+      undefined,
+    );
+    expect(routineForBucket(["after morning coffee"], "evening")).toBe(
+      undefined,
+    );
+  });
+
+  it("uses each anchor's first matching bucket, like the vote", () => {
+    // "morning" outranks "night", so this anchor votes morning only.
+    expect(routineForBucket(["morning or night"], "evening")).toBe(undefined);
+    expect(routineForBucket(["morning or night"], "morning")).toBe(
+      "morning or night",
+    );
   });
 });
 

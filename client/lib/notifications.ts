@@ -259,6 +259,13 @@ function isReminderBucket(value: string | null): value is ReminderBucket {
   return value === "morning" || value === "midday" || value === "evening";
 }
 
+function anchorBucket(anchor: string): ReminderBucket | undefined {
+  const text = anchor.toLowerCase();
+  return (Object.keys(BUCKET_KEYWORDS) as ReminderBucket[]).find((bucket) =>
+    BUCKET_KEYWORDS[bucket].some((kw) => text.includes(kw)),
+  );
+}
+
 /**
  * Derive a suggested reminder time bucket from the persona's action anchor
  * habits. Each anchor casts one vote for the first bucket it matches;
@@ -271,10 +278,7 @@ export function suggestReminderBucket(anchorLinks: string[]): ReminderBucket {
     evening: 0,
   };
   for (const anchor of anchorLinks) {
-    const text = anchor.toLowerCase();
-    const match = (Object.keys(BUCKET_KEYWORDS) as ReminderBucket[]).find(
-      (bucket) => BUCKET_KEYWORDS[bucket].some((kw) => text.includes(kw)),
-    );
+    const match = anchorBucket(anchor);
     if (match) votes[match]++;
   }
 
@@ -287,6 +291,18 @@ export function suggestReminderBucket(anchorLinks: string[]): ReminderBucket {
     }
   }
   return bestBucket;
+}
+
+/**
+ * The first anchor that voted for `bucket`, so copy pairing a time with a
+ * routine never names a morning anchor beside an evening time. Undefined when
+ * the bucket won by default (tie or no match) with no anchor of its own.
+ */
+export function routineForBucket(
+  anchorLinks: string[],
+  bucket: ReminderBucket,
+): string | undefined {
+  return anchorLinks.find((anchor) => anchorBucket(anchor) === bucket);
 }
 
 export async function getUserReminderBucket(): Promise<ReminderBucket | null> {
