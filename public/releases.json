@@ -1,7 +1,7 @@
 [
   {
     "version": "1.6.0",
-    "status": "draft",
+    "status": "submitted",
     "title": "Reminders at the right time",
     "summary": "Give any habit its own reminder time, so the nudge arrives when the habit actually happens.",
     "appStoreNotes": [
@@ -21,7 +21,8 @@
         "description": "Tap Done on the reminder to log the habit without opening the app.",
         "availability": "Available to everyone."
       }
-    ]
+    ],
+    "submittedAt": "2026-10-24"
   },
   {
     "version": "1.5.0",
