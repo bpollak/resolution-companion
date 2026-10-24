@@ -6,7 +6,12 @@ import {
   Pressable,
   Alert,
   Platform,
+  Switch,
 } from "react-native";
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  type DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
@@ -19,6 +24,15 @@ import { ThemedText } from "@/components/ThemedText";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { logger } from "@/lib/logger";
 import { initHealth, HEALTH_KIND_LABELS } from "@/lib/health";
+import {
+  formatReminderTime,
+  parseReminderTime,
+  reminderTimeLabel,
+  suggestReminderTime,
+} from "@/lib/habit-reminders";
+import { areNotificationsEnabled } from "@/lib/notifications";
+
+const FALLBACK_REMINDER_TIME = "08:00";
 
 const DAYS = [
   "Monday",
@@ -121,6 +135,43 @@ export default function ActionEditorScreen() {
   const [healthAutoComplete, setHealthAutoComplete] = useState<
     "workout" | "steps" | "mindful" | null
   >(existingAction?.healthAutoComplete ?? null);
+  const [reminderTime, setReminderTime] = useState<string | null>(
+    existingAction?.reminderTime ?? null,
+  );
+  // A new habit's time follows its anchor until the person picks one.
+  const [reminderTouched, setReminderTouched] = useState(isEditing);
+  const [remindersOn, setRemindersOn] = useState(true);
+  React.useEffect(() => {
+    areNotificationsEnabled()
+      .then(setRemindersOn)
+      .catch(() => {});
+  }, []);
+
+  const handleAnchorChange = (text: string) => {
+    setAnchorLink(text);
+    if (!reminderTouched) setReminderTime(suggestReminderTime(text));
+  };
+
+  const handleReminderToggle = (on: boolean) => {
+    setReminderTouched(true);
+    setReminderTime(
+      on ? (suggestReminderTime(anchorLink) ?? FALLBACK_REMINDER_TIME) : null,
+    );
+    if (Platform.OS !== "web") Haptics.selectionAsync();
+  };
+
+  const reminderDate = (() => {
+    const parsed = parseReminderTime(reminderTime ?? FALLBACK_REMINDER_TIME);
+    const date = new Date();
+    date.setHours(parsed?.hour ?? 8, parsed?.minute ?? 0, 0, 0);
+    return date;
+  })();
+
+  const handleReminderPicked = (event: DateTimePickerEvent, date?: Date) => {
+    if (event.type !== "set" || !date) return;
+    setReminderTouched(true);
+    setReminderTime(formatReminderTime(date.getHours(), date.getMinutes()));
+  };
 
   const toggleDay = (day: string) => {
     if (frequency.includes(day)) {
@@ -162,6 +213,7 @@ export default function ActionEditorScreen() {
             kickstartVersion || `Do ${actionTitle.toLowerCase()} for 2 minutes`,
           anchorLink: anchorLink || "After I wake up",
           healthAutoComplete: healthAutoComplete ?? undefined,
+          reminderTime: reminderTime ?? undefined,
         });
       } else {
         await addAction({
@@ -172,6 +224,7 @@ export default function ActionEditorScreen() {
             kickstartVersion || `Do ${actionTitle.toLowerCase()} for 2 minutes`,
           anchorLink: anchorLink || "After I wake up",
           healthAutoComplete: healthAutoComplete ?? undefined,
+          reminderTime: reminderTime ?? undefined,
         });
       }
 
@@ -405,7 +458,7 @@ export default function ActionEditorScreen() {
               },
             ]}
             value={anchorLink}
-            onChangeText={setAnchorLink}
+            onChangeText={handleAnchorChange}
             placeholder="e.g., After I pour my morning coffee"
             placeholderTextColor={theme.textSecondary}
             maxLength={100}
@@ -415,6 +468,89 @@ export default function ActionEditorScreen() {
             something automatic makes it far easier to remember
           </ThemedText>
         </View>
+
+        {Platform.OS !== "web" ? (
+          <View style={styles.section}>
+            <ThemedText
+              style={[styles.sectionLabel, { color: theme.textSecondary }]}
+            >
+              Reminder
+            </ThemedText>
+            <View style={styles.reminderRow}>
+              <ThemedText style={styles.reminderText}>
+                Remind me at a set time
+              </ThemedText>
+              <Switch
+                value={reminderTime !== null}
+                onValueChange={handleReminderToggle}
+                accessibilityRole="switch"
+                accessibilityLabel="Remind me about this habit at a set time"
+                accessibilityState={{ checked: reminderTime !== null }}
+                trackColor={{
+                  false: theme.backgroundSecondary,
+                  true: theme.accent,
+                }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+            {reminderTime !== null && Platform.OS === "ios" ? (
+              <View style={styles.reminderRow}>
+                <ThemedText
+                  style={[styles.reminderText, { color: theme.textSecondary }]}
+                >
+                  Time
+                </ThemedText>
+                <DateTimePicker
+                  value={reminderDate}
+                  mode="time"
+                  display="compact"
+                  minuteInterval={5}
+                  onChange={handleReminderPicked}
+                  accentColor={theme.accent}
+                  themeVariant={isDark ? "dark" : "light"}
+                  accessibilityLabel="Reminder time"
+                />
+              </View>
+            ) : null}
+            {reminderTime !== null && Platform.OS === "android" ? (
+              <Pressable
+                onPress={() =>
+                  DateTimePickerAndroid.open({
+                    value: reminderDate,
+                    mode: "time",
+                    onChange: handleReminderPicked,
+                  })
+                }
+                hitSlop={8}
+                pressRetentionOffset={12}
+                accessibilityRole="button"
+                accessibilityLabel={`Reminder time ${reminderTimeLabel(reminderTime)}. Change`}
+                style={({ pressed }) => [
+                  styles.dayButton,
+                  styles.reminderTimeButton,
+                  {
+                    backgroundColor: isDark
+                      ? Colors.dark.backgroundDefault
+                      : Colors.light.backgroundDefault,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <ThemedText style={styles.dayText}>
+                  {reminderTimeLabel(reminderTime)}
+                </ThemedText>
+              </Pressable>
+            ) : null}
+            <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
+              {reminderTime !== null
+                ? `A nudge at ${reminderTimeLabel(reminderTime)} on scheduled days, only if it's still open.`
+                : "Off. This habit is included in your daily reminder."}
+              {remindersOn
+                ? ""
+                : " Turn on reminders in Settings to get notifications."}
+            </ThemedText>
+          </View>
+        ) : null}
 
         {Platform.OS === "ios" ? (
           <View style={styles.section}>
@@ -635,6 +771,19 @@ const styles = StyleSheet.create({
   dayText: {
     ...Typography.small,
     fontWeight: "600",
+  },
+  reminderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 44,
+  },
+  reminderText: {
+    ...Typography.body,
+  },
+  reminderTimeButton: {
+    alignSelf: "flex-start",
+    marginTop: Spacing.xs,
   },
   deleteButton: {
     flexDirection: "row",
