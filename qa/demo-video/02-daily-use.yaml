@@ -1,0 +1,81 @@
+appId: com.resolutioncompanion.app
+---
+# Demo video take 2: seed_demo.py history applied, app stopped. Daily loop,
+# Journey, per-habit reminder, Coach weekly review.
+- launchApp:
+    permissions:
+      notifications: allow
+- extendedWaitUntil:
+    visible: "Dismiss milestone celebration"
+    timeout: 20000
+- runFlow: {file: _pause.yaml, env: {MS: 3500}}
+- tapOn: "Dismiss milestone celebration"
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          text: "Dismiss milestone celebration"
+          optional: true
+- extendedWaitUntil:
+    visible: "Mark Review 20 flashcards complete"
+    timeout: 15000
+- runFlow: {file: _pause.yaml, env: {MS: 3000}}
+- tapOn: "Mark Review 20 flashcards complete"
+- runFlow: {file: _pause.yaml, env: {MS: 2500}}
+- tapOn: "I did the 2-minute version of One lesson.*"
+- runFlow: {file: _pause.yaml, env: {MS: 3500}}
+- tapOn: "Add a note about how Review 20 flashcards went"
+- runFlow: {file: _pause.yaml, env: {MS: 1200}}
+- inputText: "Read a menu in Spanish without my phone!"
+- runFlow: {file: _pause.yaml, env: {MS: 1000}}
+- tapOn: "Save"
+- runFlow: {file: _pause.yaml, env: {MS: 1500}}
+
+# Journey: calendar, milestones, then the per-habit reminder
+- tapOn: {id: "tab-journey"}
+- runFlow: {file: _pause.yaml, env: {MS: 3500}}
+- scrollUntilVisible:
+    element: {text: "Master 1,000 Core Words milestone.*"}
+    direction: DOWN
+    centerElement: true
+    speed: 30
+- runFlow:
+    when:
+      notVisible: "Edit Master 1,000 Core Words milestone"
+    commands:
+      - tapOn: "Master 1,000 Core Words milestone.*"
+- runFlow: {file: _pause.yaml, env: {MS: 2500}}
+- tapOn: "Edit Master 1,000 Core Words milestone"
+- runFlow: {file: _pause.yaml, env: {MS: 1500}}
+- tapOn: "Edit action Review 20 flashcards"
+- runFlow: {file: _pause.yaml, env: {MS: 1500}}
+- scrollUntilVisible:
+    element: {text: "Remind me about this habit at a set time"}
+    direction: DOWN
+    centerElement: true
+    speed: 30
+- runFlow: {file: _pause.yaml, env: {MS: 1000}}
+- tapOn: "Remind me about this habit at a set time"
+- runFlow: {file: _pause.yaml, env: {MS: 3000}}
+- tapOn: "Save action"
+- runFlow: {file: _pause.yaml, env: {MS: 1000}}
+- tapOn: "Save milestone"
+- runFlow: {file: _pause.yaml, env: {MS: 1500}}
+
+# Coach: weekly review, streamed live from the production model
+- tapOn: {id: "tab-coach"}
+- runFlow: {file: _pause.yaml, env: {MS: 2000}}
+- tapOn: "Start a conversation with Coach"
+- runFlow: {file: _pause.yaml, env: {MS: 2000}}
+- tapOn: "Help me review one win and one point of friction from last week.*"
+- tapOn:
+    text: "Agree and continue.*"
+    optional: true
+- extendedWaitUntil:
+    visible: "AI coach: .+"
+    timeout: 90000
+# Response controls render only once the stream ends
+- extendedWaitUntil:
+    visible: "Copy coach response"
+    timeout: 90000
+- runFlow: {file: _pause.yaml, env: {MS: 5000}}

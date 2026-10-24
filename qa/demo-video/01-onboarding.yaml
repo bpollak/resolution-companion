@@ -1,0 +1,54 @@
+appId: com.resolutioncompanion.app
+---
+# Demo video take 1: fresh install, AI onboarding to a started plan.
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Make my plan"
+    timeout: 20000
+- runFlow: {file: _pause.yaml, env: {MS: 2500}}
+- tapOn: "Make my plan"
+- runFlow: {file: _pause.yaml, env: {MS: 2000}}
+- tapOn: "Build a plan with Coach"
+- extendedWaitUntil:
+    visible: "Agree and continue.*"
+    timeout: 10000
+- runFlow: {file: _pause.yaml, env: {MS: 1500}}
+- tapOn: "Agree and continue.*"
+- extendedWaitUntil:
+    notVisible: "Stop Coach response"
+    timeout: 60000
+- runFlow: {file: _pause.yaml, env: {MS: 2500}}
+- tapOn: "Message your onboarding coach.*"
+- inputText: "Learn Spanish so I can talk with my in-laws by summer. I'm busy, so keep it small: 10 minutes of speaking out loud on weekday mornings."
+- runFlow: {file: _pause.yaml, env: {MS: 1000}}
+- tapOn: "Send message"
+- tapOn: "Hide keyboard"
+- extendedWaitUntil:
+    notVisible: "Stop Coach response"
+    timeout: 60000
+- runFlow: {file: _pause.yaml, env: {MS: 3500}}
+- tapOn: "Review my plan"
+- extendedWaitUntil:
+    visible: "Step 2 of 2. Review your plan"
+    timeout: 60000
+- runFlow: {file: _pause.yaml, env: {MS: 3000}}
+- scrollUntilVisible:
+    element:
+      text: "Start with .*"
+    direction: DOWN
+    timeout: 15000
+    speed: 25
+- runFlow: {file: _pause.yaml, env: {MS: 2000}}
+- tapOn: "Start with .*"
+- extendedWaitUntil:
+    visible:
+      id: "tab-today"
+    timeout: 20000
+- runFlow: {file: _pause.yaml, env: {MS: 3000}}
+# Opt in to the reminder nudge so the later take shows reminders as on
+- tapOn: "Turn on a reminder.*"
+- tapOn:
+    text: "Allow"
+    optional: true
+- runFlow: {file: _pause.yaml, env: {MS: 3000}}

@@ -1,0 +1,7 @@
+appId: com.resolutioncompanion.app
+---
+# Hold the frame so viewers can read it (Maestro has no sleep command).
+- extendedWaitUntil:
+    visible: "__demo_pause_never_visible__"
+    timeout: ${MS}
+    optional: true
