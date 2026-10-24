@@ -1,6 +1,7 @@
 import type { PersonaData } from "@/lib/ai";
 import type { Persona, Benchmark, ElementalAction } from "@/lib/storage";
 import { WEEKDAY_ORDER, sortWeekdays } from "@/lib/progress";
+import { withSuggestedReminderTime } from "@/lib/habit-reminders";
 
 export interface OnboardingPlanDraft {
   id: string;
@@ -200,16 +201,18 @@ export function approvePlan(
       status: "active",
       createdAt: acceptedAt,
     });
-    actions.push({
-      ...item.elementalAction,
-      title: item.elementalAction.title.trim(),
-      kickstartVersion: item.elementalAction.kickstartVersion.trim(),
-      anchorLink: item.elementalAction.anchorLink.trim(),
-      frequency: sortWeekdays([...item.elementalAction.frequency]),
-      id: `${draft.id}-action-${index}`,
-      benchmarkId,
-      createdAt: acceptedAt,
-    });
+    actions.push(
+      withSuggestedReminderTime({
+        ...item.elementalAction,
+        title: item.elementalAction.title.trim(),
+        kickstartVersion: item.elementalAction.kickstartVersion.trim(),
+        anchorLink: item.elementalAction.anchorLink.trim(),
+        frequency: sortWeekdays([...item.elementalAction.frequency]),
+        id: `${draft.id}-action-${index}`,
+        benchmarkId,
+        createdAt: acceptedAt,
+      }),
+    );
   });
   return { persona, benchmarks, actions };
 }

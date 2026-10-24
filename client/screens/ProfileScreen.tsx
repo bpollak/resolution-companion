@@ -282,6 +282,7 @@ export default function ProfileScreen() {
     monthlyReflectionCount,
     aiConsent,
     setAiConsent,
+    applySuggestedReminderTimes,
   } = useApp();
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -502,7 +503,7 @@ export default function ProfileScreen() {
         const proceed = await new Promise<boolean>((resolve) => {
           Alert.alert(
             "Daily Reminders",
-            `Resolution Companion will send one reminder at ${resolved.label} on days you haven't finished your habits. It stays quiet once your day is complete. You can turn this off anytime.`,
+            `Resolution Companion will remind you at ${resolved.label} on days you haven't finished your habits, and at any habit's own reminder time. It stays quiet once a habit is done. You can turn this off anytime.`,
             [
               {
                 text: "Not Now",
@@ -521,7 +522,11 @@ export default function ProfileScreen() {
 
       const granted = await requestNotificationPermissions();
       if (granted) {
-        await scheduleDailyReminder(reminderOptions);
+        const planActions = await applySuggestedReminderTimes();
+        await scheduleDailyReminder({
+          ...reminderOptions,
+          actions: planActions,
+        });
         setNotificationsEnabled(true);
         setHasPermission(true);
         setReminderTime(await getResolvedReminderTime());

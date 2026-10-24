@@ -32,6 +32,8 @@ export type TelemetryEvent =
   | "paywall_restore_success"
   | "notification_tap"
   | "notification_mark_all_done"
+  | "habit_reminder_tap"
+  | "habit_reminder_done"
   | "widget_action_logged"
   | "health_auto_vote"
   | "recap_viewed"

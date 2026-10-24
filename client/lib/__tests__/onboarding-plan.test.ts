@@ -198,3 +198,14 @@ test("hidden incomplete optional ideas do not prevent starting a valid plan", ()
     suggestionIndex: 1,
   });
 });
+
+test("approved habits get a reminder time only when the anchor says when", () => {
+  const proposal = draft();
+  for (const item of proposal.suggestions) item.selected = true;
+  const times = approvePlan(proposal).actions.map(
+    (action) => action.reminderTime,
+  );
+  // "...my phone in the morning" → 07:30; "at my desk" and the blank-anchor
+  // fallback "After I wake up" say nothing about the time of day.
+  expect(times).toEqual(["07:30", undefined, undefined]);
+});
