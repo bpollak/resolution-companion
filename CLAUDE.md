@@ -1,9 +1,10 @@
 # Resolution Companion AI — Codebase Guide
 
-Current status (2026-10-24): 1.5.0 (106) is live. 1.6.0 (108), per-habit
-reminder times, was submitted to App Review on 2026-10-24 (auto-release
-after approval) from branch `claude/per-habit-reminders` (PR #30, not yet
-merged; main and the production server do not have it). Spec and plan:
+Current status (2026-10-25): 1.6.0 (108), per-habit reminder times, is
+live on the App Store (approved and auto-released 2026-10-24, the same
+day it was submitted). PR #30 (feature) and PR #31 (landing-page demo
+video) are merged to main, and production deployed from post-merge main,
+so the server side is live too. Spec and plan:
 `docs/superpowers/specs/2026-10-24-per-habit-reminders-design.md`,
 `docs/superpowers/plans/2026-10-24-per-habit-reminders.md`. This supersedes
 the historical status below.
