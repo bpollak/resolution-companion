@@ -187,8 +187,8 @@ async function readShieldState(): Promise<ShieldState | null> {
 async function requestStoreReviewOnce(): Promise<void> {
   try {
     if (await StoreReview.hasAction()) {
-      track("review_prompt_requested");
       await StoreReview.requestReview();
+      track("review_prompt_requested");
       await AsyncStorage.setItem(REVIEW_REQUESTED_KEY, "true");
     }
   } catch (error) {
@@ -202,6 +202,115 @@ function FocusedToast(props: React.ComponentProps<typeof Toast>) {
   const isFocused = useIsFocused();
   return <Toast {...props} visible={props.visible && isFocused} />;
 }
+
+// One-time App Store review ask, decided from stored logs (not from the
+// celebration flag) so widget, notification and Health completions count.
+// Focus and AppState are read here, not in TodayScreen, so a tab switch or a
+// foreground return re-renders only this null component. It never fires in
+// the background: the effect needs Today focused and the app active, and
+// re-runs on either change, so a background completion asks the next time the
+// user is actually looking at Today. The 4s timer is cancelled by any
+// dependency change (blur, background, midnight rollover, a toast or
+// milestone appearing) and re-checks live state when it fires. The key is
+// written only once the ask runs, so a skipped ask retries.
+const ReviewAskGate = React.memo(function ReviewAskGate({
+  actions,
+  personaBenchmarkIds,
+  dailyLogs,
+  todayDateStr,
+  blocked,
+  isLoading,
+}: {
+  actions: ElementalAction[];
+  personaBenchmarkIds: string[];
+  dailyLogs: DailyLog[];
+  todayDateStr: string;
+  blocked: boolean;
+  isLoading: boolean;
+}) {
+  const isFocused = useIsFocused();
+  const [appIsActive, setAppIsActive] = useState(
+    AppState.currentState === "active",
+  );
+  const blockedRef = useRef(blocked);
+  // Once the key is known to be set, skip the storage read and history scan.
+  const alreadyRequestedRef = useRef(false);
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) =>
+      setAppIsActive(state === "active"),
+    );
+    return () => subscription.remove();
+  }, []);
+  useLayoutEffect(() => {
+    blockedRef.current = blocked;
+  }, [blocked]);
+  useEffect(() => {
+    if (
+      Platform.OS === "web" ||
+      isLoading ||
+      !isFocused ||
+      !appIsActive ||
+      alreadyRequestedRef.current
+    ) {
+      return;
+    }
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    (async () => {
+      const scoped = actions.filter((action) =>
+        personaBenchmarkIds.includes(action.benchmarkId),
+      );
+      const todayComplete = isDayFullyComplete({
+        actions: scoped,
+        logs: dailyLogs,
+        day: todayDateStr,
+      });
+      // Skip the history scan and the storage read until today is finished.
+      if (!todayComplete) return;
+      const requested = await AsyncStorage.getItem(REVIEW_REQUESTED_KEY);
+      if (requested !== null) alreadyRequestedRef.current = true;
+      if (cancelled) return;
+      const ask = shouldAskForReview({
+        completedDays: countFullyCompletedDays({
+          actions: scoped,
+          logs: dailyLogs,
+          today: todayDateStr,
+        }),
+        todayComplete,
+        alreadyRequested: requested !== null,
+        blocked,
+      });
+      if (!ask) return;
+      timer = setTimeout(async () => {
+        if (
+          cancelled ||
+          blockedRef.current ||
+          AppState.currentState !== "active"
+        ) {
+          return;
+        }
+        alreadyRequestedRef.current = true;
+        await requestStoreReviewOnce();
+      }, 4000);
+    })().catch((error) => {
+      logger.error("Failed to time review ask:", error);
+    });
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [
+    isLoading,
+    isFocused,
+    appIsActive,
+    actions,
+    personaBenchmarkIds,
+    dailyLogs,
+    todayDateStr,
+    blocked,
+  ]);
+  return null;
+});
 
 interface ToggleContext {
   todayActions: ElementalAction[];
@@ -530,7 +639,6 @@ export default function TodayScreen() {
   // Re-renders on a date change, so everything below that reads `today`
   // follows it (including a January 1 plan flipping on at midnight).
   const todayDateStr = useLocalDateKey();
-  const isFocused = useIsFocused();
   const today = new Date();
   // A plan set up ahead of time (for January 1) starts at its createdAt.
   const personaCreatedAt = persona?.createdAt;
@@ -1304,85 +1412,7 @@ export default function TodayScreen() {
     personaAlignment,
   ]);
 
-  // One-time App Store review ask, decided from stored logs (not from the
-  // celebration flag) so widget, notification and Health completions count.
-  // It never fires in the background: the effect needs Today focused and the
-  // app active, and re-runs on either change, so a background completion asks
-  // the next time the user is actually looking at Today. The 4s timer is
-  // cancelled by any dependency change (blur, background, midnight rollover,
-  // a toast or milestone appearing) and re-checks live state when it fires.
-  // The key is written only once the ask runs, so a skipped ask retries.
   const reviewBlocked = toastVisible || milestoneCelebration !== null;
-  const reviewBlockedRef = useRef(reviewBlocked);
-  const [appIsActive, setAppIsActive] = useState(
-    AppState.currentState === "active",
-  );
-  useEffect(() => {
-    const subscription = AppState.addEventListener("change", (state) =>
-      setAppIsActive(state === "active"),
-    );
-    return () => subscription.remove();
-  }, []);
-  useLayoutEffect(() => {
-    reviewBlockedRef.current = reviewBlocked;
-  }, [reviewBlocked]);
-  useEffect(() => {
-    if (Platform.OS === "web" || isLoading || !isFocused || !appIsActive) {
-      return;
-    }
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    (async () => {
-      const scoped = actions.filter((action) =>
-        personaBenchmarkIds.includes(action.benchmarkId),
-      );
-      const todayComplete = isDayFullyComplete({
-        actions: scoped,
-        logs: dailyLogs,
-        day: todayDateStr,
-      });
-      // Skip the history scan and the storage read until today is finished.
-      if (!todayComplete) return;
-      const requested = await AsyncStorage.getItem(REVIEW_REQUESTED_KEY);
-      if (cancelled) return;
-      const ask = shouldAskForReview({
-        completedDays: countFullyCompletedDays({
-          actions: scoped,
-          logs: dailyLogs,
-          today: todayDateStr,
-        }),
-        todayComplete,
-        alreadyRequested: requested !== null,
-        blocked: reviewBlocked,
-      });
-      if (!ask) return;
-      timer = setTimeout(async () => {
-        if (
-          cancelled ||
-          reviewBlockedRef.current ||
-          AppState.currentState !== "active"
-        ) {
-          return;
-        }
-        await requestStoreReviewOnce();
-      }, 4000);
-    })().catch((error) => {
-      logger.error("Failed to time review ask:", error);
-    });
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [
-    isLoading,
-    isFocused,
-    appIsActive,
-    actions,
-    personaBenchmarkIds,
-    dailyLogs,
-    todayDateStr,
-    reviewBlocked,
-  ]);
 
   // Recaps and the witness celebration expire within days, so they get the
   // slot ahead of the teach-once tips (see selectTodayOptionalCard).
@@ -1758,6 +1788,14 @@ export default function TodayScreen() {
             ) : null}
           </>
         }
+      />
+      <ReviewAskGate
+        actions={actions}
+        personaBenchmarkIds={personaBenchmarkIds}
+        dailyLogs={dailyLogs}
+        todayDateStr={todayDateStr}
+        blocked={reviewBlocked}
+        isLoading={isLoading}
       />
       <FocusedToast
         message={toastMessage}
