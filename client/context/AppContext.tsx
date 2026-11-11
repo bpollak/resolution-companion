@@ -410,7 +410,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const store =
         Platform.OS !== "web"
-          ? await iapService.checkCurrentEntitlements()
+          ? await iapService.checkCurrentEntitlements({
+              includePastExpiry: local.isPremium && local.plan !== "lifetime",
+            })
           : null;
       const { subscription: next, status } = resolveSubscriptionCheck({
         local,

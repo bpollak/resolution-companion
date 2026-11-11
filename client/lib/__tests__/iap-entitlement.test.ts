@@ -189,6 +189,7 @@ describe("current StoreKit entitlement verification", () => {
       purchaseToken: "signed-grace",
       transactionDate: 1_784_400_000_000,
     };
+    const PAST = { includePastExpiry: true };
     const answer = (body: unknown, ok = true, status = 200) =>
       jest.fn().mockResolvedValue({ ok, status, json: async () => body });
 
@@ -201,7 +202,7 @@ describe("current StoreKit entitlement verification", () => {
         expirationDate: "2026-12-01T00:00:00.000Z",
       }) as jest.Mock;
 
-      const result = await iapService.checkCurrentEntitlements();
+      const result = await iapService.checkCurrentEntitlements(PAST);
 
       expect(result).toEqual({
         storeAvailable: true,
@@ -226,7 +227,7 @@ describe("current StoreKit entitlement verification", () => {
       mockCurrentEntitlementIOS.mockResolvedValue(monthlyInGrace);
       global.fetch = answer({ valid: false }) as jest.Mock;
 
-      await expect(iapService.checkCurrentEntitlements()).resolves.toEqual({
+      await expect(iapService.checkCurrentEntitlements(PAST)).resolves.toEqual({
         storeAvailable: true,
         verificationCompleted: true,
         purchases: [],
@@ -240,7 +241,7 @@ describe("current StoreKit entitlement verification", () => {
         expirationDate: "2027-07-19T00:00:00.000Z",
       }) as jest.Mock;
 
-      const result = await iapService.checkCurrentEntitlements();
+      const result = await iapService.checkCurrentEntitlements(PAST);
 
       expect(result.purchases).toHaveLength(1);
       expect(mockCurrentEntitlementIOS).not.toHaveBeenCalled();
@@ -249,7 +250,7 @@ describe("current StoreKit entitlement verification", () => {
     it("cannot rule out Premium when StoreKit fails to answer", async () => {
       mockCurrentEntitlementIOS.mockRejectedValue(new Error("store busy"));
 
-      await expect(iapService.checkCurrentEntitlements()).resolves.toEqual({
+      await expect(iapService.checkCurrentEntitlements(PAST)).resolves.toEqual({
         storeAvailable: true,
         verificationCompleted: false,
         purchases: [],
@@ -264,10 +265,58 @@ describe("current StoreKit entitlement verification", () => {
       });
       global.fetch = fetchMock as jest.Mock;
 
-      const result = await iapService.checkCurrentEntitlements();
+      const result = await iapService.checkCurrentEntitlements(PAST);
 
       expect(result.purchases).toHaveLength(1);
       expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("still completes when only one product stops resolving", async () => {
+      mockCurrentEntitlementIOS.mockImplementation(async (sku: string) => {
+        if (sku === "com.resolutioncompanion.annual") throw new Error("gone");
+        return null;
+      });
+
+      await expect(iapService.checkCurrentEntitlements(PAST)).resolves.toEqual({
+        storeAvailable: true,
+        verificationCompleted: true,
+        purchases: [],
+      });
+    });
+
+    it("keeps an entitlement one lookup returns while the other fails", async () => {
+      mockCurrentEntitlementIOS.mockImplementation(async (sku: string) => {
+        if (sku === "com.resolutioncompanion.annual") throw new Error("gone");
+        return monthlyInGrace;
+      });
+      global.fetch = answer({
+        valid: true,
+        expirationDate: "2026-12-01T00:00:00.000Z",
+      }) as jest.Mock;
+
+      const result = await iapService.checkCurrentEntitlements(PAST);
+
+      expect(result.verificationCompleted).toBe(true);
+      expect(result.purchases).toHaveLength(1);
+    });
+
+    it("leaves the store alone for someone with no Premium to lose", async () => {
+      await expect(iapService.checkCurrentEntitlements()).resolves.toEqual({
+        storeAvailable: true,
+        verificationCompleted: true,
+        purchases: [],
+      });
+      expect(mockCurrentEntitlementIOS).not.toHaveBeenCalled();
+    });
+
+    it("looks past expiry on an explicit restore", async () => {
+      mockCurrentEntitlementIOS.mockResolvedValue(monthlyInGrace);
+      global.fetch = answer({
+        valid: true,
+        expirationDate: "2026-12-01T00:00:00.000Z",
+      }) as jest.Mock;
+
+      await expect(iapService.restorePurchases()).resolves.toHaveLength(1);
     });
   });
 });

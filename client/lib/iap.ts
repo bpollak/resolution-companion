@@ -495,7 +495,9 @@ class IAPService {
       return [];
     }
 
-    const result = await this.checkCurrentEntitlements();
+    const result = await this.checkCurrentEntitlements({
+      includePastExpiry: true,
+    });
     return result.purchases;
   }
 
@@ -504,7 +506,9 @@ class IAPService {
    * This is safe to run at launch or when Profile gains focus: it does not
    * display the App Store sign-in sheet or mutate local subscription state.
    */
-  async checkCurrentEntitlements(): Promise<IAPEntitlementCheck> {
+  async checkCurrentEntitlements(
+    options: { includePastExpiry?: boolean } = {},
+  ): Promise<IAPEntitlementCheck> {
     const available = await this.isAvailable();
     if (!available || !IAP) {
       return {
@@ -527,7 +531,11 @@ class IAPService {
       const active = await IAP.getAvailablePurchases({
         onlyIncludeActiveItemsIOS: true,
       });
-      const grace = await this.findEntitlementsPastExpiry(active ?? []);
+      // Only someone who holds Premium, or is restoring it, can be in a
+      // billing grace period; everyone else skips the extra store lookups.
+      const grace = options.includePastExpiry
+        ? await this.findEntitlementsPastExpiry(active ?? [])
+        : { purchases: [], completed: true };
       const results = [...(active ?? []), ...grace.purchases];
 
       if (results.length === 0) {
@@ -576,8 +584,8 @@ class IAPService {
    * passed, but in a billing grace period StoreKit still entitles the user
    * after that date. Ask StoreKit directly for each subscription the active
    * list did not return; the server then decides whether Apple really has it
-   * in grace. A lookup that fails leaves the check incomplete, because an
-   * entitlement we could not ask about has not been ruled out.
+   * in grace. If every lookup fails the check is left incomplete, because
+   * an entitlement we could not ask about has not been ruled out.
    */
   private async findEntitlementsPastExpiry(
     active: { productId: string }[],
@@ -593,27 +601,37 @@ class IAPService {
     ) {
       return { purchases: [], completed: true };
     }
+    const lookup = IAP.currentEntitlementIOS;
+    const settled = await Promise.allSettled(
+      subscriptionSkus
+        .filter((sku): sku is string => Boolean(sku))
+        .map((sku) => lookup(sku)),
+    );
     const seen = new Set<string>();
     const purchases: StorePurchase[] = [];
-    let completed = true;
-    for (const sku of subscriptionSkus) {
-      if (!sku) continue;
-      try {
-        const entitlement = await IAP.currentEntitlementIOS(sku);
-        if (!entitlement) continue;
-        // Both products share one subscription group, so each lookup can
-        // return the same current entitlement.
-        const key =
-          ("transactionId" in entitlement && entitlement.transactionId) ||
-          entitlement.id;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        purchases.push(entitlement);
-      } catch (error) {
-        logger.error("Failed to read current entitlement:", error);
-        completed = false;
+    let answered = 0;
+    for (const outcome of settled) {
+      if (outcome.status === "rejected") {
+        logger.error("Failed to read current entitlement:", outcome.reason);
+        continue;
       }
+      answered += 1;
+      const entitlement = outcome.value;
+      if (!entitlement) continue;
+      // Both products share one subscription group, so each lookup can
+      // return the same current entitlement.
+      const key =
+        ("transactionId" in entitlement && entitlement.transactionId) ||
+        entitlement.id;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      purchases.push(entitlement);
     }
+    // One product that stops resolving in the store would fail on every
+    // check; if that alone left the check incomplete, a lapsed subscriber
+    // could never be downgraded. Only a store that answered nothing at all
+    // leaves the question open.
+    const completed = answered > 0 || settled.length === 0;
     return { purchases, completed };
   }
 
