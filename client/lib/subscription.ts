@@ -206,8 +206,8 @@ export function resolveSubscriptionCheck({
     }
   }
 
-  // storeAvailable with verification incomplete means the store returned at
-  // least one active entitlement that the server could not verify.
+  // storeAvailable with verification incomplete means the store holds, or
+  // could not be asked about, an entitlement that nobody has verified.
   const unverifiedStoreEntitlement =
     store !== null && store.storeAvailable && !store.verificationCompleted;
 

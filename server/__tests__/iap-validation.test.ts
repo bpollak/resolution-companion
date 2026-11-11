@@ -2,6 +2,8 @@ import {
   LIFETIME_PRODUCT_ID,
   VerificationUnavailableError,
   appleExpiryDate,
+  appleGracePeriodEnd,
+  extendedPeriodEnd,
   evaluateAppleTransaction,
   isAppleLookupRejection,
   STOREKIT2_CREDENTIALS_MISSING,
@@ -9,6 +11,7 @@ import {
   looksLikeStoreKit2Jws,
   validateAppleReceiptLegacy,
   validateAppleTransactionV2,
+  type AppleRenewalInfo,
   type AppleTransactionInfo,
   type AppleV2Deps,
 } from "../iap-validation";
@@ -316,5 +319,207 @@ describe("legacy verifyReceipt validation", () => {
       expect(isRetryableLegacyStatus(status)).toBe(false);
     }
     expect(isRetryableLegacyStatus(21003, true)).toBe(true);
+  });
+});
+
+describe("Apple billing grace period", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const expired: AppleTransactionInfo = {
+    productId: MONTHLY,
+    expiresDate: NOW - 1000,
+    originalTransactionId: "orig-1",
+  };
+  const statusBody = (status: number) => ({
+    data: [
+      {
+        lastTransactions: [
+          {
+            originalTransactionId: "orig-1",
+            status,
+            signedRenewalInfo: "renewal-jws",
+          },
+        ],
+      },
+    ],
+  });
+  const graceDeps = (
+    responses: (Response | Error)[],
+    renewal: AppleRenewalInfo | Error,
+    txInfo: AppleTransactionInfo = expired,
+  ) => {
+    const verifyRenewalInfo = jest.fn(async () => {
+      if (renewal instanceof Error) throw renewal;
+      return renewal;
+    });
+    const built = v2Deps(responses, txInfo, { verifyRenewalInfo });
+    return { ...built, verifyRenewalInfo };
+  };
+
+  it("reads a grace period end only while it is still ahead", () => {
+    expect(
+      appleGracePeriodEnd({ gracePeriodExpiresDate: NOW + DAY }, NOW),
+    ).toEqual(new Date(NOW + DAY));
+    expect(
+      appleGracePeriodEnd({ gracePeriodExpiresDate: NOW - 1 }, NOW),
+    ).toBeNull();
+    expect(
+      appleGracePeriodEnd({ gracePeriodExpiresDate: null }, NOW),
+    ).toBeNull();
+    expect(appleGracePeriodEnd({}, NOW)).toBeNull();
+  });
+
+  it("only ever moves a stored period end later", () => {
+    const later = new Date(NOW + 16 * DAY);
+    expect(extendedPeriodEnd(new Date(NOW - DAY), later)).toEqual(later);
+    expect(extendedPeriodEnd(null, later)).toBeNull();
+    expect(extendedPeriodEnd(new Date(NOW + 30 * DAY), later)).toBeNull();
+  });
+
+  it("keeps an expired subscription valid until its grace period ends", async () => {
+    const { deps, urls, verifyRenewalInfo } = graceDeps(
+      [
+        jsonResponse(200, { signedTransactionInfo: "jws" }),
+        jsonResponse(200, statusBody(4)),
+      ],
+      { gracePeriodExpiresDate: NOW + 16 * DAY },
+    );
+    await expect(
+      validateAppleTransactionV2("tx-g1", MONTHLY, deps),
+    ).resolves.toEqual({
+      valid: true,
+      expiresDate: new Date(NOW + 16 * DAY),
+      originalTransactionId: "orig-1",
+    });
+    expect(urls[1]).toBe(
+      "https://api.storekit.itunes.apple.com/inApps/v1/subscriptions/tx-g1",
+    );
+    expect(verifyRenewalInfo).toHaveBeenCalledWith("renewal-jws", "production");
+  });
+
+  it("asks the sandbox for status when the transaction lives there", async () => {
+    const { deps, urls } = graceDeps(
+      [
+        jsonResponse(404),
+        jsonResponse(200, { signedTransactionInfo: "jws" }),
+        jsonResponse(200, statusBody(4)),
+      ],
+      { gracePeriodExpiresDate: NOW + DAY },
+    );
+    await expect(
+      validateAppleTransactionV2("tx-g2", MONTHLY, deps),
+    ).resolves.toMatchObject({ valid: true });
+    expect(urls[2]).toContain("api.storekit-sandbox.itunes.apple.com");
+  });
+
+  it.each([
+    ["expired", 2],
+    ["in billing retry without grace", 3],
+    ["revoked", 5],
+  ])(
+    "stays invalid when Apple says the subscription is %s",
+    async (_l, status) => {
+      const { deps, verifyRenewalInfo } = graceDeps(
+        [
+          jsonResponse(200, { signedTransactionInfo: "jws" }),
+          jsonResponse(200, statusBody(status)),
+        ],
+        { gracePeriodExpiresDate: NOW + DAY },
+      );
+      await expect(
+        validateAppleTransactionV2("tx-g3", MONTHLY, deps),
+      ).resolves.toMatchObject({ valid: false });
+      expect(verifyRenewalInfo).not.toHaveBeenCalled();
+    },
+  );
+
+  it("stays invalid once the grace period has passed", async () => {
+    const { deps } = graceDeps(
+      [
+        jsonResponse(200, { signedTransactionInfo: "jws" }),
+        jsonResponse(200, statusBody(4)),
+      ],
+      { gracePeriodExpiresDate: NOW - 1 },
+    );
+    await expect(
+      validateAppleTransactionV2("tx-g4", MONTHLY, deps),
+    ).resolves.toMatchObject({ valid: false });
+  });
+
+  it("stays invalid when Apple has no status for the transaction", async () => {
+    const { deps } = graceDeps(
+      [jsonResponse(200, { signedTransactionInfo: "jws" }), jsonResponse(404)],
+      { gracePeriodExpiresDate: NOW + DAY },
+    );
+    await expect(
+      validateAppleTransactionV2("tx-g5", MONTHLY, deps),
+    ).resolves.toMatchObject({ valid: false });
+  });
+
+  it("ignores another subscription's grace period in the same response", async () => {
+    const body = statusBody(4);
+    body.data[0].lastTransactions[0].originalTransactionId = "someone-else";
+    const { deps } = graceDeps(
+      [
+        jsonResponse(200, { signedTransactionInfo: "jws" }),
+        jsonResponse(200, body),
+      ],
+      { gracePeriodExpiresDate: NOW + DAY },
+    );
+    await expect(
+      validateAppleTransactionV2("tx-g6", MONTHLY, deps),
+    ).resolves.toMatchObject({ valid: false });
+  });
+
+  it.each([
+    ["Apple 5xx", jsonResponse(503)],
+    ["network failure", new TypeError("fetch failed")],
+  ])("treats %s on the status lookup as retryable", async (_l, response) => {
+    const { deps } = graceDeps(
+      [jsonResponse(200, { signedTransactionInfo: "jws" }), response],
+      { gracePeriodExpiresDate: NOW + DAY },
+    );
+    await expect(
+      validateAppleTransactionV2("tx-g7", MONTHLY, deps),
+    ).rejects.toBeInstanceOf(VerificationUnavailableError);
+  });
+
+  it("treats a renewal info verification failure as retryable", async () => {
+    const { deps } = graceDeps(
+      [
+        jsonResponse(200, { signedTransactionInfo: "jws" }),
+        jsonResponse(200, statusBody(4)),
+      ],
+      new Error("bad signature"),
+    );
+    await expect(
+      validateAppleTransactionV2("tx-g8", MONTHLY, deps),
+    ).rejects.toBeInstanceOf(VerificationUnavailableError);
+  });
+
+  it.each([
+    ["revoked", { ...expired, revocationDate: NOW - 5 }],
+    ["for another product", { ...expired, productId: "other" }],
+  ])("never asks about grace for a transaction that is %s", async (_l, tx) => {
+    const { deps, urls } = graceDeps(
+      [jsonResponse(200, { signedTransactionInfo: "jws" })],
+      { gracePeriodExpiresDate: NOW + DAY },
+      tx,
+    );
+    await expect(
+      validateAppleTransactionV2("tx-g9", MONTHLY, deps),
+    ).resolves.toMatchObject({ valid: false });
+    expect(urls).toHaveLength(1);
+  });
+
+  it("does not look up status for a subscription that is still active", async () => {
+    const { deps, urls } = graceDeps(
+      [jsonResponse(200, { signedTransactionInfo: "jws" })],
+      { gracePeriodExpiresDate: NOW + DAY },
+      { ...expired, expiresDate: NOW + DAY },
+    );
+    await expect(
+      validateAppleTransactionV2("tx-g10", MONTHLY, deps),
+    ).resolves.toMatchObject({ valid: true, expiresDate: new Date(NOW + DAY) });
+    expect(urls).toHaveLength(1);
   });
 });
