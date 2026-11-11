@@ -1,7 +1,7 @@
 [
   {
     "version": "1.6.1",
-    "status": "draft",
+    "status": "submitted",
     "title": "Small fixes",
     "summary": "A few small fixes to keep Resolution Companion running smoothly.",
     "appStoreNotes": [
@@ -14,7 +14,8 @@
         "description": "The reminder card now names a routine that fits the suggested time.",
         "availability": "Available to everyone."
       }
-    ]
+    ],
+    "submittedAt": "2026-11-11"
   },
   {
     "version": "1.6.0",
