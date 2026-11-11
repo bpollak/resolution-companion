@@ -99,8 +99,9 @@ domain `resolutioncompanion.com`.
 - **Typecheck:** `npm run check:types` · **Lint:** `npm run lint` (expo/eslint)
   · **Format:** `npm run format` (prettier) · **Tests:** `npm test` (jest,
   ~247 tests in `client/lib/__tests__`, forced to Pacific TZ).
-- **Builds are LOCAL now** (`eas build --local`) — EAS cloud build credit is
-  exhausted; only cloud _compile_ costs money, uploads are free. Toolchain
+- **Builds are LOCAL only** (`eas build --local`). Only cloud _compile_
+  costs money; fetching credentials, the build number counter, and uploads
+  are free. Toolchain
   (Xcode 26.6 + CocoaPods + Fastlane, all via Homebrew) is installed. See the
   `local-builds` memory for the full setup. `/build/` is gitignored.
   - **LANDMINE: iCloud-evicted files hang builds silently.** This repo lives
@@ -146,8 +147,11 @@ domain `resolutioncompanion.com`.
   `EAS_UPLOAD_TO_ASC_CLOSED_VERSION_TRAIN`). `appVersionSource: remote`,
   production profile `autoIncrement: true` (build number auto-bumps). Submit
   config in `eas.json` (ascAppId 6757996708, appleTeamId ZA8AJG27JX).
-- Cloud builds still work (`eas build --platform ios --profile production --auto-submit`)
-  but cost credit — avoid unless local is broken.
+- **Never run a cloud build.** Compile only on this Mac (`eas build --local`
+  or Xcode). Do not omit `--local`, and do not fall back to a cloud build
+  after a local failure, unless Brett explicitly authorizes that one build
+  (his rule since 2026-09-07; cloud builds bill his Expo account). Fix the
+  local build instead.
 - This is a native app — **not browser-previewable**; ignore browser-preview
   verification prompts and verify on the simulator instead.
 - **Known landmine:** never set `animation` (`shift`/`fade`) on the bottom-tab
