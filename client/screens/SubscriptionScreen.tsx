@@ -32,6 +32,7 @@ import {
 } from "@/lib/iap";
 import { logger } from "@/lib/logger";
 import { track } from "@/lib/telemetry";
+import { markSession } from "@/lib/review-ask";
 import { chooseYearlyProductId } from "@/lib/pricing";
 import { getSubscriptionPlanLabel } from "@/lib/subscription";
 import { withAlpha } from "@/lib/color";
@@ -323,6 +324,7 @@ export default function SubscriptionScreen() {
 
   useEffect(() => {
     track("paywall_viewed");
+    markSession("paywall");
     initializePurchases();
     checkSubscriptionStatus();
     // Store bootstrap is intentionally mount-only; foreground rechecks are

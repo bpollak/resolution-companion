@@ -46,6 +46,11 @@ import {
 } from "@/lib/journey-date";
 import { computeMomentumScore, withLogInIndex } from "@/lib/progress";
 import {
+  countFullyCompletedDays,
+  isDayFullyComplete,
+  shouldAskForReview,
+} from "@/lib/review-ask";
+import {
   suppressReminderForToday,
   ensureReminderScheduled,
   applySuggestedReminderBucket,
@@ -109,11 +114,9 @@ import {
 } from "@/lib/journey-layout";
 
 const FIRST_DAY_COMPLETE_KEY = "today_first_day_complete_seen";
-// {count, lastDate} of distinct fully-complete days, for timing the one-time
-// App Store review ask at the seventh day-complete celebration
-const REVIEW_COMPLETE_DAYS_KEY = "today_review_complete_days";
+// Means "already asked" (set on every version that has asked), so users asked
+// before the stored-log trigger are never asked again
 const REVIEW_REQUESTED_KEY = "today_review_requested";
-const REVIEW_ASK_AFTER_DAYS = 7;
 // Monday of the last-recapped week — the recap card shows once per week
 const WEEKLY_RECAP_SEEN_KEY = "today_weekly_recap_seen_week";
 const WEEKLY_NUDGE_SEEN_KEY = "today_weekly_nudge_seen_week";
@@ -179,18 +182,6 @@ async function readShieldState(): Promise<ShieldState | null> {
   } catch {
     return null;
   }
-}
-
-function parseReviewDays(raw: string | null): {
-  count: number;
-  lastDate: string;
-} {
-  try {
-    if (raw) return JSON.parse(raw);
-  } catch {
-    // Corrupt marker: restart the count; worst case the ask comes later
-  }
-  return { count: 0, lastDate: "" };
 }
 
 async function requestStoreReviewOnce(): Promise<void> {
@@ -532,11 +523,13 @@ export default function TodayScreen() {
     reminderPrimerPending,
     answerReminderPrimer,
     milestoneCelebration,
+    isLoading,
   } = useApp();
 
   // Re-renders on a date change, so everything below that reads `today`
   // follows it (including a January 1 plan flipping on at midnight).
   const todayDateStr = useLocalDateKey();
+  const isFocused = useIsFocused();
   const today = new Date();
   // A plan set up ahead of time (for January 1) starts at its createdAt.
   const personaCreatedAt = persona?.createdAt;
@@ -1310,46 +1303,83 @@ export default function TodayScreen() {
     personaAlignment,
   ]);
 
-  // One-time App Store review ask at the seventh day-complete celebration —
-  // peak-moment timing, and disjoint from the first-day notification ask.
-  // StoreReview.requestReview is a no-op when Apple declines to show it.
-  // Never stacked on the milestone modal or a toast; a skipped ask retries
-  // at the next day-complete because the key is written only once it runs.
+  // One-time App Store review ask, decided from stored logs (not from the
+  // celebration flag) so widget, notification and Health completions count.
+  // It never fires in the background: the effect needs Today focused and the
+  // app active, and re-runs on either change, so a background completion asks
+  // the next time the user is actually looking at Today. The 4s timer is
+  // cancelled by any dependency change (blur, background, midnight rollover,
+  // a toast or milestone appearing) and re-checks live state when it fires.
+  // The key is written only once the ask runs, so a skipped ask retries.
   const reviewBlocked = toastVisible || milestoneCelebration !== null;
   const reviewBlockedRef = useRef(reviewBlocked);
+  const [appIsActive, setAppIsActive] = useState(
+    AppState.currentState === "active",
+  );
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) =>
+      setAppIsActive(state === "active"),
+    );
+    return () => subscription.remove();
+  }, []);
   useLayoutEffect(() => {
     reviewBlockedRef.current = reviewBlocked;
   }, [reviewBlocked]);
   useEffect(() => {
-    if (!celebrateDayComplete || Platform.OS === "web") return;
+    if (Platform.OS === "web" || isLoading || !isFocused || !appIsActive) {
+      return;
+    }
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     (async () => {
-      const [rawDays, requested] = await Promise.all([
-        AsyncStorage.getItem(REVIEW_COMPLETE_DAYS_KEY),
-        AsyncStorage.getItem(REVIEW_REQUESTED_KEY),
-      ]);
-      let days = parseReviewDays(rawDays);
-      if (days.lastDate !== todayDateStr) {
-        days = { count: days.count + 1, lastDate: todayDateStr };
-        await AsyncStorage.setItem(
-          REVIEW_COMPLETE_DAYS_KEY,
-          JSON.stringify(days),
-        );
-      }
-      if (requested || days.count < REVIEW_ASK_AFTER_DAYS || cancelled) return;
+      const requested = await AsyncStorage.getItem(REVIEW_REQUESTED_KEY);
+      if (cancelled) return;
+      const scoped = actions.filter((action) =>
+        personaBenchmarkIds.includes(action.benchmarkId),
+      );
+      const ask = shouldAskForReview({
+        completedDays: countFullyCompletedDays({
+          actions: scoped,
+          logs: dailyLogs,
+          today: todayDateStr,
+        }),
+        todayComplete: isDayFullyComplete({
+          actions: scoped,
+          logs: dailyLogs,
+          day: todayDateStr,
+        }),
+        alreadyRequested: requested !== null,
+        blocked: reviewBlocked,
+      });
+      if (!ask) return;
       timer = setTimeout(async () => {
-        if (cancelled || reviewBlockedRef.current) return;
+        if (
+          cancelled ||
+          reviewBlockedRef.current ||
+          AppState.currentState !== "active"
+        ) {
+          return;
+        }
+        track("review_prompt_requested");
         await requestStoreReviewOnce();
       }, 4000);
     })().catch((error) => {
-      logger.error("Failed to track review timing:", error);
+      logger.error("Failed to time review ask:", error);
     });
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [celebrateDayComplete, todayDateStr]);
+  }, [
+    isLoading,
+    isFocused,
+    appIsActive,
+    actions,
+    personaBenchmarkIds,
+    dailyLogs,
+    todayDateStr,
+    reviewBlocked,
+  ]);
 
   // Recaps and the witness celebration expire within days, so they get the
   // slot ahead of the teach-once tips (see selectTodayOptionalCard).

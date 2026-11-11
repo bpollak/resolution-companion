@@ -15,6 +15,7 @@ export const TELEMETRY_EVENTS: ReadonlySet<string> = new Set<string>([
   "coach_session_started",
   "weekly_review_started",
   "paywall_viewed",
+  "review_prompt_requested",
   "paywall_purchase_success",
   "paywall_restore_success",
   "notification_tap",

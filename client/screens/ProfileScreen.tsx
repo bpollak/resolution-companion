@@ -59,6 +59,7 @@ import {
   ResolvedReminderTime,
 } from "@/lib/notifications";
 import { computeStreak } from "@/lib/progress";
+import { WRITE_REVIEW_URL } from "@/lib/review-ask";
 import { logger } from "@/lib/logger";
 import { getProfileSubscriptionCopy } from "@/lib/subscription";
 import { deletePrivateBackup } from "@/lib/icloud-backup";
@@ -1699,11 +1700,7 @@ export default function ProfileScreen() {
                 title="Rate Resolution Companion"
                 subtitle="Share your experience on the App Store"
                 accessory="external"
-                onPress={() =>
-                  Linking.openURL(
-                    "https://apps.apple.com/app/id6757996708?action=write-review",
-                  )
-                }
+                onPress={() => Linking.openURL(WRITE_REVIEW_URL)}
               />
             </>
           ) : null}

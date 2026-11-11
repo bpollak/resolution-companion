@@ -42,6 +42,7 @@ import {
 import { storage } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import { track } from "@/lib/telemetry";
+import { markSession } from "@/lib/review-ask";
 
 interface ChatMessage {
   id: string;
@@ -397,6 +398,7 @@ export default function OnboardingScreen() {
       }
       await refreshData();
       track("onboarding_completed");
+      markSession("onboarding");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
         () => {},
       );
