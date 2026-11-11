@@ -192,6 +192,29 @@ builder's, within the UI conventions in `CLAUDE.md`.
 8. Store listing in the binary's metadata window: release notes and "what's
    new" copy for 1.7.0 state the promise.
 
+## Quality bar (Brett, 2026-11-10)
+
+Brett's direction: make the engineering and the user experience as rock
+solid as possible, so this is the most obviously top-quality app for anyone
+trying to keep a resolution and become a better person.
+
+What that means for how the work is done (my reading, to be corrected):
+
+- Every change is built by one agent and checked by another before the next
+  one starts, with a whole-branch review at the end.
+- 1.7.0 opens with a full quality pass before any new behavior is added: a
+  walk through every screen on the simulator in both themes and at large
+  text sizes, looking for anything that feels unfinished (dead ends, clipped
+  text, slow taps, unclear states, inconsistent wording), plus a pass over
+  failure paths (offline, AI unavailable, store unavailable, denied
+  permissions, date change while open). Findings are ranked and the top
+  tier is fixed in 1.7.0.
+- Nothing ships without the full test suite, the two Maestro regression
+  flows, and a check on a physical device by Brett.
+- "Top quality" is judged by a new user's first week, not by feature count.
+  Polish and reliability outrank additions whenever the Dec 10 date forces
+  a choice.
+
 ## Part 3: Getting found (Nov 10 to Jan 15)
 
 Roles: agents research, list, draft, cut, schedule, and report. Brett
