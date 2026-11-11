@@ -2,8 +2,13 @@
 
 Current status (2026-11-10): 1.6.0 (108), per-habit reminder times, was
 released 2026-10-24 and is live. 1.6.1 (small fixes: rating prompt timing,
-reminder primer cue, funnel telemetry, site copy) is prepared on branch
-`claude/new-year-2027`, not merged, not built for upload. Spec
+reminder primer cue, funnel telemetry, site copy) is merged to `main`
+(2c5867e) and build 111 is on TestFlight (processed VALID 2026-11-10), not
+submitted for review. Build number commits live on branch
+`release/1.6.1-build-109`, not merged. If EAS credential setup fails with
+"PLA Update available" (it tries to write to the Apple account), add
+`--freeze-credentials` to the `eas build --local` command; the existing
+profiles are valid to 2027-07. Spec
 `docs/superpowers/specs/2026-11-10-new-year-2027-design.md`, plan
 `docs/superpowers/plans/2026-11-10-fix-now-1.6.1.md`. This supersedes the
 historical status below.
