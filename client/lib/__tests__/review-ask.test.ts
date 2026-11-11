@@ -1,7 +1,6 @@
 import {
   countFullyCompletedDays,
   isDayFullyComplete,
-  markSession,
   shouldAskForReview,
   REVIEW_ASK_AFTER_DAYS,
 } from "@/lib/review-ask";
@@ -152,6 +151,5 @@ describe("shouldAskForReview", () => {
     });
     // the top-level import is untouched by the isolated modules
     expect(shouldAskForReview(base)).toBe(true);
-    void markSession;
   });
 });

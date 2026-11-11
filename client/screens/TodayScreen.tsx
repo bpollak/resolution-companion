@@ -187,6 +187,7 @@ async function readShieldState(): Promise<ShieldState | null> {
 async function requestStoreReviewOnce(): Promise<void> {
   try {
     if (await StoreReview.hasAction()) {
+      track("review_prompt_requested");
       await StoreReview.requestReview();
       await AsyncStorage.setItem(REVIEW_REQUESTED_KEY, "true");
     }
@@ -1332,22 +1333,25 @@ export default function TodayScreen() {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     (async () => {
-      const requested = await AsyncStorage.getItem(REVIEW_REQUESTED_KEY);
-      if (cancelled) return;
       const scoped = actions.filter((action) =>
         personaBenchmarkIds.includes(action.benchmarkId),
       );
+      const todayComplete = isDayFullyComplete({
+        actions: scoped,
+        logs: dailyLogs,
+        day: todayDateStr,
+      });
+      // Skip the history scan and the storage read until today is finished.
+      if (!todayComplete) return;
+      const requested = await AsyncStorage.getItem(REVIEW_REQUESTED_KEY);
+      if (cancelled) return;
       const ask = shouldAskForReview({
         completedDays: countFullyCompletedDays({
           actions: scoped,
           logs: dailyLogs,
           today: todayDateStr,
         }),
-        todayComplete: isDayFullyComplete({
-          actions: scoped,
-          logs: dailyLogs,
-          day: todayDateStr,
-        }),
+        todayComplete,
         alreadyRequested: requested !== null,
         blocked: reviewBlocked,
       });
@@ -1360,7 +1364,6 @@ export default function TodayScreen() {
         ) {
           return;
         }
-        track("review_prompt_requested");
         await requestStoreReviewOnce();
       }, 4000);
     })().catch((error) => {
