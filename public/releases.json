@@ -5,13 +5,13 @@
     "title": "Small fixes",
     "summary": "A few small fixes to keep Resolution Companion running smoothly.",
     "appStoreNotes": [
-      "The reminder suggestion now matches the habit it is for.",
+      "The reminder card now names a routine that fits the suggested time.",
       "Fixes and polish to keep things running smoothly."
     ],
     "highlights": [
       {
         "title": "Reminder suggestions that fit",
-        "description": "The suggested reminder time now matches the habit it is for.",
+        "description": "The reminder card now names a routine that fits the suggested time.",
         "availability": "Available to everyone."
       }
     ]
