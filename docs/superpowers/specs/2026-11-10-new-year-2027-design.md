@@ -274,9 +274,11 @@ Added after a builder read the draft (2026-11-10):
 
 ## Decisions that are Brett's
 
-1. Pricing. Comparable apps charge $50 to $120 a year against $24.99.
-   Recommendation: raise annual to $39.99 and monthly to $5.99 for new
-   subscribers before Dec 15, keeping the free-trial intro on annual.
+1. Pricing. DECIDED by Brett 2026-11-10: prices stay at $2.99 a month and
+   $24.99 a year. Raising them now is premature; utilization and people
+   getting value come first. Pricing is reviewed at the Jan 15 check, using
+   the funnel and usage numbers this work makes visible. No price change,
+   price test, or New Year price offer is in scope before then.
 2. The annual intro offer. Code shows "1 week free" when App Store Connect
    has a free-trial intro offer on the annual product. Confirm it is
    configured, and choose one week or one month.
