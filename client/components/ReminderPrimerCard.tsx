@@ -5,7 +5,11 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { withAlpha } from "@/lib/color";
-import { REMINDER_BUCKETS, suggestReminderBucket } from "@/lib/notifications";
+import {
+  REMINDER_BUCKETS,
+  routineForBucket,
+  suggestReminderBucket,
+} from "@/lib/notifications";
 import { parseReminderTime, reminderTimeLabel } from "@/lib/habit-reminders";
 import type { ElementalAction } from "@/lib/storage";
 
@@ -27,8 +31,9 @@ export function ReminderPrimerCard({
   const { theme, isDark } = useTheme();
   const [busy, setBusy] = useState(false);
   const anchors = actions.map((action) => action.anchorLink).filter(Boolean);
-  const time = REMINDER_BUCKETS[suggestReminderBucket(anchors)].label;
-  const routine = anchors[0];
+  const bucket = suggestReminderBucket(anchors);
+  const time = REMINDER_BUCKETS[bucket].label;
+  const routine = routineForBucket(anchors, bucket);
   // Habits with their own time get their own nudge; the daily reminder only
   // covers the rest, so it is mentioned only when some habit has no time.
   const timed = actions.filter((action) =>

@@ -1,7 +1,24 @@
 [
   {
+    "version": "1.6.1",
+    "status": "draft",
+    "title": "Small fixes",
+    "summary": "A few small fixes to keep Resolution Companion running smoothly.",
+    "appStoreNotes": [
+      "The reminder card now names a routine that fits the suggested time.",
+      "Fixes and polish to keep things running smoothly."
+    ],
+    "highlights": [
+      {
+        "title": "Reminder suggestions that fit",
+        "description": "The reminder card now names a routine that fits the suggested time.",
+        "availability": "Available to everyone."
+      }
+    ]
+  },
+  {
     "version": "1.6.0",
-    "status": "submitted",
+    "status": "released",
     "title": "Reminders at the right time",
     "summary": "Give any habit its own reminder time, so the nudge arrives when the habit actually happens.",
     "appStoreNotes": [
@@ -22,7 +39,8 @@
         "availability": "Available to everyone."
       }
     ],
-    "submittedAt": "2026-10-24"
+    "submittedAt": "2026-10-24",
+    "releasedAt": "2026-10-24"
   },
   {
     "version": "1.5.0",

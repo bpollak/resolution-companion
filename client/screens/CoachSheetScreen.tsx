@@ -193,6 +193,7 @@ export default function CoachSheetScreen() {
   // retrying forever and trapping the sheet open.
   const saveFailedRef = useRef(false);
   const countedRef = useRef(false);
+  const sessionStartedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const nearBottomRef = useRef(true);
@@ -443,6 +444,13 @@ export default function CoachSheetScreen() {
       setIsLoading(true);
       setStreamingText("");
       track("coach_context_prompt_sent");
+      // First request of this sheet session only; later messages and retries
+      // are the same session, and sheet-open alone is not a conversation.
+      if (!sessionStartedRef.current) {
+        sessionStartedRef.current = true;
+        track("coach_session_started");
+        if (params.promptId === "review-week") track("weekly_review_started");
+      }
       // The memory taste is spent the moment a request goes out with it in play
       if (memoryTasteAvailable && previousSessionNotes !== undefined) {
         setMemoryTasteUsed(true);

@@ -1,13 +1,12 @@
 # Resolution Companion AI — Codebase Guide
 
-Current status (2026-10-25): 1.6.0 (108), per-habit reminder times, is
-live on the App Store (approved and auto-released 2026-10-24, the same
-day it was submitted). PR #30 (feature) and PR #31 (landing-page demo
-video) are merged to main, and production deployed from post-merge main,
-so the server side is live too. Spec and plan:
-`docs/superpowers/specs/2026-10-24-per-habit-reminders-design.md`,
-`docs/superpowers/plans/2026-10-24-per-habit-reminders.md`. This supersedes
-the historical status below.
+Current status (2026-11-10): 1.6.0 (108), per-habit reminder times, was
+released 2026-10-24 and is live. 1.6.1 (small fixes: rating prompt timing,
+reminder primer cue, funnel telemetry, site copy) is prepared on branch
+`claude/new-year-2027`, not merged, not built for upload. Spec
+`docs/superpowers/specs/2026-11-10-new-year-2027-design.md`, plan
+`docs/superpowers/plans/2026-11-10-fix-now-1.6.1.md`. This supersedes the
+historical status below.
 
 Identity-based behavior-change app. Users define a **Target Persona** through
 an AI interview, set **Core Benchmarks** (milestones), and log daily
@@ -108,8 +107,9 @@ domain `resolutioncompanion.com`.
     (`git show HEAD:path > path`); verify with `git hash-object`. Thousands of
     dataless stubs remain in `marketing/`, `ios/`, `android/`, and `.git`
     loose objects — any tool that walks those can hang the same way. (Node 22
-    remains the regression baseline; prefer
-    `PATH=/opt/homebrew/opt/node@22/bin:$PATH` since brew's default is now 25.)
+    remains the regression baseline. The Homebrew `node@22` keg is broken
+    (missing libsimdjson) as of 2026-11-10; use plain `node` (22.x) until it
+    is reinstalled.)
   - **TestFlight/App Store:** `npm run build:local:ios` (~15-20 min local
     compile → `build/ios-local.ipa`) then `npm run submit:local:ios` (uploads).
     **Signing landmine (since 2026-09):** this Mac's login keychain has two

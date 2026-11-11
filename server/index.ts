@@ -495,7 +495,14 @@ function configureExpoAndLanding(app: express.Application) {
   const sendHtml = (res: Response, html: string) => {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=300");
-    res.status(200).send(html);
+    res
+      .status(200)
+      .send(
+        html.replace(
+          /CURRENT_YEAR_PLACEHOLDER/g,
+          String(new Date().getFullYear()),
+        ),
+      );
   };
 
   app.get("/", (_req: Request, res: Response) => {

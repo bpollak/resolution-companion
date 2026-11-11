@@ -32,6 +32,7 @@ import {
   createPlanDraft,
   deriveResolution,
   pickResolutionMessage,
+  planStartInstant,
   type OnboardingPlanDraft,
 } from "@/lib/onboarding-plan";
 import {
@@ -42,6 +43,7 @@ import {
 import { storage } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import { track } from "@/lib/telemetry";
+import { markSession } from "@/lib/review-ask";
 
 interface ChatMessage {
   id: string;
@@ -250,6 +252,7 @@ export default function OnboardingScreen() {
   };
   // The no-AI path: a local starter draft the person edits and approves.
   const setUpMyself = () => {
+    track("onboarding_self_setup_chosen");
     touchedRef.current = true;
     cancelRequest();
     Keyboard.dismiss();
@@ -397,6 +400,12 @@ export default function OnboardingScreen() {
       }
       await refreshData();
       track("onboarding_completed");
+      track(
+        planStartInstant(draft)
+          ? "plan_approved_start_later"
+          : "plan_approved_start_today",
+      );
+      markSession("onboarding");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
         () => {},
       );
@@ -918,10 +927,12 @@ export default function OnboardingScreen() {
       <AIConsentModal
         visible={showConsentModal}
         onDecline={() => {
+          track("onboarding_declined_ai");
           setShowConsentModal(false);
           setConsentPaused(true);
         }}
         onAgree={async () => {
+          track("onboarding_ai_consent_accepted");
           await setAiConsent(true);
           setShowConsentModal(false);
           if (consentIntent.current === "extract") void reviewAIPlan(true);
