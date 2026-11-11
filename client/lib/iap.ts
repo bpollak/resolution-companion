@@ -7,6 +7,9 @@ import { getYearlyPricingConfig } from "./pricing";
 type IAPModule = typeof import("react-native-iap");
 
 let IAP: IAPModule | null = null;
+type StorePurchase = Awaited<
+  ReturnType<IAPModule["getAvailablePurchases"]>
+>[number];
 
 async function loadIAPModule(): Promise<boolean> {
   if (Platform.OS === "web") {
@@ -521,20 +524,22 @@ class IAPService {
         };
       }
 
-      const results = await IAP.getAvailablePurchases({
+      const active = await IAP.getAvailablePurchases({
         onlyIncludeActiveItemsIOS: true,
       });
+      const grace = await this.findEntitlementsPastExpiry(active ?? []);
+      const results = [...(active ?? []), ...grace.purchases];
 
-      if (!results || results.length === 0) {
+      if (results.length === 0) {
         return {
           storeAvailable: true,
-          verificationCompleted: true,
+          verificationCompleted: grace.completed,
           purchases: [],
         };
       }
 
       const purchases: IAPPurchase[] = [];
-      let verificationCompleted = true;
+      let verificationCompleted = grace.completed;
 
       for (const purchase of results) {
         const iapPurchase: IAPPurchase = {
@@ -564,6 +569,52 @@ class IAPService {
         purchases: [],
       };
     }
+  }
+
+  /**
+   * The library's active list drops a subscription once its expiry date has
+   * passed, but in a billing grace period StoreKit still entitles the user
+   * after that date. Ask StoreKit directly for each subscription the active
+   * list did not return; the server then decides whether Apple really has it
+   * in grace. A lookup that fails leaves the check incomplete, because an
+   * entitlement we could not ask about has not been ruled out.
+   */
+  private async findEntitlementsPastExpiry(
+    active: { productId: string }[],
+  ): Promise<{ purchases: StorePurchase[]; completed: boolean }> {
+    if (Platform.OS !== "ios" || !IAP?.currentEntitlementIOS) {
+      return { purchases: [], completed: true };
+    }
+    const subscriptionSkus = [PRODUCT_IDS.MONTHLY, PRODUCT_IDS.YEARLY];
+    // Monthly and yearly share one subscription group, so an active one
+    // means there is no second subscription to look for.
+    if (
+      active.some((purchase) => subscriptionSkus.includes(purchase.productId))
+    ) {
+      return { purchases: [], completed: true };
+    }
+    const seen = new Set<string>();
+    const purchases: StorePurchase[] = [];
+    let completed = true;
+    for (const sku of subscriptionSkus) {
+      if (!sku) continue;
+      try {
+        const entitlement = await IAP.currentEntitlementIOS(sku);
+        if (!entitlement) continue;
+        // Both products share one subscription group, so each lookup can
+        // return the same current entitlement.
+        const key =
+          ("transactionId" in entitlement && entitlement.transactionId) ||
+          entitlement.id;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        purchases.push(entitlement);
+      } catch (error) {
+        logger.error("Failed to read current entitlement:", error);
+        completed = false;
+      }
+    }
+    return { purchases, completed };
   }
 
   private async validateReceipt(purchase: IAPPurchase): Promise<{
