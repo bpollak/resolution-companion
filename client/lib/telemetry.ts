@@ -16,52 +16,82 @@ import { logger } from "@/lib/logger";
 
 // The complete funnel vocabulary. The server mirrors this allowlist so event
 // names cannot create an unbounded row dimension; update both sides together.
-export type TelemetryEvent =
-  | "app_open"
-  | "onboarding_started"
-  | "onboarding_completed"
-  | "onboarding_declined_ai"
-  | "first_action_logged"
-  | "action_logged"
-  | "day_complete"
-  | "milestone_complete"
-  | "coach_session_started"
-  | "weekly_review_started"
-  | "paywall_viewed"
-  | "review_prompt_requested"
-  | "paywall_purchase_success"
-  | "paywall_restore_success"
-  | "notification_tap"
-  | "notification_mark_all_done"
-  | "habit_reminder_tap"
-  | "habit_reminder_done"
-  | "widget_action_logged"
-  | "health_auto_vote"
-  | "recap_viewed"
-  | "recap_shared"
-  | "insights_viewed"
-  | "shield_earned"
-  | "shield_used"
-  | "reward_unlocked"
-  | "coach_observation_opened"
-  | "today_signal_actioned"
-  | "daily_context_saved"
-  | "daily_context_dismissed"
-  | "coach_sheet_opened"
-  | "coach_context_prompt_sent"
-  | "coach_context_session_saved"
-  | "journey_discovery_opened"
-  | "coach_response_helpful"
-  | "coach_response_unhelpful"
-  | "plan_tuneup_previewed"
-  | "plan_tuneup_applied"
-  | "plan_tuneup_dismissed"
-  | "micro_note_read"
-  | "year_recap_shared"
-  | "witness_progress_shared"
-  | "icloud_backup_created"
-  | "icloud_backup_restored"
-  | "client_error";
+export const TELEMETRY_EVENT_NAMES = [
+  "app_open",
+  "onboarding_started",
+  "onboarding_completed",
+  "onboarding_declined_ai",
+  "first_action_logged",
+  "action_logged",
+  "day_complete",
+  "milestone_complete",
+  "coach_session_started",
+  "weekly_review_started",
+  "paywall_viewed",
+  "review_prompt_requested",
+  "paywall_purchase_success",
+  "paywall_restore_success",
+  "notification_tap",
+  "notification_mark_all_done",
+  "habit_reminder_tap",
+  "habit_reminder_done",
+  "widget_action_logged",
+  "health_auto_vote",
+  "recap_viewed",
+  "recap_shared",
+  "insights_viewed",
+  "shield_earned",
+  "shield_used",
+  "reward_unlocked",
+  "coach_observation_opened",
+  "today_signal_actioned",
+  "daily_context_saved",
+  "daily_context_dismissed",
+  "coach_sheet_opened",
+  "coach_context_prompt_sent",
+  "coach_context_session_saved",
+  "journey_discovery_opened",
+  "coach_response_helpful",
+  "coach_response_unhelpful",
+  "plan_tuneup_previewed",
+  "plan_tuneup_applied",
+  "plan_tuneup_dismissed",
+  "micro_note_read",
+  "year_recap_shared",
+  "witness_progress_shared",
+  "icloud_backup_created",
+  "icloud_backup_restored",
+  "onboarding_ai_consent_accepted",
+  "onboarding_self_setup_chosen",
+  "plan_approved_start_today",
+  "plan_approved_start_later",
+  "reminder_primer_accepted",
+  "reminder_primer_declined",
+  "paywall_viewed_direct",
+  "paywall_viewed_coach_limit",
+  "paywall_viewed_milestone_proposal",
+  "paywall_viewed_milestone_limit",
+  "paywall_viewed_insights",
+  "paywall_viewed_year_recap",
+  "client_error",
+] as const;
+
+export type TelemetryEvent = (typeof TELEMETRY_EVENT_NAMES)[number];
+
+const PAYWALL_SOURCES = [
+  "coach-limit",
+  "milestone-proposal",
+  "milestone-limit",
+  "insights",
+  "year-recap",
+] as const;
+
+/** Event for a paywall open, by entry point; unknown or missing is "direct". */
+export function paywallViewedEvent(source?: string): TelemetryEvent {
+  return (PAYWALL_SOURCES as readonly string[]).includes(source ?? "")
+    ? (`paywall_viewed_${source!.replace(/-/g, "_")}` as TelemetryEvent)
+    : "paywall_viewed_direct";
+}
 
 const QUEUE_KEY = "telemetryQueue";
 const LAST_FLUSH_KEY = "telemetryLastFlush";

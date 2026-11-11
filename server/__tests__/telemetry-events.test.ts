@@ -1,26 +1,28 @@
-import fs from "node:fs";
-import path from "node:path";
+import { TELEMETRY_EVENT_NAMES } from "../../client/lib/telemetry";
 import {
   TELEMETRY_EVENTS,
   acceptTelemetryEvents,
   isValidTelemetryDay,
 } from "../telemetry-events";
 
+jest.mock("@react-native-async-storage/async-storage", () => ({}));
+jest.mock("@/lib/query-client", () => ({}));
+jest.mock("@/lib/progress", () => ({}));
+jest.mock("@/lib/storage", () => ({}));
+jest.mock("@/lib/logger", () => ({}));
+
 const NOW = Date.UTC(2026, 8, 28, 12);
 
 describe("telemetry allowlist", () => {
-  it("covers every event the app can send", () => {
-    const source = fs.readFileSync(
-      path.resolve(__dirname, "../../client/lib/telemetry.ts"),
-      "utf8",
-    );
-    const union = source.slice(
-      source.indexOf("type TelemetryEvent"),
-      source.indexOf(";", source.indexOf("type TelemetryEvent")),
-    );
-    const names = Array.from(union.matchAll(/"([a-z_]+)"/g), (m) => m[1]);
-    expect(names.length).toBeGreaterThan(0);
-    expect(names.filter((name) => !TELEMETRY_EVENTS.has(name))).toEqual([]);
+  it("every client event is allowlisted", () => {
+    expect(TELEMETRY_EVENT_NAMES.length).toBeGreaterThan(0);
+    expect(
+      TELEMETRY_EVENT_NAMES.filter((name) => !TELEMETRY_EVENTS.has(name)),
+    ).toEqual([]);
+  });
+
+  it("plain paywall_viewed stays allowlisted", () => {
+    expect(TELEMETRY_EVENTS.has("paywall_viewed")).toBe(true);
   });
 
   it("keeps the events live 1.4.1 builds send", () => {

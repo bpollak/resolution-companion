@@ -108,3 +108,34 @@ describe("privacy-respecting telemetry", () => {
     );
   });
 });
+
+describe("paywallViewedEvent", () => {
+  const { paywallViewedEvent, TELEMETRY_EVENT_NAMES } =
+    require("@/lib/telemetry") as typeof import("@/lib/telemetry");
+
+  it("maps a known source to its underscored event", () => {
+    expect(paywallViewedEvent("coach-limit")).toBe(
+      "paywall_viewed_coach_limit",
+    );
+  });
+
+  it("falls back to direct for a missing or unknown source", () => {
+    expect(paywallViewedEvent(undefined)).toBe("paywall_viewed_direct");
+    expect(paywallViewedEvent("nonsense")).toBe("paywall_viewed_direct");
+  });
+
+  it("has an event for every Subscription route source", () => {
+    // Mirror of the `source` union in RootStackNavigator.tsx.
+    const sources = [
+      "coach-limit",
+      "milestone-proposal",
+      "milestone-limit",
+      "insights",
+      "year-recap",
+    ];
+    for (const source of sources) {
+      expect(TELEMETRY_EVENT_NAMES).toContain(paywallViewedEvent(source));
+      expect(paywallViewedEvent(source)).not.toBe("paywall_viewed_direct");
+    }
+  });
+});

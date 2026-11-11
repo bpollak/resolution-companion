@@ -53,6 +53,18 @@ export const TELEMETRY_EVENTS: ReadonlySet<string> = new Set<string>([
   "witness_progress_shared",
   "icloud_backup_created",
   "icloud_backup_restored",
+  "onboarding_ai_consent_accepted",
+  "onboarding_self_setup_chosen",
+  "plan_approved_start_today",
+  "plan_approved_start_later",
+  "reminder_primer_accepted",
+  "reminder_primer_declined",
+  "paywall_viewed_direct",
+  "paywall_viewed_coach_limit",
+  "paywall_viewed_milestone_proposal",
+  "paywall_viewed_milestone_limit",
+  "paywall_viewed_insights",
+  "paywall_viewed_year_recap",
   "client_error",
 ]);
 

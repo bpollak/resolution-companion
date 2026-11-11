@@ -1678,6 +1678,11 @@ export default function TodayScreen() {
                 })}
                 filled={pendingTodayActions.length === 0}
                 onAnswer={(accept) => {
+                  track(
+                    accept
+                      ? "reminder_primer_accepted"
+                      : "reminder_primer_declined",
+                  );
                   void answerReminderPrimer(accept);
                 }}
               />

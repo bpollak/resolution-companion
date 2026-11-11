@@ -31,7 +31,7 @@ import {
   formatIntroOfferDuration,
 } from "@/lib/iap";
 import { logger } from "@/lib/logger";
-import { track } from "@/lib/telemetry";
+import { paywallViewedEvent, track } from "@/lib/telemetry";
 import { markSession } from "@/lib/review-ask";
 import { chooseYearlyProductId } from "@/lib/pricing";
 import { getSubscriptionPlanLabel } from "@/lib/subscription";
@@ -324,6 +324,7 @@ export default function SubscriptionScreen() {
 
   useEffect(() => {
     track("paywall_viewed");
+    track(paywallViewedEvent(route.params?.source));
     markSession("paywall");
     initializePurchases();
     checkSubscriptionStatus();
