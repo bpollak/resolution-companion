@@ -16,6 +16,13 @@ import { rateLimiter } from "./rate-limit";
 import { requireApiKey, requireAdminKey } from "./auth";
 import { validateMessages } from "./message-validation";
 import {
+  CRISIS_REPLY,
+  latestUserMessageMentionsCrisis,
+  withCoachSafety,
+  withExtractionSafety,
+} from "./coach-safety";
+import { createDailyBudgetGuard } from "./ai-budget";
+import {
   parsePersonaPlan,
   personaPlanResponseFormat,
 } from "./persona-extraction";
@@ -314,9 +321,41 @@ const AI_QUOTAS = {
   "plan-tune-up": { free: 30, premium: 300 },
 } as const;
 
+const dailyBudgetGuard = createDailyBudgetGuard(async (day) => {
+  if (!db) return 0;
+  const rows = await db
+    .select({
+      tokens: sql<string>`coalesce(sum(${aiUsageDaily.inputTokens} + ${aiUsageDaily.outputTokens}), 0)`,
+    })
+    .from(aiUsageDaily)
+    .where(eq(aiUsageDaily.day, day));
+  return Number(rows[0]?.tokens ?? 0);
+});
+
+// A crisis message gets a fixed, human-written reply and never reaches the
+// model. Shaped like a normal Coach reply so every app build renders it.
+function sendCrisisReply(res: Response, stream: boolean): void {
+  console.warn("Coach crisis reply served");
+  if (!stream) {
+    res.json({ content: CRISIS_REPLY });
+    return;
+  }
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.write(`data: ${JSON.stringify({ content: CRISIS_REPLY })}\n\n`);
+  res.write("data: [DONE]\n\n");
+  res.end();
+}
+
 function aiQuota(endpoint: keyof typeof AI_QUOTAS) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
+      if (await dailyBudgetGuard.isExhausted()) {
+        console.error("AI daily token budget exhausted; refusing", endpoint);
+        res.status(503).json({ error: "Coaching is temporarily unavailable." });
+        return;
+      }
       // Production cost controls fail closed. Development can run without a
       // database, where the scoped per-IP limiter remains the guardrail.
       if (!db) {
@@ -420,6 +459,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
+        if (latestUserMessageMentionsCrisis(messages)) {
+          sendCrisisReply(res, true);
+          return;
+        }
+
         res.setHeader("Content-Type", "text/event-stream");
         res.setHeader("Cache-Control", "no-cache");
         res.setHeader("Connection", "keep-alive");
@@ -430,7 +474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const stream = await getOpenAI().chat.completions.create(
           {
             model: OPENAI_MODEL,
-            messages,
+            messages: withCoachSafety(messages),
             // gpt-5 models reason before responding; minimal effort keeps
             // first-token latency chat-grade and stops reasoning tokens from
             // consuming the completion budget (which returned empty replies).
@@ -503,7 +547,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             messages: [
               {
                 role: "system",
-                content: extractionPrompt,
+                content: withExtractionSafety(extractionPrompt),
               },
               {
                 role: "user",
@@ -548,6 +592,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
+        if (latestUserMessageMentionsCrisis(messages)) {
+          sendCrisisReply(res, stream === true);
+          return;
+        }
+        const safeMessages = withCoachSafety(messages);
+
         // Real SSE when the client asks for it; the JSON path stays for
         // older app builds (the client previously simulated streaming by
         // replaying the full JSON reply character by character).
@@ -560,7 +610,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const completion = await getOpenAI().chat.completions.create(
             {
               model: OPENAI_MODEL,
-              messages,
+              messages: safeMessages,
               reasoning_effort: "minimal",
               max_completion_tokens: 2048,
               stream: true,
@@ -588,7 +638,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const response = await getOpenAI().chat.completions.create(
           {
             model: OPENAI_MODEL,
-            messages,
+            messages: safeMessages,
             reasoning_effort: "minimal",
             max_completion_tokens: 2048,
           },
