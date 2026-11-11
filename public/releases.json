@@ -1,5 +1,22 @@
 [
   {
+    "version": "1.6.1",
+    "status": "draft",
+    "title": "Small fixes",
+    "summary": "A few small fixes to keep Resolution Companion running smoothly.",
+    "appStoreNotes": [
+      "The reminder suggestion now matches the habit it is for.",
+      "Fixes and polish to keep things running smoothly."
+    ],
+    "highlights": [
+      {
+        "title": "Reminder suggestions that fit",
+        "description": "The suggested reminder time now matches the habit it is for.",
+        "availability": "Available to everyone."
+      }
+    ]
+  },
+  {
     "version": "1.6.0",
     "status": "released",
     "title": "Reminders at the right time",
