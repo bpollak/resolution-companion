@@ -44,6 +44,8 @@ import {
   LIFETIME_PRODUCT_ID,
   VERIFICATION_UNAVAILABLE_BODY,
   VerificationUnavailableError,
+  appleGracePeriodEnd,
+  extendedPeriodEnd,
   isLifetimeProduct,
   validateAppleReceiptLegacy,
   validateAppleTransactionV2,
@@ -218,6 +220,13 @@ async function verifyAppleTransaction(
   return getAppleVerifier(environment).verifyAndDecodeTransaction(jws);
 }
 
+async function verifyAppleRenewalInfo(
+  jws: string,
+  environment: Environment,
+): Promise<any> {
+  return getAppleVerifier(environment).verifyAndDecodeRenewalInfo(jws);
+}
+
 async function verifyAppleNotification(jws: string): Promise<{
   payload: any;
   environment: Environment;
@@ -262,6 +271,8 @@ async function validateAppleReceipt(
       createJWT: createAppStoreJWT,
       verifyTransaction: (jws, environment) =>
         verifyAppleTransaction(jws, appleEnvironment(environment)),
+      verifyRenewalInfo: (jws, environment) =>
+        verifyAppleRenewalInfo(jws, appleEnvironment(environment)),
       sandboxOnly: process.env.APPLE_SANDBOX === "true",
     });
   }
@@ -1538,6 +1549,41 @@ Rules:
               `Apple webhook: refund — revoked access for device ${sub.deviceId}`,
             );
             break;
+
+          case "DID_FAIL_TO_RENEW": {
+            // With Billing Grace Period on, Apple keeps retrying the charge
+            // and we owe the subscriber access until the grace period ends.
+            // Without the GRACE_PERIOD subtype there is no grace: access
+            // simply runs out at the period end already stored.
+            if (
+              subtype !== "GRACE_PERIOD" ||
+              !payload.data?.signedRenewalInfo
+            ) {
+              console.log(
+                `Apple webhook: renewal failed for device ${sub.deviceId}, no grace period`,
+              );
+              break;
+            }
+            const graceEnd = appleGracePeriodEnd(
+              await verifyAppleRenewalInfo(
+                payload.data.signedRenewalInfo,
+                verifiedEnvironment,
+              ),
+            );
+            const newEnd =
+              graceEnd &&
+              extendedPeriodEnd(sub.currentPeriodEnd ?? null, graceEnd);
+            if (newEnd && sub.status === "active") {
+              await db
+                .update(deviceSubscriptions)
+                .set({ currentPeriodEnd: newEnd, updatedAt: new Date() })
+                .where(eq(deviceSubscriptions.id, sub.id));
+            }
+            console.log(
+              `Apple webhook: renewal failed for device ${sub.deviceId}, grace period until ${graceEnd?.toISOString() ?? "unknown"}`,
+            );
+            break;
+          }
 
           case "GRACE_PERIOD_EXPIRED":
             await db

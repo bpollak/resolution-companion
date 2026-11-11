@@ -56,6 +56,39 @@ export function appleExpiryDate(
   return new Date(expiresDateMs);
 }
 
+// The decoded fields we rely on from Apple's JWSRenewalInfoDecodedPayload.
+export interface AppleRenewalInfo {
+  gracePeriodExpiresDate?: number | null;
+}
+
+// Apple's subscription status for "in a billing grace period": the renewal
+// charge failed, Apple is retrying, and the subscriber keeps access.
+const APPLE_STATUS_BILLING_GRACE_PERIOD = 4;
+
+// With Billing Grace Period on we have agreed to keep serving a subscriber
+// whose renewal charge failed until this date, even though the transaction's
+// own expiresDate has passed.
+export function appleGracePeriodEnd(
+  renewal: AppleRenewalInfo,
+  now: number = Date.now(),
+): Date | null {
+  const end = appleExpiryDate(renewal.gracePeriodExpiresDate);
+  return end !== null && end.getTime() > now ? end : null;
+}
+
+// Notifications can arrive out of order, so a grace period may only move a
+// stored period end later: a late DID_FAIL_TO_RENEW must not shorten the
+// period a DID_RENEW already recorded. A null stored end means "never
+// expires" (lifetime) and is left alone. Returns the new end, or null for
+// no change.
+export function extendedPeriodEnd(
+  stored: Date | null,
+  candidate: Date,
+): Date | null {
+  if (stored === null) return null;
+  return candidate.getTime() > stored.getTime() ? candidate : null;
+}
+
 export function evaluateAppleTransaction(
   txInfo: AppleTransactionInfo,
   productId: string,
@@ -91,6 +124,20 @@ const APPLE_API_BASE: Record<AppleEnvironment, string> = {
 // Two sequential lookups (production then sandbox) must still finish inside
 // the client's 15 s validation timeout.
 const APPLE_FETCH_TIMEOUT_MS = 6_000;
+// Only an expired subscription reaches the status lookup, after one or two
+// transaction lookups, so it gets what is left of the same 15 s budget.
+const APPLE_STATUS_FETCH_TIMEOUT_MS = 3_000;
+
+// The parts of Apple's Get All Subscription Statuses response we read.
+interface AppleStatusResponse {
+  data?: {
+    lastTransactions?: {
+      originalTransactionId?: string;
+      status?: number;
+      signedRenewalInfo?: string;
+    }[];
+  }[];
+}
 
 export interface AppleV2Deps {
   createJWT: () => Promise<string>;
@@ -98,6 +145,12 @@ export interface AppleV2Deps {
     jws: string,
     environment: AppleEnvironment,
   ) => Promise<AppleTransactionInfo>;
+  // Without this an expired subscription is never checked for a billing
+  // grace period.
+  verifyRenewalInfo?: (
+    jws: string,
+    environment: AppleEnvironment,
+  ) => Promise<AppleRenewalInfo>;
   sandboxOnly: boolean;
   fetchImpl?: typeof fetch;
   now?: () => number;
@@ -172,7 +225,69 @@ export async function validateAppleTransactionV2(
       );
     },
   );
-  return evaluateAppleTransaction(txInfo, productId, now());
+  const verdict = evaluateAppleTransaction(txInfo, productId, now());
+  const verifyRenewalInfo = deps.verifyRenewalInfo;
+  const expiry = appleExpiryDate(txInfo.expiresDate);
+  // Only a subscription whose sole problem is a passed expiry can be in a
+  // billing grace period.
+  if (
+    verdict.valid ||
+    !verifyRenewalInfo ||
+    txInfo.productId !== productId ||
+    txInfo.revocationDate ||
+    expiry === null
+  ) {
+    return verdict;
+  }
+
+  const originalTransactionId = txInfo.originalTransactionId || transactionId;
+  const statusResponse = await unavailableOnThrow(
+    "App Store status lookup",
+    () =>
+      fetchImpl(
+        `${APPLE_API_BASE[found.environment]}/inApps/v1/subscriptions/${encodeURIComponent(transactionId)}`,
+        {
+          headers: { Authorization: `Bearer ${jwt}` },
+          signal: AbortSignal.timeout(APPLE_STATUS_FETCH_TIMEOUT_MS),
+        },
+      ),
+  );
+  if (!statusResponse.ok) {
+    if (isAppleLookupRejection(statusResponse.status)) return verdict;
+    throw new VerificationUnavailableError(
+      `App Store ${found.environment} status lookup returned ${statusResponse.status}`,
+    );
+  }
+
+  const graceEnd = await unavailableOnThrow(
+    "App Store renewal info verification",
+    async () => {
+      const body = (await statusResponse.json()) as AppleStatusResponse;
+      for (const group of body.data ?? []) {
+        for (const last of group.lastTransactions ?? []) {
+          if (
+            last.originalTransactionId !== originalTransactionId ||
+            last.status !== APPLE_STATUS_BILLING_GRACE_PERIOD ||
+            typeof last.signedRenewalInfo !== "string"
+          ) {
+            continue;
+          }
+          const end = appleGracePeriodEnd(
+            await verifyRenewalInfo(last.signedRenewalInfo, found.environment),
+            now(),
+          );
+          if (end) return end;
+        }
+      }
+      return null;
+    },
+  );
+  if (!graceEnd) return verdict;
+  return {
+    valid: true,
+    expiresDate: graceEnd,
+    originalTransactionId: txInfo.originalTransactionId || null,
+  };
 }
 
 // --- Legacy verifyReceipt (deprecated, used as fallback) ---
