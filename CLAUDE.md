@@ -3,8 +3,11 @@
 Current status (2026-11-10): 1.6.0 (108), per-habit reminder times, was
 released 2026-10-24 and is live. 1.6.1 (small fixes: rating prompt timing,
 reminder primer cue, funnel telemetry, site copy) is merged to `main`
-(2c5867e) and build 111 was submitted to App Review 2026-11-11 (Waiting for Review,
-automatic release after approval). Build number commits live on branch
+(2c5867e) and build 112 (adds billing grace period handling, PR #36) was submitted to
+App Review 2026-11-11, replacing build 111 (Waiting for Review, automatic
+release after approval). Billing Grace Period is on for the SANDBOX only
+(16 days, all renewals); turn on production only after 1.6.1 is live, since
+1.6.0 and earlier drop Premium at the original expiry date. Build number commits live on branch
 `release/1.6.1-build-109`, not merged. If EAS credential setup fails with
 "PLA Update available" (it tries to write to the Apple account), add
 `--freeze-credentials` to the `eas build --local` command; the existing
