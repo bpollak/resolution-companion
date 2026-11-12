@@ -1,9 +1,9 @@
 [
   {
     "version": "1.6.1",
-    "status": "submitted",
-    "title": "Small fixes",
-    "summary": "A few small fixes to keep Resolution Companion running smoothly.",
+    "status": "released",
+    "title": "Reminder suggestions that fit",
+    "summary": "A small update that makes reminder suggestions smarter, plus fixes and polish.",
     "appStoreNotes": [
       "The reminder card now names a routine that fits the suggested time.",
       "Fixes and polish to keep things running smoothly."
@@ -15,7 +15,8 @@
         "availability": "Available to everyone."
       }
     ],
-    "submittedAt": "2026-11-11"
+    "submittedAt": "2026-11-11",
+    "releasedAt": "2026-11-11"
   },
   {
     "version": "1.6.0",
