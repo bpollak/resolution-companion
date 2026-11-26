@@ -88,3 +88,26 @@ No native build, app behavior, subscription, model, or database change is in sco
   variable policy, source/build/deploy settings, domain ports, ignored local
   snapshots/plans, and absence of the legacy files. It runs without Railway
   credentials. Infrastructure applies remain an explicit operator action.
+
+## Applied equivalent settings
+
+- Local checks pass: 64 suites/624 tests, the new Railway configuration guard,
+  types, lint, formatting, release consistency, compiler guard, and server build.
+  Independent report-only review found no blockers and confirmed the app-only
+  scope and the two safe updates.
+- Committed `.railway/` before planning, as required for a source-tree-pinned
+  apply. Tree: `41c8f75a54cb81c791409836abce26dddfcf4591`. Pinned the exact
+  reviewed plan and production state; no destructive confirmation flag used.
+- Applied change set
+  `iac-change-set/36fc16e7-d24f-42d9-9727-faac99fe6159/428dffab4a70308a3d7d004c0a9a6273`.
+  Response status: `applied`, no diagnostics; only the app service was updated.
+- Immediate post-apply plan returned **zero changes**, no diagnostics, and
+  variables still unmanaged. Server-side ownership contains only
+  `service.app: app`; Postgres and its volume were not claimed.
+- Root `railway.json` is now safe to remove from the published revision.
+  No config-path cutover or rollback snapshot was needed because the root file
+  was auto-detected. Its original contents are retained in git history and the
+  local ignored `build/railway-legacy-before-iac.json` verification artifact.
+- Sanitized baseline, reviewed plan, apply response, and zero-drift evidence
+  are stored in ignored `build/railway-iac-*.json` files. No secret values are
+  present. A fresh deployment without the root legacy file remains to verify.
