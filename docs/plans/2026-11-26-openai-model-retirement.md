@@ -1,7 +1,8 @@
 # Replace GPT-5 mini before its API shutdown
 
 Date: 2026-11-26
-Status: Accepted by Brett on 2026-11-26 ("Approved"); implementation authorized.
+Status: Accepted by Brett on 2026-11-26 ("Approved"); implemented and live-model
+validated locally. Awaiting separate production deployment approval.
 Baseline: `main` at `1f86e39a0469f454e4d4593123ee2051af261524`.
 
 ## Intent
@@ -156,3 +157,65 @@ compatible request parameters. Do not add an untested automatic fallback.
   and persistent access. Awaiting Brett's confirmation before Authorize;
   the expired grant's exact permissions could not be verified. Live model
   comparison is still pending. No new access grant or deployment was made.
+
+### Live provider verification (2026-11-26 07:26 PT)
+
+This supersedes the authentication, runtime-configuration, and comparison
+blockers above. Brett explicitly approved the scoped CLI renewal with "Yes".
+The Railway CLI signed in successfully with the selected workspace/project.
+
+- CLI readback confirms production deployment
+  `a30b775f-7490-46ab-88a3-154b7acec609` is successful and runs exact GitHub
+  `main` SHA `1f86e39a0469f454e4d4593123ee2051af261524`. GitHub main remains
+  at that SHA. Production AI_MODEL is unset; upstream is `api.openai.com`;
+  provider credentials are configured. No production settings were changed.
+- Ran `scripts/verify-ai-migration.ts` with production provider credentials
+  injected into its child process by Railway. Requests went through local
+  Express routes and the real OpenAI SDK to the actual OpenAI API. All inputs
+  were synthetic; production database access was disabled in that process.
+- **14/14 passed: all seven response modes on each model.** Every request
+  used one provider attempt, ended with `finish_reason: stop`, and produced
+  valid nonempty output. Reported models were `gpt-5-mini-2025-08-07` and
+  `gpt-6.1-terra`. JSON schema/object formats, legacy paths, and SSE completion
+  markers worked. Output token counts below include reasoning tokens.
+
+| Response mode | GPT-5 mini (s) | Terra (s) | Mini output tokens | Terra output tokens | Budget |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| onboarding-chat | 3.34 | 2.15 | 134 | 36 | 1024 |
+| persona-extraction | 5.85 | 4.91 | 295 | 270 | 2048 |
+| reflection-stream | 2.16 | 1.97 | 116 | 45 | 2048 |
+| reflection-legacy-json | 3.56 | 3.29 | 164 | 33 | 2048 |
+| milestone-proposal | 1.54 | 1.72 | 17 | 17 | 256 |
+| tune-up-ambient | 2.20 | 2.68 | 76 | 75 | 700 |
+| tune-up-legacy | 2.60 | 2.27 | 100 | 68 | 700 |
+
+The Terra replies were concise, supportive, and relevant on inspection. Its
+persona used concrete actions and routine-based anchors. Both tune-up replies
+proposed a smaller Monday schedule grounded in the provided aggregate evidence.
+The milestone was "Read a page and note one question". These seven short
+synthetic cases establish compatibility, not broad behavioral equivalence or
+performance guarantees. No physical-device or new simulator check is claimed.
+
+Median complete-response time was 2.60 s for mini and 2.27 s for Terra. Terra's
+two streams delivered first content at 1.58 s and 1.25 s. No request timed out.
+All completion budgets had room in this sample; retain them unchanged.
+
+Each model used 1,167 input tokens. Mini used 902 output tokens; Terra used
+544 output tokens, including 70 reasoning tokens. Cached input and cache writes
+were zero. Using [OpenAI's current Standard short-context rates](https://developers.openai.com/api/docs/pricing), mini costs $0.25/$2.00 per
+million input/output tokens, and Terra costs $1.00/$5.00. Estimated sample
+costs are **$0.00209575** and **$0.003887**, respectively (about 1.85 times the
+old cost for this sample). This is a list-price calculation, not an invoice or
+a forecast; actual traffic, output lengths, reasoning, and caching will differ.
+
+Raw inspectable synthetic evidence: `build/ai-migration-live.json` (gitignored),
+checked at `2026-11-26T15:26:52.622Z`, SHA-256
+`de7123edec34d740c6e9831ff1de6a8fe5624d56ff871466ce6ad4b967e75416`.
+Progress log: `build/ai-migration-live.log`. No credentials were printed or
+written to either file.
+
+Local implementation checks remain 64 suites/624 tests, typecheck, lint,
+changed-file formatting, server build, and independent review passed. The
+only remaining release gate is Brett's approval to publish/deploy, followed
+by production inference/disclosure verification. No push, PR, merge, deployment,
+native build, or App Store change has been performed.
