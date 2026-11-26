@@ -2,7 +2,7 @@
 
 Date: 2026-11-26
 Status: Accepted by Brett on 2026-11-26 ("Approved"); implemented and live-model
-validated locally. Awaiting separate production deployment approval.
+validated locally. Production deployment approved by Brett on 2026-11-26.
 Baseline: `main` at `1f86e39a0469f454e4d4593123ee2051af261524`.
 
 ## Intent
@@ -219,3 +219,14 @@ changed-file formatting, server build, and independent review passed. The
 only remaining release gate is Brett's approval to publish/deploy, followed
 by production inference/disclosure verification. No push, PR, merge, deployment,
 native build, or App Store change has been performed.
+
+### Approved production cutover
+
+Brett approved production deployment on 2026-11-26 after reviewing successful
+live verification. Publish this reviewed branch through a pull request, wait
+for required CI checks, merge to main, and verify the Railway app service's
+new deployment. Preserve `1f86e39a0469f454e4d4593123ee2051af261524` and deployment
+`a30b775f-7490-46ab-88a3-154b7acec609` as the pre-cutover source/config baseline.
+No model override needs removal. Confirm real production inference on every
+response mode using synthetic content, aggregated model metering, health, and
+the updated cache-busted privacy disclosure. No native release is required.
