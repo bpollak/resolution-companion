@@ -136,3 +136,23 @@ compatible request parameters. Do not add an untested automatic fallback.
 - No branch was pushed, no PR was created, and no production configuration,
   deployment, or App Store state was changed. Obtain deployment approval only
   after the outstanding model and configuration checks pass.
+
+### Production browser inspection (2026-11-26, after Brett confirmed sign-in)
+
+- Verified the signed-in Railway dashboard and the `app` service in the
+  `resolution-companion` project's `production` environment. The service owns
+  `resolutioncompanion.com`, has one replica in US West, and is online.
+- Active successful deployment: `a30b775f-7490-46ab-88a3-154b7acec609`, titled
+  "Mark 1.6.1 released and refresh llms files to current version", via GitHub.
+  This is the title of baseline main commit `1f86e39`; the deployment's exact
+  source SHA has not yet been independently read back.
+- Its nine service variables include AI_INTEGRATIONS_OPENAI_API_KEY but no
+  AI_MODEL or AI_INTEGRATIONS_OPENAI_BASE_URL override. The deployed baseline
+  therefore uses GPT-5 mini through the default OpenAI endpoint. No variables
+  were changed and no credential values were displayed or saved to files.
+- Browser sign-in did not renew CLI access. A CLI OAuth renewal was opened
+  and limited to the bpollak workspace and Resolution Companion project.
+  Its consent also requests workspace administration, SSH-key management,
+  and persistent access. Awaiting Brett's confirmation before Authorize;
+  the expired grant's exact permissions could not be verified. Live model
+  comparison is still pending. No new access grant or deployment was made.
