@@ -1,7 +1,7 @@
 # Replace GPT-5 mini before its API shutdown
 
 Date: 2026-11-26
-Status: Proposed; awaiting Brett's acceptance before implementation.
+Status: Accepted by Brett on 2026-11-26 ("Approved"); implementation authorized.
 Baseline: `main` at `1f86e39a0469f454e4d4593123ee2051af261524`.
 
 ## Intent
@@ -36,7 +36,7 @@ features using the same server model without requiring a native app update.
   remain unverified. Do not report the checked-in default as confirmed runtime
   configuration or treat the public privacy page as runtime evidence.
 
-## Proposed implementation
+## Accepted implementation
 
 1. Set the server default to `gpt-6.1-terra` and use a shared, typed request
    configuration with `reasoning_effort: "low"` at all seven call sites. Retain
@@ -79,11 +79,10 @@ features using the same server model without requiring a native app update.
 
 ## Authorization and rollback
 
-The alert authorizes investigation and preparation. This proposed plan has
-not yet been accepted. The canonical SDLC requires Brett to accept plans for
-public-facing changes and separately owns the production gate. No application
-code, production variables, deployment, app build, or App Store submission
-has been changed by this investigation.
+Brett accepted this plan on 2026-11-26 with "Approved" after reviewing the
+investigation and proposed migration. Implementation and verification on this
+branch are authorized. Production deployment remains a separate human gate;
+no deployment or App Store submission is authorized by this acceptance.
 
 After acceptance, implement on this branch and present the verified diff for
 deployment approval. Before cutover, preserve the prior deployed revision and
