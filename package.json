@@ -36,7 +36,8 @@
     "release:mark-submitted": "node scripts/release-workflow.mjs mark-submitted",
     "release:sync": "node scripts/release-workflow.mjs sync",
     "check:format": "prettier --check \"**/*.{js,mjs,ts,tsx,css,json}\"",
-    "format": "prettier --write \"**/*.{js,mjs,ts,tsx,css,json}\""
+    "format": "prettier --write \"**/*.{js,mjs,ts,tsx,css,json}\"",
+    "check:railway": "tsx scripts/check-railway-config.ts"
   },
   "dependencies": {
     "@apple/app-store-server-library": "^3.1.0",
@@ -119,6 +120,7 @@
     "jest": "~29.7.0",
     "jest-expo": "~54.0.0",
     "prettier": "3.6.2",
+    "railway": "3.18.0",
     "typescript": "~5.9.2"
   },
   "jest": {

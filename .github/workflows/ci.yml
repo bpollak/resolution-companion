@@ -19,6 +19,8 @@ jobs:
         run: npm run release:check
       - name: Typecheck
         run: npm run check:types
+      - name: Railway deployment configuration
+        run: npm run check:railway
       - name: Lint
         run: npm run lint
       - name: React Compiler bailouts

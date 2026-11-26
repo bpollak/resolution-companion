@@ -1,0 +1,2 @@
+# Cutover snapshots, pinned plans, and local CLI state are not authoring source.
+*.json

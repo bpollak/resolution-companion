@@ -5,6 +5,12 @@ production and passes App Store review.
 
 ## 1. Backend (Railway / any Docker host)
 
+Railway configuration is declared in `.railway/railway.ts`. Its named `app`
+partial manages only the app service, with variables unmanaged. Postgres and
+its volume remain outside this declaration. See `.railway/README.md` for the
+reviewed plan/apply workflow. App commits still auto-deploy from GitHub main;
+infrastructure changes require a separate explicit CLI plan and apply.
+
 Deploy the Express server (Dockerfile in repo root) and point
 `resolutioncompanion.com` at it. Required environment variables:
 
