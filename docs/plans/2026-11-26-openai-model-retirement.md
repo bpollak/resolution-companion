@@ -89,3 +89,50 @@ deployment approval. Before cutover, preserve the prior deployed revision and
 configuration. Reverting to GPT-5 mini is only a temporary option **before**
 December 11; after shutdown, rollback must retain a supported model and its
 compatible request parameters. Do not add an untested automatic fallback.
+
+## Implementation and verification (2026-11-26)
+
+- Implemented locally: shared typed `OPENAI_CHAT_OPTIONS` selects
+  `gpt-6.1-terra` with low reasoning effort, while retaining AI_MODEL overrides.
+  All seven provider calls and model usage records use the shared configuration.
+- Empty, whitespace-only, unterminated, filtered, and truncated replies take
+  the existing error path. Streaming still forwards content immediately, but
+  sends an error instead of `[DONE]` when the final output is incomplete.
+  Already-streamed partial text cannot be retracted; existing clients reject
+  the error frame. JSON paths retain their established error response formats.
+- Added 44 real-route HTTP tests, plus two comparison-harness HTTP tests that
+  use the real OpenAI SDK against a **synthetic** provider. Cover all seven
+  response modes, strict persona output, auth, error handling, per-attempt
+  metrics, preserved upstream 401 responses, and credential-safe error output.
+- Full Pacific-time test suite: **64 suites, 624 tests passed**. Typecheck,
+  lint, formatting for changed TypeScript, server bundle, and diff checks pass.
+- Rendered the local privacy page in headless Chrome and visually inspected
+  the updated date and GPT-6.1 Terra disclosure. Local screenshots:
+  `build/model-migration-privacy.png` and
+  `build/model-migration-privacy-full.png` (gitignored).
+- Independent report-only agent review found no production-route blocker.
+  Its comparison-harness finding was fixed: cancel provider work on proxy
+  disconnect, isolate metrics per attempt, and preserve upstream error status.
+  The reviewer confirmed the fixes and reported no additional code findings.
+
+### Outstanding before deployment
+
+- The Railway CLI confirms the saved login has expired: "Your saved login is
+  no longer valid (grant request is invalid)." Reauthentication requires Brett
+  to run `npx --yes @railway/cli login`. No server provider key is available in
+  this checkout or shell. The real comparison was **not run**; the script
+  correctly refuses to run without AI_INTEGRATIONS_OPENAI_API_KEY.
+- After authentication, verify production configuration and run
+  `npx tsx scripts/verify-ai-migration.ts > build/ai-migration-live.json` with
+  the server provider credentials injected only into the child environment.
+  It compares all seven routes on the old/new model through a local SDK proxy,
+  without production database access. Review the recorded synthetic responses,
+  finish reasons, latency, and per-attempt token usage; calculate costs from
+  current provider prices. Existing budgets are unchanged pending evidence,
+  especially the 256-token milestone budget.
+- No simulator was booted, no native app was rebuilt, and no new native UI
+  verification is claimed. The changed server contracts are covered by HTTP
+  tests; actual installed-app behavior still needs the model-backed check.
+- No branch was pushed, no PR was created, and no production configuration,
+  deployment, or App Store state was changed. Obtain deployment approval only
+  after the outstanding model and configuration checks pass.

@@ -1,4 +1,26 @@
 import type { Response } from "express";
+import type { ChatCompletionCreateParamsBase } from "openai/resources/chat/completions";
+
+// GPT-5 mini shuts down on December 11, 2026. Keep every AI feature on the
+// same model and supported effort; changing only the model leaves minimal
+// effort incompatible with Terra.
+export const OPENAI_CHAT_OPTIONS = {
+  model: process.env.AI_MODEL || "gpt-6.1-terra",
+  reasoning_effort: "low",
+} satisfies Pick<ChatCompletionCreateParamsBase, "model" | "reasoning_effort">;
+
+// Reasoning consumes the completion budget too. An empty or cut-off answer
+// must reach the existing error path instead of looking like a successful
+// coach reply (or a successfully extracted plan).
+export function requireCompleteAiText(
+  content: string | null | undefined,
+  finishReason: string | null | undefined,
+): string {
+  if (finishReason !== "stop" || !content?.trim()) {
+    throw new Error("AI response was empty or incomplete");
+  }
+  return content;
+}
 
 // A hung upstream must not pin a request for the SDK's 10 minute default, and
 // each extra retry on a streaming route doubles first-token latency.

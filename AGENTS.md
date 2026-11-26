@@ -110,7 +110,8 @@ domain `resolutioncompanion.com`.
 ## Server (`server/`)
 
 - `index.ts` (Express bootstrap, `trust proxy`), `routes.ts` (API + AI proxy;
-  `OPENAI_MODEL` defaults to **gpt-5-mini**, `reasoning_effort: minimal`),
+  `AI_MODEL` defaults to **gpt-6.1-terra**, `reasoning_effort: low`
+  via shared `OPENAI_CHAT_OPTIONS` in `ai-request.ts`),
   `auth.ts` (fail-closed API-secret gate in production), `db.ts` (Drizzle),
   `rate-limit.ts` (in-memory, single instance).
 - `templates/` holds the marketing site: `landing-page.html`, `privacy.html`,
