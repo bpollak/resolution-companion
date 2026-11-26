@@ -119,7 +119,10 @@ domain `resolutioncompanion.com`.
   Feedback form emails via Web3Forms and also writes Postgres.
 - **Hosting:** Railway, Dockerfile at root, auto-deploys from GitHub `main`,
   live at `resolutioncompanion.com`. Apple Server Notifications V2 →
-  `/api/webhooks/apple`. Run `npm run db:push` once for tables.
+  `/api/webhooks/apple`. Infrastructure is declared in `.railway/railway.ts`
+  as an app-only partial with unmanaged variables; use `.railway/README.md`
+  for explicit reviewed applies. `npm run check:railway` guards its scope.
+  Run `npm run db:push` once for tables.
 
 ## Current status & where to pick up
 

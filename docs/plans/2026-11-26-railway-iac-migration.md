@@ -65,3 +65,26 @@ No native build, app behavior, subscription, model, or database change is in sco
 - [IaC migration, cutover, partial ownership, and pinned plans](https://docs.railway.com/infrastructure-as-code).
 - Installed CLI: Railway 5.75.0. Preview generated with
   `railway config migrate --service app --variables unmanaged --show`.
+
+## Verified design details
+
+- The service has **no stored Config File path**. `railway config migrate
+  status` reports no services reading Config as Code because the existing
+  root file is auto-detected. Consequently IaC planning works immediately;
+  no cutover command or config-path mutation is needed. Apply the equivalent
+  settings before publishing the root file's removal.
+- The live plan contains exactly two safe updates: persist app build.builder
+  as DOCKERFILE and deploy.healthcheckPath as `/api/health`. These settings
+  currently come from the auto-detected root file. No resource additions,
+  deletions, domain changes, or variable changes are proposed.
+- Restart ON_FAILURE/10 is explicit in the declaration and already equals
+  Railway's effective defaults. The declaration retains one `sfo` replica,
+  GitHub main source, the apex default port, and www's explicit 8080 port.
+- The authoring package is pinned as a dev dependency to `railway` 3.18.0.
+  Its ProjectDefinition type does not yet name the CLI's variable-policy field;
+  a structurally typed named definition preserves that metadata without a
+  cast. Both SDK execution and live planning verify unmanaged variables.
+- The new CI guard evaluates the real declaration and checks resource scope,
+  variable policy, source/build/deploy settings, domain ports, ignored local
+  snapshots/plans, and absence of the legacy files. It runs without Railway
+  credentials. Infrastructure applies remain an explicit operator action.
