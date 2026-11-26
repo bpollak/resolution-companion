@@ -53,7 +53,9 @@ import {
 } from "./iap-validation";
 import { DEVICE_ID_RE, aiUsageIdentity } from "./device-id";
 import {
+  OPENAI_CHAT_OPTIONS,
   OPENAI_CLIENT_OPTIONS,
+  requireCompleteAiText,
   abortOnClientDisconnect,
   sendAiRouteError,
 } from "./ai-request";
@@ -62,9 +64,6 @@ import {
 // endpoints instead of crashing the whole server (website, webhooks, legal pages).
 let openaiClient: OpenAI | null = null;
 
-// gpt-5-mini outperforms gpt-4o on instruction-following and structured
-// output at roughly a tenth of the input cost; override via env if needed
-const OPENAI_MODEL = process.env.AI_MODEL || "gpt-5-mini";
 const YEARLY_TEST_PRODUCT_ID =
   process.env.YEARLY_PRICE_TEST_PRODUCT_ID ||
   "com.resolutioncompanion.annual.2026b";
@@ -115,7 +114,7 @@ async function recordAiModelUsage(
       .values({
         day: new Date().toISOString().slice(0, 10),
         endpoint,
-        model: OPENAI_MODEL,
+        model: OPENAI_CHAT_OPTIONS.model,
         requests: 1,
         inputTokens,
         outputTokens,
@@ -440,12 +439,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // the signal aborts the completion so we stop paying for a dead socket.
         const stream = await getOpenAI().chat.completions.create(
           {
-            model: OPENAI_MODEL,
+            ...OPENAI_CHAT_OPTIONS,
             messages,
-            // gpt-5 models reason before responding; minimal effort keeps
-            // first-token latency chat-grade and stops reasoning tokens from
-            // consuming the completion budget (which returned empty replies).
-            reasoning_effort: "minimal",
             max_completion_tokens: 1024,
             stream: true,
             stream_options: { include_usage: true },
@@ -454,15 +449,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
         let modelUsage: ModelUsage | null = null;
+        let text = "";
+        let finishReason: string | null = null;
         for await (const chunk of stream) {
           if (chunk.usage) modelUsage = chunk.usage;
+          finishReason = chunk.choices[0]?.finish_reason || finishReason;
           const content = chunk.choices[0]?.delta?.content || "";
+          text += content;
           if (content) {
             res.write(`data: ${JSON.stringify({ content })}\n\n`);
           }
         }
 
         await recordAiModelUsage("chat", modelUsage);
+        requireCompleteAiText(text, finishReason);
 
         res.write("data: [DONE]\n\n");
         res.end();
@@ -510,7 +510,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const response = await getOpenAI().chat.completions.create(
           {
-            model: OPENAI_MODEL,
+            ...OPENAI_CHAT_OPTIONS,
             messages: [
               {
                 role: "system",
@@ -522,7 +522,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               },
             ],
             response_format: personaPlanResponseFormat,
-            reasoning_effort: "minimal",
             max_completion_tokens: 2048,
           },
           { signal: upstream.signal },
@@ -530,7 +529,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         await recordAiModelUsage("extract", response.usage);
 
-        const content = response.choices[0]?.message?.content || "{}";
+        const content = requireCompleteAiText(
+          response.choices[0]?.message?.content,
+          response.choices[0]?.finish_reason,
+        );
         const personaData = parsePersonaPlan(content);
 
         res.json(personaData);
@@ -570,9 +572,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           const completion = await getOpenAI().chat.completions.create(
             {
-              model: OPENAI_MODEL,
+              ...OPENAI_CHAT_OPTIONS,
               messages,
-              reasoning_effort: "minimal",
               max_completion_tokens: 2048,
               stream: true,
               stream_options: { include_usage: true },
@@ -581,15 +582,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
 
           let modelUsage: ModelUsage | null = null;
+          let text = "";
+          let finishReason: string | null = null;
           for await (const chunk of completion) {
             if (chunk.usage) modelUsage = chunk.usage;
+            finishReason = chunk.choices[0]?.finish_reason || finishReason;
             const content = chunk.choices[0]?.delta?.content || "";
+            text += content;
             if (content) {
               res.write(`data: ${JSON.stringify({ content })}\n\n`);
             }
           }
 
           await recordAiModelUsage("reflection", modelUsage);
+          requireCompleteAiText(text, finishReason);
 
           res.write("data: [DONE]\n\n");
           res.end();
@@ -598,9 +604,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const response = await getOpenAI().chat.completions.create(
           {
-            model: OPENAI_MODEL,
+            ...OPENAI_CHAT_OPTIONS,
             messages,
-            reasoning_effort: "minimal",
             max_completion_tokens: 2048,
           },
           { signal: upstream.signal },
@@ -608,7 +613,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         await recordAiModelUsage("reflection", response.usage);
 
-        const content = response.choices[0]?.message?.content || "";
+        const content = requireCompleteAiText(
+          response.choices[0]?.message?.content,
+          response.choices[0]?.finish_reason,
+        );
         res.json({ content });
       } catch (error) {
         sendAiRouteError(res, upstream, "Reflection error:", error, {
@@ -642,7 +650,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const response = await getOpenAI().chat.completions.create(
           {
-            model: OPENAI_MODEL,
+            ...OPENAI_CHAT_OPTIONS,
             messages: [
               {
                 role: "system",
@@ -655,14 +663,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
               },
             ],
             response_format: { type: "json_object" },
-            reasoning_effort: "minimal",
             max_completion_tokens: 256,
           },
           { signal: upstream.signal },
         );
         await recordAiModelUsage("milestone-proposal", response.usage);
         const parsed = JSON.parse(
-          response.choices[0]?.message?.content || "{}",
+          requireCompleteAiText(
+            response.choices[0]?.message?.content,
+            response.choices[0]?.finish_reason,
+          ),
         ) as { title?: unknown };
         if (typeof parsed.title !== "string") {
           res.status(502).json({ error: "Invalid coach suggestion" });
@@ -709,8 +719,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const response = await getOpenAI().chat.completions.create(
             {
-              model: OPENAI_MODEL,
-              reasoning_effort: "minimal",
+              ...OPENAI_CHAT_OPTIONS,
               max_completion_tokens: 700,
               response_format: { type: "json_object" },
               messages: [
@@ -724,8 +733,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             { timeout: 20_000, signal: upstream.signal },
           );
           await recordAiModelUsage("plan-tune-up", response.usage);
-          const content = response.choices[0]?.message?.content;
-          if (!content) throw new Error("Empty plan suggestion");
+          const content = requireCompleteAiText(
+            response.choices[0]?.message?.content,
+            response.choices[0]?.finish_reason,
+          );
           res.json(
             parseAmbientPlanTuneUpResponse(JSON.parse(content), ambientRequest),
           );
@@ -764,7 +775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const response = await getOpenAI().chat.completions.create(
           {
-            model: OPENAI_MODEL,
+            ...OPENAI_CHAT_OPTIONS,
             messages: [
               {
                 role: "system",
@@ -798,7 +809,6 @@ Rules:
               },
             ],
             response_format: { type: "json_object" },
-            reasoning_effort: "minimal",
             max_completion_tokens: 700,
           },
           { signal: upstream.signal },
@@ -807,7 +817,10 @@ Rules:
         let parsed: unknown;
         try {
           parsed = JSON.parse(
-            response.choices[0]?.message?.content || "{}",
+            requireCompleteAiText(
+              response.choices[0]?.message?.content,
+              response.choices[0]?.finish_reason,
+            ),
           ) as unknown;
         } catch {
           res.status(502).json({

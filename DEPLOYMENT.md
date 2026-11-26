@@ -14,6 +14,7 @@ Deploy the Express server (Dockerfile in repo root) and point
 | `DATABASE_URL`                             | yes                | PostgreSQL connection (subscriptions, feedback)                                                                                                                                    |
 | `API_SECRET`                               | yes                | Shared key for app↔server auth. Must match `EXPO_PUBLIC_API_SECRET` in EAS. In production, protected endpoints return 503 until this is set.                                      |
 | `AI_INTEGRATIONS_OPENAI_API_KEY`           | yes                | OpenAI key for chat/onboarding/reflection                                                                                                                                          |
+| `AI_MODEL`                                | no                 | Defaults to `gpt-6.1-terra`. Overrides must support Chat Completions, `reasoning_effort: low`, streaming, JSON object and strict JSON schema output. Update the privacy model disclosure with any override. |
 | `AI_INTEGRATIONS_OPENAI_BASE_URL`          | no                 | Optional OpenAI-compatible base URL                                                                                                                                                |
 | `APPLE_ISSUER_ID`                          | yes (iOS)          | App Store Connect > Users and Access > Integrations > In-App Purchase keys                                                                                                         |
 | `APPLE_KEY_ID`                             | yes (iOS)          | Key ID of the In-App Purchase key                                                                                                                                                  |
@@ -26,6 +27,11 @@ Deploy the Express server (Dockerfile in repo root) and point
 | `GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL` | yes (Android)      | Service-account email whose Google-signed OIDC token is accepted by the Play RTDN webhook                                                                                          |
 | `ALLOWED_ORIGINS`                          | no                 | Comma-separated CORS allowlist. Unset = no cross-origin browser access (the native app and same-origin website don't need CORS).                                                   |
 | `ADMIN_API_SECRET`                         | no                 | Operator-only key for `GET /api/feedback` (sent as `X-Admin-Key`). The endpoint returns 404 until this is set. Do NOT reuse `API_SECRET` — that value ships inside the app bundle. |
+
+GPT-5 mini API access ends December 11, 2026. Before deploying the migration,
+confirm production `AI_MODEL` is unset or `gpt-6.1-terra`; an old override defeats
+the new default. Verify real streaming and structured replies as well as health.
+Do not roll back to GPT-5 mini after shutdown.
 
 > **Important (StoreKit 2):** the app now uses `react-native-iap` v14, which
 > returns JWS transactions instead of legacy receipts. iOS receipt validation
