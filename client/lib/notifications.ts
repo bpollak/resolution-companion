@@ -1313,10 +1313,17 @@ export function dayOneFireDate(
   return fireDate.getTime() > now.getTime() ? fireDate : null;
 }
 
+/** Whether a notification's data marks it as the day-one notification. */
+export function isDayOneNotificationData(
+  data: { type?: unknown } | null | undefined,
+): boolean {
+  return data?.type === DAY_ONE_TYPE;
+}
+
 function isDayOneRequest(request: Notifications.NotificationRequest): boolean {
   return (
     request.identifier === DAY_ONE_NOTIFICATION_ID ||
-    request.content.data?.type === DAY_ONE_TYPE
+    isDayOneNotificationData(request.content.data)
   );
 }
 

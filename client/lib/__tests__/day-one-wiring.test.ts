@@ -51,4 +51,20 @@ describe("day-one notification wiring", () => {
     );
     expect(today).toContain("notificationsDenied={dayOneNotificationsDenied}");
   });
+
+  test("a tap on it lands on Today, ahead of the reminder-only handling", () => {
+    const context = read("context/AppContext.tsx");
+    const handler = context.slice(context.indexOf("const processResponse ="));
+    const dayOne = handler.indexOf("if (isDayOneNotificationData(data)) {");
+    const remindersOnly = handler.indexOf(
+      'if (data?.type !== "daily-reminder" && !isHabitReminder) return;',
+    );
+    expect(dayOne).toBeGreaterThan(-1);
+    // Without this order the tap returns early and the app stays wherever
+    // it was last left (Journey, Coach, a modal).
+    expect(remindersOnly).toBeGreaterThan(dayOne);
+    expect(handler.slice(dayOne, remindersOnly)).toContain(
+      "navigateToTodayTab();",
+    );
+  });
 });

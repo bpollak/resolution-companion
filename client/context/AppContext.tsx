@@ -36,6 +36,7 @@ import {
   ensureReminderScheduled,
   enableDefaultPersonalizedReminders,
   getReminderPrimerState,
+  isDayOneNotificationData,
   recordReminderPrimerAnswer,
   registerReminderActions,
   recordOrganicAppOpen,
@@ -1170,6 +1171,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
             actionIds?: string[];
           }
         | undefined;
+      // "Your first step is ready" has to open on that step. A replayed
+      // response only repeats a cold launch's own landing, so no marker.
+      if (isDayOneNotificationData(data)) {
+        if (
+          response.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER
+        ) {
+          navigateToTodayTab();
+        }
+        return;
+      }
       const isHabitReminder = data?.type === "habit-reminder";
       if (data?.type !== "daily-reminder" && !isHabitReminder) return;
       // A plain tap opened the app from the reminder: credit the voice that
