@@ -53,8 +53,7 @@ type SubscriptionSource =
   | "coach-limit"
   | "milestone-proposal"
   | "milestone-limit"
-  | "insights"
-  | "year-recap";
+  | "insights";
 
 // "Here's what you just hit" — every gated entry point names the cap so the
 // paywall never opens as a generic ad
@@ -77,10 +76,6 @@ const SOURCE_CONTEXT: Record<
   insights: {
     icon: "bar-chart-2",
     text: "Insights show when you show up best and the one thing to protect. Premium unlocks the full panel.",
-  },
-  "year-recap": {
-    icon: "award",
-    text: "The full “The Year You Became” story is part of Premium: your rhythm, your comebacks, and how the year closes.",
   },
 };
 
@@ -1063,12 +1058,6 @@ export default function SubscriptionScreen() {
             description="60-second habit science, matched to your journey"
             free="Weekly"
             premium="Daily"
-          />
-          <CompareRow
-            title={"“The Year You Became”"}
-            description="Your year, told as a story worth sharing"
-            free="1 card"
-            premium="Full story"
             isLast
           />
         </View>

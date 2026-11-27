@@ -23,17 +23,18 @@ name: premium-year-recap
     direction: DOWN
     timeout: 45000
 - tapOn: "The Year You Became.*"
+# Under 60 days from the plan's start the story is titled by its weeks.
 - extendedWaitUntil:
-    visible: "The Year You Became.*"
+    visible: "(The Year You Became|Your first [0-9]+ weeks?).*"
     timeout: 10000
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible: "Close year recap.*"
     timeout: 10000
 - assertVisible: "Share this year recap card as an image.*"
-# Premium sees every card. A free user sees the opening card, the same Share
-# button, and a teaser, so the old Share-only assertions also passed for a
-# free user. Assert the teaser is absent and the second (rhythm) card shows.
+# Every card is free, so Premium and free see the same story here; the free
+# path (all four cards, no paywall) is asserted in maestro-later-bets.yaml.
+# The retired Premium teaser must stay gone and the second (rhythm) card shows.
 - assertNotVisible: "See the full year story with Premium"
 - takeScreenshot: a11y-08-year-recap-card-one
 - swipe:
@@ -43,4 +44,16 @@ name: premium-year-recap
     timeout: 5000
 - assertVisible: "Share this year recap card as an image.*"
 - takeScreenshot: a11y-09-year-recap-card-two
+- swipe:
+    direction: LEFT
+- extendedWaitUntil:
+    visible: "The plan bent with you.*"
+    timeout: 5000
+- swipe:
+    direction: LEFT
+- extendedWaitUntil:
+    visible: ".*still becoming.*"
+    timeout: 5000
+- assertVisible: "Share this year recap card as an image.*"
+- assertNotVisible: "Upgrade to Premium.*"
 - tapOn: "Close year recap.*"

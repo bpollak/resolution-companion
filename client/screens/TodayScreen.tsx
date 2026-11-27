@@ -922,7 +922,6 @@ export default function TodayScreen() {
     todayDateStr.slice(5, 7) === "01" ? todayYear - 1 : todayYear;
   const yearRecapEligible =
     recapPrefsLoaded &&
-    subscription.isPremium &&
     (today.getMonth() === 11 || today.getMonth() === 0) &&
     yearRecapSeen !== String(annualYear);
   const yearRecap = useMemo(

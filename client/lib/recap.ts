@@ -54,10 +54,25 @@ export interface MonthRecap {
   closingLine: string;
 }
 
-/** Premium year-in-review narrative, generated entirely on device. */
+/**
+ * Under this many days since the plan's start, a "year" story would rank
+ * months and count active months from a few weeks of history, so the
+ * look-back is told as "Your first N weeks" instead.
+ */
+export const FIRST_WEEKS_MAX_DAYS = 60;
+
+export type YearRecapEdition = "year" | "firstWeeks";
+
+/** Year look-back narrative, free for everyone, generated on device. */
 export interface YearRecap {
   year: number;
   yearLabel: string;
+  /** "firstWeeks" while the plan is younger than FIRST_WEEKS_MAX_DAYS. */
+  edition: YearRecapEdition;
+  /** Whole weeks from the plan's start to the end of the story; at least 1. */
+  weeksSinceStart: number;
+  /** "The Year You Became" or "Your first N weeks". */
+  title: string;
   personaName: string;
   votesCast: number;
   scheduled: number;
@@ -293,6 +308,109 @@ export function buildMonthRecap(
   };
 }
 
+function earliestCreatedAt(actions: ElementalAction[]): string | null {
+  let earliest: string | null = null;
+  let earliestTime = Infinity;
+  for (const action of actions) {
+    const time = new Date(action.createdAt).getTime();
+    if (Number.isFinite(time) && time < earliestTime) {
+      earliestTime = time;
+      earliest = action.createdAt;
+    }
+  }
+  return earliest;
+}
+
+/**
+ * Calendar days from the plan's start day to `end`, in local time. Zero for
+ * a plan that starts after `end` (set up ahead for January 1) or has no
+ * readable start.
+ */
+export function daysSincePlanStart(
+  planStartedAt: string | null | undefined,
+  end: Date,
+): number {
+  const start = planStartedAt ? new Date(planStartedAt) : null;
+  if (!start || Number.isNaN(start.getTime())) return 0;
+  const startDay = new Date(
+    start.getFullYear(),
+    start.getMonth(),
+    start.getDate(),
+  );
+  const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  // Rounded: a daylight-saving change makes a local day 23 or 25 hours.
+  return Math.max(
+    0,
+    Math.round((endDay.getTime() - startDay.getTime()) / 86_400_000),
+  );
+}
+
+/** Which story fits the history, and the whole weeks it covers. */
+export function yearRecapEdition(daysSinceStart: number): {
+  edition: YearRecapEdition;
+  weeksSinceStart: number;
+} {
+  return {
+    edition: daysSinceStart < FIRST_WEEKS_MAX_DAYS ? "firstWeeks" : "year",
+    weeksSinceStart: Math.max(1, Math.floor(daysSinceStart / 7)),
+  };
+}
+
+const countOf = (count: number, one: string, many: string) =>
+  `${count} ${count === 1 ? one : many}`;
+
+/**
+ * The closing card: the plan's own name and one number. "Becoming {name}"
+ * reads correctly for any name ("Consistent Runner", "More Active Walker"),
+ * which "I became a {name}" does not.
+ */
+export function yearClosingLine(personaName: string, checkIns: number): string {
+  if (checkIns === 0) {
+    return `The story is still open. Your next action can begin ${personaName}.`;
+  }
+  return `Becoming ${personaName}. ${countOf(checkIns, "check-in", "check-ins")} so far.`;
+}
+
+export interface YearStoryCopy {
+  openingEyebrow: string;
+  rhythmHeadline: string;
+  rhythmDetail: string;
+  closingNote: string;
+}
+
+/**
+ * The words that differ between the two editions. The first-weeks edition
+ * never ranks a month or counts active months: a few weeks cannot support
+ * either line.
+ */
+export function yearStoryCopy(recap: YearRecap): YearStoryCopy {
+  if (recap.edition === "firstWeeks") {
+    return {
+      openingEyebrow: recap.title.toUpperCase(),
+      rhythmHeadline: countOf(recap.activeDays, "active day", "active days"),
+      rhythmDetail:
+        recap.votesCast > 0
+          ? `Across your first ${countOf(recap.weeksSinceStart, "week", "weeks")}.`
+          : "Your first action can still write the story.",
+      closingNote:
+        "No rankings. No perfect week required. Just proof that you showed up.",
+    };
+  }
+  return {
+    openingEyebrow: `THE YEAR YOU BECAME · ${recap.yearLabel}`,
+    rhythmHeadline: countOf(
+      recap.activeMonths,
+      "active month",
+      "active months",
+    ),
+    rhythmDetail: recap.bestMonth
+      ? `${recap.bestMonth.monthLabel} led the year with ${recap.bestMonth.votesCast} completed actions.`
+      : "Your first action can still write the story.",
+    closingNote:
+      "No rankings. No perfect year required. Just proof that you kept coming back.",
+  };
+}
+
 /**
  * Build "The Year You Became" from the same monthly stories users already
  * understand. Current-year summaries stop at today, so this also works as an
@@ -365,16 +483,27 @@ export function buildYearRecap(
   const consistency =
     scheduled > 0 ? Math.round((votesCast / scheduled) * 100) : 0;
   const personaName = persona?.name ?? "Future You";
-  const closingLine =
-    votesCast === 0
-      ? `The story is still open. Your next action can begin ${personaName}.`
-      : comebacks > 0
-        ? `${votesCast} actions and ${comebacks} comeback${comebacks === 1 ? "" : "s"}. You kept choosing ${personaName}.`
-        : `${votesCast} actions for ${personaName}. This is the year you practiced becoming.`;
+  const closingLine = yearClosingLine(personaName, votesCast);
+  // Measured to the end of what the story covers, so a December plan read
+  // in January is not credited with weeks the numbers leave out.
+  const yearEnd = new Date(year, 11, 31);
+  const { edition, weeksSinceStart } = yearRecapEdition(
+    daysSincePlanStart(
+      persona?.createdAt ?? earliestCreatedAt(actions),
+      yearEnd < today ? yearEnd : today,
+    ),
+  );
+  const title =
+    edition === "firstWeeks"
+      ? `Your first ${countOf(weeksSinceStart, "week", "weeks")}`
+      : "The Year You Became";
 
   return {
     year,
     yearLabel: String(year),
+    edition,
+    weeksSinceStart,
+    title,
     personaName,
     votesCast,
     scheduled,
