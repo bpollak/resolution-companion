@@ -11,6 +11,7 @@ import { storage } from "@/lib/storage";
 import {
   areNotificationsEnabled,
   cancelAllScheduledNotifications,
+  clearScheduledReminders,
 } from "@/lib/notifications";
 
 jest.mock("expo-notifications", () => ({
@@ -106,5 +107,32 @@ describe("cancelAllScheduledNotifications", () => {
       Notifications.cancelAllScheduledNotificationsAsync as jest.Mock
     ).mockRejectedValueOnce(new Error("denied"));
     await expect(cancelAllScheduledNotifications()).resolves.toBeUndefined();
+  });
+});
+
+describe("clearScheduledReminders (the only plan was deleted)", () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+    jest.clearAllMocks();
+  });
+
+  it("cancels pending reminders but keeps the person's preference", async () => {
+    await AsyncStorage.setItem("evolve_notifications_enabled", "true");
+    await AsyncStorage.setItem("evolve_daily_reminder_id", '["n1","n2"]');
+
+    await clearScheduledReminders();
+
+    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith(
+      "n1",
+    );
+    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith(
+      "n2",
+    );
+    expect(await AsyncStorage.getItem("evolve_daily_reminder_id")).toBeNull();
+    // The next plan gets reminders again without asking a second time
+    expect(await areNotificationsEnabled()).toBe(true);
+    expect(
+      Notifications.cancelAllScheduledNotificationsAsync,
+    ).not.toHaveBeenCalled();
   });
 });

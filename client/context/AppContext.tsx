@@ -32,6 +32,7 @@ import {
 } from "@/lib/progress";
 import {
   cancelAllScheduledNotifications,
+  clearScheduledReminders,
   ensureReminderScheduled,
   enableDefaultPersonalizedReminders,
   getReminderPrimerState,
@@ -583,6 +584,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setActionsState([]);
       setDailyLogsState([]);
       await storage.deletePersona(id);
+      // With no plan left nothing refreshes the reminder plan, so reminders
+      // naming the deleted habits would keep firing for up to two weeks.
+      if ((await storage.getPersonas()).length === 0) {
+        await clearScheduledReminders();
+      }
       await refreshData();
     },
     [refreshData],

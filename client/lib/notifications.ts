@@ -6,6 +6,7 @@ import { getLocalDateString, weekdayName } from "@/lib/progress";
 import { isScheduledOn } from "@/lib/schedule-history";
 import { logger } from "@/lib/logger";
 import type { DailyLog, ElementalAction } from "@/lib/storage";
+import type { NotificationPermissionState } from "@/lib/reminder-switch";
 import {
   PENDING_NOTIFICATION_BUDGET,
   fitToBudget,
@@ -1179,6 +1180,45 @@ export async function areNotificationsEnabled(): Promise<boolean> {
     return enabled === "true";
   } catch {
     return false;
+  }
+}
+
+/**
+ * The system's answer, three ways. "denied" means the app can no longer
+ * ask and only the Settings app can turn reminders on; a failed lookup is
+ * "undetermined", never "denied", so nobody is sent to Settings by mistake.
+ */
+export async function getNotificationPermissionState(): Promise<NotificationPermissionState> {
+  if (Platform.OS === "web") {
+    return "undetermined";
+  }
+
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    return status === "granted"
+      ? "granted"
+      : status === "denied"
+        ? "denied"
+        : "undetermined";
+  } catch {
+    return "undetermined";
+  }
+}
+
+/**
+ * Cancels pending reminders without touching the person's preference, for
+ * when the plan they describe is gone (the only plan was deleted). A new
+ * plan schedules again on its own.
+ */
+export async function clearScheduledReminders(): Promise<void> {
+  if (Platform.OS === "web") {
+    return;
+  }
+
+  try {
+    await withReminderLock(() => cancelScheduled());
+  } catch (error) {
+    logger.error("Failed to clear scheduled reminders:", error);
   }
 }
 
