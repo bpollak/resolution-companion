@@ -32,6 +32,7 @@ import {
 } from "@/lib/iap";
 import { logger } from "@/lib/logger";
 import { paywallViewedEvent, track } from "@/lib/telemetry";
+import { resolvePaywallSource } from "@/lib/paywall-source";
 import { markSession } from "@/lib/review-ask";
 import { chooseYearlyProductId } from "@/lib/pricing";
 import { getSubscriptionPlanLabel } from "@/lib/subscription";
@@ -297,13 +298,16 @@ export default function SubscriptionScreen() {
     verifySubscription,
     monthlyReflectionCount,
   } = useApp();
-  const sourceContext = route.params?.source
+  // A stale or unknown source (one retired by a later build) opens the
+  // default paywall instead of throwing on a missing context.
+  const source = resolvePaywallSource(SOURCE_CONTEXT, route.params?.source);
+  const sourceContext = source
     ? {
-        ...SOURCE_CONTEXT[route.params.source],
+        ...SOURCE_CONTEXT[source],
         text:
-          route.params.source === "coach-limit"
+          source === "coach-limit"
             ? getCoachQuotaMessage(monthlyReflectionCount)
-            : SOURCE_CONTEXT[route.params.source].text,
+            : SOURCE_CONTEXT[source].text,
       }
     : null;
   const [selectedPlan, setSelectedPlan] = useState<PlanType>("yearly");
