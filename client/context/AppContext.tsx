@@ -31,6 +31,7 @@ import {
   ProgressSnapshot,
 } from "@/lib/progress";
 import {
+  cancelAllScheduledNotifications,
   ensureReminderScheduled,
   enableDefaultPersonalizedReminders,
   getReminderPrimerState,
@@ -887,6 +888,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const clearAllData = useCallback(async () => {
     await setPrivateBackupEnabled(false);
+    // Before storage: the cancel reads the stored reminder ids
+    await cancelAllScheduledNotifications();
     await storage.clearAll();
     setHasOnboardedState(false);
     setPersonaState(null);

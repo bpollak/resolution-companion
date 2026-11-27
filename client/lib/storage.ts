@@ -38,6 +38,11 @@ const STORAGE_KEYS = {
   RECAP_COACH_LINES: "recapCoachLines",
 };
 
+const KEYS_KEPT_ON_CLEAR = new Set([
+  STORAGE_KEYS.DEVICE_ID,
+  "yearly_price_cohort_v1",
+]);
+
 export interface Persona {
   id: string;
   name: string;
@@ -899,14 +904,18 @@ export const storage = {
     );
   },
 
+  // Removes every key in the app's store, not a list kept here: screens and
+  // other modules write their own keys (witness name, rewards, reminder
+  // settings, seen markers), and a list misses whatever is added next.
   // Keeps DEVICE_ID: server-side subscription records are keyed by it, so
   // wiping it would permanently orphan purchase restore after a data reset.
-  // Account deletion removes it explicitly via removeDeviceId().
+  // Account deletion removes it explicitly via removeDeviceId(). The price
+  // cohort is install identity too, not something the person entered.
   async clearAll(): Promise<void> {
-    const keys = Object.values(STORAGE_KEYS).filter(
-      (key) => key !== STORAGE_KEYS.DEVICE_ID,
+    const keys = (await AsyncStorage.getAllKeys()).filter(
+      (key) => !KEYS_KEPT_ON_CLEAR.has(key),
     );
-    await AsyncStorage.multiRemove(keys);
+    if (keys.length > 0) await AsyncStorage.multiRemove(keys);
   },
 
   async getSubscription(): Promise<Subscription> {

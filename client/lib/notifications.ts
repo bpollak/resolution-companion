@@ -935,6 +935,30 @@ export async function cancelDailyReminder(): Promise<void> {
   }
 }
 
+/**
+ * "Clear All Data": nothing this app scheduled may fire afterwards, and
+ * reminders already on the lock screen (which name habits) are removed.
+ * Turns the flag off first so a refresh queued behind this cannot bring
+ * the plan back before storage is cleared.
+ */
+export async function cancelAllScheduledNotifications(): Promise<void> {
+  if (Platform.OS === "web") {
+    return;
+  }
+
+  try {
+    await withReminderLock(async () => {
+      await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, "false");
+      await AsyncStorage.removeItem(REMINDER_MODE_KEY);
+      await cancelScheduled();
+      await Notifications.cancelAllScheduledNotificationsAsync();
+      await Notifications.dismissAllNotificationsAsync();
+    });
+  } catch (error) {
+    logger.error("Failed to cancel all notifications:", error);
+  }
+}
+
 const REMINDER_PRIMER_KEY = "reminder_primer_answer";
 
 export type ReminderPrimerState =
