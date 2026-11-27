@@ -930,12 +930,14 @@ describe("day-one notification: scheduling", () => {
       }));
 
     it("leaves room for day one while the plan has not started", async () => {
-      // Five timed habits a day: 12 whole days fill 60, 11 fit under 59.
+      // The start day keeps its three afternoon and evening reminders (the
+      // morning belongs to day one), then five a day: 3 + 11 x 5 = 58 fits
+      // under 59, and a thirteenth day would not.
       await scheduleDailyReminder({
         actions: timedHabits(JAN_1),
         dailyLogs: [],
       });
-      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(55);
+      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(58);
     });
 
     it("gives the slot back once the plan has started", async () => {
@@ -945,6 +947,76 @@ describe("day-one notification: scheduling", () => {
         dailyLogs: [],
       });
       expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(60);
+    });
+  });
+
+  describe("one notification on the start morning", () => {
+    const habit = (
+      createdAt: string,
+      reminderTime?: string,
+    ): ElementalAction => ({
+      id: `habit-${reminderTime ?? "untimed"}`,
+      benchmarkId: "benchmark",
+      title: "Walk 20 minutes",
+      frequency: [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+      ],
+      anchorLink: "",
+      kickstartVersion: "",
+      createdAt,
+      ...(reminderTime ? { reminderTime } : {}),
+    });
+    const fireTimes = () =>
+      jest
+        .mocked(Notifications.scheduleNotificationAsync)
+        .mock.calls.map((call) => (call[0].trigger as { date: Date }).date)
+        .sort((a, b) => a.getTime() - b.getTime());
+
+    it("skips the morning digest on the start day, and only that day", async () => {
+      await AsyncStorage.setItem("evolve_reminder_bucket_user", "morning");
+
+      await scheduleDailyReminder({ actions: [habit(JAN_1)], dailyLogs: [] });
+
+      const times = fireTimes();
+      expect(times[0]).toEqual(new Date(2027, 0, 2, 8, 0));
+      expect(
+        times.some((time) => time.getTime() < new Date(2027, 0, 2).getTime()),
+      ).toBe(false);
+    });
+
+    it("keeps an evening digest on the start day", async () => {
+      await scheduleDailyReminder({ actions: [habit(JAN_1)], dailyLogs: [] });
+
+      expect(fireTimes()[0]).toEqual(new Date(2027, 0, 1, 20, 0));
+    });
+
+    it("keeps habit reminders later on the start day, not the morning ones", async () => {
+      await scheduleDailyReminder({
+        actions: [habit(JAN_1, "07:00"), habit(JAN_1, "21:00")],
+        dailyLogs: [],
+      });
+
+      const times = fireTimes();
+      expect(times[0]).toEqual(new Date(2027, 0, 1, 21, 0));
+      expect(times[1]).toEqual(new Date(2027, 0, 2, 7, 0));
+    });
+
+    it("leaves a running plan's morning digest alone", async () => {
+      jest.setSystemTime(new Date(2026, 11, 1, 0, 30));
+      await AsyncStorage.setItem("evolve_reminder_bucket_user", "morning");
+
+      await scheduleDailyReminder({
+        actions: [habit(new Date(2026, 10, 1).toISOString())],
+        dailyLogs: [],
+      });
+
+      expect(fireTimes()[0]).toEqual(new Date(2026, 11, 1, 8, 0));
     });
   });
 });

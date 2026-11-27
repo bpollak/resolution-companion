@@ -660,6 +660,15 @@ function planReminderDays(
   const startsOn = options.startDate
     ? getLocalDateString(options.startDate)
     : null;
+  // While a day-one notification is still due, it is the only thing sent on
+  // the start morning: that day's reminders before noon give way to it.
+  // Afternoon and evening reminders on the start day are unaffected.
+  const dayOne = dayOneFireDate(earliestActionStart(options.actions), now);
+  const dayOneKey = dayOne ? getLocalDateString(dayOne) : null;
+  const yieldsToDayOne = (fireAt: Date) =>
+    dayOne !== null &&
+    getLocalDateString(fireAt) === dayOneKey &&
+    fireAt.getHours() < 12;
   const days: PlannedReminderDay[] = [];
   for (let offset = 0; offset < REMINDER_HORIZON_DAYS; offset++) {
     const day = new Date(firstDay);
@@ -670,14 +679,18 @@ function planReminderDays(
       options.dailyLogs,
       day,
     );
-    const timedSlots = planTimedSlots(day, open, now);
+    const timedSlots = planTimedSlots(day, open, now).filter(
+      (slot) => !yieldsToDayOne(slot.fireDate),
+    );
     const remainingActions = open.filter(
       (action) => !parseReminderTime(action.reminderTime),
     );
     const digestAt = new Date(day);
     digestAt.setHours(hour, minute, 0, 0);
     const fireDate =
-      remainingActions.length > 0 && digestAt > now ? digestAt : null;
+      remainingActions.length > 0 && digestAt > now && !yieldsToDayOne(digestAt)
+        ? digestAt
+        : null;
     if (!fireDate && timedSlots.length === 0) continue;
     days.push({
       dateKey: getLocalDateString(day),
@@ -689,13 +702,10 @@ function planReminderDays(
   }
   // A plan that has not started holds one slot for its day-one notification,
   // which is scheduled outside this plan but shares the same pending limit.
-  const dayOneSlots = dayOneFireDate(earliestActionStart(options.actions), now)
-    ? 1
-    : 0;
   return fitToBudget(
     days,
     notificationCount,
-    PENDING_NOTIFICATION_BUDGET - dayOneSlots,
+    PENDING_NOTIFICATION_BUDGET - (dayOne ? 1 : 0),
   );
 }
 
