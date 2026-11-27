@@ -4,6 +4,7 @@ import {
   parseJourneyDate,
   actionIsScheduledOnDate,
 } from "@/lib/journey-date";
+import { withFrequencyChange } from "@/lib/schedule-history";
 
 test.each([
   [new Date(2026, 8, 30, 23, 59), "2026-10-01"],
@@ -85,4 +86,27 @@ test("an empty schedule has no invented starting day", () => {
   expect(
     nextScheduledDay([{ frequency: [] }], new Date(2026, 8, 6)),
   ).toBeNull();
+});
+
+describe("schedule history in the calendar", () => {
+  const before = {
+    frequency: ["Monday", "Tuesday"],
+    createdAt: "2026-06-01T09:00:00",
+  };
+  // Tuesday removed on Fri Jul 10
+  const after = withFrequencyChange(before, ["Monday"], "2026-07-10");
+
+  it("keeps a removed weekday scheduled on days before the change", () => {
+    expect(actionIsScheduledOnDate(after, new Date(2026, 5, 30))).toBe(true); // Tue Jun 30
+    expect(actionIsScheduledOnDate(after, new Date(2026, 6, 7))).toBe(true); // Tue Jul 7
+  });
+
+  it("drops the removed weekday from the change onward", () => {
+    expect(actionIsScheduledOnDate(after, new Date(2026, 6, 14))).toBe(false); // Tue Jul 14
+    expect(actionIsScheduledOnDate(after, new Date(2026, 6, 13))).toBe(true); // Mon Jul 13
+  });
+
+  it("still never schedules a day before the habit existed", () => {
+    expect(actionIsScheduledOnDate(after, new Date(2026, 4, 26))).toBe(false); // Tue May 26
+  });
 });

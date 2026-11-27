@@ -1,5 +1,37 @@
 [
   {
+    "version": "1.7.0",
+    "status": "draft",
+    "title": "Find the steps toward your goal",
+    "summary": "Coach now helps you see the steps toward your resolution, start with one, and add the next when you are ready.",
+    "appStoreNotes": [
+      "Know the goal but not the steps? Coach now names two or three steps toward your resolution and helps you pick one to start with.",
+      "The steps you did not start with wait under Next steps in Journey. Add one with a tap when you are ready.",
+      "Ask Coach to suggest a next step at any time. You see it before anything is added.",
+      "Changing a habit's days no longer changes your past streak, and adding a habit keeps your milestone progress.",
+      "Your year story is now free for everyone, with an edition for your first weeks.",
+      "Planning for January 1? You can get one note on the morning your plan starts.",
+      "Fixes and polish to keep things running smoothly."
+    ],
+    "highlights": [
+      {
+        "title": "Steps toward your goal",
+        "description": "Tell Coach the goal, even if you do not know the steps yet. Coach names two or three, and you start with one.",
+        "availability": "Available to everyone."
+      },
+      {
+        "title": "Next steps in Journey",
+        "description": "The steps you set aside are kept for later. Add one with a tap, or ask Coach to suggest another.",
+        "availability": "Available to everyone."
+      },
+      {
+        "title": "Your year story, free",
+        "description": "Look back on what you did, with an edition for your first weeks.",
+        "availability": "Available to everyone."
+      }
+    ]
+  },
+  {
     "version": "1.6.1",
     "status": "released",
     "title": "Reminder suggestions that fit",
@@ -52,7 +84,7 @@
     "appStoreNotes": [
       "Tell Coach your resolution in your own words, or tap a starter like Get fit or Save money.",
       "Your plan keeps your real goal, like losing 15 pounds, right on Today.",
-      "Plan ahead: from mid-November you can start on January 1, with a countdown until then.",
+      "Plan ahead: you can start on January 1, with a countdown until then.",
       "A clearer reminder setup, a roomier Coach that saves on its own, and a shareable card from your year.",
       "Simpler words throughout, plus fixes to the calendar, the progress ring, and the launch screen."
     ],

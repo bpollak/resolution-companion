@@ -4,6 +4,7 @@ import {
   resolveSubscriptionCheck,
   sameSubscription,
   selectPreferredEntitlement,
+  shouldCheckPastExpiry,
 } from "@/lib/subscription";
 import type { Subscription } from "@/lib/storage";
 
@@ -277,5 +278,64 @@ describe("sameSubscription", () => {
     expect(sameSubscription(local, { ...local, purchasedAt: null })).toBe(
       false,
     );
+  });
+});
+
+describe("shouldCheckPastExpiry", () => {
+  const now = new Date("2026-12-01T00:00:00.000Z").getTime();
+  const free: Subscription = {
+    isPremium: false,
+    plan: "free",
+    expiresAt: null,
+    purchasedAt: null,
+  };
+
+  it("looks for a current subscriber", () => {
+    expect(shouldCheckPastExpiry(local, now)).toBe(true);
+  });
+
+  it("looks for someone this device already dropped to free within 30 days", () => {
+    expect(
+      shouldCheckPastExpiry(
+        { ...free, expiresAt: "2026-11-20T00:00:00.000Z" },
+        now,
+      ),
+    ).toBe(true);
+    expect(
+      shouldCheckPastExpiry(
+        { ...free, expiresAt: "2026-11-01T00:00:00.000Z" },
+        now,
+      ),
+    ).toBe(true);
+  });
+
+  it("stops looking once the expiry is more than 30 days old", () => {
+    expect(
+      shouldCheckPastExpiry(
+        { ...free, expiresAt: "2026-10-31T23:59:59.000Z" },
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it("leaves the store alone for someone who never subscribed", () => {
+    expect(shouldCheckPastExpiry(free, now)).toBe(false);
+    expect(shouldCheckPastExpiry({ ...free, expiresAt: "junk" }, now)).toBe(
+      false,
+    );
+  });
+
+  it("never looks for lifetime, which has no expiry to pass", () => {
+    expect(
+      shouldCheckPastExpiry(
+        {
+          isPremium: true,
+          plan: "lifetime",
+          expiresAt: null,
+          purchasedAt: null,
+        },
+        now,
+      ),
+    ).toBe(false);
   });
 });

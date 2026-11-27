@@ -34,8 +34,7 @@ export type RootStackParamList = {
           | "coach-limit"
           | "milestone-proposal"
           | "milestone-limit"
-          | "insights"
-          | "year-recap";
+          | "insights";
       }
     | undefined;
   Profile: undefined;

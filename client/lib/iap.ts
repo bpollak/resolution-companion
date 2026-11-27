@@ -481,24 +481,37 @@ class IAPService {
   }
 
   async restorePurchases(): Promise<IAPPurchase[]> {
+    return (await this.restoreEntitlements()).purchases;
+  }
+
+  /**
+   * Explicit Restore Purchases, with the whole answer. An empty `purchases`
+   * list only means "nothing to restore" when `storeAvailable` and
+   * `verificationCompleted` are both true; otherwise the store was not
+   * reached or holds a purchase the server could not confirm, and the
+   * caller must not tell a paying person that nothing was found.
+   */
+  async restoreEntitlements(): Promise<IAPEntitlementCheck> {
+    const unreachable: IAPEntitlementCheck = {
+      storeAvailable: false,
+      verificationCompleted: false,
+      purchases: [],
+    };
     const available = await this.isAvailable();
-    if (!available || !IAP) return [];
+    if (!available || !IAP) return unreachable;
 
     try {
-      if (!(await this.connect())) return [];
+      if (!(await this.connect())) return unreachable;
       // Explicit Restore Purchases is the only path that asks StoreKit to
       // synchronize account history. Background/profile verification uses
       // the quieter current-entitlements lookup below.
       if (Platform.OS === "ios") await IAP.syncIOS();
     } catch (error) {
       logger.error("Failed to synchronize purchases:", error);
-      return [];
+      return unreachable;
     }
 
-    const result = await this.checkCurrentEntitlements({
-      includePastExpiry: true,
-    });
-    return result.purchases;
+    return this.checkCurrentEntitlements({ includePastExpiry: true });
   }
 
   /**

@@ -28,22 +28,31 @@ import {
   extractPersonaFromConversation,
   type AIMessage,
 } from "@/lib/ai";
+import { ONBOARDING_OPENER } from "@/lib/ai-prompts";
 import {
   createPlanDraft,
   deriveResolution,
   pickResolutionMessage,
   planStartInstant,
+  sanitizeDraft,
+  shouldOfferPlanReview,
   type OnboardingPlanDraft,
 } from "@/lib/onboarding-plan";
 import {
   approvalClearsCoachTranscript,
   createStarterPlanDraft,
   isSelfSetupDraft,
+  RESOLUTION_STARTERS,
 } from "@/lib/starter-plan";
+import { GOAL_TO_STEPS_LINE, WELCOME_STEPS } from "@/lib/copy";
 import { storage } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import { track } from "@/lib/telemetry";
 import { markSession } from "@/lib/review-ask";
+import {
+  askForDayOnePermission,
+  syncDayOneNotification,
+} from "@/lib/notifications";
 
 interface ChatMessage {
   id: string;
@@ -52,18 +61,40 @@ interface ChatMessage {
 }
 type Stage = "welcome" | "chat" | "review";
 
-// One tap gets a New Year's user past the blank box; Coach narrows it down.
-const RESOLUTION_STARTERS = [
-  "Get fit",
-  "Lose weight",
-  "Save money",
-  "Read more",
-  "Sleep better",
-  "Less phone time",
-  "Stress less",
-  "Learn a skill",
-  "Something else",
-];
+// A plan saved for a later start is the one moment a notification has an
+// obvious reason, so the ask happens here, with that reason said first.
+// Never throws: the plan is already saved and must still open.
+async function offerDayOneNotification(start: Date): Promise<void> {
+  if (Platform.OS === "web") return;
+  const startLabel = start.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+  });
+  try {
+    await askForDayOnePermission(
+      start,
+      () =>
+        new Promise<boolean>((resolve) => {
+          Alert.alert(
+            "Hear from us on day one?",
+            `We can send one notification at 8:00 AM on ${startLabel}, when your first step is ready.`,
+            [
+              {
+                text: "Not now",
+                style: "cancel",
+                onPress: () => resolve(false),
+              },
+              { text: "Yes, notify me", onPress: () => resolve(true) },
+            ],
+            { cancelable: true, onDismiss: () => resolve(false) },
+          );
+        }),
+    );
+    await syncDayOneNotification(start.toISOString());
+  } catch (error) {
+    logger.error("Failed to offer the day-one notification:", error);
+  }
+}
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
@@ -123,9 +154,9 @@ export default function OnboardingScreen() {
           (savedDraft?.usesAI === true || isSelfSetupDraft(savedDraft)) &&
           Array.isArray(savedDraft?.suggestions)
         ) {
-          setDraft(savedDraft);
+          setDraft(sanitizeDraft(savedDraft));
           setStage("review");
-        } else if (transcript.length > 0) {
+        } else if (transcript.some((message) => message.role === "user")) {
           setStage("chat");
           if (transcript.at(-1)?.role === "user") {
             setError("Your last message is saved. Retry when you are ready.");
@@ -236,7 +267,16 @@ export default function OnboardingScreen() {
   const beginChat = () => {
     touchedRef.current = true;
     setStage("chat");
-    if (messages.length === 0) void requestReply([]);
+    // The opening question is fixed, so it is shown at once with no network
+    // call; the first request goes out with the person's first message.
+    if (messages.length === 0)
+      setMessages([
+        {
+          id: `${Date.now()}-assistant`,
+          role: "assistant",
+          content: ONBOARDING_OPENER,
+        },
+      ]);
     else if (messages.at(-1)?.role === "user") {
       setError("Your last message is saved. Retry when you are ready.");
       setFailedRequest("reply");
@@ -395,6 +435,8 @@ export default function OnboardingScreen() {
       await storage.setOnboardingDraft(draft);
       await storage.commitOnboardingPlan(draft);
       await storage.setOnboardingDraft(null);
+      const laterStart = planStartInstant(draft);
+      if (laterStart) await offerDayOneNotification(laterStart);
       if (approvalClearsCoachTranscript(draft)) {
         await storage.setOnboardingMessages([]);
       }
@@ -577,19 +619,10 @@ export default function OnboardingScreen() {
               What&rsquo;s your resolution?
             </ThemedText>
             <ThemedText style={{ color: theme.textSecondary }}>
-              Coach turns it into one small habit. You decide when it starts.
+              {GOAL_TO_STEPS_LINE}
             </ThemedText>
             <View style={styles.overview}>
-              {[
-                [
-                  "Talk with Coach",
-                  "Share your resolution and the days that fit.",
-                ],
-                [
-                  "Review your plan",
-                  "Check your habit and schedule. Start when it feels right.",
-                ],
-              ].map(([title, detail], index) => (
+              {WELCOME_STEPS.map(([title, detail], index) => (
                 <View key={title} style={styles.overviewStep}>
                   <View
                     style={[
@@ -634,7 +667,7 @@ export default function OnboardingScreen() {
             {button(
               draft
                 ? "Resume my plan review"
-                : messages.length > 0
+                : messages.some((message) => message.role === "user")
                   ? "Resume my conversation"
                   : "Build a plan with Coach",
               draft
@@ -672,6 +705,7 @@ export default function OnboardingScreen() {
             setError(null);
           }}
           onApprove={approve}
+          onAskCoach={returnsToCoach ? back : undefined}
           saving={busy === "save"}
           error={error}
         />
@@ -682,7 +716,7 @@ export default function OnboardingScreen() {
           >
             {inputText.trim()
               ? "Send your message before previewing your plan."
-              : "Share your resolution and the days that fit. You’ll review the plan before it starts."}
+              : "Share the goal. Coach helps you find the steps, and you review the plan before it starts."}
           </ThemedText>
           <FlatList
             style={styles.scrollViewport}
@@ -773,11 +807,10 @@ export default function OnboardingScreen() {
                     ))}
                   </View>
                 ) : null}
-                {/* Only once Coach stops asking: a clarifying question means
-                    the plan would have to guess the missing detail. */}
-                {canPreview &&
-                messages.at(-1)?.role === "assistant" &&
-                !messages.at(-1)?.content.trim().endsWith("?") ? (
+                {/* Anything the plan has to guess is labelled as a
+                    suggestion in review, so a trailing question from Coach
+                    does not hide this. */}
+                {canPreview && shouldOfferPlanReview(messages) ? (
                   <View style={styles.inlineReview}>
                     {button("Review my plan", previewPlan, true)}
                   </View>

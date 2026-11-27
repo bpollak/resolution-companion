@@ -23,6 +23,7 @@ import { Colors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { logger } from "@/lib/logger";
+import { HABIT_LIMIT } from "@/lib/plan-editing";
 import { initHealth, HEALTH_KIND_LABELS } from "@/lib/health";
 import {
   formatReminderTime,
@@ -45,7 +46,6 @@ const DAYS = [
   "Sunday",
 ];
 const MIN_ACTIONS_PER_PERSONA = 1;
-const MAX_ACTIONS_PER_PERSONA = 5;
 
 type RouteParams = {
   ActionEditor: {
@@ -79,7 +79,7 @@ export default function ActionEditorScreen() {
   const personaActionsCount = actions.filter((a) =>
     personaBenchmarkIds.includes(a.benchmarkId),
   ).length;
-  const canAddAction = personaActionsCount < MAX_ACTIONS_PER_PERSONA;
+  const canAddAction = personaActionsCount < HABIT_LIMIT;
   const canDeleteAction = personaActionsCount > MIN_ACTIONS_PER_PERSONA;
 
   React.useEffect(() => {
@@ -102,12 +102,12 @@ export default function ActionEditorScreen() {
     if (!isEditing && !canAddAction) {
       if (Platform.OS === "web") {
         window.alert(
-          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} habits per plan.`,
+          `You can have a maximum of ${HABIT_LIMIT} habits per plan.`,
         );
       } else {
         Alert.alert(
           "Action Limit Reached",
-          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} habits per plan.`,
+          `You can have a maximum of ${HABIT_LIMIT} habits per plan.`,
         );
       }
       navigation.goBack();

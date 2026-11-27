@@ -128,6 +128,7 @@ for (const file of collectTsxFiles(clientRoot)) {
 
 const websiteTemplates = [
   "landing-page.html",
+  "new-year.html",
   "release-notes.html",
   "feedback.html",
   "privacy.html",

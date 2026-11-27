@@ -1,17 +1,16 @@
 # Resolution Companion AI — Codebase Guide
 
-Current status (2026-11-10): 1.6.0 (108), per-habit reminder times, was
-released 2026-10-24 and is live. 1.6.1 (small fixes: rating prompt timing,
-reminder primer cue, funnel telemetry, site copy) is merged to `main`
-(2c5867e) and build 112 (adds billing grace period handling, PR #36) was submitted to
-App Review 2026-11-11, replacing build 111 (Waiting for Review, automatic
-release after approval). Billing Grace Period is ON in production and sandbox since 2026-11-11 (16
-days, all renewals). Versions before build 112 still drop Premium at the
-original expiry date, so the promise is only fully kept once 1.6.1 is live
-and installed. Spec
+Current status (2026-11-27): 1.6.1 (112) is live on the App Store (rating
+prompt timing, reminder primer cue, funnel telemetry, billing grace period
+handling). Billing Grace Period is ON in production and sandbox since
+2026-11-11 (16 days, all renewals). In progress on branch
+`claude/new-year-2027`: 1.7.0, the "steps" release (Coach breaks a goal into
+steps, next steps in Journey, history-safe schedule edits, server hardening),
+due in App Review by Dec 10. Spec
 `docs/superpowers/specs/2026-11-10-new-year-2027-design.md`, plan
-`docs/superpowers/plans/2026-11-10-fix-now-1.6.1.md`. This supersedes the
-historical status below.
+`docs/superpowers/plans/2026-11-27-steps-release-1.7.0.md`. The AI model is
+set in `server/ai-request.ts` (not gpt-5-mini; see `privacy.html`). This
+supersedes the historical status below.
 
 Identity-based behavior-change app. Users define a **Target Persona** through
 an AI interview, set **Core Benchmarks** (milestones), and log daily

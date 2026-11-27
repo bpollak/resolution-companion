@@ -31,9 +31,12 @@ import {
   ProgressSnapshot,
 } from "@/lib/progress";
 import {
+  cancelAllScheduledNotifications,
+  clearScheduledReminders,
   ensureReminderScheduled,
   enableDefaultPersonalizedReminders,
   getReminderPrimerState,
+  isDayOneNotificationData,
   recordReminderPrimerAnswer,
   registerReminderActions,
   recordOrganicAppOpen,
@@ -49,11 +52,14 @@ import { track, flushTelemetry } from "@/lib/telemetry";
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { syncWidgetData, consumePendingVotes } from "@/lib/widget";
 import { createTrailingDebounce } from "@/lib/debounce";
+import { msUntilNextLocalDay } from "@/lib/day-rollover";
+import { createSerialQueue } from "@/lib/serial-queue";
 import { unlockRewardsForMilestoneCount, Reward } from "@/lib/rewards";
 import { isHealthAvailable, initHealth, isHealthGoalMet } from "@/lib/health";
 import {
   resolveSubscriptionCheck,
   sameSubscription,
+  shouldCheckPastExpiry,
   type ServerSubscriptionStatus,
   type SubscriptionVerificationStatus,
 } from "@/lib/subscription";
@@ -65,6 +71,7 @@ import {
 } from "@/lib/daily-log";
 import { iapService } from "@/lib/iap";
 import { canDeleteMilestone } from "@/lib/plan-editing";
+import { normalizeNextSteps, type NextStep } from "@/lib/next-steps";
 import {
   createPrivateBackup,
   getPrivateBackupEnabled,
@@ -174,6 +181,18 @@ interface AppContextType {
    * resolves to the (possibly updated) actions to schedule with.
    */
   applySuggestedReminderTimes: () => Promise<ElementalAction[]>;
+  /** The active plan's steps not started yet; empty when it has none. */
+  nextSteps: NextStep[];
+  /** Turns a stored next step into a habit under the current milestone. */
+  addNextStep: (
+    stepId: string,
+  ) => Promise<{ ok: boolean; reason?: "habit_limit" | "no_milestone" }>;
+  dismissNextStep: (stepId: string) => Promise<void>;
+  /**
+   * Stores a step on the active plan for later and resolves to the stored
+   * step: the one already there when its title matches.
+   */
+  saveNextStep: (step: NextStep) => Promise<NextStep | null>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -184,6 +203,8 @@ const FREE_REFLECTION_LIMIT = 10;
 // milestone is celebrated exactly once, ever (survives restarts)
 const MILESTONE_CELEBRATION_SEEN_KEY = "milestone_celebration_seen_ids";
 const HABIT_TIMES_BACKFILLED_KEY = "evolve_habit_times_backfilled";
+
+const enqueueMilestoneWrite = createSerialQueue();
 
 // try/catch lives in these module helpers, outside AppProvider: the React
 // Compiler skips the whole provider over conditional expressions in a try.
@@ -284,12 +305,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Derived from the persona-scoped state, so they can never drift from the
   // data they describe (state mirrors storage via refreshData + mutators).
   // Premium holds 2 streak shields — extra grace, earned the same way.
+  // The snapshot depends on "today" as much as on the data. Without the
+  // day key an app left in memory overnight kept yesterday's streak, lapse,
+  // and month score until the next check-off.
+  const [todayKey, setTodayKey] = useState(() =>
+    getLocalDateString(new Date()),
+  );
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const syncDay = () => {
+      // Same string on most calls, so React skips the re-render
+      setTodayKey(getLocalDateString(new Date()));
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(syncDay, msUntilNextLocalDay(new Date()));
+    };
+    syncDay();
+    // iOS pauses timers in the background; foregrounding checks the date
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") syncDay();
+    });
+    return () => {
+      if (timer) clearTimeout(timer);
+      subscription.remove();
+    };
+  }, []);
   const progressSnapshot = useMemo(
     () =>
       buildProgressSnapshot(actions, dailyLogs, benchmarks, {
         maxShields: subscription.isPremium ? 2 : 1,
+        dayKey: todayKey,
       }),
-    [actions, dailyLogs, benchmarks, subscription.isPremium],
+    [actions, dailyLogs, benchmarks, subscription.isPremium, todayKey],
   );
   const { momentumScore, personaAlignment } = progressSnapshot;
   const [monthlyReflectionCount, setMonthlyReflectionCount] = useState(0);
@@ -411,7 +457,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const store =
         Platform.OS !== "web"
           ? await iapService.checkCurrentEntitlements({
-              includePastExpiry: local.isPremium && local.plan !== "lifetime",
+              includePastExpiry: shouldCheckPastExpiry(local),
             })
           : null;
       const { subscription: next, status } = resolveSubscriptionCheck({
@@ -555,6 +601,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setActionsState([]);
       setDailyLogsState([]);
       await storage.deletePersona(id);
+      // With no plan left nothing refreshes the reminder plan, so reminders
+      // naming the deleted habits would keep firing for up to two weeks.
+      if ((await storage.getPersonas()).length === 0) {
+        await clearScheduledReminders();
+      }
       await refreshData();
     },
     [refreshData],
@@ -598,7 +649,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       storage.getBenchmarks(),
     ]);
     if (!canDeleteMilestone(id, currentBenchmarks, currentActions)) {
-      throw new Error("Keep at least one action in this persona.");
+      throw new Error("Keep at least one habit in this plan.");
     }
     const actionIdsToDelete = currentActions
       .filter((a) => a.benchmarkId === id)
@@ -860,6 +911,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const clearAllData = useCallback(async () => {
     await setPrivateBackupEnabled(false);
+    // Before storage: the cancel reads the stored reminder ids
+    await cancelAllScheduledNotifications();
     await storage.clearAll();
     setHasOnboardedState(false);
     setPersonaState(null);
@@ -904,7 +957,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       milestoneFlipsInFlight.current.add(benchmark.id);
       track("milestone_complete");
-      (async () => {
+      // One at a time: each flip rewrites the stored milestone list, the
+      // seen list, and the reward list. Two milestones completing in the
+      // same pass ran side by side and the later write undid the earlier.
+      enqueueMilestoneWrite(async () => {
         const updated = await updateBenchmark(benchmark.id, {
           status: "completed",
         });
@@ -932,7 +988,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setMilestoneCelebration(
           updated ?? { ...benchmark, status: "completed" },
         );
-      })().catch((error) => {
+      }).catch((error) => {
         milestoneFlipsInFlight.current.delete(benchmark.id);
         logger.error("Failed to mark milestone completed:", error);
       });
@@ -1115,6 +1171,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
             actionIds?: string[];
           }
         | undefined;
+      // "Your first step is ready" has to open on that step. A replayed
+      // response only repeats a cold launch's own landing, so no marker.
+      if (isDayOneNotificationData(data)) {
+        if (
+          response.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER
+        ) {
+          navigateToTodayTab();
+        }
+        return;
+      }
       const isHabitReminder = data?.type === "habit-reminder";
       if (data?.type !== "daily-reminder" && !isHabitReminder) return;
       // A plain tap opened the app from the reminder: credit the voice that
@@ -1358,6 +1424,104 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => subscription.remove();
   }, [isLoading, completeDailyLog]);
 
+  // --- Next steps: the steps toward the resolution not started yet ---
+  const nextSteps = useMemo(
+    () => normalizeNextSteps(persona?.nextSteps),
+    [persona],
+  );
+  const applyPersonaUpdate = useCallback((updated: Persona | null) => {
+    if (!updated) return;
+    setPersonaState((prev) => (prev?.id === updated.id ? updated : prev));
+    setPersonasState((prev) =>
+      prev.map((item) => (item.id === updated.id ? updated : item)),
+    );
+  }, []);
+  // These go through storage rather than the closure, so they stay
+  // dependency-free and a save followed at once by an add sees the save.
+  // Concurrent adds of one step (a double tap) share a single run.
+  const nextStepAddsInFlight = useRef(
+    new Map<
+      string,
+      Promise<{ ok: boolean; reason?: "habit_limit" | "no_milestone" }>
+    >(),
+  );
+  const addNextStep = useCallback(
+    (
+      stepId: string,
+    ): Promise<{ ok: boolean; reason?: "habit_limit" | "no_milestone" }> => {
+      const running = nextStepAddsInFlight.current.get(stepId);
+      if (running) return running;
+      const run = (async () => {
+        const plan = await storage.getActivePersona();
+        if (!plan) return { ok: false };
+        const result = await storage.addNextStepToPlan(plan.id, stepId);
+        if (!result.ok) return { ok: false, reason: result.reason };
+        applyPersonaUpdate(result.persona ?? null);
+        const newAction = result.action;
+        if (!newAction) {
+          // The habit was already written by an earlier attempt.
+          await refreshData();
+          return { ok: true };
+        }
+        setActionsState((prev) => [...prev, newAction]);
+        track("next_step_added");
+        // Same refresh a foreground does, so the new habit's reminder does
+        // not wait for the next app open. A no-op while reminders are off.
+        const current = reminderStateRef.current;
+        const nextActions = [...current.actions, newAction];
+        ensureReminderScheduled({
+          streakCount: computeStreak(nextActions, current.dailyLogs).current,
+          missedRun: computeLapse(nextActions, current.dailyLogs).missedDays,
+          personaName: plan.name,
+          monthlyConsistency: current.personaAlignment,
+          actions: nextActions,
+          dailyLogs: current.dailyLogs,
+          milestoneTitles: current.milestoneTitles,
+        }).catch(() => {});
+        return { ok: true };
+      })();
+      nextStepAddsInFlight.current.set(stepId, run);
+      const clear = () => {
+        if (nextStepAddsInFlight.current.get(stepId) === run)
+          nextStepAddsInFlight.current.delete(stepId);
+      };
+      run.then(clear, clear);
+      return run;
+    },
+    [applyPersonaUpdate, refreshData],
+  );
+  const dismissNextStep = useCallback(
+    async (stepId: string) => {
+      const plan = await storage.getActivePersona();
+      if (!plan) return;
+      applyPersonaUpdate(
+        await storage.setPersonaNextSteps(
+          plan.id,
+          normalizeNextSteps(plan.nextSteps).filter(
+            (item) => item.id !== stepId,
+          ),
+        ),
+      );
+      track("next_step_dismissed");
+    },
+    [applyPersonaUpdate],
+  );
+  /**
+   * Keeps a step Coach proposed so "Not now" does not lose it. Resolves to
+   * the step as stored (the earlier one when its title was already saved).
+   */
+  const saveNextStep = useCallback(
+    async (step: NextStep): Promise<NextStep | null> => {
+      const plan = await storage.getActivePersona();
+      if (!plan) return null;
+      const result = await storage.saveNextStep(plan.id, step);
+      if (!result) return null;
+      applyPersonaUpdate(result.persona);
+      return result.saved;
+    },
+    [applyPersonaUpdate],
+  );
+
   const canUseReflection = useCallback(() => {
     if (subscription.isPremium) return true;
     return monthlyReflectionCount < FREE_REFLECTION_LIMIT;
@@ -1423,6 +1587,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       reminderPrimerPending,
       answerReminderPrimer,
       applySuggestedReminderTimes,
+      nextSteps,
+      addNextStep,
+      dismissNextStep,
+      saveNextStep,
     }),
     [
       hasOnboarded,
@@ -1474,6 +1642,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       reminderPrimerPending,
       answerReminderPrimer,
       applySuggestedReminderTimes,
+      nextSteps,
+      addNextStep,
+      dismissNextStep,
+      saveNextStep,
     ],
   );
 

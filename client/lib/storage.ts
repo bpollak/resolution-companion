@@ -1,7 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
 import { logger } from "@/lib/logger";
-import { computeMomentumScore } from "@/lib/progress";
+import { computeMomentumScore, getLocalDateString } from "@/lib/progress";
+import {
+  sanitizeFrequencyHistory,
+  withFrequencyChange,
+  type FrequencyHistoryEntry,
+} from "@/lib/schedule-history";
 import {
   approvePlan,
   planStartInstant,
@@ -12,6 +17,13 @@ import {
   upsertLogIn,
   type DailyLogCompletion,
 } from "@/lib/daily-log";
+import {
+  normalizeNextSteps,
+  planNextStepAdd,
+  withNextStepSaved,
+  type NextStep,
+} from "@/lib/next-steps";
+import { isGenericStarterStep, isSelfSetupDraft } from "@/lib/starter-plan";
 
 const STORAGE_KEYS = {
   HAS_ONBOARDED: "hasOnboarded",
@@ -33,6 +45,11 @@ const STORAGE_KEYS = {
   RECAP_COACH_LINES: "recapCoachLines",
 };
 
+const KEYS_KEPT_ON_CLEAR = new Set([
+  STORAGE_KEYS.DEVICE_ID,
+  "yearly_price_cohort_v1",
+]);
+
 export interface Persona {
   id: string;
   name: string;
@@ -40,6 +57,11 @@ export interface Persona {
   createdAt: string;
   /** The resolution in the person's own words ("Lose 15 pounds"). */
   resolution?: string;
+  /**
+   * Steps toward the resolution not started yet. Absent on plans saved
+   * before 1.7.0; read through normalizeNextSteps, never directly.
+   */
+  nextSteps?: NextStep[];
 }
 
 export interface Benchmark {
@@ -56,6 +78,12 @@ export interface ElementalAction {
   benchmarkId: string;
   title: string;
   frequency: string[];
+  /**
+   * The days this habit was scheduled on before each edit, ascending by
+   * local date. Absent until the days are first changed; written only by
+   * the storage layer (see schedule-history.ts).
+   */
+  frequencyHistory?: FrequencyHistoryEntry[];
   anchorLink: string;
   kickstartVersion: string;
   createdAt: string;
@@ -173,6 +201,12 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
+// The free Coach quota follows the person's own calendar month. The UTC
+// month rolled it over at 4 PM Pacific on the last day of the month.
+function localMonthKey(now: Date = new Date()): string {
+  return getLocalDateString(now).slice(0, 7);
+}
+
 /** For optimistic UI paths that build the record before persisting it. */
 export function generateStorageId(): string {
   return generateId();
@@ -187,6 +221,44 @@ function safeParse<T>(value: string | null, fallback: T): T {
     logger.error("Failed to parse stored value, using fallback:", error);
     return fallback;
   }
+}
+
+/**
+ * Stored habits as read back from disk or an iCloud restore. A plan saved
+ * before schedule history existed has no `frequencyHistory` key and is
+ * returned untouched; a malformed history is dropped rather than trusted.
+ */
+function normalizeStoredActions(value: unknown): ElementalAction[] {
+  if (!Array.isArray(value)) return [];
+  return (value as ElementalAction[]).map((action) => {
+    if (!action || action.frequencyHistory === undefined) return action;
+    const { frequencyHistory, ...rest } = action;
+    const history = sanitizeFrequencyHistory(frequencyHistory);
+    return history ? { ...rest, frequencyHistory: history } : rest;
+  });
+}
+
+/**
+ * Merges an edit into a habit. A change of days is recorded as in force
+ * from today, so streaks, shields, and milestone counts keep reading past
+ * days by the schedule those days were lived under. Callers never write the
+ * history themselves: a stale copy from an edit screen would erase it.
+ */
+function applyActionUpdates(
+  current: ElementalAction,
+  updates: Partial<Omit<ElementalAction, "id" | "createdAt">>,
+): ElementalAction {
+  const rest = { ...updates };
+  delete rest.frequencyHistory;
+  const base =
+    rest.frequency !== undefined
+      ? withFrequencyChange(
+          current,
+          rest.frequency,
+          getLocalDateString(new Date()),
+        )
+      : current;
+  return { ...base, ...rest };
 }
 
 export const storage = {
@@ -215,6 +287,16 @@ export const storage = {
       draft,
       prior?.createdAt ?? (planStartInstant(draft) ?? new Date()).toISOString(),
     );
+    // A self-made plan's untouched generic starters ("Move your body
+    // intentionally") are not steps toward this person's resolution, so
+    // they are not kept as next steps. Topic starters and edited ones are.
+    if (isSelfSetupDraft(draft) && plan.persona.nextSteps) {
+      const kept = plan.persona.nextSteps.filter(
+        (step) => !isGenericStarterStep(step.title),
+      );
+      if (kept.length > 0) plan.persona.nextSteps = kept;
+      else delete plan.persona.nextSteps;
+    }
     if (
       personas.some(
         (item) =>
@@ -330,6 +412,97 @@ export const storage = {
 
   async setPersonas(personas: Persona[]): Promise<void> {
     await AsyncStorage.setItem(STORAGE_KEYS.PERSONAS, JSON.stringify(personas));
+  },
+
+  /**
+   * Replaces a plan's next steps. An empty list removes the key, so the
+   * record matches a plan that never had any.
+   */
+  async setPersonaNextSteps(
+    personaId: string,
+    steps: NextStep[],
+  ): Promise<Persona | null> {
+    const personas = await this.getPersonas();
+    const index = personas.findIndex((item) => item.id === personaId);
+    if (index < 0) return null;
+    const { nextSteps: _previous, ...rest } = personas[index];
+    const valid = normalizeNextSteps(steps);
+    const updated: Persona =
+      valid.length > 0 ? { ...rest, nextSteps: valid } : rest;
+    personas[index] = updated;
+    await this.setPersonas(personas);
+    if ((await this.getActivePersonaId()) === personaId) {
+      await AsyncStorage.setItem(STORAGE_KEYS.PERSONA, JSON.stringify(updated));
+    }
+    return updated;
+  },
+
+  /**
+   * Keeps a step on a plan for later. Resolves to the step as stored, which
+   * is the existing one when a step with that title was already saved.
+   */
+  async saveNextStep(
+    personaId: string,
+    step: NextStep,
+  ): Promise<{ persona: Persona; saved: NextStep } | null> {
+    const plan = (await this.getPersonas()).find(
+      (item) => item.id === personaId,
+    );
+    if (!plan) return null;
+    const { steps, saved } = withNextStepSaved(
+      normalizeNextSteps(plan.nextSteps),
+      step,
+    );
+    const persona = await this.setPersonaNextSteps(personaId, steps);
+    return persona ? { persona, saved } : null;
+  },
+
+  /**
+   * Turns a stored next step into a habit. The habit is written before the
+   * step leaves the list, and a habit with the step's title is never written
+   * twice, so a failure between the two writes is repaired by trying again.
+   */
+  async addNextStepToPlan(
+    personaId: string,
+    stepId: string,
+  ): Promise<{
+    ok: boolean;
+    reason?: "habit_limit" | "no_milestone";
+    action?: ElementalAction;
+    persona?: Persona;
+  }> {
+    const plan = (await this.getPersonas()).find(
+      (item) => item.id === personaId,
+    );
+    if (!plan) return { ok: false };
+    const steps = normalizeNextSteps(plan.nextSteps);
+    const [benchmarks, actions] = await Promise.all([
+      this.getBenchmarks(),
+      this.getElementalActions(),
+    ]);
+    const planBenchmarks = benchmarks.filter(
+      (item) => item.personaId === personaId,
+    );
+    const milestoneIds = new Set(planBenchmarks.map((item) => item.id));
+    const decision = planNextStepAdd({
+      steps,
+      stepId,
+      planActions: actions.filter((item) => milestoneIds.has(item.benchmarkId)),
+      planBenchmarks,
+    });
+    if (decision.kind === "missing") return { ok: false };
+    if (decision.kind === "refused")
+      return { ok: false, reason: decision.reason };
+    const action =
+      decision.kind === "create"
+        ? await this.addElementalAction(decision.action, plan.createdAt)
+        : undefined;
+    const persona =
+      (await this.setPersonaNextSteps(
+        personaId,
+        steps.filter((item) => item.id !== stepId),
+      )) ?? undefined;
+    return { ok: true, action, persona };
   },
 
   async addPersona(
@@ -505,7 +678,7 @@ export const storage = {
 
   async getElementalActions(): Promise<ElementalAction[]> {
     const value = await AsyncStorage.getItem(STORAGE_KEYS.ELEMENTAL_ACTIONS);
-    return safeParse<ElementalAction[]>(value, []);
+    return normalizeStoredActions(safeParse<unknown>(value, []));
   },
 
   async setElementalActions(actions: ElementalAction[]): Promise<void> {
@@ -543,7 +716,7 @@ export const storage = {
     const index = actions.findIndex((a) => a.id === id);
     if (index === -1) return null;
 
-    actions[index] = { ...actions[index], ...updates };
+    actions[index] = applyActionUpdates(actions[index], updates);
     await this.setElementalActions(actions);
     return actions[index];
   },
@@ -658,7 +831,7 @@ export const storage = {
       Object.assign(after, { [key]: changes[key] });
     }
     if (Object.keys(after).length === 0) return null;
-    const updated: ElementalAction = { ...current, ...after };
+    const updated = applyActionUpdates(current, after);
     actions[actionIndex] = updated;
     const adjustments = await this.getPlanAdjustments();
     const adjustment: PlanAdjustment = {
@@ -850,14 +1023,18 @@ export const storage = {
     );
   },
 
+  // Removes every key in the app's store, not a list kept here: screens and
+  // other modules write their own keys (witness name, rewards, reminder
+  // settings, seen markers), and a list misses whatever is added next.
   // Keeps DEVICE_ID: server-side subscription records are keyed by it, so
   // wiping it would permanently orphan purchase restore after a data reset.
-  // Account deletion removes it explicitly via removeDeviceId().
+  // Account deletion removes it explicitly via removeDeviceId(). The price
+  // cohort is install identity too, not something the person entered.
   async clearAll(): Promise<void> {
-    const keys = Object.values(STORAGE_KEYS).filter(
-      (key) => key !== STORAGE_KEYS.DEVICE_ID,
+    const keys = (await AsyncStorage.getAllKeys()).filter(
+      (key) => !KEYS_KEPT_ON_CLEAR.has(key),
     );
-    await AsyncStorage.multiRemove(keys);
+    if (keys.length > 0) await AsyncStorage.multiRemove(keys);
   },
 
   async getSubscription(): Promise<Subscription> {
@@ -878,7 +1055,7 @@ export const storage = {
   },
 
   async getMonthlyReflectionCount(): Promise<MonthlyReflectionCount> {
-    const currentMonth = new Date().toISOString().slice(0, 7);
+    const currentMonth = localMonthKey();
     const value = await AsyncStorage.getItem(
       STORAGE_KEYS.MONTHLY_REFLECTION_COUNT,
     );
@@ -888,7 +1065,7 @@ export const storage = {
   },
 
   async incrementReflectionCount(): Promise<number> {
-    const currentMonth = new Date().toISOString().slice(0, 7);
+    const currentMonth = localMonthKey();
     const data = await this.getMonthlyReflectionCount();
     if (data.month !== currentMonth) {
       data.month = currentMonth;

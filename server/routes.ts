@@ -11,7 +11,7 @@ import {
   aiUsageDaily,
   deviceEvents,
 } from "../shared/schema";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 import { rateLimiter } from "./rate-limit";
 import { requireApiKey, requireAdminKey } from "./auth";
 import { validateMessages } from "./message-validation";
@@ -44,8 +44,9 @@ import {
   LIFETIME_PRODUCT_ID,
   VERIFICATION_UNAVAILABLE_BODY,
   VerificationUnavailableError,
+  appleExpiryDate,
   appleGracePeriodEnd,
-  extendedPeriodEnd,
+  appleNotificationChange,
   isLifetimeProduct,
   validateAppleReceiptLegacy,
   validateAppleTransactionV2,
@@ -58,7 +59,9 @@ import {
   requireCompleteAiText,
   abortOnClientDisconnect,
   sendAiRouteError,
+  type UpstreamAbort,
 } from "./ai-request";
+import { createAiBudgetBreaker } from "./ai-budget";
 
 // Lazily construct the OpenAI client so a missing API key degrades the AI
 // endpoints instead of crashing the whole server (website, webhooks, legal pages).
@@ -321,85 +324,170 @@ const AI_QUOTAS = {
   chat: { free: 150, premium: 1500 },
   reflection: { free: 150, premium: 1500 },
   extract: { free: 20, premium: 200 },
+  // One proposed habit from the Coach sheet. Its own counter, so asking for
+  // step ideas can never use up the plan extractions onboarding needs.
+  "step-proposal": { free: 20, premium: 200 },
   "plan-tune-up": { free: 30, premium: 300 },
 } as const;
 
-function aiQuota(endpoint: keyof typeof AI_QUOTAS) {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      // Production cost controls fail closed. Development can run without a
-      // database, where the scoped per-IP limiter remains the guardrail.
-      if (!db) {
-        if (process.env.NODE_ENV === "production") {
-          res
-            .status(503)
-            .json({ error: "Coaching is temporarily unavailable." });
-          return;
-        }
-        return next();
-      }
+// Today's request total across every device, read from the operational
+// counters recordAiModelUsage already keeps. See ai-budget.ts for the cache.
+const aiBudget = createAiBudgetBreaker({
+  fetchTotal: async (day) => {
+    if (!db) return 0;
+    const rows = await db
+      .select({
+        total: sql<string>`coalesce(sum(${aiUsageDaily.requests}), 0)`,
+      })
+      .from(aiUsageDaily)
+      .where(eq(aiUsageDaily.day, day));
+    return Number(rows[0]?.total ?? 0);
+  },
+});
 
-      const { deviceId, usageKey } = aiUsageIdentity(
-        req.header("X-Device-Id"),
-        req.ip,
-      );
-      const month = new Date().toISOString().slice(0, 7);
-
-      let isPremium = false;
-      if (deviceId) {
-        const subs = await db
-          .select()
-          .from(deviceSubscriptions)
-          .where(eq(deviceSubscriptions.deviceId, deviceId));
-        const sub = subs[0];
-        isPremium =
-          !!sub &&
-          sub.status === "active" &&
-          (!sub.currentPeriodEnd ||
-            new Date(sub.currentPeriodEnd) > new Date());
-      }
-      const limit = isPremium
-        ? AI_QUOTAS[endpoint].premium
-        : AI_QUOTAS[endpoint].free;
-
-      const rows = await db
-        .insert(deviceAiUsage)
-        .values({
-          deviceId: usageKey,
-          month,
-          endpoint,
-          count: 1,
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: [
-            deviceAiUsage.deviceId,
-            deviceAiUsage.month,
-            deviceAiUsage.endpoint,
-          ],
-          set: {
-            count: sql`${deviceAiUsage.count} + 1`,
-            updatedAt: new Date(),
-          },
-        })
-        .returning({ count: deviceAiUsage.count });
-
-      if (rows[0].count > limit) {
-        res.status(429).json({
-          error: isPremium
-            ? "Monthly usage limit reached. Please try again next month."
-            : "You've reached this month's free limit. Upgrade to Premium for unlimited coaching.",
-        });
-        return;
-      }
-
-      next();
-    } catch (error) {
-      console.error("AI quota check error:", error);
+// Runs before the body is looked at: the checks that need nothing from the
+// request. The per-device charge happens later, in chargeAiQuota.
+async function aiGate(req: Request, res: Response, next: NextFunction) {
+  // Production cost controls fail closed. Development can run without a
+  // database, where the scoped per-IP limiter remains the guardrail.
+  if (!db) {
+    if (process.env.NODE_ENV === "production") {
       res.status(503).json({ error: "Coaching is temporarily unavailable." });
+      return;
     }
-  };
+    return next();
+  }
+  const budget = await aiBudget.check();
+  if (budget.exhausted) {
+    res
+      .status(503)
+      .setHeader("Retry-After", String(budget.retryAfterSeconds))
+      .json({
+        error: "Coaching is at capacity right now. Please try again later.",
+      });
+    return;
+  }
+  next();
 }
+
+interface AiCharge {
+  // The provider answered, or text reached the client: the charge stands.
+  served: () => void;
+  // Give the request back when the provider failed before any of that.
+  refundIfUnserved: (upstream: UpstreamAbort) => Promise<void>;
+}
+
+const UNMETERED_CHARGE: AiCharge = {
+  served: () => {},
+  refundIfUnserved: async () => {},
+};
+
+// Charges one request against the device's monthly quota. Call it only after
+// the request body has passed validation, so a malformed request costs the
+// person nothing. Resolves null after answering 429 or 503 itself.
+async function chargeAiQuota(
+  req: Request,
+  res: Response,
+  endpoint: keyof typeof AI_QUOTAS,
+): Promise<AiCharge | null> {
+  // aiGate has already refused production requests without a database.
+  const database = db;
+  if (!database) return UNMETERED_CHARGE;
+  try {
+    const { deviceId, usageKey } = aiUsageIdentity(
+      req.header("X-Device-Id"),
+      req.ip,
+    );
+    const month = new Date().toISOString().slice(0, 7);
+
+    let isPremium = false;
+    if (deviceId) {
+      const subs = await database
+        .select()
+        .from(deviceSubscriptions)
+        .where(eq(deviceSubscriptions.deviceId, deviceId));
+      const sub = subs[0];
+      isPremium =
+        !!sub &&
+        sub.status === "active" &&
+        (!sub.currentPeriodEnd || new Date(sub.currentPeriodEnd) > new Date());
+    }
+    const limit = isPremium
+      ? AI_QUOTAS[endpoint].premium
+      : AI_QUOTAS[endpoint].free;
+
+    const rows = await database
+      .insert(deviceAiUsage)
+      .values({
+        deviceId: usageKey,
+        month,
+        endpoint,
+        count: 1,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [
+          deviceAiUsage.deviceId,
+          deviceAiUsage.month,
+          deviceAiUsage.endpoint,
+        ],
+        set: {
+          count: sql`${deviceAiUsage.count} + 1`,
+          updatedAt: new Date(),
+        },
+      })
+      .returning({ count: deviceAiUsage.count });
+
+    if (rows[0].count > limit) {
+      res.status(429).json({
+        error: isPremium
+          ? "Monthly usage limit reached. Please try again next month."
+          : "You've reached this month's free limit. Upgrade to Premium for unlimited coaching.",
+      });
+      return null;
+    }
+
+    let served = false;
+    return {
+      served: () => {
+        served = true;
+      },
+      // Only a provider failure earns the request back. A reply that arrived
+      // but was empty, cut off, or invalid was still paid for, and a client
+      // that hangs up early could otherwise replay requests for free.
+      refundIfUnserved: async (upstream) => {
+        if (served || upstream.clientDisconnected()) return;
+        served = true;
+        try {
+          await database
+            .update(deviceAiUsage)
+            .set({
+              count: sql`greatest(${deviceAiUsage.count} - 1, 0)`,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(deviceAiUsage.deviceId, usageKey),
+                eq(deviceAiUsage.month, month),
+                eq(deviceAiUsage.endpoint, endpoint),
+              ),
+            );
+        } catch (error) {
+          console.error("AI quota refund error:", error);
+        }
+      },
+    };
+  } catch (error) {
+    console.error("AI quota check error:", error);
+    res.status(503).json({ error: "Coaching is temporarily unavailable." });
+    return null;
+  }
+}
+
+// The values of the feedback form's type field (server/templates/feedback.html).
+const FEEDBACK_TYPES = new Set(["bug", "feature", "question", "other"]);
+const FEEDBACK_NAME_MAX = 120;
+const FEEDBACK_MESSAGE_MAX = 5000;
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check for deployment platforms
@@ -418,9 +506,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/chat",
     requireApiKey,
     aiRateLimit,
-    aiQuota("chat"),
+    aiGate,
     async (req: Request, res: Response) => {
       const upstream = abortOnClientDisconnect(res);
+      let charge: AiCharge | null = null;
       try {
         const { messages } = req.body;
 
@@ -429,6 +518,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           res.status(400).json({ error: validationError });
           return;
         }
+        charge = await chargeAiQuota(req, res, "chat");
+        if (!charge) return;
 
         res.setHeader("Content-Type", "text/event-stream");
         res.setHeader("Cache-Control", "no-cache");
@@ -457,9 +548,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const content = chunk.choices[0]?.delta?.content || "";
           text += content;
           if (content) {
+            charge.served();
             res.write(`data: ${JSON.stringify({ content })}\n\n`);
           }
         }
+        charge.served();
 
         await recordAiModelUsage("chat", modelUsage);
         requireCompleteAiText(text, finishReason);
@@ -467,6 +560,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.write("data: [DONE]\n\n");
         res.end();
       } catch (error) {
+        await charge?.refundIfUnserved(upstream);
         sendAiRouteError(res, upstream, "Chat error:", error, {
           status: 500,
           body: { error: "Failed to get AI response" },
@@ -479,11 +573,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/extract-persona",
     requireApiKey,
     aiRateLimit,
-    aiQuota("extract"),
+    aiGate,
     async (req: Request, res: Response) => {
       const upstream = abortOnClientDisconnect(res);
+      let charge: AiCharge | null = null;
       try {
-        const { messages, extractionPrompt } = req.body;
+        const { messages, extractionPrompt, purpose } = req.body;
 
         const validationError = validateMessages(messages);
         if (validationError) {
@@ -500,6 +595,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
           return;
         }
+        // Builds before 1.7.0 send no purpose and count as plan extraction.
+        charge = await chargeAiQuota(
+          req,
+          res,
+          purpose === "next-step" ? "step-proposal" : "extract",
+        );
+        if (!charge) return;
 
         const conversationText = messages
           .filter((m: { role: string }) => m.role !== "system")
@@ -526,6 +628,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
           { signal: upstream.signal },
         );
+        charge.served();
 
         await recordAiModelUsage("extract", response.usage);
 
@@ -537,6 +640,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         res.json(personaData);
       } catch (error) {
+        await charge?.refundIfUnserved(upstream);
         sendAiRouteError(res, upstream, "Extract persona error:", error, {
           status: 500,
           body: { error: "Failed to extract persona" },
@@ -549,9 +653,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/reflection",
     requireApiKey,
     aiRateLimit,
-    aiQuota("reflection"),
+    aiGate,
     async (req: Request, res: Response) => {
       const upstream = abortOnClientDisconnect(res);
+      let charge: AiCharge | null = null;
       try {
         const { messages, stream } = req.body;
 
@@ -560,6 +665,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           res.status(400).json({ error: validationError });
           return;
         }
+        charge = await chargeAiQuota(req, res, "reflection");
+        if (!charge) return;
 
         // Real SSE when the client asks for it; the JSON path stays for
         // older app builds (the client previously simulated streaming by
@@ -590,9 +697,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const content = chunk.choices[0]?.delta?.content || "";
             text += content;
             if (content) {
+              charge.served();
               res.write(`data: ${JSON.stringify({ content })}\n\n`);
             }
           }
+          charge.served();
 
           await recordAiModelUsage("reflection", modelUsage);
           requireCompleteAiText(text, finishReason);
@@ -610,6 +719,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
           { signal: upstream.signal },
         );
+        charge.served();
 
         await recordAiModelUsage("reflection", response.usage);
 
@@ -619,6 +729,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         res.json({ content });
       } catch (error) {
+        await charge?.refundIfUnserved(upstream);
         sendAiRouteError(res, upstream, "Reflection error:", error, {
           status: 500,
           body: { error: "Failed to get AI response" },
@@ -631,9 +742,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/milestone-proposal",
     requireApiKey,
     aiRateLimit,
-    aiQuota("reflection"),
+    aiGate,
     async (req: Request, res: Response) => {
       const upstream = abortOnClientDisconnect(res);
+      let charge: AiCharge | null = null;
       try {
         const { completedMilestone, personaName } = req.body;
         if (
@@ -647,6 +759,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           res.status(400).json({ error: "Invalid milestone context" });
           return;
         }
+        charge = await chargeAiQuota(req, res, "reflection");
+        if (!charge) return;
 
         const response = await getOpenAI().chat.completions.create(
           {
@@ -667,6 +781,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
           { signal: upstream.signal },
         );
+        charge.served();
         await recordAiModelUsage("milestone-proposal", response.usage);
         const parsed = JSON.parse(
           requireCompleteAiText(
@@ -688,6 +803,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         res.json({ title });
       } catch (error) {
+        await charge?.refundIfUnserved(upstream);
         sendAiRouteError(res, upstream, "Milestone proposal error:", error, {
           status: 500,
           body: { error: "Failed to suggest a milestone" },
@@ -700,7 +816,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/plan-tune-up",
     requireApiKey,
     aiRateLimit,
-    aiQuota("plan-tune-up"),
+    aiGate,
     async (req: Request, res: Response) => {
       const upstream = abortOnClientDisconnect(res);
       // Version 1.3.5 sends up to five opaque action slots. Keep the existing
@@ -716,6 +832,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
         const ambientRequest = parsedRequest.data;
+        const charge = await chargeAiQuota(req, res, "plan-tune-up");
+        if (!charge) return;
         try {
           const response = await getOpenAI().chat.completions.create(
             {
@@ -732,6 +850,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             },
             { timeout: 20_000, signal: upstream.signal },
           );
+          charge.served();
           await recordAiModelUsage("plan-tune-up", response.usage);
           const content = requireCompleteAiText(
             response.choices[0]?.message?.content,
@@ -741,6 +860,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             parseAmbientPlanTuneUpResponse(JSON.parse(content), ambientRequest),
           );
         } catch (error) {
+          await charge.refundIfUnserved(upstream);
           sendAiRouteError(
             res,
             upstream,
@@ -771,6 +891,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return;
       }
+      const charge = await chargeAiQuota(req, res, "plan-tune-up");
+      if (!charge) return;
 
       try {
         const response = await getOpenAI().chat.completions.create(
@@ -813,6 +935,7 @@ Rules:
           },
           { signal: upstream.signal },
         );
+        charge.served();
         await recordAiModelUsage("plan-tune-up", response.usage);
         let parsed: unknown;
         try {
@@ -840,6 +963,7 @@ Rules:
           });
         }
       } catch (error) {
+        await charge.refundIfUnserved(upstream);
         sendAiRouteError(res, upstream, "Plan Tune-Up error:", error, {
           status: 500,
           body: {
@@ -871,10 +995,30 @@ Rules:
           return;
         }
 
+        // A public, unauthenticated form: bound what one post can store.
+        if (typeof name !== "string" || name.length > FEEDBACK_NAME_MAX) {
+          res.status(400).json({
+            error: `Name must be at most ${FEEDBACK_NAME_MAX} characters`,
+          });
+          return;
+        }
+        if (typeof type !== "string" || !FEEDBACK_TYPES.has(type)) {
+          res.status(400).json({ error: "Unknown feedback type" });
+          return;
+        }
+        if (
+          typeof message !== "string" ||
+          message.length > FEEDBACK_MESSAGE_MAX
+        ) {
+          res.status(400).json({
+            error: `Message must be at most ${FEEDBACK_MESSAGE_MAX} characters`,
+          });
+          return;
+        }
+
+        // Logs carry the type only: never the name, email, or message.
         if (!db) {
-          console.log(
-            `Feedback received (no DB): ${name} (${email}): ${type} - ${message}`,
-          );
+          console.log(`Feedback received (no DB): ${type}`);
           res.json({ success: true, id: Date.now().toString() });
           return;
         }
@@ -889,10 +1033,16 @@ Rules:
           })
           .returning();
 
-        console.log(`New feedback received from ${name} (${email}): ${type}`);
+        console.log(`New feedback received: ${type}`);
         res.json({ success: true, id: entry.id });
       } catch (error) {
-        console.error("Feedback error:", error);
+        // A database error can quote the row it rejected, so log only what
+        // kind of error it was.
+        console.error(
+          "Feedback error:",
+          error instanceof Error ? error.name : "unknown",
+          (error as { code?: unknown } | null)?.code ?? "",
+        );
         res.status(500).json({ error: "Failed to submit feedback" });
       }
     },
@@ -1250,6 +1400,7 @@ Rules:
           .where(eq(deviceSubscriptions.deviceId, deviceId))
           .returning();
 
+        // The privacy policy promises the usage counters go with the rest.
         await db
           .delete(deviceAiUsage)
           .where(eq(deviceAiUsage.deviceId, deviceId));
@@ -1259,6 +1410,12 @@ Rules:
         await db
           .delete(deviceEvents)
           .where(eq(deviceEvents.deviceId, deviceId));
+
+        // Reports the person filed about AI replies hold the reported text
+        // next to their device id, so they go too.
+        await db
+          .delete(aiContentReports)
+          .where(eq(aiContentReports.deviceId, deviceId));
 
         res.json({
           success: true,
@@ -1467,6 +1624,15 @@ Rules:
           return;
         }
 
+        // Without a database the change cannot be recorded. Say so, so Apple
+        // retries later instead of treating the notification as delivered.
+        const database = db;
+        if (!database) {
+          console.error("Apple webhook: no database available");
+          res.status(503).json({ error: "Database unavailable" });
+          return;
+        }
+
         // The nested signedTransactionInfo is also JWS-signed by Apple
         const txInfo = await verifyAppleTransaction(
           payload.data.signedTransactionInfo,
@@ -1474,154 +1640,86 @@ Rules:
         );
         const originalTransactionId =
           txInfo.originalTransactionId || txInfo.transactionId;
-        const expiresDate = txInfo.expiresDate
-          ? new Date(txInfo.expiresDate)
-          : null;
+        const transaction = {
+          expiresDate: appleExpiryDate(txInfo.expiresDate),
+          lifetime: isLifetimeProduct(txInfo.productId ?? ""),
+        };
 
-        if (!db) {
-          console.log("Apple webhook: no database available");
-          res.status(200).json({ ok: true });
-          return;
-        }
-
-        // Look up the subscription by the IAP transaction ID stored in providerTransactionId
+        // Look up the subscription by the IAP transaction ID stored in
+        // providerTransactionId. Restoring one purchase on several devices
+        // gives several rows the same id; each of them is updated below.
         const lookupId = `iap_${originalTransactionId}`;
-        const results = await db
+        let rows = await database
           .select()
           .from(deviceSubscriptions)
           .where(eq(deviceSubscriptions.providerTransactionId, lookupId));
 
-        if (results.length === 0) {
-          // Also try with the prefix format used during validation
-          const altResults = await db
-            .select()
-            .from(deviceSubscriptions)
-            .where(
-              sql`${deviceSubscriptions.providerTransactionId} LIKE ${"iap_%" + originalTransactionId}`,
-            );
-
-          if (altResults.length === 0) {
-            console.log(
-              `Apple webhook: no subscription found for transaction ${originalTransactionId}`,
-            );
-            res.status(200).json({ ok: true });
-            return;
-          }
-          results.push(...altResults);
+        if (rows.length === 0) {
+          // Also try with the prefix format used during validation. A suffix
+          // match is a looser claim than an exact id, so it updates one row
+          // only, as it always has.
+          rows = (
+            await database
+              .select()
+              .from(deviceSubscriptions)
+              .where(
+                sql`${deviceSubscriptions.providerTransactionId} LIKE ${"iap_%" + originalTransactionId}`,
+              )
+          ).slice(0, 1);
+        }
+        if (rows.length === 0) {
+          console.log(
+            `Apple webhook: no subscription found for transaction ${originalTransactionId}`,
+          );
+          res.status(200).json({ ok: true });
+          return;
         }
 
-        const sub = results[0];
-
-        switch (notificationType) {
-          case "DID_RENEW":
-            await db
-              .update(deviceSubscriptions)
-              .set({
-                status: "active",
-                currentPeriodEnd: expiresDate,
-                updatedAt: new Date(),
-              })
-              .where(eq(deviceSubscriptions.id, sub.id));
-            console.log(
-              `Apple webhook: renewed subscription for device ${sub.deviceId}`,
-            );
-            break;
-
-          case "EXPIRED":
-          case "REVOKE":
-            await db
-              .update(deviceSubscriptions)
-              .set({
-                status: "inactive",
-                updatedAt: new Date(),
-              })
-              .where(eq(deviceSubscriptions.id, sub.id));
-            console.log(
-              `Apple webhook: ${notificationType.toLowerCase()} subscription for device ${sub.deviceId}`,
-            );
-            break;
-
-          case "DID_CHANGE_RENEWAL_STATUS":
-            if (subtype === "AUTO_RENEW_DISABLED") {
-              console.log(
-                `Apple webhook: auto-renew disabled for device ${sub.deviceId}, expires ${expiresDate?.toISOString()}`,
-              );
-              // Keep active until expiry — just log
-            }
-            break;
-
-          case "REFUND":
-            await db
-              .update(deviceSubscriptions)
-              .set({
-                status: "inactive",
-                updatedAt: new Date(),
-              })
-              .where(eq(deviceSubscriptions.id, sub.id));
-            console.log(
-              `Apple webhook: refund — revoked access for device ${sub.deviceId}`,
-            );
-            break;
-
-          case "DID_FAIL_TO_RENEW": {
-            // With Billing Grace Period on, Apple keeps retrying the charge
-            // and we owe the subscriber access until the grace period ends.
-            // Without the GRACE_PERIOD subtype there is no grace: access
-            // simply runs out at the period end already stored.
-            if (
-              subtype !== "GRACE_PERIOD" ||
-              !payload.data?.signedRenewalInfo
-            ) {
-              console.log(
-                `Apple webhook: renewal failed for device ${sub.deviceId}, no grace period`,
-              );
-              break;
-            }
-            const graceEnd = appleGracePeriodEnd(
-              await verifyAppleRenewalInfo(
-                payload.data.signedRenewalInfo,
-                verifiedEnvironment,
-              ),
-            );
-            const newEnd =
-              graceEnd &&
-              extendedPeriodEnd(sub.currentPeriodEnd ?? null, graceEnd);
-            if (newEnd && sub.status === "active") {
-              await db
-                .update(deviceSubscriptions)
-                .set({ currentPeriodEnd: newEnd, updatedAt: new Date() })
-                .where(eq(deviceSubscriptions.id, sub.id));
-            }
-            console.log(
-              `Apple webhook: renewal failed for device ${sub.deviceId}, grace period until ${graceEnd?.toISOString() ?? "unknown"}`,
-            );
-            break;
-          }
-
-          case "GRACE_PERIOD_EXPIRED":
-            await db
-              .update(deviceSubscriptions)
-              .set({
-                status: "inactive",
-                updatedAt: new Date(),
-              })
-              .where(eq(deviceSubscriptions.id, sub.id));
-            console.log(
-              `Apple webhook: grace period expired for device ${sub.deviceId}`,
-            );
-            break;
-
-          default:
-            console.log(
-              `Apple webhook: unhandled notification type ${notificationType}`,
-            );
+        // Only a failed renewal Apple is still retrying carries a grace end.
+        let graceEnd: Date | null = null;
+        if (
+          notificationType === "DID_FAIL_TO_RENEW" &&
+          subtype === "GRACE_PERIOD" &&
+          payload.data?.signedRenewalInfo
+        ) {
+          graceEnd = appleGracePeriodEnd(
+            await verifyAppleRenewalInfo(
+              payload.data.signedRenewalInfo,
+              verifiedEnvironment,
+            ),
+          );
         }
+
+        let changed = 0;
+        for (const row of rows) {
+          const change = appleNotificationChange(
+            { type: notificationType, subtype },
+            {
+              status: row.status,
+              currentPeriodEnd: row.currentPeriodEnd ?? null,
+            },
+            transaction,
+            graceEnd,
+          );
+          if (!change) continue;
+          await database
+            .update(deviceSubscriptions)
+            .set({ ...change, updatedAt: new Date() })
+            .where(eq(deviceSubscriptions.id, row.id));
+          changed++;
+        }
+        console.log(
+          `Apple webhook: ${notificationType} (${subtype || "none"}) changed ${changed} of ${rows.length} matching rows`,
+        );
 
         res.status(200).json({ ok: true });
       } catch (error) {
+        // The signature was genuine but the notification was not applied (a
+        // nested verification, lookup, or write failed). A 200 here would
+        // tell Apple it was handled and the change would be lost; a 5xx makes
+        // Apple retry, which it does a bounded number of times over days.
         console.error("Apple webhook error:", error);
-        // Always return 200 to Apple so they don't retry indefinitely
-        res.status(200).json({ ok: true });
+        res.status(500).json({ error: "Webhook processing failed" });
       }
     },
   );

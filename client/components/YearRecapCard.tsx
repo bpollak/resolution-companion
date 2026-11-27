@@ -24,7 +24,7 @@ export function YearRecapCard({
           size={19}
           color={theme.accent}
         />
-        <ThemedText style={styles.title}>The Year You Became</ThemedText>
+        <ThemedText style={styles.title}>{recap.title}</ThemedText>
         <Pressable
           onPress={onDismiss}
           hitSlop={12}
@@ -43,13 +43,15 @@ export function YearRecapCard({
         actions for {recap.personaName} in {recap.yearLabel}
       </ThemedText>
       <ThemedText style={[styles.body, { color: theme.textSecondary }]}>
-        Your premium year-in-review celebrates the returns, 2-minute saves, and
-        quiet proof, not perfection.
+        Your look back celebrates the returns, 2-minute saves, and quiet proof,
+        not perfection.
       </ThemedText>
       <Pressable
         onPress={onOpen}
         accessibilityRole="button"
-        accessibilityLabel={`Open The Year You Became for ${recap.yearLabel}`}
+        accessibilityLabel={`Open ${recap.title} for ${recap.yearLabel}`}
+        hitSlop={8}
+        pressRetentionOffset={16}
         style={({ pressed }) => [
           styles.open,
           { borderColor: theme.accent, opacity: pressed ? 0.7 : 1 },
