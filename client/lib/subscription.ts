@@ -226,3 +226,26 @@ export function resolveSubscriptionCheck({
   // but do not describe it as verified until a store-backed check succeeds.
   return { subscription: local, status: "unavailable" };
 }
+
+const PAST_EXPIRY_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Whether the launch check should also ask the store for a subscription
+ * whose expiry date has passed (billing grace period, or a renewal the
+ * device has not heard about). Current subscribers always; and anyone whose
+ * stored expiry is within the last 30 days, even if this device has already
+ * dropped them to free: a version that downgraded at the original expiry
+ * would otherwise never look again and the payer stays locked out.
+ * Everyone else skips the extra store lookups.
+ */
+export function shouldCheckPastExpiry(
+  local: Subscription,
+  nowMs: number = Date.now(),
+): boolean {
+  if (local.plan === "lifetime") return false;
+  if (local.isPremium) return true;
+  if (!local.expiresAt) return false;
+  const expiry = new Date(local.expiresAt).getTime();
+  if (Number.isNaN(expiry)) return false;
+  return nowMs - expiry <= PAST_EXPIRY_LOOKBACK_MS;
+}

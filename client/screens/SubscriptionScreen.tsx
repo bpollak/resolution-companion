@@ -35,6 +35,11 @@ import { paywallViewedEvent, track } from "@/lib/telemetry";
 import { markSession } from "@/lib/review-ask";
 import { chooseYearlyProductId } from "@/lib/pricing";
 import { getSubscriptionPlanLabel } from "@/lib/subscription";
+import {
+  restoreOutcomeMessage,
+  runRestore,
+  type ServerRestoreResult,
+} from "@/lib/restore-flow";
 import { withAlpha } from "@/lib/color";
 import { getModalSheetTopInset } from "@/lib/modal-layout";
 
@@ -581,103 +586,67 @@ export default function SubscriptionScreen() {
     }
   };
 
+  // Whether to ask the store is decided here, on every restore, by asking
+  // the store module itself. This function is also captured by the purchase
+  // listener registered at mount, where `useNativeIAP` is still false; reading
+  // that state sent "already owned" and post-failure restores to the server
+  // record alone and told paying people nothing was found.
   const handleRestorePurchases = async () => {
     if (Platform.OS === "web") {
       return;
     }
 
     setCheckingStatus(true);
-
-    if (!useNativeIAP) {
-      // Store connection isn't available — fall back to the server-side record
-      await restoreFromServer();
-      return;
-    }
-
     try {
-      const purchases = await iapService.restorePurchases();
-      if (purchases.length > 0) {
-        // A restored non-consumable lifetime purchase always outranks an old
-        // subscription. Otherwise use the most recent active transaction.
-        const latestPurchase =
-          purchases.find(
-            (purchase) =>
-              iapService.getPlanFromProductId(purchase.productId) ===
-              "lifetime",
-          ) ??
-          [...purchases].sort((a, b) => b.purchaseTime - a.purchaseTime)[0];
-        const plan = iapService.getPlanFromProductId(latestPurchase.productId);
-        const newSubscription = {
-          isPremium: true,
-          plan: plan,
-          expiresAt: latestPurchase.expirationDate || estimateExpiryIso(plan),
-          purchasedAt: new Date(latestPurchase.purchaseTime).toISOString(),
-        };
-        await storage.setSubscription(newSubscription);
+      const outcome = await runRestore({
+        isStoreAvailable: () => iapService.isAvailable(),
+        restoreFromStore: () => iapService.restoreEntitlements(),
+        restoreFromServer: fetchServerRestore,
+        planForProduct: (productId) =>
+          iapService.getPlanFromProductId(productId),
+        estimateExpiry: estimateExpiryIso,
+      });
+      if (outcome.kind === "restored") {
+        await storage.setSubscription(outcome.subscription);
         await refreshData();
         await verifySubscription({ force: true });
         track("paywall_restore_success");
-        Alert.alert("Success", "Your subscription has been restored!");
-        setCheckingStatus(false);
-      } else {
-        // Native IAP found no purchases — try the server-side DB record as a fallback
-        // (covers reinstalls where the purchase was validated and stored previously)
-        await restoreFromServer();
       }
-    } catch (error) {
-      logger.error("Native restore failed:", error);
-      await restoreFromServer();
-    }
-  };
-
-  const restoreFromServer = async () => {
-    try {
-      const deviceId = await storage.getDeviceId();
-      const response = await fetch(
-        new URL("/api/subscription/restore", getApiUrl()).toString(),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-          body: JSON.stringify({ deviceId }),
-        },
+      const copy = restoreOutcomeMessage(
+        outcome,
+        Platform.OS === "ios" ? "App Store" : "store",
       );
-
-      if (!response.ok) {
-        // Don't report "no purchases found" for auth/server failures
-        logger.error("Restore endpoint error:", response.status);
-        Alert.alert(
-          "Error",
-          "We couldn't check your subscription right now. Please try again later or contact support.",
-        );
-        return;
-      }
-
-      const data = await response.json();
-
-      if (data.success && data.isPremium) {
-        const newSubscription = {
-          isPremium: true,
-          plan: data.plan as "monthly" | "yearly" | "lifetime",
-          expiresAt: data.currentPeriodEnd,
-          purchasedAt: new Date().toISOString(),
-        };
-        await storage.setSubscription(newSubscription);
-        await refreshData();
-        await verifySubscription({ force: true });
-        track("paywall_restore_success");
-        Alert.alert("Success", "Your subscription has been restored!");
-      } else {
-        Alert.alert(
-          "No Purchases Found",
-          "We couldn't find an active subscription for this device. If you believe this is an error, please contact support.",
-        );
-      }
+      Alert.alert(copy.title, copy.message);
     } catch (error) {
-      logger.error("Failed to restore subscription from server:", error);
+      logger.error("Failed to restore subscription:", error);
       Alert.alert("Error", "Failed to restore subscription. Please try again.");
     } finally {
       setCheckingStatus(false);
     }
+  };
+
+  const fetchServerRestore = async (): Promise<ServerRestoreResult> => {
+    const deviceId = await storage.getDeviceId();
+    const response = await fetch(
+      new URL("/api/subscription/restore", getApiUrl()).toString(),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ deviceId }),
+      },
+    );
+    if (!response.ok) {
+      // Auth and server failures are not "no purchases found"
+      logger.error("Restore endpoint error:", response.status);
+      return { ok: false };
+    }
+    const data = await response.json();
+    return {
+      ok: true,
+      isPremium: data.success === true && data.isPremium === true,
+      plan: data.plan,
+      currentPeriodEnd: data.currentPeriodEnd,
+    };
   };
 
   const monthlyProduct = iapProducts.find((p) => p.plan === "monthly");

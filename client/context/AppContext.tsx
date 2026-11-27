@@ -55,6 +55,7 @@ import { isHealthAvailable, initHealth, isHealthGoalMet } from "@/lib/health";
 import {
   resolveSubscriptionCheck,
   sameSubscription,
+  shouldCheckPastExpiry,
   type ServerSubscriptionStatus,
   type SubscriptionVerificationStatus,
 } from "@/lib/subscription";
@@ -437,7 +438,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const store =
         Platform.OS !== "web"
           ? await iapService.checkCurrentEntitlements({
-              includePastExpiry: local.isPremium && local.plan !== "lifetime",
+              includePastExpiry: shouldCheckPastExpiry(local),
             })
           : null;
       const { subscription: next, status } = resolveSubscriptionCheck({
