@@ -115,3 +115,19 @@ with the same messages produced one walk habit and broke down the walk.
   notification that morning, reminders after adding a step), the widget on
   January 1, overnight rollover with the app in memory, VoiceOver on the plan
   row, the first-weeks share card layout.
+
+## After the server deployed (2026-11-27, main 41984a0)
+
+PR 40 was merged on Brett's go-ahead and Railway deployed it. Site pages
+return 200; `/release-notes` shows 1.7.0 as "In development", not yet on the
+App Store.
+
+- The committed `qa/maestro-regression.yaml` ran unchanged on a fresh install
+  of the same 1.7.0 simulator build and passed. Stated days read "Every day"
+  with no "Suggested:".
+- The plan review shows the why line under the step ("Reading one page every
+  day builds your consistent reading habit.").
+- Still unverified: the separate step-suggestion quota, and everything in the
+  "Needs a phone" list above.
+
+Evidence: `build/native-regression-2026-11-27/postdeploy-1.7.0/`.
