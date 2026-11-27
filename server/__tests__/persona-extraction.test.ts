@@ -77,18 +77,33 @@ describe("persona plan extraction", () => {
     expect(parsed.benchmarks[0].scheduleSource).toBeUndefined();
   });
 
-  it("requires the new keys in strict mode, as nullable", () => {
+  it("requires the new keys in strict mode with plain, non-null types", () => {
     const item =
       personaPlanResponseFormat.json_schema.schema.properties.benchmarks.items;
     expect(item.required).toEqual(
       expect.arrayContaining(["why", "scheduleSource"]),
     );
-    expect(item.properties.why.type).toContain("null");
-    expect(item.properties.scheduleSource.enum).toEqual([
-      "stated",
-      "suggested",
-      null,
-    ]);
+    expect(item.properties.why).toEqual({ type: "string" });
+    expect(item.properties.scheduleSource).toEqual({
+      type: "string",
+      enum: ["stated", "suggested"],
+    });
+    // No union types or null enum members anywhere in the schema.
+    const text = JSON.stringify(personaPlanResponseFormat);
+    expect(text).not.toContain("null");
+    expect(text).not.toMatch(/"type":\[/);
+  });
+
+  it("accepts an empty why, which the app treats as absent", () => {
+    const empty = {
+      ...validPlan,
+      benchmarks: validPlan.benchmarks.map((benchmark) => ({
+        ...benchmark,
+        why: "",
+        scheduleSource: "suggested",
+      })),
+    };
+    expect(parsePersonaPlan(JSON.stringify(empty)).benchmarks[0].why).toBe("");
   });
 
   it("constrains OpenAI to three complete, scheduled milestones", () => {

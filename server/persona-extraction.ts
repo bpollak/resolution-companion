@@ -24,13 +24,13 @@ export const personaPlanSchema = z.object({
     .array(
       z.object({
         title: z.string().trim().min(1),
-        // Added in 1.7.0. Optional so a reply without them still parses;
-        // the client truncates "why" and treats a missing source as a
-        // suggestion.
-        why: z.string().nullish().catch(undefined),
+        // Added in 1.7.0. Lenient here so a reply without them, or with an
+        // unexpected value, still parses; the client truncates "why", treats
+        // "" as absent, and treats a missing source as a suggestion.
+        why: z.string().optional().catch(undefined),
         scheduleSource: z
           .enum(["stated", "suggested"])
-          .nullish()
+          .optional()
           .catch(undefined),
         elementalAction: elementalActionSchema,
       }),
@@ -60,11 +60,13 @@ export const personaPlanResponseFormat = {
             additionalProperties: false,
             properties: {
               title: { type: "string" },
-              // Strict mode requires every key, so "optional" is nullable.
-              why: { type: ["string", "null"] },
+              // Strict mode requires every key. Only constructs this schema
+              // already used: a plain string ("" when there is nothing to
+              // say) and a string enum.
+              why: { type: "string" },
               scheduleSource: {
-                type: ["string", "null"],
-                enum: ["stated", "suggested", null],
+                type: "string",
+                enum: ["stated", "suggested"],
               },
               elementalAction: {
                 type: "object",
