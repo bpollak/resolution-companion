@@ -101,9 +101,18 @@ export interface AppleSubscriptionChange {
 // recording which notification was applied last. The period end is the only
 // ordering signal available: a notification whose transaction expires before
 // the period already stored describes an earlier period, so it must not end
-// (EXPIRED, GRACE_PERIOD_EXPIRED) or shorten (DID_RENEW, SUBSCRIBED) what a
-// later renewal recorded. REFUND and REVOKE are not ordered this way: Apple
-// took the money back, whichever period it names.
+// (EXPIRED, GRACE_PERIOD_EXPIRED, REFUND) or shorten (DID_RENEW, SUBSCRIBED)
+// what a later renewal recorded. REVOKE is not ordered this way: Family
+// Sharing access is gone, whichever period it names.
+//
+// One case looks stale and is not. DID_FAIL_TO_RENEW moves the stored end out
+// to the grace end, and the GRACE_PERIOD_EXPIRED that follows still carries
+// the paid period's own, earlier expiry. A stored end that sits no further
+// past that expiry than a grace period lasts is this subscription's grace
+// end, so the notification applies. A real renewal moves the end at least a
+// month, well outside that window.
+export const APPLE_BILLING_GRACE_PERIOD_MS = 16 * 24 * 60 * 60 * 1000;
+
 export function appleNotificationChange(
   notification: { type: string; subtype?: string | null },
   row: { status: string; currentPeriodEnd: Date | null },
@@ -130,10 +139,16 @@ export function appleNotificationChange(
         ? { status: "active" }
         : { status: "active", currentPeriodEnd: activeEnd };
     case "EXPIRED":
-    case "GRACE_PERIOD_EXPIRED":
-      return stale ? null : { status: "inactive" };
-    case "REVOKE":
     case "REFUND":
+      return stale ? null : { status: "inactive" };
+    case "GRACE_PERIOD_EXPIRED": {
+      const storedEndIsGraceEnd =
+        stale &&
+        row.currentPeriodEnd!.getTime() - expiresDate!.getTime() <=
+          APPLE_BILLING_GRACE_PERIOD_MS;
+      return stale && !storedEndIsGraceEnd ? null : { status: "inactive" };
+    }
+    case "REVOKE":
       return { status: "inactive" };
     case "DID_FAIL_TO_RENEW": {
       // With Billing Grace Period on, Apple keeps retrying the charge and we

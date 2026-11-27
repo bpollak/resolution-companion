@@ -229,7 +229,7 @@ Behavior:
 - A daily AI budget breaker: when today's total in `ai_usage_daily` reaches `AI_DAILY_REQUEST_CAP` (default 20000), AI routes return 503 with `Retry-After` and a plain message; the total is cached for 30 seconds. Documented in `DEPLOYMENT.md`.
 - Quota is charged only after input validation passes, and refunded when the upstream call fails before any text is sent.
 - Rows in `rate_limit_windows` older than one day are deleted opportunistically (at most once a minute).
-- Deleting a device's data does not reset its AI usage counters.
+- Deleting a device's data still deletes its AI usage counters, as the privacy policy promises (reverted in review 2026-11-27).
 
 - [ ] Failing tests (breaker trips and recovers; quota not charged on invalid input; prune query issued); implement; commit.
 

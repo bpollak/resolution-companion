@@ -341,13 +341,18 @@ describe("AI quota charging", () => {
 });
 
 describe("device data deletion", () => {
-  it("does not reset the device's AI usage counters", async () => {
+  it("deletes the device's AI usage counters, as the privacy policy promises", async () => {
     const response = await send("DELETE", `/api/user-data/${DEVICE}`);
     expect(response.status).toBe(200);
     expect(JSON.parse(response.text)).toMatchObject({ success: true });
     expect(mockFake.find("delete", "device_subscriptions")).toHaveLength(1);
     expect(mockFake.find("delete", "device_events")).toHaveLength(1);
-    expect(mockFake.find("delete", "device_ai_usage")).toHaveLength(0);
-    expect(mockFake.find("update", "device_ai_usage")).toHaveLength(0);
+    expect(mockFake.find("delete", "ai_content_reports")).toHaveLength(1);
+    const usage = mockFake.find("delete", "device_ai_usage");
+    expect(usage).toHaveLength(1);
+    expect(usage[0].where).toEqual({
+      sql: '"device_ai_usage"."device_id" = $1',
+      params: [DEVICE],
+    });
   });
 });

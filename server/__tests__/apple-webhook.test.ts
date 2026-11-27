@@ -253,14 +253,80 @@ describe("Apple webhook stale notifications", () => {
     });
   });
 
-  it.each(["REFUND", "REVOKE"])(
-    "still removes access on %s whatever period it names",
-    async (type) => {
-      row({ status: "active", currentPeriodEnd: JAN_31 });
-      expect((await notify(type, DEC_31)).status).toBe(200);
-      expect(mockStore.rows[0].status).toBe("inactive");
-    },
-  );
+  it("still removes access on REVOKE whatever period it names", async () => {
+    row({ status: "active", currentPeriodEnd: JAN_31 });
+    expect((await notify("REVOKE", DEC_31)).status).toBe(200);
+    expect(mockStore.rows[0].status).toBe("inactive");
+  });
+
+  it("keeps access when REFUND names a period before the stored one", async () => {
+    row({ status: "active", currentPeriodEnd: JAN_31 });
+    expect((await notify("REFUND", DEC_31)).status).toBe(200);
+    expect(mockStore.rows[0]).toMatchObject({
+      status: "active",
+      currentPeriodEnd: JAN_31,
+    });
+    expect(updates()).toHaveLength(0);
+  });
+
+  it("removes access when REFUND names the stored period", async () => {
+    row({ status: "active", currentPeriodEnd: JAN_31 });
+    expect((await notify("REFUND", JAN_31)).status).toBe(200);
+    expect(mockStore.rows[0].status).toBe("inactive");
+  });
+});
+
+describe("Apple webhook notification sequences", () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  it("renew, fail to renew with grace, grace expired: ends inactive", async () => {
+    // The paid period lapsed a minute ago; Apple grants 16 days of grace.
+    const periodEnd = new Date(Date.now() - 60_000);
+    const graceEnd = new Date(periodEnd.getTime() + 16 * DAY_MS);
+    row({
+      status: "active",
+      currentPeriodEnd: new Date(periodEnd.getTime() - 30 * DAY_MS),
+    });
+
+    expect((await notify("DID_RENEW", periodEnd)).status).toBe(200);
+    expect(mockStore.rows[0].currentPeriodEnd).toEqual(periodEnd);
+
+    mockVerifyRenewalInfo.mockResolvedValue({
+      gracePeriodExpiresDate: graceEnd.getTime(),
+    });
+    const failed = await notify("DID_FAIL_TO_RENEW", periodEnd, {
+      subtype: "GRACE_PERIOD",
+      renewalInfo: true,
+    });
+    expect(failed.status).toBe(200);
+    expect(mockStore.rows[0]).toMatchObject({
+      status: "active",
+      currentPeriodEnd: graceEnd,
+    });
+
+    // Apple's notification still carries the paid period's own expiry,
+    // which is now earlier than the stored (grace) end.
+    expect((await notify("GRACE_PERIOD_EXPIRED", periodEnd)).status).toBe(200);
+    expect(mockStore.rows[0].status).toBe("inactive");
+  });
+
+  it("renew, then a late EXPIRED for the prior period: stays active", async () => {
+    row({ status: "active", currentPeriodEnd: DEC_31 });
+    expect((await notify("DID_RENEW", JAN_31)).status).toBe(200);
+    expect((await notify("EXPIRED", DEC_31)).status).toBe(200);
+    expect(mockStore.rows[0]).toMatchObject({
+      status: "active",
+      currentPeriodEnd: JAN_31,
+    });
+  });
+
+  it("ignores a GRACE_PERIOD_EXPIRED further back than a grace period can reach", async () => {
+    row({ status: "active", currentPeriodEnd: JAN_31 });
+    const eighteenDaysBefore = new Date(JAN_31.getTime() - 18 * DAY_MS);
+    const response = await notify("GRACE_PERIOD_EXPIRED", eighteenDaysBefore);
+    expect(response.status).toBe(200);
+    expect(mockStore.rows[0].status).toBe("active");
+  });
 });
 
 describe("Apple webhook activation", () => {
@@ -348,5 +414,16 @@ describe("Apple webhook with several devices on one purchase", () => {
     row({ providerTransactionId: `iap_ios_${ORIGINAL_ID}` });
     expect((await notify("DID_RENEW", FEB_28)).status).toBe(200);
     expect(mockStore.rows[0].currentPeriodEnd).toEqual(FEB_28);
+  });
+
+  it("updates one row only when it had to fall back to a suffix match", async () => {
+    row({ providerTransactionId: `iap_ios_${ORIGINAL_ID}` });
+    row({ providerTransactionId: `iap_9${ORIGINAL_ID}` });
+    expect((await notify("DID_RENEW", FEB_28)).status).toBe(200);
+    expect(mockStore.rows.map((r) => r.currentPeriodEnd)).toEqual([
+      FEB_28,
+      JAN_31,
+    ]);
+    expect(updates()).toHaveLength(1);
   });
 });

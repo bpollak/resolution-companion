@@ -1392,10 +1392,10 @@ Rules:
           .where(eq(deviceSubscriptions.deviceId, deviceId))
           .returning();
 
-        // device_ai_usage is deliberately kept. It holds only a request count
-        // per month, and removing it would hand a fresh quota to anyone who
-        // deletes and starts again, which is how a shared bundle key would be
-        // used to run past the monthly ceiling.
+        // The privacy policy promises the usage counters go with the rest.
+        await db
+          .delete(deviceAiUsage)
+          .where(eq(deviceAiUsage.deviceId, deviceId));
 
         // Purge aggregate product telemetry too, so the "all data deleted"
         // promise stays true now that we keep per-day event counts.
@@ -1647,13 +1647,17 @@ Rules:
           .where(eq(deviceSubscriptions.providerTransactionId, lookupId));
 
         if (rows.length === 0) {
-          // Also try with the prefix format used during validation
-          rows = await database
-            .select()
-            .from(deviceSubscriptions)
-            .where(
-              sql`${deviceSubscriptions.providerTransactionId} LIKE ${"iap_%" + originalTransactionId}`,
-            );
+          // Also try with the prefix format used during validation. A suffix
+          // match is a looser claim than an exact id, so it updates one row
+          // only, as it always has.
+          rows = (
+            await database
+              .select()
+              .from(deviceSubscriptions)
+              .where(
+                sql`${deviceSubscriptions.providerTransactionId} LIKE ${"iap_%" + originalTransactionId}`,
+              )
+          ).slice(0, 1);
         }
         if (rows.length === 0) {
           console.log(

@@ -68,7 +68,8 @@ tier (10 check-ins/month) is still enforced in the client. A request is
 charged only after its body passes validation, and the charge is returned when
 the provider call fails before any text reaches the client. A reply that
 arrived but was empty, cut off, or invalid is still charged, as is a request
-the client abandoned. Deleting a device's data does not reset these counters.
+the client abandoned. Deleting a device's data deletes these counters too, as
+the privacy policy promises.
 
 ### Daily AI budget breaker
 
@@ -166,7 +167,11 @@ before running submit.
    503 when no database is configured, and 500 when a verified notification
    could not be applied, so Apple retries instead of dropping the change. A
    notification for an earlier period than the one stored is acknowledged
-   and ignored.
+   and ignored (REVOKE always applies). The stale check assumes the Billing
+   Grace Period is 16 days: if that setting is lengthened in App Store
+   Connect, update `APPLE_BILLING_GRACE_PERIOD_MS` in
+   `server/iap-validation.ts`, or GRACE_PERIOD_EXPIRED will be ignored and
+   access will end by date alone.
 6. Review notes: mention that no account/login is required, and that premium
    can be tested with a sandbox Apple account.
 
