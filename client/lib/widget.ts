@@ -82,6 +82,17 @@ export interface WidgetProgressInput {
   planDay?: number;
 }
 
+const MAX_WIDGET_LEAD_DAYS = 92;
+
+/** Whole local days from one YYYY-MM-DD key to another (DST-safe). */
+function daysBetweenKeys(from: string, to: string): number {
+  const [fy, fm, fd] = from.split("-").map(Number);
+  const [ty, tm, td] = to.split("-").map(Number);
+  return Math.round(
+    (Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86400000,
+  );
+}
+
 /** Pure builder so the widget contract is unit-testable. */
 export function buildWidgetData(
   actions: ElementalAction[],
@@ -151,7 +162,17 @@ export function buildWidgetData(
   const remainingActions = scheduledActions
     .filter((action) => !isCompleted(action.id))
     .map(toWidgetAction);
-  const dayPlans = Array.from({ length: 7 }, (_, offset) => {
+  // Seven days ahead, so midnight rollover works without the app. A plan
+  // that starts later (set up in December for January 1) runs through the
+  // seven days from its start instead: otherwise the first day falls outside
+  // the saved plan and the widget can only ask to be opened. Bounded, so a
+  // far-off or malformed start cannot write an enormous payload.
+  const daysUntilStart = planStart ? daysBetweenKeys(dateStr, planStart) : 0;
+  const leadDays =
+    daysUntilStart > 0 && daysUntilStart <= MAX_WIDGET_LEAD_DAYS
+      ? daysUntilStart
+      : 0;
+  const dayPlans = Array.from({ length: 7 + leadDays }, (_, offset) => {
     const target = new Date(date);
     target.setDate(target.getDate() + offset);
     return {

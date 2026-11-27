@@ -189,6 +189,12 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
+// The free Coach quota follows the person's own calendar month. The UTC
+// month rolled it over at 4 PM Pacific on the last day of the month.
+function localMonthKey(now: Date = new Date()): string {
+  return getLocalDateString(now).slice(0, 7);
+}
+
 /** For optimistic UI paths that build the record before persisting it. */
 export function generateStorageId(): string {
   return generateId();
@@ -936,7 +942,7 @@ export const storage = {
   },
 
   async getMonthlyReflectionCount(): Promise<MonthlyReflectionCount> {
-    const currentMonth = new Date().toISOString().slice(0, 7);
+    const currentMonth = localMonthKey();
     const value = await AsyncStorage.getItem(
       STORAGE_KEYS.MONTHLY_REFLECTION_COUNT,
     );
@@ -946,7 +952,7 @@ export const storage = {
   },
 
   async incrementReflectionCount(): Promise<number> {
-    const currentMonth = new Date().toISOString().slice(0, 7);
+    const currentMonth = localMonthKey();
     const data = await this.getMonthlyReflectionCount();
     if (data.month !== currentMonth) {
       data.month = currentMonth;

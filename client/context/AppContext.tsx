@@ -52,6 +52,7 @@ import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { syncWidgetData, consumePendingVotes } from "@/lib/widget";
 import { createTrailingDebounce } from "@/lib/debounce";
 import { msUntilNextLocalDay } from "@/lib/day-rollover";
+import { createSerialQueue } from "@/lib/serial-queue";
 import { unlockRewardsForMilestoneCount, Reward } from "@/lib/rewards";
 import { isHealthAvailable, initHealth, isHealthGoalMet } from "@/lib/health";
 import {
@@ -188,6 +189,8 @@ const FREE_REFLECTION_LIMIT = 10;
 // milestone is celebrated exactly once, ever (survives restarts)
 const MILESTONE_CELEBRATION_SEEN_KEY = "milestone_celebration_seen_ids";
 const HABIT_TIMES_BACKFILLED_KEY = "evolve_habit_times_backfilled";
+
+const enqueueMilestoneWrite = createSerialQueue();
 
 // try/catch lives in these module helpers, outside AppProvider: the React
 // Compiler skips the whole provider over conditional expressions in a try.
@@ -940,7 +943,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       milestoneFlipsInFlight.current.add(benchmark.id);
       track("milestone_complete");
-      (async () => {
+      // One at a time: each flip rewrites the stored milestone list, the
+      // seen list, and the reward list. Two milestones completing in the
+      // same pass ran side by side and the later write undid the earlier.
+      enqueueMilestoneWrite(async () => {
         const updated = await updateBenchmark(benchmark.id, {
           status: "completed",
         });
@@ -968,7 +974,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setMilestoneCelebration(
           updated ?? { ...benchmark, status: "completed" },
         );
-      })().catch((error) => {
+      }).catch((error) => {
         milestoneFlipsInFlight.current.delete(benchmark.id);
         logger.error("Failed to mark milestone completed:", error);
       });
