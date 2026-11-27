@@ -6,11 +6,28 @@ if (!process.env.DATABASE_URL) {
   console.warn("DATABASE_URL not set. Database features will be unavailable.");
 }
 
+// Under load a slow database must fail a request quickly instead of stacking
+// requests behind it: give up on a connection after 5 seconds and let Postgres
+// cancel any statement that runs past 10.
 const pool = process.env.DATABASE_URL
   ? new Pool({
       connectionString: process.env.DATABASE_URL,
+      connectionTimeoutMillis: 5000,
+      statement_timeout: 10_000,
     })
   : null;
+
+// pg emits 'error' on the pool when an idle client's connection drops (a
+// database restart or failover). With no listener Node treats that as an
+// uncaught exception and the whole server exits. The pool discards the broken
+// client itself; only the message is logged, never the connection settings.
+pool?.on("error", (error: Error) => {
+  console.error("Database pool error:", error.message);
+});
+
+export async function closePool(): Promise<void> {
+  if (pool) await pool.end();
+}
 
 export const db = pool ? drizzle(pool, { schema }) : null;
 

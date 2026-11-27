@@ -2,7 +2,8 @@ import express from "express";
 import compression from "compression";
 import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { ensureSchema } from "./db";
+import { closePool, ensureSchema } from "./db";
+import { installProcessHandlers } from "./shutdown";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -617,6 +618,8 @@ function setupErrorHandler(app: express.Application) {
 
   setupErrorHandler(app);
 
+  installProcessHandlers({ server, closePool });
+
   const port = parseInt(process.env.PORT || "5000", 10);
   server.listen(
     {
@@ -628,4 +631,9 @@ function setupErrorHandler(app: express.Application) {
       log(`express server serving on port ${port}`);
     },
   );
-})();
+})().catch((error) => {
+  // A failed start must still end the process so the host marks the deploy
+  // failed, now that unhandled rejections are logged instead of fatal.
+  console.error("Server failed to start:", error);
+  process.exit(1);
+});

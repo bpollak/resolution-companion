@@ -11,7 +11,7 @@ import {
   aiUsageDaily,
   deviceEvents,
 } from "../shared/schema";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 import { rateLimiter } from "./rate-limit";
 import { requireApiKey, requireAdminKey } from "./auth";
 import { validateMessages } from "./message-validation";
@@ -58,7 +58,9 @@ import {
   requireCompleteAiText,
   abortOnClientDisconnect,
   sendAiRouteError,
+  type UpstreamAbort,
 } from "./ai-request";
+import { createAiBudgetBreaker } from "./ai-budget";
 
 // Lazily construct the OpenAI client so a missing API key degrades the AI
 // endpoints instead of crashing the whole server (website, webhooks, legal pages).
@@ -324,81 +326,158 @@ const AI_QUOTAS = {
   "plan-tune-up": { free: 30, premium: 300 },
 } as const;
 
-function aiQuota(endpoint: keyof typeof AI_QUOTAS) {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      // Production cost controls fail closed. Development can run without a
-      // database, where the scoped per-IP limiter remains the guardrail.
-      if (!db) {
-        if (process.env.NODE_ENV === "production") {
-          res
-            .status(503)
-            .json({ error: "Coaching is temporarily unavailable." });
-          return;
-        }
-        return next();
-      }
+// Today's request total across every device, read from the operational
+// counters recordAiModelUsage already keeps. See ai-budget.ts for the cache.
+const aiBudget = createAiBudgetBreaker({
+  fetchTotal: async (day) => {
+    if (!db) return 0;
+    const rows = await db
+      .select({
+        total: sql<string>`coalesce(sum(${aiUsageDaily.requests}), 0)`,
+      })
+      .from(aiUsageDaily)
+      .where(eq(aiUsageDaily.day, day));
+    return Number(rows[0]?.total ?? 0);
+  },
+});
 
-      const { deviceId, usageKey } = aiUsageIdentity(
-        req.header("X-Device-Id"),
-        req.ip,
-      );
-      const month = new Date().toISOString().slice(0, 7);
-
-      let isPremium = false;
-      if (deviceId) {
-        const subs = await db
-          .select()
-          .from(deviceSubscriptions)
-          .where(eq(deviceSubscriptions.deviceId, deviceId));
-        const sub = subs[0];
-        isPremium =
-          !!sub &&
-          sub.status === "active" &&
-          (!sub.currentPeriodEnd ||
-            new Date(sub.currentPeriodEnd) > new Date());
-      }
-      const limit = isPremium
-        ? AI_QUOTAS[endpoint].premium
-        : AI_QUOTAS[endpoint].free;
-
-      const rows = await db
-        .insert(deviceAiUsage)
-        .values({
-          deviceId: usageKey,
-          month,
-          endpoint,
-          count: 1,
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: [
-            deviceAiUsage.deviceId,
-            deviceAiUsage.month,
-            deviceAiUsage.endpoint,
-          ],
-          set: {
-            count: sql`${deviceAiUsage.count} + 1`,
-            updatedAt: new Date(),
-          },
-        })
-        .returning({ count: deviceAiUsage.count });
-
-      if (rows[0].count > limit) {
-        res.status(429).json({
-          error: isPremium
-            ? "Monthly usage limit reached. Please try again next month."
-            : "You've reached this month's free limit. Upgrade to Premium for unlimited coaching.",
-        });
-        return;
-      }
-
-      next();
-    } catch (error) {
-      console.error("AI quota check error:", error);
+// Runs before the body is looked at: the checks that need nothing from the
+// request. The per-device charge happens later, in chargeAiQuota.
+async function aiGate(req: Request, res: Response, next: NextFunction) {
+  // Production cost controls fail closed. Development can run without a
+  // database, where the scoped per-IP limiter remains the guardrail.
+  if (!db) {
+    if (process.env.NODE_ENV === "production") {
       res.status(503).json({ error: "Coaching is temporarily unavailable." });
+      return;
     }
-  };
+    return next();
+  }
+  const budget = await aiBudget.check();
+  if (budget.exhausted) {
+    res
+      .status(503)
+      .setHeader("Retry-After", String(budget.retryAfterSeconds))
+      .json({
+        error: "Coaching is at capacity right now. Please try again later.",
+      });
+    return;
+  }
+  next();
+}
+
+interface AiCharge {
+  // The provider answered, or text reached the client: the charge stands.
+  served: () => void;
+  // Give the request back when the provider failed before any of that.
+  refundIfUnserved: (upstream: UpstreamAbort) => Promise<void>;
+}
+
+const UNMETERED_CHARGE: AiCharge = {
+  served: () => {},
+  refundIfUnserved: async () => {},
+};
+
+// Charges one request against the device's monthly quota. Call it only after
+// the request body has passed validation, so a malformed request costs the
+// person nothing. Resolves null after answering 429 or 503 itself.
+async function chargeAiQuota(
+  req: Request,
+  res: Response,
+  endpoint: keyof typeof AI_QUOTAS,
+): Promise<AiCharge | null> {
+  // aiGate has already refused production requests without a database.
+  const database = db;
+  if (!database) return UNMETERED_CHARGE;
+  try {
+    const { deviceId, usageKey } = aiUsageIdentity(
+      req.header("X-Device-Id"),
+      req.ip,
+    );
+    const month = new Date().toISOString().slice(0, 7);
+
+    let isPremium = false;
+    if (deviceId) {
+      const subs = await database
+        .select()
+        .from(deviceSubscriptions)
+        .where(eq(deviceSubscriptions.deviceId, deviceId));
+      const sub = subs[0];
+      isPremium =
+        !!sub &&
+        sub.status === "active" &&
+        (!sub.currentPeriodEnd || new Date(sub.currentPeriodEnd) > new Date());
+    }
+    const limit = isPremium
+      ? AI_QUOTAS[endpoint].premium
+      : AI_QUOTAS[endpoint].free;
+
+    const rows = await database
+      .insert(deviceAiUsage)
+      .values({
+        deviceId: usageKey,
+        month,
+        endpoint,
+        count: 1,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [
+          deviceAiUsage.deviceId,
+          deviceAiUsage.month,
+          deviceAiUsage.endpoint,
+        ],
+        set: {
+          count: sql`${deviceAiUsage.count} + 1`,
+          updatedAt: new Date(),
+        },
+      })
+      .returning({ count: deviceAiUsage.count });
+
+    if (rows[0].count > limit) {
+      res.status(429).json({
+        error: isPremium
+          ? "Monthly usage limit reached. Please try again next month."
+          : "You've reached this month's free limit. Upgrade to Premium for unlimited coaching.",
+      });
+      return null;
+    }
+
+    let served = false;
+    return {
+      served: () => {
+        served = true;
+      },
+      // Only a provider failure earns the request back. A reply that arrived
+      // but was empty, cut off, or invalid was still paid for, and a client
+      // that hangs up early could otherwise replay requests for free.
+      refundIfUnserved: async (upstream) => {
+        if (served || upstream.clientDisconnected()) return;
+        served = true;
+        try {
+          await database
+            .update(deviceAiUsage)
+            .set({
+              count: sql`greatest(${deviceAiUsage.count} - 1, 0)`,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(deviceAiUsage.deviceId, usageKey),
+                eq(deviceAiUsage.month, month),
+                eq(deviceAiUsage.endpoint, endpoint),
+              ),
+            );
+        } catch (error) {
+          console.error("AI quota refund error:", error);
+        }
+      },
+    };
+  } catch (error) {
+    console.error("AI quota check error:", error);
+    res.status(503).json({ error: "Coaching is temporarily unavailable." });
+    return null;
+  }
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -418,9 +497,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/chat",
     requireApiKey,
     aiRateLimit,
-    aiQuota("chat"),
+    aiGate,
     async (req: Request, res: Response) => {
       const upstream = abortOnClientDisconnect(res);
+      let charge: AiCharge | null = null;
       try {
         const { messages } = req.body;
 
@@ -429,6 +509,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           res.status(400).json({ error: validationError });
           return;
         }
+        charge = await chargeAiQuota(req, res, "chat");
+        if (!charge) return;
 
         res.setHeader("Content-Type", "text/event-stream");
         res.setHeader("Cache-Control", "no-cache");
@@ -457,9 +539,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const content = chunk.choices[0]?.delta?.content || "";
           text += content;
           if (content) {
+            charge.served();
             res.write(`data: ${JSON.stringify({ content })}\n\n`);
           }
         }
+        charge.served();
 
         await recordAiModelUsage("chat", modelUsage);
         requireCompleteAiText(text, finishReason);
@@ -467,6 +551,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.write("data: [DONE]\n\n");
         res.end();
       } catch (error) {
+        await charge?.refundIfUnserved(upstream);
         sendAiRouteError(res, upstream, "Chat error:", error, {
           status: 500,
           body: { error: "Failed to get AI response" },
@@ -479,9 +564,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/extract-persona",
     requireApiKey,
     aiRateLimit,
-    aiQuota("extract"),
+    aiGate,
     async (req: Request, res: Response) => {
       const upstream = abortOnClientDisconnect(res);
+      let charge: AiCharge | null = null;
       try {
         const { messages, extractionPrompt } = req.body;
 
@@ -500,6 +586,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
           return;
         }
+        charge = await chargeAiQuota(req, res, "extract");
+        if (!charge) return;
 
         const conversationText = messages
           .filter((m: { role: string }) => m.role !== "system")
@@ -526,6 +614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
           { signal: upstream.signal },
         );
+        charge.served();
 
         await recordAiModelUsage("extract", response.usage);
 
@@ -537,6 +626,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         res.json(personaData);
       } catch (error) {
+        await charge?.refundIfUnserved(upstream);
         sendAiRouteError(res, upstream, "Extract persona error:", error, {
           status: 500,
           body: { error: "Failed to extract persona" },
@@ -549,9 +639,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/reflection",
     requireApiKey,
     aiRateLimit,
-    aiQuota("reflection"),
+    aiGate,
     async (req: Request, res: Response) => {
       const upstream = abortOnClientDisconnect(res);
+      let charge: AiCharge | null = null;
       try {
         const { messages, stream } = req.body;
 
@@ -560,6 +651,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           res.status(400).json({ error: validationError });
           return;
         }
+        charge = await chargeAiQuota(req, res, "reflection");
+        if (!charge) return;
 
         // Real SSE when the client asks for it; the JSON path stays for
         // older app builds (the client previously simulated streaming by
@@ -590,9 +683,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const content = chunk.choices[0]?.delta?.content || "";
             text += content;
             if (content) {
+              charge.served();
               res.write(`data: ${JSON.stringify({ content })}\n\n`);
             }
           }
+          charge.served();
 
           await recordAiModelUsage("reflection", modelUsage);
           requireCompleteAiText(text, finishReason);
@@ -610,6 +705,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
           { signal: upstream.signal },
         );
+        charge.served();
 
         await recordAiModelUsage("reflection", response.usage);
 
@@ -619,6 +715,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         res.json({ content });
       } catch (error) {
+        await charge?.refundIfUnserved(upstream);
         sendAiRouteError(res, upstream, "Reflection error:", error, {
           status: 500,
           body: { error: "Failed to get AI response" },
@@ -631,9 +728,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/milestone-proposal",
     requireApiKey,
     aiRateLimit,
-    aiQuota("reflection"),
+    aiGate,
     async (req: Request, res: Response) => {
       const upstream = abortOnClientDisconnect(res);
+      let charge: AiCharge | null = null;
       try {
         const { completedMilestone, personaName } = req.body;
         if (
@@ -647,6 +745,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           res.status(400).json({ error: "Invalid milestone context" });
           return;
         }
+        charge = await chargeAiQuota(req, res, "reflection");
+        if (!charge) return;
 
         const response = await getOpenAI().chat.completions.create(
           {
@@ -667,6 +767,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
           { signal: upstream.signal },
         );
+        charge.served();
         await recordAiModelUsage("milestone-proposal", response.usage);
         const parsed = JSON.parse(
           requireCompleteAiText(
@@ -688,6 +789,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         res.json({ title });
       } catch (error) {
+        await charge?.refundIfUnserved(upstream);
         sendAiRouteError(res, upstream, "Milestone proposal error:", error, {
           status: 500,
           body: { error: "Failed to suggest a milestone" },
@@ -700,7 +802,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     "/api/plan-tune-up",
     requireApiKey,
     aiRateLimit,
-    aiQuota("plan-tune-up"),
+    aiGate,
     async (req: Request, res: Response) => {
       const upstream = abortOnClientDisconnect(res);
       // Version 1.3.5 sends up to five opaque action slots. Keep the existing
@@ -716,6 +818,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
         const ambientRequest = parsedRequest.data;
+        const charge = await chargeAiQuota(req, res, "plan-tune-up");
+        if (!charge) return;
         try {
           const response = await getOpenAI().chat.completions.create(
             {
@@ -732,6 +836,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             },
             { timeout: 20_000, signal: upstream.signal },
           );
+          charge.served();
           await recordAiModelUsage("plan-tune-up", response.usage);
           const content = requireCompleteAiText(
             response.choices[0]?.message?.content,
@@ -741,6 +846,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             parseAmbientPlanTuneUpResponse(JSON.parse(content), ambientRequest),
           );
         } catch (error) {
+          await charge.refundIfUnserved(upstream);
           sendAiRouteError(
             res,
             upstream,
@@ -771,6 +877,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return;
       }
+      const charge = await chargeAiQuota(req, res, "plan-tune-up");
+      if (!charge) return;
 
       try {
         const response = await getOpenAI().chat.completions.create(
@@ -813,6 +921,7 @@ Rules:
           },
           { signal: upstream.signal },
         );
+        charge.served();
         await recordAiModelUsage("plan-tune-up", response.usage);
         let parsed: unknown;
         try {
@@ -840,6 +949,7 @@ Rules:
           });
         }
       } catch (error) {
+        await charge.refundIfUnserved(upstream);
         sendAiRouteError(res, upstream, "Plan Tune-Up error:", error, {
           status: 500,
           body: {
@@ -1250,9 +1360,10 @@ Rules:
           .where(eq(deviceSubscriptions.deviceId, deviceId))
           .returning();
 
-        await db
-          .delete(deviceAiUsage)
-          .where(eq(deviceAiUsage.deviceId, deviceId));
+        // device_ai_usage is deliberately kept. It holds only a request count
+        // per month, and removing it would hand a fresh quota to anyone who
+        // deletes and starts again, which is how a shared bundle key would be
+        // used to run past the monthly ceiling.
 
         // Purge aggregate product telemetry too, so the "all data deleted"
         // promise stays true now that we keep per-day event counts.

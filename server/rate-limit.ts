@@ -1,9 +1,32 @@
 import type { Request, Response, NextFunction } from "express";
-import { sql } from "drizzle-orm";
+import { lt, sql } from "drizzle-orm";
 import { db } from "./db";
 import { rateLimitWindows } from "../shared/schema";
 
 const localFallback = new Map<string, { count: number; resetTime: number }>();
+
+const PRUNE_INTERVAL_MS = 60 * 1000;
+const PRUNE_OLDER_THAN_MS = 24 * 60 * 60 * 1000;
+let lastPruneAt = 0;
+
+// Every client and minute adds a row, so the table only grows. Old windows
+// are never read again; remove them in passing, at most once a minute, and
+// never make a request wait on or fail because of the cleanup.
+function pruneOldWindows(now: number): void {
+  if (!db || now - lastPruneAt < PRUNE_INTERVAL_MS) return;
+  lastPruneAt = now;
+  const logFailure = (error: unknown) =>
+    console.error("Rate limit prune error:", error);
+  try {
+    db.delete(rateLimitWindows)
+      .where(
+        lt(rateLimitWindows.updatedAt, new Date(now - PRUNE_OLDER_THAN_MS)),
+      )
+      .catch(logFailure);
+  } catch (error) {
+    logFailure(error);
+  }
+}
 
 /**
  * Shared fixed-window rate limiting. Production fails closed when Postgres is
@@ -43,6 +66,7 @@ export function rateLimiter(
             },
           })
           .returning({ count: rateLimitWindows.count });
+        pruneOldWindows(now);
         if (rows[0].count > maxRequests) {
           res
             .status(429)
