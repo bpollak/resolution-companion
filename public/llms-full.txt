@@ -1,6 +1,6 @@
 # Resolution Companion: Full Product Brief
 
-Last updated: 2026-11-11
+Last updated: 2026-11-27
 
 ## Official identity
 
@@ -57,6 +57,8 @@ A persona-aware AI coaching destination with one open conversation plus quick pa
 
 ## How it works
 
+People often know their goal but not the steps. The first conversation with the AI coach is for that: a person says the goal in their own words, talks it through, and leaves with one small daily step to start.
+
 1. Define who you are becoming in a short AI-guided conversation.
 2. Review the milestones and daily actions created for that persona.
 3. Complete small actions on their scheduled days, using a 120-Second Kickstart when needed.
@@ -71,25 +73,22 @@ Current and historical release notes, including release status and feature detai
 
 Resolution Companion AI is available on the Apple App Store for iPhone and iPad (listed as "Resolution: Habit Tracker"). The current version is 1.6.1, released November 11, 2026, which added a reminder time for each habit with Done right from the reminder, and now names a routine that fits the suggested time. The app can be downloaded and used for free; no credit card is required for the free tier.
 
-For New Year's resolutions, a seasonal guide lives at https://resolutioncompanion.com/new-year. You can set up a resolution in advance and schedule it to begin on January 1, with a countdown until then; from mid-November, nothing counts as missed before your start date.
+For New Year's resolutions, a seasonal guide lives at https://resolutioncompanion.com/new-year. You can set up a resolution in advance and schedule it to begin on January 1, with a countdown until then. Nothing counts as missed before your start date.
 
 Free includes:
 
 - One plan
-- Ten coaching check-ins per month
-- Daily action tracking
-- Journey calendar
-- Progress tracking
-- A starter set of milestones
-- 120-Second Kickstart actions
+- Daily actions and two-minute alternatives
+- Journey calendar and progress tracking
+- 10 coaching check-ins per month
+- A free weekly review ritual
 
-Optional Premium subscriptions include:
+Optional Premium subscriptions cost USD $2.99 per month or USD $24.99 per year, and include:
 
-- Monthly: USD $2.99 per month
-- Annual: USD $24.99 per year
-- Unlimited plans
+- Everything included in Free
+- Unlimited plans and milestones
 - Unlimited coaching check-ins
-- Unlimited milestones
+- Coach memory across sessions
 
 Subscriptions are handled by Apple and may vary by region or currency. They renew automatically unless canceled through the user's Apple subscription settings.
 
@@ -122,7 +121,7 @@ Yes. Milestones and daily actions can be edited, including which days an action 
 
 ### What is free?
 
-The free tier includes one plan, ten coaching check-ins each month, daily tracking, the Journey calendar, progress tracking, starter milestones, and Kickstart actions.
+The free tier includes one plan, daily actions with two-minute alternatives, the Journey calendar and progress tracking, ten coaching check-ins each month, and a weekly review.
 
 ### How is a subscription canceled?
 
