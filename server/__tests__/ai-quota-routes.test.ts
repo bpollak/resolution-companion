@@ -340,6 +340,38 @@ describe("AI quota charging", () => {
   });
 });
 
+describe("step proposals have their own monthly counter", () => {
+  const proposal = { ...extract.body, purpose: "next-step" };
+  const kinds = () =>
+    charges().map((query) => (query.values as { endpoint: string }).endpoint);
+
+  it("charges a step proposal to step-proposal, not extract", async () => {
+    mockCreate.mockResolvedValueOnce(answer(extract));
+    expect((await post(extract.path, proposal)).status).toBe(200);
+    expect(kinds()).toEqual(["step-proposal"]);
+  });
+
+  it("charges a request with no purpose, as older builds send, to extract", async () => {
+    mockCreate.mockResolvedValueOnce(answer(extract));
+    expect((await post(extract.path, extract.body)).status).toBe(200);
+    expect(kinds()).toEqual(["extract"]);
+  });
+
+  it("treats an unknown purpose as plan extraction", async () => {
+    mockCreate.mockResolvedValueOnce(answer(extract));
+    await post(extract.path, { ...extract.body, purpose: "anything" });
+    expect(kinds()).toEqual(["extract"]);
+  });
+
+  it("answers 429 past 20 proposals in a month without calling the provider", async () => {
+    mockState.usageCount = 20;
+    const response = await post(extract.path, proposal);
+    expect(response.status).toBe(429);
+    expect(kinds()).toEqual(["step-proposal"]);
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+});
+
 describe("device data deletion", () => {
   it("deletes the device's AI usage counters, as the privacy policy promises", async () => {
     const response = await send("DELETE", `/api/user-data/${DEVICE}`);

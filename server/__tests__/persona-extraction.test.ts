@@ -43,6 +43,69 @@ describe("persona plan extraction", () => {
     ).toThrow();
   });
 
+  it("accepts steps with and without why and scheduleSource", () => {
+    const withFields = {
+      ...validPlan,
+      benchmarks: validPlan.benchmarks.map((benchmark, index) => ({
+        ...benchmark,
+        why: "Practice makes the map feel familiar.",
+        scheduleSource: index === 0 ? "stated" : "suggested",
+      })),
+    };
+    expect(parsePersonaPlan(JSON.stringify(withFields))).toEqual(withFields);
+    expect(parsePersonaPlan(JSON.stringify(validPlan))).toEqual(validPlan);
+    const withNulls = {
+      ...validPlan,
+      benchmarks: validPlan.benchmarks.map((benchmark) => ({
+        ...benchmark,
+        why: null,
+        scheduleSource: null,
+      })),
+    };
+    expect(() => parsePersonaPlan(JSON.stringify(withNulls))).not.toThrow();
+  });
+
+  it("does not reject a plan over an unexpected schedule source", () => {
+    const odd = {
+      ...validPlan,
+      benchmarks: validPlan.benchmarks.map((benchmark) => ({
+        ...benchmark,
+        scheduleSource: "guessed",
+      })),
+    };
+    const parsed = parsePersonaPlan(JSON.stringify(odd));
+    expect(parsed.benchmarks[0].scheduleSource).toBeUndefined();
+  });
+
+  it("requires the new keys in strict mode with plain, non-null types", () => {
+    const item =
+      personaPlanResponseFormat.json_schema.schema.properties.benchmarks.items;
+    expect(item.required).toEqual(
+      expect.arrayContaining(["why", "scheduleSource"]),
+    );
+    expect(item.properties.why).toEqual({ type: "string" });
+    expect(item.properties.scheduleSource).toEqual({
+      type: "string",
+      enum: ["stated", "suggested"],
+    });
+    // No union types or null enum members anywhere in the schema.
+    const text = JSON.stringify(personaPlanResponseFormat);
+    expect(text).not.toContain("null");
+    expect(text).not.toMatch(/"type":\[/);
+  });
+
+  it("accepts an empty why, which the app treats as absent", () => {
+    const empty = {
+      ...validPlan,
+      benchmarks: validPlan.benchmarks.map((benchmark) => ({
+        ...benchmark,
+        why: "",
+        scheduleSource: "suggested",
+      })),
+    };
+    expect(parsePersonaPlan(JSON.stringify(empty)).benchmarks[0].why).toBe("");
+  });
+
   it("constrains OpenAI to three complete, scheduled milestones", () => {
     const schema = personaPlanResponseFormat.json_schema.schema;
     expect(personaPlanResponseFormat.json_schema.strict).toBe(true);

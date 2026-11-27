@@ -324,6 +324,9 @@ const AI_QUOTAS = {
   chat: { free: 150, premium: 1500 },
   reflection: { free: 150, premium: 1500 },
   extract: { free: 20, premium: 200 },
+  // One proposed habit from the Coach sheet. Its own counter, so asking for
+  // step ideas can never use up the plan extractions onboarding needs.
+  "step-proposal": { free: 20, premium: 200 },
   "plan-tune-up": { free: 30, premium: 300 },
 } as const;
 
@@ -575,7 +578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const upstream = abortOnClientDisconnect(res);
       let charge: AiCharge | null = null;
       try {
-        const { messages, extractionPrompt } = req.body;
+        const { messages, extractionPrompt, purpose } = req.body;
 
         const validationError = validateMessages(messages);
         if (validationError) {
@@ -592,7 +595,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
           return;
         }
-        charge = await chargeAiQuota(req, res, "extract");
+        // Builds before 1.7.0 send no purpose and count as plan extraction.
+        charge = await chargeAiQuota(
+          req,
+          res,
+          purpose === "next-step" ? "step-proposal" : "extract",
+        );
         if (!charge) return;
 
         const conversationText = messages

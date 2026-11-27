@@ -36,7 +36,10 @@ appId: com.resolutioncompanion.app
     visible: "Edit habit 1"
     timeout: 60000
 - takeScreenshot: 02-plan-summary
+# The message states the days, so they must be credited as the person's own:
+# exactly "Every day", never "Suggested: Every day".
 - assertVisible: "Every day"
+- assertNotVisible: "Suggested: .*"
 - assertVisible: "Start with 1 habit"
 - tapOn: "Start with 1 habit"
 

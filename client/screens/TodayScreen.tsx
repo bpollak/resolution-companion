@@ -97,6 +97,7 @@ import {
 import { PlanCountdownCard } from "@/components/PlanCountdownCard";
 import { ReminderPrimerCard } from "@/components/ReminderPrimerCard";
 import { withAlpha } from "@/lib/color";
+import { GOAL_TO_STEPS_LINE } from "@/lib/copy";
 import {
   buildTodayProgressLine,
   canShowReminderPrimer,
@@ -1526,8 +1527,7 @@ export default function TodayScreen() {
           What&rsquo;s your resolution?
         </ThemedText>
         <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
-          Turn it into one small habit, with a coach that keeps you going past
-          January.
+          {GOAL_TO_STEPS_LINE}
         </ThemedText>
         <AnimatedStartButton
           onPress={() => navigation.navigate("Onboarding")}

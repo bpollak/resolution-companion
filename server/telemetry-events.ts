@@ -66,6 +66,10 @@ export const TELEMETRY_EVENTS: ReadonlySet<string> = new Set<string>([
   "paywall_viewed_insights",
   "paywall_viewed_year_recap",
   "client_error",
+  "next_step_added",
+  "next_step_dismissed",
+  "coach_step_proposed",
+  "coach_step_applied",
 ]);
 
 export type TelemetryEntry = { day: string; event: string; count: number };

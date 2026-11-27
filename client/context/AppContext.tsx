@@ -70,6 +70,7 @@ import {
 } from "@/lib/daily-log";
 import { iapService } from "@/lib/iap";
 import { canDeleteMilestone } from "@/lib/plan-editing";
+import { normalizeNextSteps, type NextStep } from "@/lib/next-steps";
 import {
   createPrivateBackup,
   getPrivateBackupEnabled,
@@ -179,6 +180,18 @@ interface AppContextType {
    * resolves to the (possibly updated) actions to schedule with.
    */
   applySuggestedReminderTimes: () => Promise<ElementalAction[]>;
+  /** The active plan's steps not started yet; empty when it has none. */
+  nextSteps: NextStep[];
+  /** Turns a stored next step into a habit under the current milestone. */
+  addNextStep: (
+    stepId: string,
+  ) => Promise<{ ok: boolean; reason?: "habit_limit" | "no_milestone" }>;
+  dismissNextStep: (stepId: string) => Promise<void>;
+  /**
+   * Stores a step on the active plan for later and resolves to the stored
+   * step: the one already there when its title matches.
+   */
+  saveNextStep: (step: NextStep) => Promise<NextStep | null>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -635,7 +648,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       storage.getBenchmarks(),
     ]);
     if (!canDeleteMilestone(id, currentBenchmarks, currentActions)) {
-      throw new Error("Keep at least one action in this persona.");
+      throw new Error("Keep at least one habit in this plan.");
     }
     const actionIdsToDelete = currentActions
       .filter((a) => a.benchmarkId === id)
@@ -1400,6 +1413,104 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => subscription.remove();
   }, [isLoading, completeDailyLog]);
 
+  // --- Next steps: the steps toward the resolution not started yet ---
+  const nextSteps = useMemo(
+    () => normalizeNextSteps(persona?.nextSteps),
+    [persona],
+  );
+  const applyPersonaUpdate = useCallback((updated: Persona | null) => {
+    if (!updated) return;
+    setPersonaState((prev) => (prev?.id === updated.id ? updated : prev));
+    setPersonasState((prev) =>
+      prev.map((item) => (item.id === updated.id ? updated : item)),
+    );
+  }, []);
+  // These go through storage rather than the closure, so they stay
+  // dependency-free and a save followed at once by an add sees the save.
+  // Concurrent adds of one step (a double tap) share a single run.
+  const nextStepAddsInFlight = useRef(
+    new Map<
+      string,
+      Promise<{ ok: boolean; reason?: "habit_limit" | "no_milestone" }>
+    >(),
+  );
+  const addNextStep = useCallback(
+    (
+      stepId: string,
+    ): Promise<{ ok: boolean; reason?: "habit_limit" | "no_milestone" }> => {
+      const running = nextStepAddsInFlight.current.get(stepId);
+      if (running) return running;
+      const run = (async () => {
+        const plan = await storage.getActivePersona();
+        if (!plan) return { ok: false };
+        const result = await storage.addNextStepToPlan(plan.id, stepId);
+        if (!result.ok) return { ok: false, reason: result.reason };
+        applyPersonaUpdate(result.persona ?? null);
+        const newAction = result.action;
+        if (!newAction) {
+          // The habit was already written by an earlier attempt.
+          await refreshData();
+          return { ok: true };
+        }
+        setActionsState((prev) => [...prev, newAction]);
+        track("next_step_added");
+        // Same refresh a foreground does, so the new habit's reminder does
+        // not wait for the next app open. A no-op while reminders are off.
+        const current = reminderStateRef.current;
+        const nextActions = [...current.actions, newAction];
+        ensureReminderScheduled({
+          streakCount: computeStreak(nextActions, current.dailyLogs).current,
+          missedRun: computeLapse(nextActions, current.dailyLogs).missedDays,
+          personaName: plan.name,
+          monthlyConsistency: current.personaAlignment,
+          actions: nextActions,
+          dailyLogs: current.dailyLogs,
+          milestoneTitles: current.milestoneTitles,
+        }).catch(() => {});
+        return { ok: true };
+      })();
+      nextStepAddsInFlight.current.set(stepId, run);
+      const clear = () => {
+        if (nextStepAddsInFlight.current.get(stepId) === run)
+          nextStepAddsInFlight.current.delete(stepId);
+      };
+      run.then(clear, clear);
+      return run;
+    },
+    [applyPersonaUpdate, refreshData],
+  );
+  const dismissNextStep = useCallback(
+    async (stepId: string) => {
+      const plan = await storage.getActivePersona();
+      if (!plan) return;
+      applyPersonaUpdate(
+        await storage.setPersonaNextSteps(
+          plan.id,
+          normalizeNextSteps(plan.nextSteps).filter(
+            (item) => item.id !== stepId,
+          ),
+        ),
+      );
+      track("next_step_dismissed");
+    },
+    [applyPersonaUpdate],
+  );
+  /**
+   * Keeps a step Coach proposed so "Not now" does not lose it. Resolves to
+   * the step as stored (the earlier one when its title was already saved).
+   */
+  const saveNextStep = useCallback(
+    async (step: NextStep): Promise<NextStep | null> => {
+      const plan = await storage.getActivePersona();
+      if (!plan) return null;
+      const result = await storage.saveNextStep(plan.id, step);
+      if (!result) return null;
+      applyPersonaUpdate(result.persona);
+      return result.saved;
+    },
+    [applyPersonaUpdate],
+  );
+
   const canUseReflection = useCallback(() => {
     if (subscription.isPremium) return true;
     return monthlyReflectionCount < FREE_REFLECTION_LIMIT;
@@ -1465,6 +1576,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       reminderPrimerPending,
       answerReminderPrimer,
       applySuggestedReminderTimes,
+      nextSteps,
+      addNextStep,
+      dismissNextStep,
+      saveNextStep,
     }),
     [
       hasOnboarded,
@@ -1516,6 +1631,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       reminderPrimerPending,
       answerReminderPrimer,
       applySuggestedReminderTimes,
+      nextSteps,
+      addNextStep,
+      dismissNextStep,
+      saveNextStep,
     ],
   );
 

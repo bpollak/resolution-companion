@@ -2,6 +2,8 @@ import {
   buildCoachActionContext,
   buildPreviousSessionNotes,
   buildRecentNotes,
+  canOfferPlanAdjustment,
+  scheduledDaysOfHistory,
 } from "@/lib/coach";
 import type { DailyLog, ElementalAction, Reflection } from "@/lib/storage";
 
@@ -20,6 +22,92 @@ const action: ElementalAction = {
   kickstartVersion: "put on running shoes",
   createdAt: "2026-06-01T12:00:00",
 };
+
+describe("when Adjust my plan is offered", () => {
+  // June 1, 2026 is a Monday; the habit runs Monday, Wednesday, Friday.
+  const daily: ElementalAction = {
+    ...action,
+    id: "daily",
+    frequency: [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ],
+  };
+
+  it("counts scheduled days from the start through yesterday", () => {
+    expect(scheduledDaysOfHistory(action, new Date(2026, 5, 1, 9))).toBe(0);
+    expect(scheduledDaysOfHistory(action, new Date(2026, 5, 2, 9))).toBe(1);
+    // Jun 1, 3, 5, 8, 10, 12; Monday the 15th is today, not history yet.
+    expect(scheduledDaysOfHistory(action, new Date(2026, 5, 15, 9))).toBe(6);
+  });
+
+  it("stays hidden under seven scheduled days of history", () => {
+    expect(canOfferPlanAdjustment([action], new Date(2026, 5, 15, 9))).toBe(
+      false,
+    );
+    expect(canOfferPlanAdjustment([daily], new Date(2026, 5, 7, 9))).toBe(
+      false,
+    );
+    expect(canOfferPlanAdjustment([], new Date(2026, 5, 30, 9))).toBe(false);
+  });
+
+  it("appears once a habit reaches seven scheduled days", () => {
+    expect(canOfferPlanAdjustment([action], new Date(2026, 5, 16, 9))).toBe(
+      true,
+    );
+    expect(canOfferPlanAdjustment([daily], new Date(2026, 5, 8, 9))).toBe(true);
+  });
+
+  it("needs only one habit with enough history", () => {
+    const fresh = { ...action, id: "new", createdAt: "2026-06-14T09:00:00" };
+    expect(canOfferPlanAdjustment([fresh], new Date(2026, 5, 16, 9))).toBe(
+      false,
+    );
+    expect(
+      canOfferPlanAdjustment([fresh, action], new Date(2026, 5, 16, 9)),
+    ).toBe(true);
+  });
+
+  it("counts the schedule in force on each day, not today's days", () => {
+    // Mon/Wed/Fri until June 15, when the days were widened to daily.
+    const widened: ElementalAction = {
+      ...daily,
+      frequencyHistory: [
+        { from: "2026-06-01", frequency: ["Monday", "Wednesday", "Friday"] },
+        { from: "2026-06-15", frequency: daily.frequency },
+      ],
+    };
+    // Six scheduled days before the change; the edit adds none of its own.
+    expect(scheduledDaysOfHistory(widened, new Date(2026, 5, 15, 9))).toBe(6);
+    expect(canOfferPlanAdjustment([widened], new Date(2026, 5, 15, 9))).toBe(
+      false,
+    );
+    // Monday the 15th, now behind us, is the seventh.
+    expect(canOfferPlanAdjustment([widened], new Date(2026, 5, 16, 9))).toBe(
+      true,
+    );
+  });
+
+  it("treats a future start or unreadable date as no history", () => {
+    expect(
+      canOfferPlanAdjustment(
+        [{ ...daily, createdAt: "2027-01-01T00:00:00" }],
+        new Date(2026, 11, 20, 9),
+      ),
+    ).toBe(false);
+    expect(
+      scheduledDaysOfHistory(
+        { ...daily, createdAt: "not a date" },
+        new Date(2026, 5, 30, 9),
+      ),
+    ).toBe(0);
+  });
+});
 
 describe("Coach action context", () => {
   it("provides real action, fallback, and anchor evidence", () => {

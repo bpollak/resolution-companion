@@ -14,14 +14,14 @@ appId: com.resolutioncompanion.app
 - extendedWaitUntil:
     visible: "Step 2 of 2. Review your plan"
     timeout: 10000
-# Only the daily anchor starts selected; the other two are behind "ideas".
+# Only the daily anchor starts selected; the other two are behind "more steps".
 - scrollUntilVisible:
     element:
-      text: "See 2 other ideas"
+      text: "See 2 more steps toward this"
     direction: DOWN
     timeout: 20000
     centerElement: true
-- tapOn: "See 2 other ideas"
+- tapOn: "See 2 more steps toward this"
 - scrollUntilVisible:
     element:
       text: "Include Practice mindful breathing"

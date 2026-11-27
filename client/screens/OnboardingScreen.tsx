@@ -28,18 +28,23 @@ import {
   extractPersonaFromConversation,
   type AIMessage,
 } from "@/lib/ai";
+import { ONBOARDING_OPENER } from "@/lib/ai-prompts";
 import {
   createPlanDraft,
   deriveResolution,
   pickResolutionMessage,
   planStartInstant,
+  sanitizeDraft,
+  shouldOfferPlanReview,
   type OnboardingPlanDraft,
 } from "@/lib/onboarding-plan";
 import {
   approvalClearsCoachTranscript,
   createStarterPlanDraft,
   isSelfSetupDraft,
+  RESOLUTION_STARTERS,
 } from "@/lib/starter-plan";
+import { GOAL_TO_STEPS_LINE, WELCOME_STEPS } from "@/lib/copy";
 import { storage } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import { track } from "@/lib/telemetry";
@@ -51,19 +56,6 @@ interface ChatMessage {
   content: string;
 }
 type Stage = "welcome" | "chat" | "review";
-
-// One tap gets a New Year's user past the blank box; Coach narrows it down.
-const RESOLUTION_STARTERS = [
-  "Get fit",
-  "Lose weight",
-  "Save money",
-  "Read more",
-  "Sleep better",
-  "Less phone time",
-  "Stress less",
-  "Learn a skill",
-  "Something else",
-];
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
@@ -123,9 +115,9 @@ export default function OnboardingScreen() {
           (savedDraft?.usesAI === true || isSelfSetupDraft(savedDraft)) &&
           Array.isArray(savedDraft?.suggestions)
         ) {
-          setDraft(savedDraft);
+          setDraft(sanitizeDraft(savedDraft));
           setStage("review");
-        } else if (transcript.length > 0) {
+        } else if (transcript.some((message) => message.role === "user")) {
           setStage("chat");
           if (transcript.at(-1)?.role === "user") {
             setError("Your last message is saved. Retry when you are ready.");
@@ -236,7 +228,16 @@ export default function OnboardingScreen() {
   const beginChat = () => {
     touchedRef.current = true;
     setStage("chat");
-    if (messages.length === 0) void requestReply([]);
+    // The opening question is fixed, so it is shown at once with no network
+    // call; the first request goes out with the person's first message.
+    if (messages.length === 0)
+      setMessages([
+        {
+          id: `${Date.now()}-assistant`,
+          role: "assistant",
+          content: ONBOARDING_OPENER,
+        },
+      ]);
     else if (messages.at(-1)?.role === "user") {
       setError("Your last message is saved. Retry when you are ready.");
       setFailedRequest("reply");
@@ -577,19 +578,10 @@ export default function OnboardingScreen() {
               What&rsquo;s your resolution?
             </ThemedText>
             <ThemedText style={{ color: theme.textSecondary }}>
-              Coach turns it into one small habit. You decide when it starts.
+              {GOAL_TO_STEPS_LINE}
             </ThemedText>
             <View style={styles.overview}>
-              {[
-                [
-                  "Talk with Coach",
-                  "Share your resolution and the days that fit.",
-                ],
-                [
-                  "Review your plan",
-                  "Check your habit and schedule. Start when it feels right.",
-                ],
-              ].map(([title, detail], index) => (
+              {WELCOME_STEPS.map(([title, detail], index) => (
                 <View key={title} style={styles.overviewStep}>
                   <View
                     style={[
@@ -634,7 +626,7 @@ export default function OnboardingScreen() {
             {button(
               draft
                 ? "Resume my plan review"
-                : messages.length > 0
+                : messages.some((message) => message.role === "user")
                   ? "Resume my conversation"
                   : "Build a plan with Coach",
               draft
@@ -672,6 +664,7 @@ export default function OnboardingScreen() {
             setError(null);
           }}
           onApprove={approve}
+          onAskCoach={returnsToCoach ? back : undefined}
           saving={busy === "save"}
           error={error}
         />
@@ -682,7 +675,7 @@ export default function OnboardingScreen() {
           >
             {inputText.trim()
               ? "Send your message before previewing your plan."
-              : "Share your resolution and the days that fit. You’ll review the plan before it starts."}
+              : "Share the goal. Coach helps you find the steps, and you review the plan before it starts."}
           </ThemedText>
           <FlatList
             style={styles.scrollViewport}
@@ -773,11 +766,10 @@ export default function OnboardingScreen() {
                     ))}
                   </View>
                 ) : null}
-                {/* Only once Coach stops asking: a clarifying question means
-                    the plan would have to guess the missing detail. */}
-                {canPreview &&
-                messages.at(-1)?.role === "assistant" &&
-                !messages.at(-1)?.content.trim().endsWith("?") ? (
+                {/* Anything the plan has to guess is labelled as a
+                    suggestion in review, so a trailing question from Coach
+                    does not hide this. */}
+                {canPreview && shouldOfferPlanReview(messages) ? (
                   <View style={styles.inlineReview}>
                     {button("Review my plan", previewPlan, true)}
                   </View>
