@@ -592,10 +592,18 @@ describe("day-one notification: when it fires", () => {
     ]);
   });
 
-  it("schedules nothing when the start is today, even before 8:00 AM", () => {
-    const earlyMorning = new Date(2027, 0, 1, 0, 5);
-    expect(dayOneFireDate(new Date(2027, 0, 1), earlyMorning)).toBeNull();
-    expect(dayOneFireDate("2027-01-01T20:00:00", earlyMorning)).toBeNull();
+  it("still stands on the start morning until 8:00 AM has passed", () => {
+    const start = new Date(2027, 0, 1);
+    // Opening the app at 12:05 AM or 7:59 AM must not cancel the 8:00 AM send
+    expect(at(dayOneFireDate(start, new Date(2027, 0, 1, 0, 5)))).toEqual([
+      2027, 1, 1, 8, 0,
+    ]);
+    expect(at(dayOneFireDate(start, new Date(2027, 0, 1, 7, 59)))).toEqual([
+      2027, 1, 1, 8, 0,
+    ]);
+    expect(dayOneFireDate(start, new Date(2027, 0, 1, 8, 0))).toBeNull();
+    expect(dayOneFireDate(start, new Date(2027, 0, 1, 8, 1))).toBeNull();
+    expect(dayOneFireDate(start, new Date(2027, 0, 1, 20, 0))).toBeNull();
   });
 
   it("schedules nothing for a past, missing, or unreadable start", () => {
@@ -693,8 +701,22 @@ describe("day-one notification: scheduling", () => {
     ).toMatchObject({ date: new Date(2026, 11, 15, 8, 0) });
   });
 
-  it("removes a pending notification once the plan has started", async () => {
+  it("keeps the pending notification when the app opens at 6:00 AM on the start day", async () => {
     jest.setSystemTime(new Date(2027, 0, 1, 6, 0));
+    jest
+      .mocked(Notifications.getAllScheduledNotificationsAsync)
+      .mockResolvedValue([pendingDayOne(new Date(2027, 0, 1, 8, 0).getTime())]);
+
+    await syncDayOneNotification(JAN_1);
+
+    expect(
+      Notifications.cancelScheduledNotificationAsync,
+    ).not.toHaveBeenCalled();
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
+  it("removes a stale pending notification once 8:00 AM has passed", async () => {
+    jest.setSystemTime(new Date(2027, 0, 1, 8, 1));
     jest
       .mocked(Notifications.getAllScheduledNotificationsAsync)
       .mockResolvedValue([pendingDayOne(new Date(2027, 0, 2, 8, 0).getTime())]);

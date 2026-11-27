@@ -1246,8 +1246,9 @@ const DAY_ONE_HOUR = 8;
 
 /**
  * When the day-one notification fires: 8:00 AM local on the plan's start
- * day, or null when that day is today or earlier (the plan is already
- * running, so there is nothing to announce).
+ * day, or null once that moment has passed. It stays non-null through the
+ * start morning itself, so opening the app at 6:00 AM on January 1 does not
+ * cancel the notification due two hours later.
  */
 export function dayOneFireDate(
   planStartsAt: string | number | Date | null | undefined,
@@ -1256,8 +1257,7 @@ export function dayOneFireDate(
   if (planStartsAt === null || planStartsAt === undefined) return null;
   const start = new Date(planStartsAt);
   if (Number.isNaN(start.getTime())) return null;
-  if (getLocalDateString(start) <= getLocalDateString(now)) return null;
-  return new Date(
+  const fireDate = new Date(
     start.getFullYear(),
     start.getMonth(),
     start.getDate(),
@@ -1266,6 +1266,7 @@ export function dayOneFireDate(
     0,
     0,
   );
+  return fireDate.getTime() > now.getTime() ? fireDate : null;
 }
 
 function isDayOneRequest(request: Notifications.NotificationRequest): boolean {
