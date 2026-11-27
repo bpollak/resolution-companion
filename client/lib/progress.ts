@@ -784,13 +784,19 @@ export interface ProgressSnapshot {
   weeklyRecap: WeeklyRecapResult;
   milestoneProgress: MilestoneProgressResult[];
   milestoneProgressByBenchmarkId: Map<string, MilestoneProgressResult>;
+  /**
+   * Local YYYY-MM-DD this snapshot describes. Every number above depends on
+   * "today", so a holder must rebuild the snapshot when the local date moves
+   * on (an app left in memory overnight otherwise shows yesterday's day).
+   */
+  dayKey: string;
 }
 
 export function buildProgressSnapshot(
   actions: ElementalAction[],
   logs: DailyLog[],
   benchmarks: Benchmark[],
-  options: { maxShields?: number } = {},
+  options: { maxShields?: number; dayKey?: string } = {},
 ): ProgressSnapshot {
   const logIndex = buildLogIndex(logs);
   const milestoneProgress = benchmarks.map((benchmark) =>
@@ -813,5 +819,6 @@ export function buildProgressSnapshot(
     milestoneProgressByBenchmarkId: new Map(
       milestoneProgress.map((progress) => [progress.benchmark.id, progress]),
     ),
+    dayKey: options.dayKey ?? getLocalDateString(new Date()),
   };
 }

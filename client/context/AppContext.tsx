@@ -49,6 +49,7 @@ import { track, flushTelemetry } from "@/lib/telemetry";
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { syncWidgetData, consumePendingVotes } from "@/lib/widget";
 import { createTrailingDebounce } from "@/lib/debounce";
+import { msUntilNextLocalDay } from "@/lib/day-rollover";
 import { unlockRewardsForMilestoneCount, Reward } from "@/lib/rewards";
 import { isHealthAvailable, initHealth, isHealthGoalMet } from "@/lib/health";
 import {
@@ -284,12 +285,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Derived from the persona-scoped state, so they can never drift from the
   // data they describe (state mirrors storage via refreshData + mutators).
   // Premium holds 2 streak shields — extra grace, earned the same way.
+  // The snapshot depends on "today" as much as on the data. Without the
+  // day key an app left in memory overnight kept yesterday's streak, lapse,
+  // and month score until the next check-off.
+  const [todayKey, setTodayKey] = useState(() =>
+    getLocalDateString(new Date()),
+  );
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const syncDay = () => {
+      // Same string on most calls, so React skips the re-render
+      setTodayKey(getLocalDateString(new Date()));
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(syncDay, msUntilNextLocalDay(new Date()));
+    };
+    syncDay();
+    // iOS pauses timers in the background; foregrounding checks the date
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") syncDay();
+    });
+    return () => {
+      if (timer) clearTimeout(timer);
+      subscription.remove();
+    };
+  }, []);
   const progressSnapshot = useMemo(
     () =>
       buildProgressSnapshot(actions, dailyLogs, benchmarks, {
         maxShields: subscription.isPremium ? 2 : 1,
+        dayKey: todayKey,
       }),
-    [actions, dailyLogs, benchmarks, subscription.isPremium],
+    [actions, dailyLogs, benchmarks, subscription.isPremium, todayKey],
   );
   const { momentumScore, personaAlignment } = progressSnapshot;
   const [monthlyReflectionCount, setMonthlyReflectionCount] = useState(0);
