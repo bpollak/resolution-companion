@@ -162,6 +162,11 @@ before running submit.
      `https://resolutioncompanion.com/terms`.
 5. App Store Server Notifications (V2):
    `https://resolutioncompanion.com/api/webhooks/apple`
+   The endpoint answers 403 for a payload whose signature does not verify,
+   503 when no database is configured, and 500 when a verified notification
+   could not be applied, so Apple retries instead of dropping the change. A
+   notification for an earlier period than the one stored is acknowledged
+   and ignored.
 6. Review notes: mention that no account/login is required, and that premium
    can be tested with a sandbox Apple account.
 

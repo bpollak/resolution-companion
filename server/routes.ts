@@ -44,8 +44,9 @@ import {
   LIFETIME_PRODUCT_ID,
   VERIFICATION_UNAVAILABLE_BODY,
   VerificationUnavailableError,
+  appleExpiryDate,
   appleGracePeriodEnd,
-  extendedPeriodEnd,
+  appleNotificationChange,
   isLifetimeProduct,
   validateAppleReceiptLegacy,
   validateAppleTransactionV2,
@@ -479,6 +480,11 @@ async function chargeAiQuota(
     return null;
   }
 }
+
+// The values of the feedback form's type field (server/templates/feedback.html).
+const FEEDBACK_TYPES = new Set(["bug", "feature", "question", "other"]);
+const FEEDBACK_NAME_MAX = 120;
+const FEEDBACK_MESSAGE_MAX = 5000;
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check for deployment platforms
@@ -981,10 +987,30 @@ Rules:
           return;
         }
 
+        // A public, unauthenticated form: bound what one post can store.
+        if (typeof name !== "string" || name.length > FEEDBACK_NAME_MAX) {
+          res.status(400).json({
+            error: `Name must be at most ${FEEDBACK_NAME_MAX} characters`,
+          });
+          return;
+        }
+        if (typeof type !== "string" || !FEEDBACK_TYPES.has(type)) {
+          res.status(400).json({ error: "Unknown feedback type" });
+          return;
+        }
+        if (
+          typeof message !== "string" ||
+          message.length > FEEDBACK_MESSAGE_MAX
+        ) {
+          res.status(400).json({
+            error: `Message must be at most ${FEEDBACK_MESSAGE_MAX} characters`,
+          });
+          return;
+        }
+
+        // Logs carry the type only: never the name, email, or message.
         if (!db) {
-          console.log(
-            `Feedback received (no DB): ${name} (${email}): ${type} - ${message}`,
-          );
+          console.log(`Feedback received (no DB): ${type}`);
           res.json({ success: true, id: Date.now().toString() });
           return;
         }
@@ -999,10 +1025,16 @@ Rules:
           })
           .returning();
 
-        console.log(`New feedback received from ${name} (${email}): ${type}`);
+        console.log(`New feedback received: ${type}`);
         res.json({ success: true, id: entry.id });
       } catch (error) {
-        console.error("Feedback error:", error);
+        // A database error can quote the row it rejected, so log only what
+        // kind of error it was.
+        console.error(
+          "Feedback error:",
+          error instanceof Error ? error.name : "unknown",
+          (error as { code?: unknown } | null)?.code ?? "",
+        );
         res.status(500).json({ error: "Failed to submit feedback" });
       }
     },
@@ -1371,6 +1403,12 @@ Rules:
           .delete(deviceEvents)
           .where(eq(deviceEvents.deviceId, deviceId));
 
+        // Reports the person filed about AI replies hold the reported text
+        // next to their device id, so they go too.
+        await db
+          .delete(aiContentReports)
+          .where(eq(aiContentReports.deviceId, deviceId));
+
         res.json({
           success: true,
           message:
@@ -1578,6 +1616,15 @@ Rules:
           return;
         }
 
+        // Without a database the change cannot be recorded. Say so, so Apple
+        // retries later instead of treating the notification as delivered.
+        const database = db;
+        if (!database) {
+          console.error("Apple webhook: no database available");
+          res.status(503).json({ error: "Database unavailable" });
+          return;
+        }
+
         // The nested signedTransactionInfo is also JWS-signed by Apple
         const txInfo = await verifyAppleTransaction(
           payload.data.signedTransactionInfo,
@@ -1585,154 +1632,82 @@ Rules:
         );
         const originalTransactionId =
           txInfo.originalTransactionId || txInfo.transactionId;
-        const expiresDate = txInfo.expiresDate
-          ? new Date(txInfo.expiresDate)
-          : null;
+        const transaction = {
+          expiresDate: appleExpiryDate(txInfo.expiresDate),
+          lifetime: isLifetimeProduct(txInfo.productId ?? ""),
+        };
 
-        if (!db) {
-          console.log("Apple webhook: no database available");
-          res.status(200).json({ ok: true });
-          return;
-        }
-
-        // Look up the subscription by the IAP transaction ID stored in providerTransactionId
+        // Look up the subscription by the IAP transaction ID stored in
+        // providerTransactionId. Restoring one purchase on several devices
+        // gives several rows the same id; each of them is updated below.
         const lookupId = `iap_${originalTransactionId}`;
-        const results = await db
+        let rows = await database
           .select()
           .from(deviceSubscriptions)
           .where(eq(deviceSubscriptions.providerTransactionId, lookupId));
 
-        if (results.length === 0) {
+        if (rows.length === 0) {
           // Also try with the prefix format used during validation
-          const altResults = await db
+          rows = await database
             .select()
             .from(deviceSubscriptions)
             .where(
               sql`${deviceSubscriptions.providerTransactionId} LIKE ${"iap_%" + originalTransactionId}`,
             );
-
-          if (altResults.length === 0) {
-            console.log(
-              `Apple webhook: no subscription found for transaction ${originalTransactionId}`,
-            );
-            res.status(200).json({ ok: true });
-            return;
-          }
-          results.push(...altResults);
+        }
+        if (rows.length === 0) {
+          console.log(
+            `Apple webhook: no subscription found for transaction ${originalTransactionId}`,
+          );
+          res.status(200).json({ ok: true });
+          return;
         }
 
-        const sub = results[0];
-
-        switch (notificationType) {
-          case "DID_RENEW":
-            await db
-              .update(deviceSubscriptions)
-              .set({
-                status: "active",
-                currentPeriodEnd: expiresDate,
-                updatedAt: new Date(),
-              })
-              .where(eq(deviceSubscriptions.id, sub.id));
-            console.log(
-              `Apple webhook: renewed subscription for device ${sub.deviceId}`,
-            );
-            break;
-
-          case "EXPIRED":
-          case "REVOKE":
-            await db
-              .update(deviceSubscriptions)
-              .set({
-                status: "inactive",
-                updatedAt: new Date(),
-              })
-              .where(eq(deviceSubscriptions.id, sub.id));
-            console.log(
-              `Apple webhook: ${notificationType.toLowerCase()} subscription for device ${sub.deviceId}`,
-            );
-            break;
-
-          case "DID_CHANGE_RENEWAL_STATUS":
-            if (subtype === "AUTO_RENEW_DISABLED") {
-              console.log(
-                `Apple webhook: auto-renew disabled for device ${sub.deviceId}, expires ${expiresDate?.toISOString()}`,
-              );
-              // Keep active until expiry — just log
-            }
-            break;
-
-          case "REFUND":
-            await db
-              .update(deviceSubscriptions)
-              .set({
-                status: "inactive",
-                updatedAt: new Date(),
-              })
-              .where(eq(deviceSubscriptions.id, sub.id));
-            console.log(
-              `Apple webhook: refund — revoked access for device ${sub.deviceId}`,
-            );
-            break;
-
-          case "DID_FAIL_TO_RENEW": {
-            // With Billing Grace Period on, Apple keeps retrying the charge
-            // and we owe the subscriber access until the grace period ends.
-            // Without the GRACE_PERIOD subtype there is no grace: access
-            // simply runs out at the period end already stored.
-            if (
-              subtype !== "GRACE_PERIOD" ||
-              !payload.data?.signedRenewalInfo
-            ) {
-              console.log(
-                `Apple webhook: renewal failed for device ${sub.deviceId}, no grace period`,
-              );
-              break;
-            }
-            const graceEnd = appleGracePeriodEnd(
-              await verifyAppleRenewalInfo(
-                payload.data.signedRenewalInfo,
-                verifiedEnvironment,
-              ),
-            );
-            const newEnd =
-              graceEnd &&
-              extendedPeriodEnd(sub.currentPeriodEnd ?? null, graceEnd);
-            if (newEnd && sub.status === "active") {
-              await db
-                .update(deviceSubscriptions)
-                .set({ currentPeriodEnd: newEnd, updatedAt: new Date() })
-                .where(eq(deviceSubscriptions.id, sub.id));
-            }
-            console.log(
-              `Apple webhook: renewal failed for device ${sub.deviceId}, grace period until ${graceEnd?.toISOString() ?? "unknown"}`,
-            );
-            break;
-          }
-
-          case "GRACE_PERIOD_EXPIRED":
-            await db
-              .update(deviceSubscriptions)
-              .set({
-                status: "inactive",
-                updatedAt: new Date(),
-              })
-              .where(eq(deviceSubscriptions.id, sub.id));
-            console.log(
-              `Apple webhook: grace period expired for device ${sub.deviceId}`,
-            );
-            break;
-
-          default:
-            console.log(
-              `Apple webhook: unhandled notification type ${notificationType}`,
-            );
+        // Only a failed renewal Apple is still retrying carries a grace end.
+        let graceEnd: Date | null = null;
+        if (
+          notificationType === "DID_FAIL_TO_RENEW" &&
+          subtype === "GRACE_PERIOD" &&
+          payload.data?.signedRenewalInfo
+        ) {
+          graceEnd = appleGracePeriodEnd(
+            await verifyAppleRenewalInfo(
+              payload.data.signedRenewalInfo,
+              verifiedEnvironment,
+            ),
+          );
         }
+
+        let changed = 0;
+        for (const row of rows) {
+          const change = appleNotificationChange(
+            { type: notificationType, subtype },
+            {
+              status: row.status,
+              currentPeriodEnd: row.currentPeriodEnd ?? null,
+            },
+            transaction,
+            graceEnd,
+          );
+          if (!change) continue;
+          await database
+            .update(deviceSubscriptions)
+            .set({ ...change, updatedAt: new Date() })
+            .where(eq(deviceSubscriptions.id, row.id));
+          changed++;
+        }
+        console.log(
+          `Apple webhook: ${notificationType} (${subtype || "none"}) changed ${changed} of ${rows.length} matching rows`,
+        );
 
         res.status(200).json({ ok: true });
       } catch (error) {
+        // The signature was genuine but the notification was not applied (a
+        // nested verification, lookup, or write failed). A 200 here would
+        // tell Apple it was handled and the change would be lost; a 5xx makes
+        // Apple retry, which it does a bounded number of times over days.
         console.error("Apple webhook error:", error);
-        // Always return 200 to Apple so they don't retry indefinitely
-        res.status(200).json({ ok: true });
+        res.status(500).json({ error: "Webhook processing failed" });
       }
     },
   );

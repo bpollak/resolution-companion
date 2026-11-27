@@ -89,6 +89,67 @@ export function extendedPeriodEnd(
   return candidate.getTime() > stored.getTime() ? candidate : null;
 }
 
+export interface AppleSubscriptionChange {
+  status?: "active" | "inactive";
+  currentPeriodEnd?: Date | null;
+}
+
+// What one App Store Server Notification changes on one stored subscription
+// row, or null for nothing.
+//
+// Apple retries and can deliver out of order, and the table has no column
+// recording which notification was applied last. The period end is the only
+// ordering signal available: a notification whose transaction expires before
+// the period already stored describes an earlier period, so it must not end
+// (EXPIRED, GRACE_PERIOD_EXPIRED) or shorten (DID_RENEW, SUBSCRIBED) what a
+// later renewal recorded. REFUND and REVOKE are not ordered this way: Apple
+// took the money back, whichever period it names.
+export function appleNotificationChange(
+  notification: { type: string; subtype?: string | null },
+  row: { status: string; currentPeriodEnd: Date | null },
+  transaction: { expiresDate: Date | null; lifetime: boolean },
+  graceEnd: Date | null = null,
+): AppleSubscriptionChange | null {
+  const { expiresDate } = transaction;
+  const stale =
+    expiresDate !== null &&
+    row.currentPeriodEnd !== null &&
+    expiresDate.getTime() < row.currentPeriodEnd.getTime();
+  // A null end means "never expires". Only a lifetime purchase may store
+  // one; a subscription notification without an expiry keeps the stored end.
+  const activeEnd =
+    expiresDate ?? (transaction.lifetime ? null : row.currentPeriodEnd);
+
+  switch (notification.type) {
+    case "DID_RENEW":
+    case "SUBSCRIBED":
+      return stale ? null : { status: "active", currentPeriodEnd: activeEnd };
+    case "REFUND_REVERSED":
+      // Access comes back either way; the end only ever moves later.
+      return stale
+        ? { status: "active" }
+        : { status: "active", currentPeriodEnd: activeEnd };
+    case "EXPIRED":
+    case "GRACE_PERIOD_EXPIRED":
+      return stale ? null : { status: "inactive" };
+    case "REVOKE":
+    case "REFUND":
+      return { status: "inactive" };
+    case "DID_FAIL_TO_RENEW": {
+      // With Billing Grace Period on, Apple keeps retrying the charge and we
+      // owe the subscriber access until the grace period ends. Without a
+      // grace end there is no grace: access runs out at the stored period end.
+      const newEnd =
+        graceEnd && extendedPeriodEnd(row.currentPeriodEnd, graceEnd);
+      return newEnd && row.status === "active"
+        ? { currentPeriodEnd: newEnd }
+        : null;
+    }
+    default:
+      return null;
+  }
+}
+
 export function evaluateAppleTransaction(
   txInfo: AppleTransactionInfo,
   productId: string,
