@@ -25,7 +25,7 @@ name: premium-year-recap
 - tapOn: "The Year You Became.*"
 # Under 60 days from the plan's start the story is titled by its weeks.
 - extendedWaitUntil:
-    visible: "(The Year You Became|Your first [0-9]+ weeks?).*"
+    visible: "(The Year You Became|Your first week|Your first [0-9]+ weeks).*"
     timeout: 10000
 - waitForAnimationToEnd
 - extendedWaitUntil:

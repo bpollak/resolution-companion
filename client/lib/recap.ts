@@ -371,6 +371,10 @@ export function yearClosingLine(personaName: string, checkIns: number): string {
   return `Becoming ${personaName}. ${countOf(checkIns, "check-in", "check-ins")} so far.`;
 }
 
+/** "first week" for one week, "first N weeks" otherwise. */
+const firstWeeksPhrase = (weeks: number) =>
+  weeks === 1 ? "first week" : `first ${weeks} weeks`;
+
 export interface YearStoryCopy {
   openingEyebrow: string;
   rhythmHeadline: string;
@@ -390,7 +394,7 @@ export function yearStoryCopy(recap: YearRecap): YearStoryCopy {
       rhythmHeadline: countOf(recap.activeDays, "active day", "active days"),
       rhythmDetail:
         recap.votesCast > 0
-          ? `Across your first ${countOf(recap.weeksSinceStart, "week", "weeks")}.`
+          ? `Across your ${firstWeeksPhrase(recap.weeksSinceStart)}.`
           : "Your first action can still write the story.",
       closingNote:
         "No rankings. No perfect week required. Just proof that you showed up.",
@@ -484,18 +488,25 @@ export function buildYearRecap(
     scheduled > 0 ? Math.round((votesCast / scheduled) * 100) : 0;
   const personaName = persona?.name ?? "Future You";
   const closingLine = yearClosingLine(personaName, votesCast);
-  // Measured to the end of what the story covers, so a December plan read
-  // in January is not credited with weeks the numbers leave out.
+  // Measured over what the story covers. To its end, so a December plan
+  // read in January is not credited with weeks the numbers leave out; and
+  // from January 1 at the earliest, so a plan from last year read as this
+  // year's story in January is not ranked on three weeks of this year.
+  const yearStart = new Date(year, 0, 1);
   const yearEnd = new Date(year, 11, 31);
+  const planStartedAt = persona?.createdAt ?? earliestCreatedAt(actions);
+  const planStart = planStartedAt ? new Date(planStartedAt) : null;
   const { edition, weeksSinceStart } = yearRecapEdition(
     daysSincePlanStart(
-      persona?.createdAt ?? earliestCreatedAt(actions),
+      planStart && planStart.getTime() < yearStart.getTime()
+        ? yearStart.toISOString()
+        : planStartedAt,
       yearEnd < today ? yearEnd : today,
     ),
   );
   const title =
     edition === "firstWeeks"
-      ? `Your first ${countOf(weeksSinceStart, "week", "weeks")}`
+      ? `Your ${firstWeeksPhrase(weeksSinceStart)}`
       : "The Year You Became";
 
   return {

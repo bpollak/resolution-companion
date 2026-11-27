@@ -358,7 +358,7 @@ describe("free look-back: first-weeks edition", () => {
       today,
     );
     expect(recap.edition).toBe("firstWeeks");
-    expect(recap.title).toBe("Your first 1 week");
+    expect(recap.title).toBe("Your first week");
     expect(recap.votesCast).toBe(0);
     expect(recap.scheduled).toBe(0);
     expect(recap.closingLine).toContain("still open");
@@ -392,6 +392,62 @@ describe("free look-back: first-weeks edition", () => {
     );
     // December 1 to December 31: 30 days, not the 50 to January 20
     expect(recap.title).toBe("Your first 4 weeks");
+  });
+
+  it('says "Your first week", never "Your first 1 week"', () => {
+    const recap = buildYearRecap(
+      [action("a", ALL_DAYS, "2026-07-08T00:00:00")],
+      [log("a", "2026-07-09")],
+      startedOn("2026-07-08"),
+      2026,
+      TODAY,
+    );
+    expect(recap.weeksSinceStart).toBe(1);
+    expect(recap.title).toBe("Your first week");
+    const copy = yearStoryCopy(recap);
+    expect(copy.openingEyebrow).toBe("YOUR FIRST WEEK");
+    expect(copy.rhythmDetail).toBe("Across your first week.");
+    expect(Object.values(copy).join(" ")).not.toMatch(/1 week/);
+  });
+
+  describe("a plan from last year, read as this year's story", () => {
+    // Started November 15, 2025: over 60 days old by late January, but the
+    // 2026 story only holds the days since January 1.
+    const lastYear: Persona = { ...persona, createdAt: "2025-11-15T09:00:00" };
+    const story = (today: string) =>
+      buildYearRecap(
+        [action("a", ALL_DAYS, "2025-11-15T09:00:00")],
+        [log("a", "2026-01-02")],
+        lastYear,
+        2026,
+        new Date(today),
+      );
+
+    it("counts the 60 days from January 1 of the story's year", () => {
+      const recap = story("2026-01-20T12:00:00");
+      expect(recap.edition).toBe("firstWeeks");
+      expect(recap.title).toBe("Your first 2 weeks");
+      expect(Object.values(yearStoryCopy(recap)).join(" ")).not.toMatch(
+        /led the year|active month/i,
+      );
+    });
+
+    it("becomes the year story once the year itself has 60 days", () => {
+      // January 1 to March 1 is 59 days; March 2 is 60
+      expect(story("2026-03-01T12:00:00").edition).toBe("firstWeeks");
+      expect(story("2026-03-02T12:00:00").edition).toBe("year");
+    });
+
+    it("still tells the finished year in full", () => {
+      const lastYearsStory = buildYearRecap(
+        [action("a", ALL_DAYS, "2025-01-10T09:00:00")],
+        [log("a", "2025-06-02")],
+        { ...persona, createdAt: "2025-01-10T09:00:00" },
+        2025,
+        new Date("2026-01-20T12:00:00"),
+      );
+      expect(lastYearsStory.edition).toBe("year");
+    });
   });
 
   it("closes with the plan name and one number", () => {
