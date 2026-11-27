@@ -478,6 +478,8 @@ export function OnboardingPlanReview({
                   {
                     selected: true,
                     title: "Build a steady habit",
+                    // The person picks these days themselves.
+                    scheduleSource: "stated",
                     elementalAction: {
                       title: "",
                       frequency: [],

@@ -3,6 +3,22 @@ import type { Persona, Benchmark, ElementalAction } from "@/lib/storage";
 import { WEEKDAY_ORDER, sortWeekdays } from "@/lib/progress";
 import { withSuggestedReminderTime } from "@/lib/habit-reminders";
 
+export const WHY_MAX_LENGTH = 140;
+
+export type ScheduleSource = "stated" | "suggested";
+
+/** One step of the draft: a milestone with its single habit. */
+export type PlanDraftStep = Omit<
+  PersonaData["benchmarks"][number],
+  "why" | "scheduleSource"
+> & {
+  selected: boolean;
+  /** One sentence on how this step leads to the resolution. */
+  why?: string;
+  /** "stated" only when the person gave the days; guesses stay labelled. */
+  scheduleSource: ScheduleSource;
+};
+
 export interface OnboardingPlanDraft {
   id: string;
   createdAt: string;
@@ -14,14 +30,71 @@ export interface OnboardingPlanDraft {
   resolution?: string;
   /** Local YYYY-MM-DD the plan starts; absent means today. */
   startDate?: string;
-  suggestions: (PersonaData["benchmarks"][number] & { selected: boolean })[];
+  suggestions: PlanDraftStep[];
+}
+
+function sanitizeWhy(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const text = value.replace(/\s+/g, " ").trim();
+  if (!text) return undefined;
+  return text.length > WHY_MAX_LENGTH
+    ? `${text.slice(0, WHY_MAX_LENGTH - 3).trimEnd()}...`
+    : text;
+}
+
+/**
+ * Normalises the step fields added in 1.7.0. Drafts saved by older versions
+ * and model replies that omit them must still open in review: a missing
+ * "why" is simply not shown, and days of unknown origin count as suggested
+ * so they are never presented as the person's own words.
+ */
+export function sanitizeDraft(draft: OnboardingPlanDraft): OnboardingPlanDraft {
+  if (!Array.isArray(draft?.suggestions)) return draft;
+  return {
+    ...draft,
+    suggestions: draft.suggestions.map((item) => {
+      const {
+        why: rawWhy,
+        scheduleSource,
+        ...rest
+      } = item as Omit<PlanDraftStep, "why" | "scheduleSource"> & {
+        why?: unknown;
+        scheduleSource?: unknown;
+      };
+      const why = sanitizeWhy(rawWhy);
+      return {
+        ...rest,
+        ...(why ? { why } : {}),
+        scheduleSource: scheduleSource === "stated" ? "stated" : "suggested",
+      };
+    }),
+  };
+}
+
+/**
+ * Whether the chat offers the inline "Review my plan" button. A trailing
+ * question mark alone must not hide it: Coach often ends a ready message
+ * with a question, and anything guessed is labelled as a suggestion in
+ * review. After one message it waits for Coach to stop asking; from the
+ * second message on it is always offered.
+ */
+export function shouldOfferPlanReview(
+  messages: readonly { role: string; content: string }[],
+): boolean {
+  const last = messages.at(-1);
+  if (!last || last.role !== "assistant") return false;
+  const userCount = messages.filter((item) => item.role === "user").length;
+  if (userCount === 0) return false;
+  if (userCount >= 2) return true;
+  const text = last.content.trim();
+  return !text.endsWith("?") || /ready to review|button below/i.test(text);
 }
 
 export function createPlanDraft(
   data: PersonaData,
   usesAI: boolean,
 ): OnboardingPlanDraft {
-  return {
+  return sanitizeDraft({
     id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     createdAt: new Date().toISOString(),
     name: data.personaName,
@@ -45,8 +118,8 @@ export function createPlanDraft(
           ),
         ]),
       },
-    })),
-  };
+    })) as PlanDraftStep[],
+  });
 }
 
 export interface PlanIssue {

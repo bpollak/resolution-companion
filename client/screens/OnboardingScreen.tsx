@@ -28,11 +28,14 @@ import {
   extractPersonaFromConversation,
   type AIMessage,
 } from "@/lib/ai";
+import { ONBOARDING_OPENER } from "@/lib/ai-prompts";
 import {
   createPlanDraft,
   deriveResolution,
   pickResolutionMessage,
   planStartInstant,
+  sanitizeDraft,
+  shouldOfferPlanReview,
   type OnboardingPlanDraft,
 } from "@/lib/onboarding-plan";
 import {
@@ -123,9 +126,9 @@ export default function OnboardingScreen() {
           (savedDraft?.usesAI === true || isSelfSetupDraft(savedDraft)) &&
           Array.isArray(savedDraft?.suggestions)
         ) {
-          setDraft(savedDraft);
+          setDraft(sanitizeDraft(savedDraft));
           setStage("review");
-        } else if (transcript.length > 0) {
+        } else if (transcript.some((message) => message.role === "user")) {
           setStage("chat");
           if (transcript.at(-1)?.role === "user") {
             setError("Your last message is saved. Retry when you are ready.");
@@ -236,7 +239,16 @@ export default function OnboardingScreen() {
   const beginChat = () => {
     touchedRef.current = true;
     setStage("chat");
-    if (messages.length === 0) void requestReply([]);
+    // The opening question is fixed, so it is shown at once with no network
+    // call; the first request goes out with the person's first message.
+    if (messages.length === 0)
+      setMessages([
+        {
+          id: `${Date.now()}-assistant`,
+          role: "assistant",
+          content: ONBOARDING_OPENER,
+        },
+      ]);
     else if (messages.at(-1)?.role === "user") {
       setError("Your last message is saved. Retry when you are ready.");
       setFailedRequest("reply");
@@ -634,7 +646,7 @@ export default function OnboardingScreen() {
             {button(
               draft
                 ? "Resume my plan review"
-                : messages.length > 0
+                : messages.some((message) => message.role === "user")
                   ? "Resume my conversation"
                   : "Build a plan with Coach",
               draft
@@ -773,11 +785,10 @@ export default function OnboardingScreen() {
                     ))}
                   </View>
                 ) : null}
-                {/* Only once Coach stops asking: a clarifying question means
-                    the plan would have to guess the missing detail. */}
-                {canPreview &&
-                messages.at(-1)?.role === "assistant" &&
-                !messages.at(-1)?.content.trim().endsWith("?") ? (
+                {/* Anything the plan has to guess is labelled as a
+                    suggestion in review, so a trailing question from Coach
+                    does not hide this. */}
+                {canPreview && shouldOfferPlanReview(messages) ? (
                   <View style={styles.inlineReview}>
                     {button("Review my plan", previewPlan, true)}
                   </View>

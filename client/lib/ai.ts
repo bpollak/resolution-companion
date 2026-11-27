@@ -5,6 +5,10 @@ import EventSource from "react-native-sse";
 import { normalizeCoachMilestoneProposal } from "@/lib/milestone-proposal";
 import { TYPEWRITER_DELAY_MS } from "@/lib/typewriter";
 import { tidyCoachText } from "@/lib/copy";
+import {
+  EXTRACTION_PROMPT,
+  getOnboardingSystemPrompt,
+} from "@/lib/ai-prompts";
 
 // The server keys its monthly AI usage quotas on this header; without it,
 // requests fall back to a shared per-IP bucket.
@@ -26,6 +30,10 @@ export interface PersonaData {
   personaDescription: string;
   benchmarks: {
     title: string;
+    /** One sentence on how this step leads to the resolution. */
+    why?: string | null;
+    /** "stated" only when the person gave the days themselves. */
+    scheduleSource?: "stated" | "suggested" | null;
     elementalAction: {
       title: string;
       frequency: string[];
@@ -51,81 +59,6 @@ export async function getNextMilestoneProposal(
   if (!proposal) throw new Error("The coach returned an invalid milestone");
   return proposal.title;
 }
-
-const getSystemPrompt = (
-  messageCount: number,
-) => `You are a friendly coach helping people achieve their goals. Your role is to understand what the user wants to accomplish and create a personalized action plan.
-
-Keep your responses concise (2-3 sentences max). Be warm, casual, and supportive. Ask a question only when information needed for the starting habit is missing.
-
-NEVER use the word "persona". Say "the future you" or "who you're becoming" instead.
-
-WRITING RULES: Never use em dashes; use commas, periods, or colons. Never invent details the person did not say (their routine, their home, their triggers). Never suggest another app, notebook, spreadsheet, or notes file; the plan lives in this app.
-
-If the user gives multiple goals, help them pick ONE to start with (they can add more later). If their goal is vague ("be better", "get healthy"), ask one clarifying question to make it concrete before moving on. If they mention their schedule or routine (mornings, commute, weekends), acknowledge it, since it will shape their plan. You are not a therapist or medical professional; for health treatment or mental-health topics, gently suggest a qualified professional while staying supportive about habits.
-
-${
-  messageCount === 0
-    ? `
-OPENING MESSAGE: Exactly ONE warm sentence of welcome, then ONE question. No lists, no explanations of how the app works.
-
-Ask: "What's your resolution, or one thing you want to change this year?"
-`
-    : `
-Build the plan from the person's answers, not from the number of messages.
-- Check what is already known before replying. As soon as ONE concrete habit and its recurring weekdays are known, summarize that plan in one sentence and say it is ready to review with the button below. End there, with no question or request to confirm again. Optional details can be edited in review.
-- Keep their bigger goal in view. If they named an outcome (a weight, an amount saved, a number of books), mention how the habit moves them toward it in your summary.
-- A weekday such as "Friday only" means every Friday. The app supports weekly schedules only; do not offer certain Fridays each month, alternate weeks, or calendar start dates.
-- If a concrete habit is missing, help them choose ONE small, repeatable habit. If weekdays are missing, ask which days fit. Ask only ONE missing detail per reply.
-- Preserve the full habit the person chose. A small or 2-minute version is a backup for difficult days, never a replacement for their full action.
-- Ask which days or existing routine would fit, unless they already told you. Never assume "daily" or weekdays without asking. Ask only one short question per reply and do not re-ask information they already supplied.
-- If they are unsure, offer a small specific starting suggestion and ask if it fits. Do not claim the plan is ready while their goal or availability is still unclear.
-- Do not ask for a calendar start date. The person picks when to start (today, or January 1 in late fall) on the review screen, so never say the plan "starts today".
-- Once the habit and days are clear, summarize them briefly and say they can review and adjust the plan with the button below. Do not end that ready message with another question.
-- They can preview a draft early. When details are missing, keep asking useful questions instead of pretending you know their schedule.
-
-Examples of the next reply:
-User: "Read one page after breakfast on Fridays only. One sentence is my small version."
-Coach: "Your habit is one page after breakfast every Friday, with one sentence as your backup. Your plan is ready to review below."
-User: "Walk for ten minutes."
-Coach: "A ten-minute walk is a clear starting habit. Which days of the week fit your routine?"
-`
-}`;
-
-// The live API requires exactly three proposals. Only the first is selected;
-// additional ideas stay optional until the person explicitly includes them.
-const EXTRACTION_PROMPT = `Based on this conversation, extract the user's goal and create their personalized action plan.
-
-Return ONLY valid JSON in this exact format:
-{
-  "personaName": "A short, attainable-aspirational identity title for who they become when they achieve this goal (e.g., 'Consistent Runner', 'Published Writer', 'Calm Morning Person'). Avoid grandiose superlatives like 'Elite' or 'World-Class' unless the user used them.",
-  "personaDescription": "1-2 sentences, present tense, describing this future version of themselves as if it's already true (e.g., 'A runner who laces up without negotiating with herself...')",
-  "benchmarks": [
-    {
-      "title": "A key milestone on the path to their goal",
-      "elementalAction": {
-        "title": "A specific, concrete, verifiable action (someone else could confirm it was done)",
-        "frequency": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-        "kickstartVersion": "A 2-minute version of this action to reduce friction and build consistency",
-        "anchorLink": "An existing habit to attach this to, like 'After I pour my morning coffee'"
-      }
-    }
-  ]
-}
-
-RULES:
-- Return exactly 3 benchmarks, as the response schema requires. Put the user-chosen habit first; other suggestions are optional and unselected. Each is presented to the user as a milestone that completes once its action has been done on about 21 scheduled days, so make each a meaningful, achievable consistency target with ONE specific action.
-- MILESTONE TITLES NAME PROGRESS, NOT THE ACTION AGAIN. Never repeat the action as the milestone title. Title the first milestone as the consistency target and, when the user named an outcome, tie it to that outcome with "toward": for example "21 evening walks toward losing 15 lb" or "21 nights of reading toward 20 books". Keep titles under 8 words and never promise the outcome itself.
-- "frequency" values MUST be exact weekday names from this set only: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday. Monthly or ordinal cadences ("First Thursday", "Last Tuesday", "every other week") are NOT supported. If a behavior would be occasional, schedule it weekly on one of the user's available days instead.
-- The user's explicit choices take priority over the assistant's suggestions or summaries. Keep their full action as the title; the small version belongs only in kickstartVersion, not as a replacement for the full action.
-- SCHEDULING MUST MATCH WHAT THE USER SAID. If they said "weekday mornings," schedule weekdays; if they mentioned limited time, schedule fewer days. Never default everything to 7 days/week; total scheduled actions across all benchmarks should fit realistically inside the time they described. Vary cadence: at most one daily action; support actions 2-4 days/week.
-- ANCHORS MUST COME FROM THE USER'S OWN WORDS. If they said "after dinner", the anchor is "After dinner", not "After I finish washing up the dinner plates". Never add details they did not say. If they gave no routine at all, use a plain time cue like "In the evening" or "After breakfast".
-- Never suggest another app, notebook, spreadsheet, or notes file. Everything is tracked in this app.
-- Never use em dashes in any field.
-- personaDescription describes only the FIRST (chosen) habit and the person's goal. Never mention the optional extra ideas, since the person may not pick them.
-- Actions must not overlap or double-count each other (two benchmarks must never be satisfied by the same behavior).
-- Kickstart versions must take under 2 minutes and be genuinely easier than the full action.
-- Write everything in the user's language and vocabulary where possible, so the plan feels like it came from their own words.`;
 
 const REQUEST_TIMEOUT_MS = 20000;
 const PLAN_EXTRACTION_TIMEOUT_MS = 45000;
@@ -348,7 +281,7 @@ export async function getOnboardingResponse(
   const userMessageCount = messages.filter((m) => m.role === "user").length;
   const systemMessage: AIMessage = {
     role: "system",
-    content: getSystemPrompt(userMessageCount),
+    content: getOnboardingSystemPrompt(userMessageCount),
   };
 
   return sendChatMessageStreaming(
