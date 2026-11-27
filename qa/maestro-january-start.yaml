@@ -36,10 +36,10 @@ name: january-start
 - tapOn: "Start January 1"
 - scrollUntilVisible:
     element:
-      text: "Start with 1 habit"
+      text: "Plan it for January 1"
     direction: DOWN
     timeout: 20000
-- tapOn: "Start with 1 habit"
+- tapOn: "Plan it for January 1"
 
 # The reason comes first, in the app's own words, before any iOS prompt.
 - extendedWaitUntil:
@@ -70,7 +70,9 @@ name: january-start
     visible: "Previous month"
     timeout: 15000
 - assertVisible: "Today, .*before your plan start.*"
-- assertNotVisible: ".*0 of .* done.*"
+# Day cells read "N of M habit(s) done"; the milestone row's "0 of 21 days
+# done" is progress, not a day, so match habits only.
+- assertNotVisible: ".*0 of .* habits? done.*"
 - takeScreenshot: january-03-journey-nothing-missed
 
 # Relaunch: the countdown is still there and the ask does not come back.

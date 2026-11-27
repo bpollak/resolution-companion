@@ -1,0 +1,27 @@
+appId: com.resolutioncompanion.app
+name: delete-only-plan
+---
+# A person with one plan can delete it and start over, free or Premium.
+# Run on any install that holds exactly one plan (for example right after
+# maestro-january-start.yaml). The confirmation says a new plan can follow,
+# Profile closes, and Today is back at its empty state.
+- launchApp
+- extendedWaitUntil:
+    visible: "Open profile and settings.*"
+    timeout: 20000
+- tapOn: "Open profile and settings.*"
+- scrollUntilVisible:
+    element:
+      text: "Delete plan .*"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn: "Delete plan .*"
+- assertVisible: ".*You can start a new plan right after.*"
+- takeScreenshot: delete-only-plan-confirm
+- tapOn: "Delete"
+- extendedWaitUntil:
+    visible: "Make my plan"
+    timeout: 20000
+- assertNotVisible: "Mark .* complete"
+- takeScreenshot: delete-only-plan-empty-today

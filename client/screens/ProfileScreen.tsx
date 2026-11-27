@@ -844,44 +844,52 @@ export default function ProfileScreen() {
                 {personas.map((p) => {
                   const isActive = p.id === persona?.id;
                   return (
-                    <Pressable
-                      key={p.id}
-                      onPress={() => handleSwitchPersona(p.id)}
-                      onLongPress={() => handleDeletePersona(p.id, p.name)}
-                      pressRetentionOffset={16}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${p.name}${isActive ? ", active plan" : ""}`}
-                      accessibilityHint="Switches to this plan. Long press to delete."
-                      accessibilityState={{ selected: isActive }}
-                      style={({ pressed }) => [
-                        styles.personaItem,
-                        pressed && styles.rowPressed,
-                      ]}
-                    >
-                      <View style={styles.personaItemContent}>
-                        <ThemedText
-                          style={[
-                            styles.personaItemName,
-                            isActive && styles.personaItemNameActive,
-                          ]}
-                        >
-                          {p.name}
-                        </ThemedText>
-                        {isActive && p.description ? (
+                    // Two sibling buttons, not one nested in the other: iOS
+                    // exposes only the outer of two nested accessible
+                    // Pressables, which hid Delete from VoiceOver.
+                    <View key={p.id} style={styles.personaItem}>
+                      <Pressable
+                        onPress={() => handleSwitchPersona(p.id)}
+                        onLongPress={() => handleDeletePersona(p.id, p.name)}
+                        pressRetentionOffset={16}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${p.name}${isActive ? ", active plan" : ""}`}
+                        accessibilityHint="Switches to this plan."
+                        accessibilityState={{ selected: isActive }}
+                        style={({ pressed }) => [
+                          styles.personaItemMain,
+                          pressed && styles.rowPressed,
+                        ]}
+                      >
+                        <View style={styles.personaItemContent}>
                           <ThemedText
-                            numberOfLines={2}
                             style={[
-                              styles.settingsSubtitle,
-                              { color: theme.textSecondary },
+                              styles.personaItemName,
+                              isActive && styles.personaItemNameActive,
                             ]}
                           >
-                            {p.description}
+                            {p.name}
                           </ThemedText>
+                          {isActive && p.description ? (
+                            <ThemedText
+                              numberOfLines={2}
+                              style={[
+                                styles.settingsSubtitle,
+                                { color: theme.textSecondary },
+                              ]}
+                            >
+                              {p.description}
+                            </ThemedText>
+                          ) : null}
+                        </View>
+                        {isActive ? (
+                          <Feather
+                            name="check"
+                            size={20}
+                            color={theme.accent}
+                          />
                         ) : null}
-                      </View>
-                      {isActive ? (
-                        <Feather name="check" size={20} color={theme.accent} />
-                      ) : null}
+                      </Pressable>
                       {!isActive || personas.length === 1 ? (
                         <Pressable
                           onPress={() => handleDeletePersona(p.id, p.name)}
@@ -900,7 +908,7 @@ export default function ProfileScreen() {
                           />
                         </Pressable>
                       ) : null}
-                    </Pressable>
+                    </View>
                   );
                 })}
               </SettingsGroup>
@@ -1865,6 +1873,12 @@ const styles = StyleSheet.create({
     minHeight: 52,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.lg,
+  },
+  personaItemMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
   },
   personaItemContent: {
     flex: 1,
