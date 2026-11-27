@@ -84,7 +84,8 @@ button:active,
   width: min(1180px, calc(100% - 80px));
   margin-inline: auto;
 }
-.skip {
+.skip,
+.skip-link {
   position: absolute;
   top: -70px;
   left: 16px;
@@ -94,7 +95,8 @@ button:active,
   color: var(--dark);
   border-radius: 8px;
 }
-.skip:focus {
+.skip:focus,
+.skip-link:focus {
   top: 12px;
 }
 .site-header {
