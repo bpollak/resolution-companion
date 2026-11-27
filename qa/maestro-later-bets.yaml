@@ -64,9 +64,10 @@ name: later-bets-settings-surfaces
     timeout: 30000
 - tapOn: "Close witness settings.*"
 
-# Free users see only the opening card plus a Premium teaser; the rhythm,
-# resilience, and closing cards must not leak. The teaser routes to the
-# premium explanation.
+# The look-back is free in full: a free user reaches the rhythm, resilience,
+# and closing cards, can share each one, and never meets a paywall here.
+# The header reads "The Year You Became" or, under 60 days from the plan's
+# start, "Your first N weeks"; both card sets match the selectors below.
 - scrollUntilVisible:
     element:
       text: "The Year You Became.*"
@@ -77,19 +78,30 @@ name: later-bets-settings-surfaces
 - extendedWaitUntil:
     visible: "Close year recap.*"
     timeout: 10000
-- assertVisible: "See the full year story with Premium"
+- assertVisible: "Share this year recap card as an image.*"
+- assertNotVisible: "See the full year story with Premium"
+- assertNotVisible: ".*with Premium.*"
 - swipe:
     direction: LEFT
-- assertNotVisible: ".*% consistency across .*"
-- assertNotVisible: "The plan bent with you.*"
-- assertNotVisible: ".*still becoming.*"
-- tapOn: "See the full year story with Premium"
 - extendedWaitUntil:
-    visible: "Upgrade to Premium.*"
-    timeout: 15000
-- takeScreenshot: a11y-07-year-recap-premium-gate
-- tapOn: "Close"
+    visible: ".*% consistency across .*"
+    timeout: 5000
+- assertVisible: "Share this year recap card as an image.*"
+- swipe:
+    direction: LEFT
+- extendedWaitUntil:
+    visible: "The plan bent with you.*"
+    timeout: 5000
+- swipe:
+    direction: LEFT
+- extendedWaitUntil:
+    visible: ".*still becoming.*"
+    timeout: 5000
+- assertVisible: "Share this year recap card as an image.*"
+- assertNotVisible: "Upgrade to Premium.*"
+- takeScreenshot: a11y-07-year-recap-free-full-story
 - tapOn: "Close year recap.*"
+- assertNotVisible: "Upgrade to Premium.*"
 
 # A simulator without an iCloud account must fail safely: the screen renders,
 # explains the boundary, and exposes disabled backup/restore controls.

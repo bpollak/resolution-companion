@@ -1693,11 +1693,9 @@ export default function JourneyScreen() {
                 icon="award"
                 title="The Year You Became"
                 subtitle={
-                  subscription.isPremium
-                    ? recapYear === new Date().getFullYear()
-                      ? `${recapYear} year-to-date story`
-                      : `Your ${recapYear} story`
-                    : "Your year so far, ready to share"
+                  recapYear === new Date().getFullYear()
+                    ? "Your year so far, ready to share"
+                    : `Your ${recapYear} story, ready to share`
                 }
                 onPress={() =>
                   navigation.navigate("YearRecap", { year: recapYear })

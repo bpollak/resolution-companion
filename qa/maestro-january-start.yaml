@@ -1,0 +1,83 @@
+appId: com.resolutioncompanion.app
+name: january-start
+---
+# A plan set up ahead for January 1: the person is asked about the day-one
+# notification, says "Not now", and lands on a countdown with nothing to
+# check off and nothing that can count as missed. AI-free (self-setup).
+#
+# Run only from November 15 through December 31: the "Start January 1"
+# choice is offered in that window (newYearStartOption).
+#
+# The "Hear from us on day one?" alert appears only while iOS has no answer
+# for notifications. clearState does not reset that, so the launch unsets it
+# (Maestro needs applesimutils for this on iOS). If the alert is missing,
+# reset the simulator's notification permission for the app and rerun.
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: unset
+- setOrientation: PORTRAIT
+- extendedWaitUntil:
+    visible: "Make my plan"
+    timeout: 20000
+- tapOn: "Make my plan"
+- tapOn: "Set it up myself"
+- extendedWaitUntil:
+    visible: "Step 2 of 2. Review your plan"
+    timeout: 10000
+
+# Only the daily anchor starts selected: one habit, starting January 1.
+- scrollUntilVisible:
+    element:
+      text: "Start January 1"
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- tapOn: "Start January 1"
+- scrollUntilVisible:
+    element:
+      text: "Start with 1 habit"
+    direction: DOWN
+    timeout: 20000
+- tapOn: "Start with 1 habit"
+
+# The reason comes first, in the app's own words, before any iOS prompt.
+- extendedWaitUntil:
+    visible: "Hear from us on day one\\?"
+    timeout: 20000
+- assertVisible: "We can send one notification at 8:00 AM on January 1, when your first step is ready."
+- takeScreenshot: january-01-day-one-ask
+- tapOn: "Not now"
+# "Not now" is the whole answer: iOS is never asked.
+- assertNotVisible: ".*Would Like to Send You Notifications.*"
+
+# Today shows the countdown, not a habit to check off.
+- extendedWaitUntil:
+    visible: "Your plan starts January 1.*"
+    timeout: 20000
+- assertVisible: "Your plan starts January 1.*First habit: Complete one action toward your goal.*"
+- assertNotVisible: "Mark .* complete"
+- assertNotVisible: ".* completed. Undo.*"
+# Notifications were not denied, only declined here, so no Settings hint.
+- assertNotVisible: ".*Turn on notifications in Settings.*"
+- takeScreenshot: january-02-countdown
+
+# Journey: today is before the plan, so it cannot be a missed day, and no
+# day reads as "0 of 1 habit done".
+- tapOn:
+    id: "tab-journey"
+- extendedWaitUntil:
+    visible: "Previous month"
+    timeout: 15000
+- assertVisible: "Today, .*before your plan start.*"
+- assertNotVisible: ".*0 of .* done.*"
+- takeScreenshot: january-03-journey-nothing-missed
+
+# Relaunch: the countdown is still there and the ask does not come back.
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Your plan starts January 1.*"
+    timeout: 20000
+- assertNotVisible: "Hear from us on day one\\?"
+- assertNotVisible: "Mark .* complete"

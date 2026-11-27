@@ -37,6 +37,7 @@ import Animated, {
 
 import { useTheme } from "@/hooks/useTheme";
 import { useLocalDateKey } from "@/hooks/useLocalDateKey";
+import { useDayOneNotification } from "@/hooks/useDayOneNotification";
 import { useApp } from "@/context/AppContext";
 import type { DailyLog, ElementalAction } from "@/lib/storage";
 import {
@@ -648,6 +649,11 @@ export default function TodayScreen() {
     const start = new Date(personaCreatedAt);
     return getLocalDateString(start) > todayDateStr ? start : null;
   }, [personaCreatedAt, todayDateStr]);
+  const dayOneNotificationsDenied = useDayOneNotification(
+    personaCreatedAt,
+    !isLoading,
+    todayDateStr,
+  );
 
   const personaBenchmarkIds = useMemo(() => {
     return benchmarks
@@ -923,7 +929,6 @@ export default function TodayScreen() {
     todayDateStr.slice(5, 7) === "01" ? todayYear - 1 : todayYear;
   const yearRecapEligible =
     recapPrefsLoaded &&
-    subscription.isPremium &&
     (today.getMonth() === 11 || today.getMonth() === 0) &&
     yearRecapSeen !== String(annualYear);
   const yearRecap = useMemo(
@@ -1625,7 +1630,11 @@ export default function TodayScreen() {
                 onTomorrowPress={openTomorrow}
               />
             ) : planStart ? (
-              <PlanCountdownCard start={planStart} firstAction={actions[0]} />
+              <PlanCountdownCard
+                start={planStart}
+                firstAction={actions[0]}
+                notificationsDenied={dayOneNotificationsDenied}
+              />
             ) : todayActions.length === 0 ? (
               <View
                 style={[

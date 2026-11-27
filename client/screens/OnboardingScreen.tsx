@@ -49,6 +49,10 @@ import { storage } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import { track } from "@/lib/telemetry";
 import { markSession } from "@/lib/review-ask";
+import {
+  askForDayOnePermission,
+  syncDayOneNotification,
+} from "@/lib/notifications";
 
 interface ChatMessage {
   id: string;
@@ -56,6 +60,41 @@ interface ChatMessage {
   content: string;
 }
 type Stage = "welcome" | "chat" | "review";
+
+// A plan saved for a later start is the one moment a notification has an
+// obvious reason, so the ask happens here, with that reason said first.
+// Never throws: the plan is already saved and must still open.
+async function offerDayOneNotification(start: Date): Promise<void> {
+  if (Platform.OS === "web") return;
+  const startLabel = start.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+  });
+  try {
+    await askForDayOnePermission(
+      start,
+      () =>
+        new Promise<boolean>((resolve) => {
+          Alert.alert(
+            "Hear from us on day one?",
+            `We can send one notification at 8:00 AM on ${startLabel}, when your first step is ready.`,
+            [
+              {
+                text: "Not now",
+                style: "cancel",
+                onPress: () => resolve(false),
+              },
+              { text: "Yes, notify me", onPress: () => resolve(true) },
+            ],
+            { cancelable: true, onDismiss: () => resolve(false) },
+          );
+        }),
+    );
+    await syncDayOneNotification(start.toISOString());
+  } catch (error) {
+    logger.error("Failed to offer the day-one notification:", error);
+  }
+}
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
@@ -396,6 +435,8 @@ export default function OnboardingScreen() {
       await storage.setOnboardingDraft(draft);
       await storage.commitOnboardingPlan(draft);
       await storage.setOnboardingDraft(null);
+      const laterStart = planStartInstant(draft);
+      if (laterStart) await offerDayOneNotification(laterStart);
       if (approvalClearsCoachTranscript(draft)) {
         await storage.setOnboardingMessages([]);
       }
