@@ -33,3 +33,17 @@ Existing 1.7.0 validation is documented in
 docs/plans/2026-11-27-native-regression.md. Its known flaky Coach close timing
 and physical-device limitations are not represented as newly tested here.
 No new native compilation, purchase, price, or unrelated metadata work is planned.
+
+## Confirmed outcome
+
+- Dry-run passed, followed by the authorized real submission on 2026-11-27.
+- Apple version `9d2548e5-f237-44c2-b0be-850b681273dd` is
+  WAITING_FOR_REVIEW, attached to VALID build 113
+  (`f7ae5d08-3816-4d45-844a-25a4b659bd0e`).
+- Review submission `81b6eb40-d255-4475-a920-855fd5cd82b9` is
+  WAITING_FOR_REVIEW; its included version matches the submitted version.
+- Read-back confirms exact What's New and reviewer-note payloads and
+  AFTER_APPROVAL release behavior. No demo account is required.
+- 1.6.1 remains the publicly available version. Website release metadata
+  changes 1.7.0 from draft to submitted, dated 2026-11-27.
+- Release metadata validation and formatting passed. No rebuild was needed.
