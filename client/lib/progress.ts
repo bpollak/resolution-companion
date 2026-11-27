@@ -1,4 +1,5 @@
 import type { Benchmark, ElementalAction, DailyLog } from "@/lib/storage";
+import { isScheduledOn } from "@/lib/schedule-history";
 
 /**
  * Pure progress/score math shared by AppContext, JourneyScreen, and
@@ -202,7 +203,7 @@ export function computeBenchmarkProgress(
       let actionCompleted = 0;
 
       for (const { dateStr, dayOfWeek } of dayInfos) {
-        if (action.frequency.includes(dayOfWeek)) {
+        if (isScheduledOn(action, dateStr, dayOfWeek)) {
           actionExpected++;
           totalExpected++;
           const log = logIndex.get(`${action.id}|${dateStr}`);
@@ -308,6 +309,15 @@ export function computeMilestoneProgress(
   const perActionDays = new Map<string, number>(
     benchmarkActions.map((a) => [a.id, 0]),
   );
+  const actionStartDates = new Map<string, string>(
+    benchmarkActions.map((a) => {
+      const created = new Date(a.createdAt);
+      return [
+        a.id,
+        Number.isNaN(created.getTime()) ? "" : getLocalDateString(created),
+      ];
+    }),
+  );
   let fullDays = 0;
 
   const cursor = new Date(startDate);
@@ -318,9 +328,14 @@ export function computeMilestoneProgress(
     let scheduled = 0;
     let completed = 0;
     for (const action of benchmarkActions) {
-      if (!action.frequency.includes(dayOfWeek)) continue;
+      if (!isScheduledOn(action, dateStr, dayOfWeek)) continue;
+      const done = logIndex.get(`${action.id}|${dateStr}`)?.status === true;
+      // A habit added to the milestone later is not owed on earlier days:
+      // without this, adding a second habit turned every past full day into
+      // a partial one and the count dropped. A completed log still counts.
+      if (!done && dateStr < (actionStartDates.get(action.id) ?? "")) continue;
       scheduled++;
-      if (logIndex.get(`${action.id}|${dateStr}`)?.status) {
+      if (done) {
         completed++;
         perActionDays.set(action.id, (perActionDays.get(action.id) ?? 0) + 1);
       }
@@ -386,7 +401,7 @@ export function computeMomentumScore(
     const dayOfWeek = weekdayName(date);
 
     for (const action of actions) {
-      if (action.frequency.includes(dayOfWeek)) {
+      if (isScheduledOn(action, dateStr, dayOfWeek)) {
         const log = logIndex.get(`${action.id}|${dateStr}`);
         // Pre-creation days don't count as expected — EXCEPT when a
         // backfilled completion exists: a completed log proves the day was
@@ -467,7 +482,7 @@ export function computeWeekStats(
 
     let dayCompleted = 0;
     for (const action of actions) {
-      if (!action.frequency.includes(dayOfWeek)) continue;
+      if (!isScheduledOn(action, dateStr, dayOfWeek)) continue;
       const log = logIndex.get(`${action.id}|${dateStr}`);
       const startDate = actionStartDates.get(action.id);
       // Backfilled completions count even before the action existed —
@@ -577,7 +592,7 @@ export function computeLapse(
     let scheduled = 0;
     let completed = 0;
     for (const action of actions) {
-      if (!action.frequency.includes(dayOfWeek)) continue;
+      if (!isScheduledOn(action, dateStr, dayOfWeek)) continue;
       const log = logIndex.get(`${action.id}|${dateStr}`);
       const startDate = actionStartDates.get(action.id);
       // Backfilled completions count even before the action existed —
@@ -696,7 +711,7 @@ export function computeStreak(
     let scheduled = 0;
     let completed = 0;
     for (const action of actions) {
-      if (!action.frequency.includes(dayOfWeek)) continue;
+      if (!isScheduledOn(action, dateStr, dayOfWeek)) continue;
       const log = logIndex.get(`${action.id}|${dateStr}`);
       const startDate = actionStartDates.get(action.id);
       // Backfilled completions count even before the action existed —

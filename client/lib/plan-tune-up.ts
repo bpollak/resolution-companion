@@ -7,6 +7,7 @@ import type {
 } from "@/lib/storage";
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { getLocalDateString, weekdayName } from "@/lib/progress";
+import { isScheduledOn } from "@/lib/schedule-history";
 import { storage } from "@/lib/storage";
 
 const FACTORS: DailyContextFactor[] = [
@@ -158,7 +159,7 @@ export function buildPlanTuneUpRequest(input: {
     while (cursor <= end) {
       const dateKey = getLocalDateString(cursor);
       const weekday = weekdayName(cursor);
-      if (dateKey >= created && action.frequency.includes(weekday)) {
+      if (dateKey >= created && isScheduledOn(action, dateKey, weekday)) {
         scheduled += 1;
         const log = index.get(`${action.id}|${dateKey}`);
         if (log?.status) completed += 1;

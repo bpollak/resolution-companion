@@ -3,6 +3,7 @@ import * as Device from "expo-device";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getLocalDateString, weekdayName } from "@/lib/progress";
+import { isScheduledOn } from "@/lib/schedule-history";
 import { logger } from "@/lib/logger";
 import type { DailyLog, ElementalAction } from "@/lib/storage";
 import {
@@ -202,7 +203,7 @@ export function selectMarkAllDoneActions(
   return actions.filter(
     (action) =>
       (intended.size === 0 || intended.has(action.id)) &&
-      action.frequency.includes(weekday) &&
+      isScheduledOn(action, dateKey, weekday) &&
       getLocalDateString(new Date(action.createdAt)) <= dateKey,
   );
 }
@@ -411,7 +412,7 @@ export function getRemainingReminderActions(
   return actions.filter(
     (action) =>
       getLocalDateString(new Date(action.createdAt)) <= dateKey &&
-      action.frequency.includes(weekday) &&
+      isScheduledOn(action, dateKey, weekday) &&
       !completed.has(action.id),
   );
 }
