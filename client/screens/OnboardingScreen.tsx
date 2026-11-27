@@ -72,6 +72,7 @@ async function offerDayOneNotification(start: Date): Promise<void> {
   });
   try {
     await askForDayOnePermission(
+      start,
       () =>
         new Promise<boolean>((resolve) => {
           Alert.alert(

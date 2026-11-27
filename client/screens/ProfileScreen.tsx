@@ -50,6 +50,7 @@ import { storage } from "@/lib/storage";
 import {
   requestNotificationPermissions,
   scheduleDailyReminder,
+  syncDayOneNotification,
   cancelDailyReminder,
   areNotificationsEnabled,
   getNotificationPermissionState,
@@ -547,6 +548,9 @@ export default function ProfileScreen() {
           ...reminderOptions,
           actions: planActions,
         });
+        // Turning reminders on is a yes that outlasts an earlier "Not now"
+        // to the day-one ask; schedule it now, not on the next foreground.
+        await syncDayOneNotification(persona?.createdAt);
         setNotificationsEnabled(true);
         setPermission("granted");
         setReminderTime(await getResolvedReminderTime());

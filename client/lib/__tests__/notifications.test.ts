@@ -27,6 +27,8 @@ import {
   clearScheduledReminders,
   cancelAllScheduledNotifications,
   askForDayOnePermission,
+  shouldScheduleDayOne,
+  cancelDailyReminder,
   DAY_ONE_NOTIFICATION_ID,
   DAY_ONE_TITLE,
   DAY_ONE_BODY,
@@ -751,6 +753,116 @@ describe("day-one notification: scheduling", () => {
     },
   );
 
+  describe("an in-app no", () => {
+    const sayNotNow = async (start: string) => {
+      grant("undetermined");
+      await askForDayOnePermission(start, () => Promise.resolve(false));
+      // Permission can still arrive later, through the reminder primer
+      grant("granted");
+    };
+
+    it("decides from the answers the person gave", () => {
+      const fireDate = new Date(2027, 0, 1, 8, 0);
+      const yes = {
+        fireDate,
+        permission: "granted" as const,
+        remindersPreference: null,
+        declined: false,
+      };
+      expect(shouldScheduleDayOne(yes)).toBe(true);
+      expect(shouldScheduleDayOne({ ...yes, fireDate: null })).toBe(false);
+      expect(shouldScheduleDayOne({ ...yes, permission: "denied" })).toBe(
+        false,
+      );
+      expect(
+        shouldScheduleDayOne({ ...yes, remindersPreference: "false" }),
+      ).toBe(false);
+      expect(shouldScheduleDayOne({ ...yes, declined: true })).toBe(false);
+      // Turning reminders on in Profile is a later yes
+      expect(
+        shouldScheduleDayOne({
+          ...yes,
+          declined: true,
+          remindersPreference: "true",
+        }),
+      ).toBe(true);
+    });
+
+    it("never schedules after Not now, even once permission is granted", async () => {
+      await sayNotNow(JAN_1);
+
+      await syncDayOneNotification(JAN_1);
+      await syncDayOneNotification(JAN_1);
+
+      expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+    });
+
+    it("schedules after Not now once reminders are turned on", async () => {
+      await sayNotNow(JAN_1);
+      await AsyncStorage.setItem("evolve_notifications_enabled", "true");
+
+      await syncDayOneNotification(JAN_1);
+
+      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps a Not now to the plan it was said about", async () => {
+      await sayNotNow(JAN_1);
+
+      await syncDayOneNotification(new Date(2026, 11, 20).toISOString());
+
+      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
+    });
+
+    it("lets a later yes replace an earlier Not now", async () => {
+      await sayNotNow(JAN_1);
+      grant("undetermined");
+      Object.defineProperty(Device, "isDevice", {
+        configurable: true,
+        value: true,
+      });
+      jest.mocked(Notifications.requestPermissionsAsync).mockResolvedValue({
+        status: "granted",
+      } as Notifications.NotificationPermissionsStatus);
+      await askForDayOnePermission(JAN_1, () => Promise.resolve(true));
+      grant("granted");
+
+      await syncDayOneNotification(JAN_1);
+
+      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
+    });
+
+    it("schedules nothing, and removes a pending one, while reminders are off", async () => {
+      await AsyncStorage.setItem("evolve_notifications_enabled", "false");
+      jest
+        .mocked(Notifications.getAllScheduledNotificationsAsync)
+        .mockResolvedValue([
+          pendingDayOne(new Date(2027, 0, 1, 8, 0).getTime()),
+        ]);
+
+      await syncDayOneNotification(JAN_1);
+
+      expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+      expect(
+        Notifications.cancelScheduledNotificationAsync,
+      ).toHaveBeenCalledWith("day-one-notification");
+    });
+
+    it("is cancelled when reminders are turned off", async () => {
+      jest
+        .mocked(Notifications.getAllScheduledNotificationsAsync)
+        .mockResolvedValue([
+          pendingDayOne(new Date(2027, 0, 1, 8, 0).getTime()),
+        ]);
+
+      await cancelDailyReminder();
+
+      expect(
+        Notifications.cancelScheduledNotificationAsync,
+      ).toHaveBeenCalledWith("day-one-notification");
+    });
+  });
+
   it("is cancelled with the reminders when the last plan is deleted", async () => {
     jest
       .mocked(Notifications.getAllScheduledNotificationsAsync)
@@ -838,10 +950,12 @@ describe("day-one notification: scheduling", () => {
 });
 
 describe("day-one notification: the permission ask", () => {
+  const START = new Date(2027, 0, 1).toISOString();
   const status = (value: string) =>
     ({ status: value }) as Notifications.NotificationPermissionsStatus;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
     Object.defineProperty(Device, "isDevice", {
       configurable: true,
       value: true,
@@ -858,7 +972,7 @@ describe("day-one notification: the permission ask", () => {
       .mockResolvedValue(status("granted"));
     const explain = jest.fn().mockResolvedValue(true);
 
-    expect(await askForDayOnePermission(explain)).toBe("granted");
+    expect(await askForDayOnePermission(START, explain)).toBe("granted");
     expect(explain).toHaveBeenCalledTimes(1);
     expect(Notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
   });
@@ -869,7 +983,7 @@ describe("day-one notification: the permission ask", () => {
       .mockResolvedValue(status("undetermined"));
     const explain = jest.fn().mockResolvedValue(false);
 
-    expect(await askForDayOnePermission(explain)).toBe("undetermined");
+    expect(await askForDayOnePermission(START, explain)).toBe("undetermined");
     expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
   });
 
@@ -881,7 +995,7 @@ describe("day-one notification: the permission ask", () => {
         .mockResolvedValue(status(value));
       const explain = jest.fn().mockResolvedValue(true);
 
-      expect(await askForDayOnePermission(explain)).toBe(value);
+      expect(await askForDayOnePermission(START, explain)).toBe(value);
       expect(explain).not.toHaveBeenCalled();
       expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
     },

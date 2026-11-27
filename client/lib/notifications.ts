@@ -939,6 +939,8 @@ export async function cancelDailyReminder(): Promise<void> {
       await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, "false");
       await AsyncStorage.removeItem(REMINDER_MODE_KEY);
       await cancelScheduled();
+      // Reminders off means no notifications, the day-one one included.
+      await cancelDayOne();
     });
   } catch (error) {
     logger.error("Failed to cancel notification:", error);
@@ -1236,13 +1238,45 @@ export async function clearScheduledReminders(): Promise<void> {
 
 // The one notification a plan set up ahead sends on the morning it starts.
 // It is not a reminder: it has its own tag so the rolling plan's
-// cancel-and-rebuild leaves it alone, and it is sent whether or not daily
-// reminders are on (the person was asked for it when they chose the date).
+// cancel-and-rebuild leaves it alone. It still answers to the person's own
+// choices: never after "Not now" for that plan, never while reminders are
+// turned off (see shouldScheduleDayOne).
 export const DAY_ONE_NOTIFICATION_ID = "day-one-notification";
 export const DAY_ONE_TITLE = "Day one";
 export const DAY_ONE_BODY = "Your first step is ready.";
 const DAY_ONE_TYPE = "day-one";
 const DAY_ONE_HOUR = 8;
+// Local date key of the plan start the person said "Not now" about. Keyed
+// to the start so the answer belongs to that plan, not to the next one.
+const DAY_ONE_DECLINED_START_KEY = "day_one_declined_start";
+
+function startDateKey(
+  planStartsAt: string | number | Date | null | undefined,
+): string | null {
+  if (planStartsAt === null || planStartsAt === undefined) return null;
+  const start = new Date(planStartsAt);
+  return Number.isNaN(start.getTime()) ? null : getLocalDateString(start);
+}
+
+/**
+ * Whether the day-one notification may be scheduled. The system permission
+ * is necessary but not enough: an in-app "no" wins. Reminders explicitly off
+ * means no notifications at all; a "Not now" to the day-one ask holds until
+ * the person turns reminders on, which is a later, broader yes.
+ */
+export function shouldScheduleDayOne(input: {
+  fireDate: Date | null;
+  permission: NotificationPermissionState;
+  /** The stored reminders flag: "true", "false", or null when never set. */
+  remindersPreference: string | null;
+  /** The person answered "Not now" for this plan's start. */
+  declined: boolean;
+}): boolean {
+  if (!input.fireDate || input.permission !== "granted") return false;
+  if (input.remindersPreference === "false") return false;
+  if (input.declined && input.remindersPreference !== "true") return false;
+  return true;
+}
 
 /**
  * When the day-one notification fires: 8:00 AM local on the plan's start
@@ -1307,9 +1341,22 @@ export async function syncDayOneNotification(
   try {
     await withReminderLock(async () => {
       const fireDate = dayOneFireDate(planStartsAt, new Date());
+      const [permission, remindersPreference, declinedStart] =
+        await Promise.all([
+          getNotificationPermissionState(),
+          AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY),
+          AsyncStorage.getItem(DAY_ONE_DECLINED_START_KEY),
+        ]);
       const allowed =
         fireDate !== null &&
-        (await getNotificationPermissionState()) === "granted";
+        shouldScheduleDayOne({
+          fireDate,
+          permission,
+          remindersPreference,
+          declined:
+            declinedStart !== null &&
+            declinedStart === startDateKey(planStartsAt),
+        });
       const pending = (
         await Notifications.getAllScheduledNotificationsAsync()
       ).filter(isDayOneRequest);
@@ -1350,14 +1397,22 @@ export async function syncDayOneNotification(
  * The permission ask for a plan that starts later. `explain` shows the
  * plain reason first and resolves true to go on to the system prompt, so
  * iOS's one-time prompt is never spent on someone who would say no. Asks
- * nothing when the system already has an answer either way.
+ * nothing when the system already has an answer either way. The answer is
+ * kept for this plan's start: permission granted later for daily reminders
+ * must not turn a "Not now" here into a day-one notification.
  */
 export async function askForDayOnePermission(
+  planStartsAt: string | number | Date,
   explain: () => Promise<boolean>,
 ): Promise<NotificationPermissionState> {
   const state = await getNotificationPermissionState();
   if (state !== "undetermined") return state;
-  if (!(await explain())) return "undetermined";
+  if (!(await explain())) {
+    const key = startDateKey(planStartsAt);
+    if (key) await AsyncStorage.setItem(DAY_ONE_DECLINED_START_KEY, key);
+    return "undetermined";
+  }
+  await AsyncStorage.removeItem(DAY_ONE_DECLINED_START_KEY);
   if (await requestNotificationPermissions()) return "granted";
   return getNotificationPermissionState();
 }

@@ -21,7 +21,8 @@ describe("day-one notification wiring", () => {
     expect(onboarding).toContain("const laterStart = planStartInstant(draft);");
     // The plain reason is shown before the system prompt
     expect(onboarding).toContain('"Hear from us on day one?"');
-    expect(onboarding).toContain("askForDayOnePermission(");
+    // The answer is recorded against this plan's start
+    expect(onboarding).toMatch(/askForDayOnePermission\(\s*start,/);
   });
 
   test("the countdown card says one quiet line when notifications are denied", () => {
@@ -31,6 +32,16 @@ describe("day-one notification wiring", () => {
     );
     expect(card).toMatch(/\{notificationsDenied \? \(/);
     expect(card).not.toMatch(/warm-?up/i);
+  });
+
+  test("turning reminders on in Profile schedules it right away", () => {
+    const profile = read("screens/ProfileScreen.tsx");
+    const scheduled = profile.indexOf("await scheduleDailyReminder({");
+    const synced = profile.indexOf(
+      "await syncDayOneNotification(persona?.createdAt);",
+    );
+    expect(scheduled).toBeGreaterThan(-1);
+    expect(synced).toBeGreaterThan(scheduled);
   });
 
   test("Today keeps the notification matched to the active plan", () => {
