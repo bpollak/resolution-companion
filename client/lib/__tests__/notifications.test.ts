@@ -22,6 +22,14 @@ import {
   scheduleDailyReminder,
   earliestActionStart,
   enableDefaultPersonalizedReminders,
+  dayOneFireDate,
+  syncDayOneNotification,
+  clearScheduledReminders,
+  cancelAllScheduledNotifications,
+  askForDayOnePermission,
+  DAY_ONE_NOTIFICATION_ID,
+  DAY_ONE_TITLE,
+  DAY_ONE_BODY,
   REMINDER_BUCKETS,
   type ReminderHookStats,
 } from "@/lib/notifications";
@@ -31,6 +39,8 @@ jest.mock("expo-notifications", () => ({
   setNotificationHandler: jest.fn(),
   scheduleNotificationAsync: jest.fn(),
   cancelScheduledNotificationAsync: jest.fn(),
+  cancelAllScheduledNotificationsAsync: jest.fn(),
+  dismissAllNotificationsAsync: jest.fn(),
   getAllScheduledNotificationsAsync: jest.fn().mockResolvedValue([]),
   getPermissionsAsync: jest.fn(),
   requestPermissionsAsync: jest.fn(),
@@ -543,4 +553,315 @@ describe("reminder primer state", () => {
         }),
       ).toBe(primer);
   });
+});
+
+describe("day-one notification: when it fires", () => {
+  const at = (date: Date | null) =>
+    date
+      ? [
+          date.getFullYear(),
+          date.getMonth() + 1,
+          date.getDate(),
+          date.getHours(),
+          date.getMinutes(),
+        ]
+      : null;
+
+  it("fires at 8:00 AM local on a January 1 start", () => {
+    const start = new Date(2027, 0, 1).toISOString();
+    expect(at(dayOneFireDate(start, new Date(2026, 10, 27, 14, 0)))).toEqual([
+      2027, 1, 1, 8, 0,
+    ]);
+  });
+
+  it("still fires the next morning for a plan saved Dec 31 at 11 PM", () => {
+    const start = new Date(2027, 0, 1).toISOString();
+    expect(at(dayOneFireDate(start, new Date(2026, 11, 31, 23, 0)))).toEqual([
+      2027, 1, 1, 8, 0,
+    ]);
+  });
+
+  it("fires tomorrow at 8:00 AM when the start date is tomorrow", () => {
+    const now = new Date(2026, 11, 10, 15, 30);
+    expect(at(dayOneFireDate(new Date(2026, 11, 11), now))).toEqual([
+      2026, 12, 11, 8, 0,
+    ]);
+    // The start instant's time of day does not move the 8:00 AM delivery
+    expect(at(dayOneFireDate("2026-12-11T19:45:00", now))).toEqual([
+      2026, 12, 11, 8, 0,
+    ]);
+  });
+
+  it("schedules nothing when the start is today, even before 8:00 AM", () => {
+    const earlyMorning = new Date(2027, 0, 1, 0, 5);
+    expect(dayOneFireDate(new Date(2027, 0, 1), earlyMorning)).toBeNull();
+    expect(dayOneFireDate("2027-01-01T20:00:00", earlyMorning)).toBeNull();
+  });
+
+  it("schedules nothing for a past, missing, or unreadable start", () => {
+    const now = new Date(2026, 11, 10, 15, 30);
+    expect(dayOneFireDate("2026-12-09T00:00:00", now)).toBeNull();
+    expect(dayOneFireDate("2026-07-01T12:00:00", now)).toBeNull();
+    expect(dayOneFireDate(null, now)).toBeNull();
+    expect(dayOneFireDate(undefined, now)).toBeNull();
+    expect(dayOneFireDate("not a date", now)).toBeNull();
+  });
+
+  it("uses the agreed words", () => {
+    expect(DAY_ONE_TITLE).toBe("Day one");
+    expect(DAY_ONE_BODY).toBe("Your first step is ready.");
+  });
+});
+
+describe("day-one notification: scheduling", () => {
+  const JAN_1 = new Date(2027, 0, 1).toISOString();
+  const pendingDayOne = (fireAt: number, identifier = "day-one-notification") =>
+    ({
+      identifier,
+      content: { data: { type: "day-one", fireAt } },
+    }) as unknown as Notifications.NotificationRequest;
+  const grant = (status: string) =>
+    jest.mocked(Notifications.getPermissionsAsync).mockResolvedValue({
+      status,
+    } as Notifications.NotificationPermissionsStatus);
+
+  beforeEach(async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 11, 1, 18, 0));
+    await AsyncStorage.clear();
+    jest
+      .mocked(Notifications.scheduleNotificationAsync)
+      .mockReset()
+      .mockResolvedValue("id");
+    jest.mocked(Notifications.cancelScheduledNotificationAsync).mockReset();
+    jest.mocked(Notifications.cancelAllScheduledNotificationsAsync).mockReset();
+    jest
+      .mocked(Notifications.getAllScheduledNotificationsAsync)
+      .mockReset()
+      .mockResolvedValue([]);
+    jest.mocked(Notifications.requestPermissionsAsync).mockReset();
+    grant("granted");
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("schedules exactly one notification for 8:00 AM on the start date", async () => {
+    await syncDayOneNotification(JAN_1);
+
+    expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
+    const request = jest.mocked(Notifications.scheduleNotificationAsync).mock
+      .calls[0][0];
+    expect(request.identifier).toBe(DAY_ONE_NOTIFICATION_ID);
+    expect(request.content.title).toBe("Day one");
+    expect(request.content.body).toBe("Your first step is ready.");
+    expect(request.content.data).toMatchObject({ type: "day-one" });
+    expect(request.trigger).toMatchObject({
+      type: "date",
+      date: new Date(2027, 0, 1, 8, 0),
+    });
+  });
+
+  it("does nothing when the same notification is already pending", async () => {
+    jest
+      .mocked(Notifications.getAllScheduledNotificationsAsync)
+      .mockResolvedValue([pendingDayOne(new Date(2027, 0, 1, 8, 0).getTime())]);
+
+    await syncDayOneNotification(JAN_1);
+
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(
+      Notifications.cancelScheduledNotificationAsync,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("moves the notification when the start date changes", async () => {
+    jest
+      .mocked(Notifications.getAllScheduledNotificationsAsync)
+      .mockResolvedValue([pendingDayOne(new Date(2027, 0, 1, 8, 0).getTime())]);
+
+    await syncDayOneNotification(new Date(2026, 11, 15).toISOString());
+
+    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith(
+      "day-one-notification",
+    );
+    expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
+    expect(
+      jest.mocked(Notifications.scheduleNotificationAsync).mock.calls[0][0]
+        .trigger,
+    ).toMatchObject({ date: new Date(2026, 11, 15, 8, 0) });
+  });
+
+  it("removes a pending notification once the plan has started", async () => {
+    jest.setSystemTime(new Date(2027, 0, 1, 6, 0));
+    jest
+      .mocked(Notifications.getAllScheduledNotificationsAsync)
+      .mockResolvedValue([pendingDayOne(new Date(2027, 0, 2, 8, 0).getTime())]);
+
+    await syncDayOneNotification(JAN_1);
+
+    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith(
+      "day-one-notification",
+    );
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
+  it("removes it when there is no plan", async () => {
+    jest
+      .mocked(Notifications.getAllScheduledNotificationsAsync)
+      .mockResolvedValue([pendingDayOne(1)]);
+
+    await syncDayOneNotification(null);
+
+    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith(
+      "day-one-notification",
+    );
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
+  it.each(["denied", "undetermined"])(
+    "schedules nothing while permission is %s",
+    async (status) => {
+      grant(status);
+      await syncDayOneNotification(JAN_1);
+      expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+    },
+  );
+
+  it("is cancelled with the reminders when the last plan is deleted", async () => {
+    jest
+      .mocked(Notifications.getAllScheduledNotificationsAsync)
+      .mockResolvedValue([
+        pendingDayOne(new Date(2027, 0, 1, 8, 0).getTime()),
+        {
+          identifier: "habit-1",
+          content: { data: { type: "habit-reminder" } },
+        } as unknown as Notifications.NotificationRequest,
+      ]);
+
+    await clearScheduledReminders();
+
+    const cancelled = jest
+      .mocked(Notifications.cancelScheduledNotificationAsync)
+      .mock.calls.map((call) => call[0]);
+    expect(cancelled).toEqual(
+      expect.arrayContaining(["day-one-notification", "habit-1"]),
+    );
+  });
+
+  it("is cancelled when all data is cleared", async () => {
+    jest
+      .mocked(Notifications.getAllScheduledNotificationsAsync)
+      .mockResolvedValue([pendingDayOne(new Date(2027, 0, 1, 8, 0).getTime())]);
+
+    await cancelAllScheduledNotifications();
+
+    expect(
+      Notifications.cancelAllScheduledNotificationsAsync,
+    ).toHaveBeenCalledTimes(1);
+  });
+
+  it("survives a routine reminder refresh", async () => {
+    jest
+      .mocked(Notifications.getAllScheduledNotificationsAsync)
+      .mockResolvedValue([pendingDayOne(new Date(2027, 0, 1, 8, 0).getTime())]);
+
+    await scheduleDailyReminder({ actions: [], dailyLogs: [] });
+
+    expect(
+      Notifications.cancelScheduledNotificationAsync,
+    ).not.toHaveBeenCalledWith("day-one-notification");
+  });
+
+  describe("the 60-notification budget", () => {
+    const timedHabits = (createdAt: string): ElementalAction[] =>
+      ["07:00", "09:00", "12:00", "17:00", "21:00"].map((time, index) => ({
+        id: `habit-${index}`,
+        benchmarkId: "benchmark",
+        title: `Habit ${index}`,
+        frequency: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
+        anchorLink: "",
+        kickstartVersion: "",
+        createdAt,
+        reminderTime: time,
+      }));
+
+    it("leaves room for day one while the plan has not started", async () => {
+      // Five timed habits a day: 12 whole days fill 60, 11 fit under 59.
+      await scheduleDailyReminder({
+        actions: timedHabits(JAN_1),
+        dailyLogs: [],
+      });
+      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(55);
+    });
+
+    it("gives the slot back once the plan has started", async () => {
+      jest.setSystemTime(new Date(2026, 11, 1, 0, 30));
+      await scheduleDailyReminder({
+        actions: timedHabits(new Date(2026, 10, 1).toISOString()),
+        dailyLogs: [],
+      });
+      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(60);
+    });
+  });
+});
+
+describe("day-one notification: the permission ask", () => {
+  const status = (value: string) =>
+    ({ status: value }) as Notifications.NotificationPermissionsStatus;
+
+  beforeEach(() => {
+    Object.defineProperty(Device, "isDevice", {
+      configurable: true,
+      value: true,
+    });
+    jest.mocked(Notifications.requestPermissionsAsync).mockReset();
+  });
+
+  it("explains first, then asks iOS, when nothing was decided yet", async () => {
+    jest
+      .mocked(Notifications.getPermissionsAsync)
+      .mockResolvedValue(status("undetermined"));
+    jest
+      .mocked(Notifications.requestPermissionsAsync)
+      .mockResolvedValue(status("granted"));
+    const explain = jest.fn().mockResolvedValue(true);
+
+    expect(await askForDayOnePermission(explain)).toBe("granted");
+    expect(explain).toHaveBeenCalledTimes(1);
+    expect(Notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not show the iOS prompt after a not-now", async () => {
+    jest
+      .mocked(Notifications.getPermissionsAsync)
+      .mockResolvedValue(status("undetermined"));
+    const explain = jest.fn().mockResolvedValue(false);
+
+    expect(await askForDayOnePermission(explain)).toBe("undetermined");
+    expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  it.each(["granted", "denied"])(
+    "asks nothing when permission is already %s",
+    async (value) => {
+      jest
+        .mocked(Notifications.getPermissionsAsync)
+        .mockResolvedValue(status(value));
+      const explain = jest.fn().mockResolvedValue(true);
+
+      expect(await askForDayOnePermission(explain)).toBe(value);
+      expect(explain).not.toHaveBeenCalled();
+      expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+    },
+  );
 });

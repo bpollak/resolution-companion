@@ -37,6 +37,7 @@ import Animated, {
 
 import { useTheme } from "@/hooks/useTheme";
 import { useLocalDateKey } from "@/hooks/useLocalDateKey";
+import { useDayOneNotification } from "@/hooks/useDayOneNotification";
 import { useApp } from "@/context/AppContext";
 import type { DailyLog, ElementalAction } from "@/lib/storage";
 import {
@@ -647,6 +648,11 @@ export default function TodayScreen() {
     const start = new Date(personaCreatedAt);
     return getLocalDateString(start) > todayDateStr ? start : null;
   }, [personaCreatedAt, todayDateStr]);
+  const dayOneNotificationsDenied = useDayOneNotification(
+    personaCreatedAt,
+    !isLoading,
+    todayDateStr,
+  );
 
   const personaBenchmarkIds = useMemo(() => {
     return benchmarks
@@ -1624,7 +1630,11 @@ export default function TodayScreen() {
                 onTomorrowPress={openTomorrow}
               />
             ) : planStart ? (
-              <PlanCountdownCard start={planStart} firstAction={actions[0]} />
+              <PlanCountdownCard
+                start={planStart}
+                firstAction={actions[0]}
+                notificationsDenied={dayOneNotificationsDenied}
+              />
             ) : todayActions.length === 0 ? (
               <View
                 style={[

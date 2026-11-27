@@ -687,7 +687,16 @@ function planReminderDays(
       timedSlots,
     });
   }
-  return fitToBudget(days, notificationCount, PENDING_NOTIFICATION_BUDGET);
+  // A plan that has not started holds one slot for its day-one notification,
+  // which is scheduled outside this plan but shares the same pending limit.
+  const dayOneSlots = dayOneFireDate(earliestActionStart(options.actions), now)
+    ? 1
+    : 0;
+  return fitToBudget(
+    days,
+    notificationCount,
+    PENDING_NOTIFICATION_BUDGET - dayOneSlots,
+  );
 }
 
 export function habitReminderTitle(actions: { title: string }[]): string {
@@ -1216,10 +1225,140 @@ export async function clearScheduledReminders(): Promise<void> {
   }
 
   try {
-    await withReminderLock(() => cancelScheduled());
+    await withReminderLock(async () => {
+      await cancelScheduled();
+      await cancelDayOne();
+    });
   } catch (error) {
     logger.error("Failed to clear scheduled reminders:", error);
   }
+}
+
+// The one notification a plan set up ahead sends on the morning it starts.
+// It is not a reminder: it has its own tag so the rolling plan's
+// cancel-and-rebuild leaves it alone, and it is sent whether or not daily
+// reminders are on (the person was asked for it when they chose the date).
+export const DAY_ONE_NOTIFICATION_ID = "day-one-notification";
+export const DAY_ONE_TITLE = "Day one";
+export const DAY_ONE_BODY = "Your first step is ready.";
+const DAY_ONE_TYPE = "day-one";
+const DAY_ONE_HOUR = 8;
+
+/**
+ * When the day-one notification fires: 8:00 AM local on the plan's start
+ * day, or null when that day is today or earlier (the plan is already
+ * running, so there is nothing to announce).
+ */
+export function dayOneFireDate(
+  planStartsAt: string | number | Date | null | undefined,
+  now: Date = new Date(),
+): Date | null {
+  if (planStartsAt === null || planStartsAt === undefined) return null;
+  const start = new Date(planStartsAt);
+  if (Number.isNaN(start.getTime())) return null;
+  if (getLocalDateString(start) <= getLocalDateString(now)) return null;
+  return new Date(
+    start.getFullYear(),
+    start.getMonth(),
+    start.getDate(),
+    DAY_ONE_HOUR,
+    0,
+    0,
+    0,
+  );
+}
+
+function isDayOneRequest(request: Notifications.NotificationRequest): boolean {
+  return (
+    request.identifier === DAY_ONE_NOTIFICATION_ID ||
+    request.content.data?.type === DAY_ONE_TYPE
+  );
+}
+
+// Caller holds the lock.
+async function cancelDayOne(): Promise<void> {
+  let ids: string[];
+  try {
+    const pending = await Notifications.getAllScheduledNotificationsAsync();
+    ids = pending.filter(isDayOneRequest).map((request) => request.identifier);
+  } catch (error) {
+    logger.error("Failed to list the day-one notification:", error);
+    ids = [DAY_ONE_NOTIFICATION_ID];
+  }
+  await Promise.all(
+    ids.map((id) => Notifications.cancelScheduledNotificationAsync(id)),
+  );
+}
+
+/**
+ * Makes the pending day-one notification match the plan: one request at
+ * 8:00 AM on a start day still ahead, none otherwise (no plan, a plan that
+ * has started, or notifications not allowed). Safe to call on every
+ * foreground; it does nothing when the right request is already pending.
+ */
+export async function syncDayOneNotification(
+  planStartsAt: string | null | undefined,
+): Promise<void> {
+  if (Platform.OS === "web") {
+    return;
+  }
+
+  try {
+    await withReminderLock(async () => {
+      const fireDate = dayOneFireDate(planStartsAt, new Date());
+      const allowed =
+        fireDate !== null &&
+        (await getNotificationPermissionState()) === "granted";
+      const pending = (
+        await Notifications.getAllScheduledNotificationsAsync()
+      ).filter(isDayOneRequest);
+      if (
+        allowed &&
+        pending.length === 1 &&
+        pending[0].content.data?.fireAt === fireDate.getTime()
+      ) {
+        return;
+      }
+      await Promise.all(
+        pending.map((request) =>
+          Notifications.cancelScheduledNotificationAsync(request.identifier),
+        ),
+      );
+      if (!allowed) return;
+      await Notifications.scheduleNotificationAsync({
+        identifier: DAY_ONE_NOTIFICATION_ID,
+        content: {
+          title: DAY_ONE_TITLE,
+          body: DAY_ONE_BODY,
+          sound: true,
+          data: { type: DAY_ONE_TYPE, fireAt: fireDate.getTime() },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: fireDate,
+          channelId: Platform.OS === "android" ? "daily-reminder" : undefined,
+        },
+      });
+    });
+  } catch (error) {
+    logger.error("Failed to sync the day-one notification:", error);
+  }
+}
+
+/**
+ * The permission ask for a plan that starts later. `explain` shows the
+ * plain reason first and resolves true to go on to the system prompt, so
+ * iOS's one-time prompt is never spent on someone who would say no. Asks
+ * nothing when the system already has an answer either way.
+ */
+export async function askForDayOnePermission(
+  explain: () => Promise<boolean>,
+): Promise<NotificationPermissionState> {
+  const state = await getNotificationPermissionState();
+  if (state !== "undetermined") return state;
+  if (!(await explain())) return "undetermined";
+  if (await requestNotificationPermissions()) return "granted";
+  return getNotificationPermissionState();
 }
 
 export async function getNotificationPermissionStatus(): Promise<boolean> {

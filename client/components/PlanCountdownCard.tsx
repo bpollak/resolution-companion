@@ -8,16 +8,22 @@ import type { ElementalAction } from "@/lib/storage";
 import { daysUntil } from "@/lib/onboarding-plan";
 import { withAlpha } from "@/lib/color";
 
+export const DAY_ONE_SETTINGS_HINT =
+  "Turn on notifications in Settings to hear from us on day one.";
+
 // Shown on Today when a plan was set up ahead of its start day (usually
 // January 1): nothing is scheduled yet, so there is nothing to miss.
 export function PlanCountdownCard({
   start,
   firstAction,
   resolution,
+  notificationsDenied = false,
 }: {
   start: Date;
   firstAction?: ElementalAction;
   resolution?: string;
+  /** iOS has notifications off, so the day-one notification cannot arrive. */
+  notificationsDenied?: boolean;
 }) {
   const { theme, isDark } = useTheme();
   const days = daysUntil(start);
@@ -41,7 +47,7 @@ export function PlanCountdownCard({
         },
       ]}
       accessible
-      accessibilityLabel={`Your plan starts ${startLabel}. ${countdown}.${firstAction ? ` First habit: ${firstAction.title}.` : ""}`}
+      accessibilityLabel={`Your plan starts ${startLabel}. ${countdown}.${firstAction ? ` First habit: ${firstAction.title}.` : ""}${notificationsDenied ? ` ${DAY_ONE_SETTINGS_HINT}` : ""}`}
     >
       <View style={styles.eyebrowRow}>
         <Feather name="calendar" size={16} color={theme.accent} />
@@ -71,6 +77,11 @@ export function PlanCountdownCard({
         you&rsquo;ll need on day one. Nothing counts as missed before{" "}
         {startLabel}.
       </ThemedText>
+      {notificationsDenied ? (
+        <ThemedText style={[styles.quiet, { color: theme.textSecondary }]}>
+          {DAY_ONE_SETTINGS_HINT}
+        </ThemedText>
+      ) : null}
     </View>
   );
 }
@@ -93,4 +104,5 @@ const styles = StyleSheet.create({
   countdown: { fontSize: 28, lineHeight: 34, fontWeight: "700" },
   preview: { gap: 2, paddingVertical: Spacing.xs },
   label: { ...Typography.small, fontWeight: "600" },
+  quiet: { ...Typography.small },
 });
