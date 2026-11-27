@@ -1301,6 +1301,16 @@ export function dayOneFireDate(
   if (planStartsAt === null || planStartsAt === undefined) return null;
   const start = new Date(planStartsAt);
   if (Number.isNaN(start.getTime())) return null;
+  // Only a plan saved for a later day has a day one to announce. Such a plan
+  // starts at local midnight (planStartInstant); a plan started on the spot
+  // carries the moment it was saved, and its owner is already in the app.
+  if (
+    start.getHours() !== 0 ||
+    start.getMinutes() !== 0 ||
+    start.getSeconds() !== 0 ||
+    start.getMilliseconds() !== 0
+  )
+    return null;
   const fireDate = new Date(
     start.getFullYear(),
     start.getMonth(),

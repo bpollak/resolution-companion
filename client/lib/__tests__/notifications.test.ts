@@ -588,10 +588,17 @@ describe("day-one notification: when it fires", () => {
     expect(at(dayOneFireDate(new Date(2026, 11, 11), now))).toEqual([
       2026, 12, 11, 8, 0,
     ]);
-    // The start instant's time of day does not move the 8:00 AM delivery
-    expect(at(dayOneFireDate("2026-12-11T19:45:00", now))).toEqual([
-      2026, 12, 11, 8, 0,
-    ]);
+  });
+
+  it("has no day one for a plan started on the spot", () => {
+    // A later start is stored as local midnight; a plan started now carries
+    // the moment it was saved. Saving at 6:10 AM must not send "Day one" at
+    // 8:00 AM to someone who is already using the app.
+    const savedAt = new Date(2026, 11, 10, 6, 10);
+    expect(dayOneFireDate(savedAt, new Date(2026, 11, 10, 6, 11))).toBeNull();
+    expect(
+      dayOneFireDate("2026-12-11T19:45:00", new Date(2026, 11, 10, 15, 30)),
+    ).toBeNull();
   });
 
   it("still stands on the start morning until 8:00 AM has passed", () => {

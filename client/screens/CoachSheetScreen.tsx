@@ -340,8 +340,13 @@ export default function CoachSheetScreen() {
         params.origin === "lapse-recovery"
           ? "The plan can bend"
           : "Start from what you’ve already done",
-      detail: `${persona?.name ?? "Who you’re becoming"} is at ${personaAlignment}% consistency this month. That number is a signal, not a grade.`,
-      value: `${personaAlignment}%`,
+      // A new plan has nothing to measure; "0% consistency" on day one
+      // reads as a verdict on someone who has not had a chance yet.
+      detail:
+        personaAlignment > 0
+          ? `${persona?.name ?? "Who you’re becoming"} is at ${personaAlignment}% consistency this month. That number is a signal, not a grade.`
+          : "Nothing to measure yet. One small step is enough to begin.",
+      value: personaAlignment > 0 ? `${personaAlignment}%` : "New",
       trend: "steady",
     };
   }, [
