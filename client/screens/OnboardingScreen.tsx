@@ -684,6 +684,7 @@ export default function OnboardingScreen() {
             setError(null);
           }}
           onApprove={approve}
+          onAskCoach={returnsToCoach ? back : undefined}
           saving={busy === "save"}
           error={error}
         />

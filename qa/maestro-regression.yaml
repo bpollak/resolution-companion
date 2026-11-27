@@ -36,7 +36,9 @@ appId: com.resolutioncompanion.app
     visible: "Edit habit 1"
     timeout: 60000
 - takeScreenshot: 02-plan-summary
-- assertVisible: "Every day"
+# The habit must be daily. Days read "Every day" when the person stated them
+# and "Suggested: Every day" when the model did not credit them as stated.
+- assertVisible: ".*Every day"
 - assertVisible: "Start with 1 habit"
 - tapOn: "Start with 1 habit"
 
