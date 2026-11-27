@@ -102,7 +102,7 @@ export const PLAN_ADJUSTMENT_MIN_SCHEDULED_DAYS = 7;
 
 /** Scheduled days from the habit's start through yesterday. */
 export function scheduledDaysOfHistory(
-  action: Pick<ElementalAction, "frequency" | "createdAt">,
+  action: Pick<ElementalAction, "frequency" | "createdAt" | "frequencyHistory">,
   today: Date = new Date(),
   cap = 60,
 ): number {
@@ -115,8 +115,11 @@ export function scheduledDaysOfHistory(
   // Walks back from yesterday; the cap bounds the loop for old plans.
   for (let step = 0; step < 366 && count < cap; step++) {
     cursor.setDate(cursor.getDate() - 1);
-    if (getLocalDateString(cursor) < createdKey) break;
-    if (action.frequency.includes(weekdayName(cursor))) count++;
+    const dateKey = getLocalDateString(cursor);
+    if (dateKey < createdKey) break;
+    // The schedule in force that day, so widening a habit's days today
+    // does not invent history it never had.
+    if (isScheduledOn(action, dateKey, weekdayName(cursor))) count++;
   }
   return count;
 }
@@ -127,7 +130,10 @@ export function scheduledDaysOfHistory(
  * useful move is adding or starting a step, not tuning one.
  */
 export function canOfferPlanAdjustment(
-  actions: readonly Pick<ElementalAction, "frequency" | "createdAt">[],
+  actions: readonly Pick<
+    ElementalAction,
+    "frequency" | "createdAt" | "frequencyHistory"
+  >[],
   today: Date = new Date(),
 ): boolean {
   return actions.some(

@@ -73,6 +73,26 @@ describe("when Adjust my plan is offered", () => {
     ).toBe(true);
   });
 
+  it("counts the schedule in force on each day, not today's days", () => {
+    // Mon/Wed/Fri until June 15, when the days were widened to daily.
+    const widened: ElementalAction = {
+      ...daily,
+      frequencyHistory: [
+        { from: "2026-06-01", frequency: ["Monday", "Wednesday", "Friday"] },
+        { from: "2026-06-15", frequency: daily.frequency },
+      ],
+    };
+    // Six scheduled days before the change; the edit adds none of its own.
+    expect(scheduledDaysOfHistory(widened, new Date(2026, 5, 15, 9))).toBe(6);
+    expect(canOfferPlanAdjustment([widened], new Date(2026, 5, 15, 9))).toBe(
+      false,
+    );
+    // Monday the 15th, now behind us, is the seventh.
+    expect(canOfferPlanAdjustment([widened], new Date(2026, 5, 16, 9))).toBe(
+      true,
+    );
+  });
+
   it("treats a future start or unreadable date as no history", () => {
     expect(
       canOfferPlanAdjustment(
