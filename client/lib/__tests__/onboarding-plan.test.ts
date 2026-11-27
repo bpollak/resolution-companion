@@ -3,6 +3,9 @@ import {
   createPlanDraft,
   approvePlan,
   getPlanIssue,
+  sanitizeDraft,
+  shouldOfferPlanReview,
+  WHY_MAX_LENGTH,
 } from "@/lib/onboarding-plan";
 import { STARTER_BENCHMARKS } from "@/lib/starter-plan";
 import { storage } from "@/lib/storage";
@@ -208,4 +211,149 @@ test("approved habits get a reminder time only when the anchor says when", () =>
   // "...my phone in the morning" → 07:30; "at my desk" and the blank-anchor
   // fallback "After I wake up" say nothing about the time of day.
   expect(times).toEqual(["07:30", undefined, undefined]);
+});
+
+describe("steps carry why and where the schedule came from", () => {
+  const step = STARTER_BENCHMARKS[0];
+
+  test("a model reply without the new fields still makes a usable draft", () => {
+    const proposal = createPlanDraft(
+      { personaName: "Walker", personaDescription: "", benchmarks: [step] },
+      true,
+    );
+    expect(proposal.suggestions).toHaveLength(1);
+    expect(proposal.suggestions[0].why).toBeUndefined();
+    expect(proposal.suggestions[0].scheduleSource).toBe("suggested");
+    expect(getPlanIssue(proposal)).toBeNull();
+    expect(approvePlan(proposal).actions).toHaveLength(1);
+  });
+
+  test("why is kept, trimmed, and cut at 140 characters", () => {
+    const long = "word ".repeat(60);
+    const proposal = createPlanDraft(
+      {
+        personaName: "Walker",
+        personaDescription: "",
+        benchmarks: [
+          { ...step, why: "  Walking most days builds the base.  " },
+          { ...step, why: long },
+          { ...step, why: null, scheduleSource: null },
+        ],
+      },
+      true,
+    );
+    expect(proposal.suggestions[0].why).toBe(
+      "Walking most days builds the base.",
+    );
+    expect(proposal.suggestions[1].why!.length).toBeLessThanOrEqual(
+      WHY_MAX_LENGTH,
+    );
+    expect(proposal.suggestions[1].why!.endsWith("...")).toBe(true);
+    expect("why" in proposal.suggestions[2]).toBe(false);
+    expect(proposal.suggestions[2].scheduleSource).toBe("suggested");
+  });
+
+  test("only an explicit stated source is treated as the person's own days", () => {
+    const proposal = createPlanDraft(
+      {
+        personaName: "Walker",
+        personaDescription: "",
+        benchmarks: [
+          { ...step, scheduleSource: "stated" },
+          { ...step, scheduleSource: "guessed" as never },
+          step,
+        ],
+      },
+      true,
+    );
+    expect(proposal.suggestions.map((item) => item.scheduleSource)).toEqual([
+      "stated",
+      "suggested",
+      "suggested",
+    ]);
+  });
+
+  test("a draft saved before 1.7.0 is normalised without losing edits", () => {
+    const saved = draft();
+    const legacy = JSON.parse(JSON.stringify(saved));
+    for (const item of legacy.suggestions) delete item.scheduleSource;
+    legacy.suggestions[0].elementalAction.title = "Walk to the corner";
+    const restored = sanitizeDraft(legacy);
+    expect(restored.suggestions[0].elementalAction.title).toBe(
+      "Walk to the corner",
+    );
+    expect(
+      restored.suggestions.every((item) => item.scheduleSource === "suggested"),
+    ).toBe(true);
+    expect(sanitizeDraft(restored)).toEqual(restored);
+  });
+
+  test("a legacy draft with no steps array is returned untouched", () => {
+    const legacy = { id: "old", usesAI: false } as never;
+    expect(sanitizeDraft(legacy)).toBe(legacy);
+  });
+
+  test("the saved plan does not carry draft-only fields onto the habit", () => {
+    const proposal = createPlanDraft(
+      {
+        personaName: "Walker",
+        personaDescription: "",
+        benchmarks: [{ ...step, why: "It helps.", scheduleSource: "stated" }],
+      },
+      true,
+    );
+    const [action] = approvePlan(proposal).actions;
+    expect(action).not.toHaveProperty("why");
+    expect(action).not.toHaveProperty("scheduleSource");
+  });
+});
+
+describe("inline review button", () => {
+  const coach = (content: string) => ({ role: "assistant", content });
+  const user = (content: string) => ({ role: "user", content });
+
+  test("is not offered before the person has said anything", () => {
+    expect(shouldOfferPlanReview([])).toBe(false);
+    expect(shouldOfferPlanReview([coach("What's your resolution?")])).toBe(
+      false,
+    );
+  });
+
+  test("waits for Coach's reply", () => {
+    expect(
+      shouldOfferPlanReview([coach("Welcome."), user("Get healthier")]),
+    ).toBe(false);
+  });
+
+  test("after one message, a clarifying question holds it back", () => {
+    expect(
+      shouldOfferPlanReview([
+        coach("Welcome."),
+        user("Get healthier"),
+        coach("Is that more about moving or eating?"),
+      ]),
+    ).toBe(false);
+  });
+
+  test("a ready message shows it even when it ends with a question", () => {
+    expect(
+      shouldOfferPlanReview([
+        coach("Welcome."),
+        user("Read one page on Fridays"),
+        coach("Your plan is ready to review below. Sound good?"),
+      ]),
+    ).toBe(true);
+  });
+
+  test("from the second message on it never depends on a question mark", () => {
+    expect(
+      shouldOfferPlanReview([
+        coach("Welcome."),
+        user("Get healthier"),
+        coach("Moving or eating?"),
+        user("Moving"),
+        coach("Three steps: walk, stretch, stairs. Which fits?"),
+      ]),
+    ).toBe(true);
+  });
 });

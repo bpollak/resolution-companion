@@ -20,17 +20,37 @@ import {
   type OnboardingPlanDraft,
   type PlanIssue,
 } from "@/lib/onboarding-plan";
+import {
+  ASK_COACH_TO_CHANGE,
+  CHANGE_DAYS,
+  HIDE_MORE_STEPS,
+  STEP_INCLUDED,
+  STEP_SAVED_FOR_LATER,
+  moreStepsLabel,
+  planReviewIntro,
+  scheduleLabel,
+  startWithHabitsLabel,
+  SELF_SETUP_STARTERS_LABEL,
+} from "@/lib/copy";
+import {
+  isSelfSetupDraft,
+  SELF_SETUP_STARTERS,
+  withStarterResolution,
+} from "@/lib/starter-plan";
 
 export function OnboardingPlanReview({
   draft,
   onChange: changeDraft,
   onApprove,
+  onAskCoach,
   saving,
   error,
 }: {
   draft: OnboardingPlanDraft;
   onChange: (draft: OnboardingPlanDraft) => void;
   onApprove: () => void;
+  /** Returns to the Coach chat; absent for plans made without Coach. */
+  onAskCoach?: () => void;
   saving: boolean;
   error: string | null;
 }) {
@@ -122,6 +142,18 @@ export function OnboardingPlanReview({
       )}
     </Pressable>
   );
+  const selfSetup = isSelfSetupDraft(draft);
+  // On a self-made plan the resolution picks which starter steps are shown,
+  // until the person edits them. Coach-made plans only take the text.
+  const fitStepsTo = (resolution: string) => {
+    const next = withStarterResolution(draft, resolution);
+    if (next.suggestions !== draft.suggestions) setEditing(null);
+    if (
+      next.suggestions !== draft.suggestions ||
+      next.resolution !== draft.resolution
+    )
+      onChange(next);
+  };
   const count = draft.suggestions.filter((item) => item.selected).length;
   const update = (
     index: number,
@@ -154,7 +186,7 @@ export function OnboardingPlanReview({
   const startsToday = firstDay?.dateKey === getLocalDateString(new Date());
   const approveLabel = plannedStart
     ? `Plan it for ${plannedStart.toLocaleDateString("en-US", { month: "long", day: "numeric" })}`
-    : `Start with ${count} habit${count === 1 ? "" : "s"}`;
+    : startWithHabitsLabel(count);
   const optionalCount = draft.suggestions.filter(
     (item) => !item.selected,
   ).length;
@@ -169,8 +201,7 @@ export function OnboardingPlanReview({
         keyboardDismissMode="on-drag"
       >
         <ThemedText style={{ color: theme.textSecondary }}>
-          One habit is enough. Check that this fits your life, then start. You
-          can edit it later in Journey.
+          {planReviewIntro(optionalCount)}
         </ThemedText>
         {draft.resolution !== undefined ? (
           <View style={styles.identity}>
@@ -188,6 +219,9 @@ export function OnboardingPlanReview({
                   style={[inputStyle, styles.editField]}
                   editable={!saving}
                   maxLength={90}
+                  // Applied when typing ends, not per keystroke, so the
+                  // steps below do not change under the person's fingers.
+                  onEndEditing={(event) => fitStepsTo(event.nativeEvent.text)}
                 />
               ) : draft.resolution.trim() ? (
                 <ThemedText style={[styles.identityName, styles.editField]}>
@@ -208,10 +242,51 @@ export function OnboardingPlanReview({
                 editingResolution
                   ? "Done editing resolution"
                   : "Edit resolution",
-                () => setEditingResolution(!editingResolution),
+                () => {
+                  if (editingResolution) fitStepsTo(draft.resolution ?? "");
+                  setEditingResolution(!editingResolution);
+                },
                 editingResolution,
               )}
             </View>
+            {selfSetup && !draft.resolution.trim() && !editingResolution ? (
+              <>
+                <ThemedText style={{ color: theme.textSecondary }}>
+                  {SELF_SETUP_STARTERS_LABEL}
+                </ThemedText>
+                <View
+                  style={styles.starters}
+                  accessibilityLabel="Resolution ideas"
+                >
+                  {SELF_SETUP_STARTERS.map((starter) => (
+                    <Pressable
+                      key={starter}
+                      onPress={() => fitStepsTo(starter)}
+                      disabled={saving}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Use resolution: ${starter}`}
+                      accessibilityState={{ disabled: saving }}
+                      hitSlop={6}
+                      pressRetentionOffset={12}
+                      style={({ pressed }) => [
+                        styles.starter,
+                        {
+                          borderColor: theme.accent,
+                          backgroundColor: theme.backgroundSecondary,
+                          opacity: pressed ? 0.6 : 1,
+                        },
+                      ]}
+                    >
+                      <ThemedText
+                        style={{ color: theme.text, fontWeight: "600" }}
+                      >
+                        {starter}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            ) : null}
           </View>
         ) : null}
         <View style={styles.identity}>
@@ -276,13 +351,20 @@ export function OnboardingPlanReview({
                   color={theme.accent}
                 />
                 <ThemedText style={{ flex: 1 }}>
-                  {item.selected ? "Included in your plan" : "Optional idea"}
+                  {item.selected ? STEP_INCLUDED : STEP_SAVED_FOR_LATER}
                 </ThemedText>
               </Pressable>
               {!item.selected ? (
-                <ThemedText>
-                  {item.elementalAction.title || "Your own habit"}
-                </ThemedText>
+                <>
+                  <ThemedText>
+                    {item.elementalAction.title || "Your own habit"}
+                  </ThemedText>
+                  {item.why ? (
+                    <ThemedText style={{ color: theme.textSecondary }}>
+                      {item.why}
+                    </ThemedText>
+                  ) : null}
+                </>
               ) : editing !== index ? (
                 <View style={styles.summary}>
                   <View style={styles.editRow}>
@@ -295,15 +377,48 @@ export function OnboardingPlanReview({
                       false,
                     )}
                   </View>
-                  <ThemedText style={{ color: theme.textSecondary }}>
-                    {item.elementalAction.frequency.length === 7
-                      ? "Every day"
-                      : item.elementalAction.frequency.length > 0
-                        ? item.elementalAction.frequency
-                            .map((day) => day.slice(0, 3))
-                            .join(" · ")
-                        : "Choose your days"}
-                  </ThemedText>
+                  {item.why ? <ThemedText>{item.why}</ThemedText> : null}
+                  {item.scheduleSource === "suggested" &&
+                  item.elementalAction.frequency.length > 0 ? (
+                    // Days the person never gave are labelled, with the
+                    // way to change them beside the label.
+                    <View style={styles.editRow}>
+                      <ThemedText
+                        style={[
+                          styles.editField,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
+                        {scheduleLabel(
+                          item.elementalAction.frequency,
+                          "suggested",
+                        )}
+                      </ThemedText>
+                      <Pressable
+                        onPress={() => setEditing(index)}
+                        disabled={saving}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Change days for habit ${index + 1}`}
+                        accessibilityState={{ disabled: saving }}
+                        hitSlop={8}
+                        pressRetentionOffset={12}
+                        style={({ pressed }) => [
+                          styles.editIcon,
+                          { opacity: pressed ? 0.5 : 1 },
+                        ]}
+                      >
+                        <ThemedText
+                          style={{ color: theme.accent, fontWeight: "600" }}
+                        >
+                          {CHANGE_DAYS}
+                        </ThemedText>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <ThemedText style={{ color: theme.textSecondary }}>
+                      {scheduleLabel(item.elementalAction.frequency, "stated")}
+                    </ThemedText>
+                  )}
                   <ThemedText style={styles.label}>
                     The 2-minute version
                   </ThemedText>
@@ -360,6 +475,8 @@ export function OnboardingPlanReview({
                           key={day}
                           onPress={() =>
                             update(index, {
+                              // Days the person picks here are their own.
+                              scheduleSource: "stated",
                               elementalAction: {
                                 ...item.elementalAction,
                                 frequency: checked
@@ -451,9 +568,7 @@ export function OnboardingPlanReview({
         )}
         {optionalCount > 0
           ? editButton(
-              showIdeas
-                ? "Hide other ideas"
-                : `See ${optionalCount} other idea${optionalCount === 1 ? "" : "s"}`,
+              showIdeas ? HIDE_MORE_STEPS : moreStepsLabel(optionalCount),
               () => {
                 const opening = !showIdeas;
                 setShowIdeas(opening);
@@ -478,6 +593,8 @@ export function OnboardingPlanReview({
                   {
                     selected: true,
                     title: "Build a steady habit",
+                    // The person picks these days themselves.
+                    scheduleSource: "stated",
                     elementalAction: {
                       title: "",
                       frequency: [],
@@ -503,6 +620,7 @@ export function OnboardingPlanReview({
             </ThemedText>
           </Pressable>
         ) : null}
+        {onAskCoach ? editButton(ASK_COACH_TO_CHANGE, onAskCoach) : null}
         <ThemedText style={{ color: theme.textSecondary }}>
           Your plan starts only when you tap Start. Your draft is saved as you
           go.
@@ -613,6 +731,14 @@ export function OnboardingPlanReview({
 }
 const styles = StyleSheet.create({
   identity: { gap: Spacing.xs },
+  starters: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
+  starter: {
+    minHeight: 40,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    justifyContent: "center",
+  },
   startChoice: { flexDirection: "row", gap: Spacing.sm },
   startOption: {
     flex: 1,

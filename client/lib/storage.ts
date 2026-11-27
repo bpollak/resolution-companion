@@ -17,6 +17,13 @@ import {
   upsertLogIn,
   type DailyLogCompletion,
 } from "@/lib/daily-log";
+import {
+  normalizeNextSteps,
+  planNextStepAdd,
+  withNextStepSaved,
+  type NextStep,
+} from "@/lib/next-steps";
+import { isGenericStarterStep, isSelfSetupDraft } from "@/lib/starter-plan";
 
 const STORAGE_KEYS = {
   HAS_ONBOARDED: "hasOnboarded",
@@ -50,6 +57,11 @@ export interface Persona {
   createdAt: string;
   /** The resolution in the person's own words ("Lose 15 pounds"). */
   resolution?: string;
+  /**
+   * Steps toward the resolution not started yet. Absent on plans saved
+   * before 1.7.0; read through normalizeNextSteps, never directly.
+   */
+  nextSteps?: NextStep[];
 }
 
 export interface Benchmark {
@@ -275,6 +287,16 @@ export const storage = {
       draft,
       prior?.createdAt ?? (planStartInstant(draft) ?? new Date()).toISOString(),
     );
+    // A self-made plan's untouched generic starters ("Move your body
+    // intentionally") are not steps toward this person's resolution, so
+    // they are not kept as next steps. Topic starters and edited ones are.
+    if (isSelfSetupDraft(draft) && plan.persona.nextSteps) {
+      const kept = plan.persona.nextSteps.filter(
+        (step) => !isGenericStarterStep(step.title),
+      );
+      if (kept.length > 0) plan.persona.nextSteps = kept;
+      else delete plan.persona.nextSteps;
+    }
     if (
       personas.some(
         (item) =>
@@ -390,6 +412,97 @@ export const storage = {
 
   async setPersonas(personas: Persona[]): Promise<void> {
     await AsyncStorage.setItem(STORAGE_KEYS.PERSONAS, JSON.stringify(personas));
+  },
+
+  /**
+   * Replaces a plan's next steps. An empty list removes the key, so the
+   * record matches a plan that never had any.
+   */
+  async setPersonaNextSteps(
+    personaId: string,
+    steps: NextStep[],
+  ): Promise<Persona | null> {
+    const personas = await this.getPersonas();
+    const index = personas.findIndex((item) => item.id === personaId);
+    if (index < 0) return null;
+    const { nextSteps: _previous, ...rest } = personas[index];
+    const valid = normalizeNextSteps(steps);
+    const updated: Persona =
+      valid.length > 0 ? { ...rest, nextSteps: valid } : rest;
+    personas[index] = updated;
+    await this.setPersonas(personas);
+    if ((await this.getActivePersonaId()) === personaId) {
+      await AsyncStorage.setItem(STORAGE_KEYS.PERSONA, JSON.stringify(updated));
+    }
+    return updated;
+  },
+
+  /**
+   * Keeps a step on a plan for later. Resolves to the step as stored, which
+   * is the existing one when a step with that title was already saved.
+   */
+  async saveNextStep(
+    personaId: string,
+    step: NextStep,
+  ): Promise<{ persona: Persona; saved: NextStep } | null> {
+    const plan = (await this.getPersonas()).find(
+      (item) => item.id === personaId,
+    );
+    if (!plan) return null;
+    const { steps, saved } = withNextStepSaved(
+      normalizeNextSteps(plan.nextSteps),
+      step,
+    );
+    const persona = await this.setPersonaNextSteps(personaId, steps);
+    return persona ? { persona, saved } : null;
+  },
+
+  /**
+   * Turns a stored next step into a habit. The habit is written before the
+   * step leaves the list, and a habit with the step's title is never written
+   * twice, so a failure between the two writes is repaired by trying again.
+   */
+  async addNextStepToPlan(
+    personaId: string,
+    stepId: string,
+  ): Promise<{
+    ok: boolean;
+    reason?: "habit_limit" | "no_milestone";
+    action?: ElementalAction;
+    persona?: Persona;
+  }> {
+    const plan = (await this.getPersonas()).find(
+      (item) => item.id === personaId,
+    );
+    if (!plan) return { ok: false };
+    const steps = normalizeNextSteps(plan.nextSteps);
+    const [benchmarks, actions] = await Promise.all([
+      this.getBenchmarks(),
+      this.getElementalActions(),
+    ]);
+    const planBenchmarks = benchmarks.filter(
+      (item) => item.personaId === personaId,
+    );
+    const milestoneIds = new Set(planBenchmarks.map((item) => item.id));
+    const decision = planNextStepAdd({
+      steps,
+      stepId,
+      planActions: actions.filter((item) => milestoneIds.has(item.benchmarkId)),
+      planBenchmarks,
+    });
+    if (decision.kind === "missing") return { ok: false };
+    if (decision.kind === "refused")
+      return { ok: false, reason: decision.reason };
+    const action =
+      decision.kind === "create"
+        ? await this.addElementalAction(decision.action, plan.createdAt)
+        : undefined;
+    const persona =
+      (await this.setPersonaNextSteps(
+        personaId,
+        steps.filter((item) => item.id !== stepId),
+      )) ?? undefined;
+    return { ok: true, action, persona };
   },
 
   async addPersona(

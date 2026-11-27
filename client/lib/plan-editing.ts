@@ -1,5 +1,8 @@
 import type { Benchmark, ElementalAction } from "./storage";
 
+/** A plan holds at most this many habits, for everyone. */
+export const HABIT_LIMIT = 5;
+
 export function canDeleteMilestone(
   milestoneId: string,
   milestones: Pick<Benchmark, "id" | "personaId">[],
