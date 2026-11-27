@@ -36,9 +36,10 @@ appId: com.resolutioncompanion.app
     visible: "Edit habit 1"
     timeout: 60000
 - takeScreenshot: 02-plan-summary
-# The habit must be daily. Days read "Every day" when the person stated them
-# and "Suggested: Every day" when the model did not credit them as stated.
-- assertVisible: ".*Every day"
+# The message states the days, so they must be credited as the person's own:
+# exactly "Every day", never "Suggested: Every day".
+- assertVisible: "Every day"
+- assertNotVisible: "Suggested: .*"
 - assertVisible: "Start with 1 habit"
 - tapOn: "Start with 1 habit"
 

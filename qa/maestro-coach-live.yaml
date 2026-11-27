@@ -102,7 +102,9 @@ appId: com.resolutioncompanion.app
     centerElement: true
 - tapOn: "Add this step to my plan"
 - assertNotVisible: "Suggested next step"
+- assertNotVisible: "AI coach: Added to your plan: .*"
 - extendedWaitUntil:
-    visible: "AI coach: Added to your plan: .*"
+    # A note under the card, not a chat message (no session is saved for it).
+    visible: "Added to your plan: .*"
     timeout: 10000
 - tapOn: "Close Coach"
