@@ -31,6 +31,30 @@ describe("onboarding conversation prompt", () => {
     expect(prompt).toMatch(/break the GOAL down into those steps/);
   });
 
+  it("allows one obstacle question after the days, then a ready message with no question", () => {
+    expect(prompt).toContain(
+      "you may ask at most ONE question about what usually gets in the way",
+    );
+    expect(prompt).toContain(
+      "After they answer that question, or skip it, or if you did not ask it, say the plan is ready and end with no question.",
+    );
+    // The older rule that ended the chat as soon as days were known is gone.
+    expect(prompt).not.toContain("As soon as ONE chosen step");
+  });
+
+  it("gives a steps example that fits its own line limit", () => {
+    expect(prompt).toContain(
+      "one short line per step (at most three steps) and then one closing line",
+    );
+    const start = prompt.indexOf('Coach: "A 10-minute walk');
+    const end = prompt.indexOf('Which one fits you?"', start);
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    // Three step lines and one closing line.
+    expect(prompt.slice(start, end).split("\n")).toHaveLength(4);
+    expect(prompt).not.toContain("Here are three steps toward moving more");
+  });
+
   it("keeps one question per reply and one step to start", () => {
     expect(prompt).toContain("Ask at most ONE question per reply");
     expect(prompt).toContain("They start with ONE step");
@@ -137,6 +161,11 @@ describe("Coach sheet prompt pieces", () => {
     );
     expect(COACH_CAPABILITIES).toContain('"Help me add a next step"');
     expect(COACH_CAPABILITIES).toContain("open Journey");
+    expect(COACH_CAPABILITIES).toContain('"Add a next step"');
+    expect(COACH_CAPABILITIES).toContain(
+      "once a habit has seven scheduled days behind it",
+    );
+    expect(COACH_CAPABILITIES).not.toMatch(/week of history/);
     expect(COACH_CAPABILITIES).not.toMatch(/persona|benchmark|—/i);
   });
 });
@@ -165,9 +194,24 @@ describe("one-step proposal prompt", () => {
       'Habits already in my plan: "Walk for 10 minutes".',
     );
     expect(request).toContain("What I asked for: something for evenings");
+    const bare = buildNextStepRequest({ resolution: "", existingHabits: [] });
+    expect(bare).toContain("Suggest one next step I could add.");
+    expect(bare).not.toContain("saved for later");
+  });
+
+  it("names saved next steps as things to avoid proposing again", () => {
     expect(
-      buildNextStepRequest({ resolution: "", existingHabits: [] }),
-    ).toContain("Suggest one next step I could add.");
+      buildNextStepRequest({
+        resolution: "Get healthier",
+        existingHabits: ["Walk for 10 minutes"],
+        savedSteps: ["Stretch for 5 minutes", "Take the stairs"],
+      }),
+    ).toContain(
+      'Steps I already saved for later, so suggest something different: "Stretch for 5 minutes"; "Take the stairs".',
+    );
+    expect(NEXT_STEP_PROMPT).toContain(
+      "from every step they have already saved for later",
+    );
   });
 });
 
