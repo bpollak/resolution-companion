@@ -271,6 +271,18 @@ export const SELF_SETUP_STARTERS = RESOLUTION_STARTERS.filter((chip) =>
   Object.values(STARTER_TOPICS).some((topic) => topic.chip === chip),
 );
 
+const GENERIC_STARTER_TITLES = new Set(
+  STARTER_BENCHMARKS.map((item) => item.elementalAction.title.toLowerCase()),
+);
+
+/**
+ * True for a step that is one of the generic starters, unedited. Those fit
+ * no particular resolution, so they are not kept as next steps.
+ */
+export function isGenericStarterStep(title: string): boolean {
+  return GENERIC_STARTER_TITLES.has(title.trim().toLowerCase());
+}
+
 /** Which topic a chip or a typed resolution is about, if any. */
 export function starterTopicFor(
   resolution: string | undefined,

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
@@ -34,8 +34,19 @@ export function NextStepsCard({
   notice?: { stepId: string; message: string } | null;
 }) {
   const { theme, isDark } = useTheme();
+  // The busy prop arrives a render late; this stops a second tap before it.
+  // Released when the parent's add settles (busyStepId clears).
+  const addLock = useRef<string | null>(null);
+  useEffect(() => {
+    if (!busyStepId) addLock.current = null;
+  }, [busyStepId, steps]);
   if (steps.length === 0) return null;
   const busy = Boolean(busyStepId);
+  const addOnce = (stepId: string) => {
+    if (addLock.current) return;
+    addLock.current = stepId;
+    onAdd(stepId);
+  };
   return (
     <View
       style={[
@@ -84,7 +95,7 @@ export function NextStepsCard({
           ) : null}
           <View style={styles.buttons}>
             <Pressable
-              onPress={() => onAdd(step.id)}
+              onPress={() => addOnce(step.id)}
               disabled={busy}
               accessibilityRole="button"
               accessibilityLabel={`${NEXT_STEP_ADD}: ${step.title}`}

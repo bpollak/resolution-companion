@@ -49,6 +49,7 @@ import {
 import {
   HABIT_LIMIT_MESSAGE,
   NO_MILESTONE_MESSAGE,
+  nextStepErrorMessage,
   type NextStep,
 } from "@/lib/next-steps";
 import { scheduleLabel } from "@/lib/copy";
@@ -88,14 +89,12 @@ const PROMPTS = {
   "reflect-success": "Help me name what made today work.",
 } as const;
 
-// Not a chat prompt: it asks for one proposed habit and shows a preview.
+// Not chat prompts: each asks for one proposed habit and shows a preview.
 const NEXT_STEP_CHIP = "Help me add a next step";
-
-function nextStepErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.name === "AbortError")
-    return "That took too long. Your plan was not changed.";
-  return "Coach could not suggest a step right now. Your plan was not changed.";
-}
+// The same action once a conversation has started, beside the composer.
+const NEXT_STEP_ACTION = "Add a next step";
+const NEXT_STEP_HINT =
+  "Coach suggests one habit. You see it before anything is added.";
 
 function originLabel(origin: CoachEntryOrigin): string {
   if (origin === "journey-discovery") return "Journey discovery";
@@ -166,6 +165,7 @@ export default function CoachSheetScreen() {
     applyPlanAdjustment,
     dismissPlanAdjustment,
     reflections,
+    nextSteps,
     addNextStep,
     saveNextStep,
   } = useApp();
@@ -193,6 +193,8 @@ export default function CoachSheetScreen() {
   const [planError, setPlanError] = useState<string | null>(null);
   const [stepProposal, setStepProposal] = useState<NextStep | null>(null);
   const [stepBusy, setStepBusy] = useState(false);
+  // State alone lets a second tap through before the re-render lands.
+  const stepBusyRef = useRef(false);
   // A quiet confirmation ("saved for later"), unlike planError.
   const [stepNote, setStepNote] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -680,11 +682,14 @@ export default function CoachSheetScreen() {
     setStepProposal(null);
     const controller = new AbortController();
     abortRef.current = controller;
+    // Same wait as a plan adjustment; the abort reads as a timeout below.
+    const timeout = setTimeout(() => controller.abort(), 20_000);
     const outcome = await settle(async () => {
       const step = await proposeNextStep(
         {
           resolution: persona.resolution?.trim() || persona.name,
           existingHabits: actions.map((action) => action.title),
+          savedSteps: nextSteps.map((item) => item.title),
           userMessage: inputText.trim() || undefined,
         },
         controller.signal,
@@ -698,6 +703,7 @@ export default function CoachSheetScreen() {
     if (!outcome.ok && abortRef.current === controller) {
       setPlanError(nextStepErrorMessage(outcome.error));
     }
+    clearTimeout(timeout);
     if (abortRef.current === controller) {
       abortRef.current = null;
       setIsLoading(false);
@@ -707,13 +713,19 @@ export default function CoachSheetScreen() {
   // Saved first, then added through the same path as Journey's Next steps,
   // so a step that cannot be added yet is still kept.
   const applyStep = async () => {
-    if (!stepProposal || stepBusy) return;
+    if (!stepProposal || stepBusyRef.current) return;
     const step = stepProposal;
+    stepBusyRef.current = true;
     setStepBusy(true);
     const outcome = await settle(async () => {
-      await saveNextStep(step);
-      return addNextStep(step.id);
+      // Add by the id of the step as stored: when a step with this title
+      // was already saved, that one is the step in the list.
+      const stored = await saveNextStep(step);
+      return stored
+        ? addNextStep(stored.id)
+        : ({ ok: false } as Awaited<ReturnType<typeof addNextStep>>);
     });
+    stepBusyRef.current = false;
     setStepBusy(false);
     if (!outcome.ok) {
       setPlanError("Couldn’t add that step. Try again.");
@@ -733,24 +745,23 @@ export default function CoachSheetScreen() {
       return;
     }
     track("coach_step_applied");
-    setMessages((previous) => [
-      ...previous,
-      {
-        id: `${Date.now()}-assistant`,
-        role: "assistant",
-        content: `Added to your plan: ${step.title}. The days are a suggestion, so change them in Journey if they do not fit.`,
-      },
-    ]);
+    // A note, not a chat message: closing the sheet must not save a
+    // session the person never said anything in.
+    setStepNote(
+      `Added to your plan: ${step.title}. The days are a suggestion, so change them in Journey if they do not fit.`,
+    );
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
       () => {},
     );
   };
 
   const declineStep = async () => {
-    if (!stepProposal || stepBusy) return;
+    if (!stepProposal || stepBusyRef.current) return;
     const step = stepProposal;
+    stepBusyRef.current = true;
     setStepBusy(true);
     const outcome = await settle(() => saveNextStep(step));
+    stepBusyRef.current = false;
     setStepBusy(false);
     setStepProposal(null);
     setStepNote(
@@ -1032,15 +1043,16 @@ export default function CoachSheetScreen() {
                   disabled={isLoading || isSaving}
                   accessibilityRole="button"
                   accessibilityLabel={NEXT_STEP_CHIP}
-                  accessibilityHint="Coach suggests one habit. You see it before anything is added."
+                  accessibilityHint={NEXT_STEP_HINT}
                   accessibilityState={{ disabled: isLoading || isSaving }}
-                  hitSlop={4}
+                  hitSlop={8}
                   pressRetentionOffset={12}
                   style={({ pressed }) => [
                     styles.chip,
                     {
                       borderColor: theme.accent,
-                      opacity: pressed ? 0.65 : 1,
+                      opacity:
+                        isLoading || isSaving ? 0.45 : pressed ? 0.65 : 1,
                     },
                   ]}
                 >
@@ -1309,11 +1321,14 @@ export default function CoachSheetScreen() {
                     accessibilityRole="button"
                     accessibilityLabel="Not now. Save this step for later."
                     accessibilityState={{ disabled: stepBusy }}
-                    hitSlop={4}
+                    hitSlop={8}
                     pressRetentionOffset={12}
                     style={({ pressed }) => [
                       styles.secondaryButton,
-                      { borderColor: theme.border, opacity: pressed ? 0.6 : 1 },
+                      {
+                        borderColor: theme.border,
+                        opacity: stepBusy ? 0.5 : pressed ? 0.6 : 1,
+                      },
                     ]}
                   >
                     <ThemedText style={styles.secondaryText}>
@@ -1326,7 +1341,7 @@ export default function CoachSheetScreen() {
                     accessibilityRole="button"
                     accessibilityLabel="Add this step to my plan"
                     accessibilityState={{ disabled: stepBusy, busy: stepBusy }}
-                    hitSlop={4}
+                    hitSlop={8}
                     pressRetentionOffset={12}
                     style={({ pressed }) => [
                       styles.applyButton,
@@ -1362,6 +1377,33 @@ export default function CoachSheetScreen() {
               </ThemedText>
             ) : null}
           </ScrollView>
+          {/* Before the conversation starts this is a chip above; after,
+              it stays here so adding a step is always one tap away. */}
+          {messages.length > 0 && !stepProposal ? (
+            <View style={styles.quickActions}>
+              <Pressable
+                onPress={() => requestNextStep()}
+                disabled={isLoading || isSaving}
+                accessibilityRole="button"
+                accessibilityLabel={NEXT_STEP_ACTION}
+                accessibilityHint={NEXT_STEP_HINT}
+                accessibilityState={{ disabled: isLoading || isSaving }}
+                hitSlop={8}
+                pressRetentionOffset={12}
+                style={({ pressed }) => [
+                  styles.quickAction,
+                  {
+                    opacity: isLoading || isSaving ? 0.45 : pressed ? 0.6 : 1,
+                  },
+                ]}
+              >
+                <Feather name="plus" size={15} color={theme.accent} />
+                <ThemedText style={[styles.chipText, { color: theme.accent }]}>
+                  {NEXT_STEP_ACTION}
+                </ThemedText>
+              </Pressable>
+            </View>
+          ) : null}
           <View
             style={[
               styles.composer,
@@ -1469,6 +1511,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
+  },
+  quickActions: {
+    flexDirection: "row",
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: "transparent",
+  },
+  quickAction: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
   },
   chipText: { ...Typography.small, fontWeight: "600", flexShrink: 1 },
   planCard: {

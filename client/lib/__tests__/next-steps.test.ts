@@ -1,7 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  HABIT_LIMIT,
+  DEFAULT_KICKSTART,
   HABIT_LIMIT_MESSAGE,
+  STEP_TIMEOUT_MESSAGE,
+  STEP_UNAVAILABLE_MESSAGE,
+  nextStepErrorMessage,
+  planNextStepAdd,
+  stepLimitError,
   NEXT_STEP_LIMIT,
   canAddNextStep,
   draftStepId,
@@ -14,7 +19,19 @@ import {
   type NextStep,
 } from "@/lib/next-steps";
 import { approvePlan, createPlanDraft } from "@/lib/onboarding-plan";
-import { storage, type Benchmark } from "@/lib/storage";
+import { storage, type Benchmark, type DailyLog } from "@/lib/storage";
+import { HABIT_LIMIT } from "@/lib/plan-editing";
+import {
+  WEEKDAY_ORDER,
+  computeMilestoneProgress,
+  getLocalDateString,
+} from "@/lib/progress";
+import {
+  STARTER_BENCHMARKS,
+  STARTER_TOPICS,
+  createStarterPlanDraft,
+  withStarterResolution,
+} from "@/lib/starter-plan";
 
 jest.mock("@react-native-async-storage/async-storage", () =>
   jest.requireActual(
@@ -200,7 +217,7 @@ describe("canAddNextStep", () => {
       reason: "habit_limit",
     });
     expect(HABIT_LIMIT_MESSAGE).toBe(
-      "Your plan holds five habits. Finish or remove one, then add this.",
+      "Your plan holds five habits. Remove one, then add this.",
     );
   });
 });
@@ -259,9 +276,8 @@ describe("where and how a step is added", () => {
     const habit = nextStepToAction(step(), "milestone-1");
     expect(habit.anchorLink).toBe("At a time that fits");
     expect(habit).not.toHaveProperty("reminderTime");
-    expect(habit.kickstartVersion).toBe(
-      "Do stretch for 5 minutes for 2 minutes",
-    );
+    expect(habit.kickstartVersion).toBe(DEFAULT_KICKSTART);
+    expect(DEFAULT_KICKSTART).toBe("Do the first two minutes of it.");
   });
 });
 
@@ -319,33 +335,307 @@ describe("parseNextStepProposal", () => {
 });
 
 describe("withNextStepSaved", () => {
-  test("adds a step Coach proposed", () => {
-    const saved = withNextStepSaved(
-      [step()],
-      step({ id: "coach-1", title: "Take the stairs", source: "coach" }),
-    );
-    expect(saved.map((item) => item.id)).toEqual(["step-1", "coach-1"]);
+  test("adds a step Coach proposed and returns it as stored", () => {
+    const proposed = step({
+      id: "coach-1",
+      title: "Take the stairs",
+      source: "coach",
+    });
+    const { steps, saved } = withNextStepSaved([step()], proposed);
+    expect(steps.map((item) => item.id)).toEqual(["step-1", "coach-1"]);
+    expect(saved).toEqual(proposed);
   });
 
-  test("does not store the same step twice", () => {
-    expect(
-      withNextStepSaved(
-        [step()],
-        step({ id: "coach-1", title: " stretch for 5 MINUTES " }),
-      ),
-    ).toEqual([step()]);
+  test("on a title match keeps the list and returns the existing step", () => {
+    const existing = step();
+    const { steps, saved } = withNextStepSaved(
+      [existing],
+      step({ id: "coach-1", title: " stretch for 5 MINUTES " }),
+    );
+    expect(steps).toEqual([existing]);
+    expect(saved.id).toBe("step-1");
   });
 
   test("makes room for the newest step at the cap", () => {
     const full = Array.from({ length: NEXT_STEP_LIMIT }, (_, index) =>
       step({ id: `step-${index}`, title: `Step ${index}` }),
     );
-    const saved = withNextStepSaved(
+    const { steps, saved } = withNextStepSaved(
       full,
       step({ id: "newest", title: "Newest" }),
     );
-    expect(saved).toHaveLength(NEXT_STEP_LIMIT);
-    expect(saved.at(-1)?.id).toBe("newest");
-    expect(saved[0].id).toBe("step-1");
+    expect(steps).toHaveLength(NEXT_STEP_LIMIT);
+    expect(steps.at(-1)?.id).toBe("newest");
+    expect(steps[0].id).toBe("step-1");
+    expect(saved.id).toBe("newest");
+  });
+});
+
+describe("planNextStepAdd", () => {
+  const milestone: Benchmark = {
+    id: "m1",
+    personaId: "plan",
+    title: "21 walks",
+    targetDate: null,
+    status: "active",
+    createdAt: "2026-01-01T00:00:00.000Z",
+  };
+  const base = {
+    steps: [step()],
+    stepId: "step-1",
+    planBenchmarks: [milestone],
+  };
+
+  test("creates the habit under the current milestone", () => {
+    const plan = planNextStepAdd({ ...base, planActions: [] });
+    expect(plan).toMatchObject({
+      kind: "create",
+      action: { benchmarkId: "m1", title: "Stretch for 5 minutes" },
+    });
+  });
+
+  test("creates nothing when a habit with that title is already in the plan", () => {
+    expect(
+      planNextStepAdd({
+        ...base,
+        planActions: [{ title: "  stretch for 5 minutes" }],
+      }),
+    ).toEqual({ kind: "already_added" });
+  });
+
+  test("an already added step is tidied even at the habit limit", () => {
+    const five = Array.from({ length: HABIT_LIMIT - 1 }, (_, index) => ({
+      title: `Habit ${index}`,
+    }));
+    expect(
+      planNextStepAdd({
+        ...base,
+        planActions: [...five, { title: "Stretch for 5 minutes" }],
+      }),
+    ).toEqual({ kind: "already_added" });
+  });
+
+  test("refuses at the limit, with no milestone, or for an unknown step", () => {
+    const five = Array.from({ length: HABIT_LIMIT }, (_, index) => ({
+      title: `Habit ${index}`,
+    }));
+    expect(planNextStepAdd({ ...base, planActions: five })).toEqual({
+      kind: "refused",
+      reason: "habit_limit",
+    });
+    expect(
+      planNextStepAdd({ ...base, planActions: [], planBenchmarks: [] }),
+    ).toEqual({ kind: "refused", reason: "no_milestone" });
+    expect(
+      planNextStepAdd({ ...base, planActions: [], stepId: "gone" }),
+    ).toEqual({ kind: "missing" });
+  });
+});
+
+describe("saving and adding a step in storage", () => {
+  const planHabits = async (personaId: string) => {
+    const ids = new Set(
+      (await storage.getBenchmarks())
+        .filter((item) => item.personaId === personaId)
+        .map((item) => item.id),
+    );
+    return (await storage.getElementalActions()).filter((item) =>
+      ids.has(item.benchmarkId),
+    );
+  };
+
+  test("save then add works when Coach proposes a title already saved", async () => {
+    const proposal = draft();
+    await storage.commitOnboardingPlan(proposal);
+    const existing = normalizeNextSteps(
+      (await storage.getActivePersona())!.nextSteps,
+    )[0];
+
+    const proposed = step({
+      id: "coach-dup",
+      title: existing.title.toUpperCase(),
+      source: "coach",
+    });
+    const result = await storage.saveNextStep(proposal.id, proposed);
+    expect(result?.saved.id).toBe(existing.id);
+    expect(normalizeNextSteps(result?.persona.nextSteps)).toHaveLength(2);
+
+    // Adding by the proposal's own id is what used to fail.
+    expect((await storage.addNextStepToPlan(proposal.id, proposed.id)).ok).toBe(
+      false,
+    );
+    const added = await storage.addNextStepToPlan(
+      proposal.id,
+      result!.saved.id,
+    );
+    expect(added.ok).toBe(true);
+    expect(added.action?.title).toBe(existing.title);
+    expect(await planHabits(proposal.id)).toHaveLength(2);
+    expect(
+      normalizeNextSteps(added.persona?.nextSteps).map((item) => item.id),
+    ).not.toContain(existing.id);
+  });
+
+  test("a retry after a half-finished add does not create a second habit", async () => {
+    const proposal = draft();
+    await storage.commitOnboardingPlan(proposal);
+    const target = normalizeNextSteps(
+      (await storage.getActivePersona())!.nextSteps,
+    )[0];
+    const spy = jest
+      .spyOn(storage, "setPersonaNextSteps")
+      .mockRejectedValueOnce(new Error("disk unavailable"));
+    await expect(
+      storage.addNextStepToPlan(proposal.id, target.id),
+    ).rejects.toThrow("disk unavailable");
+    spy.mockRestore();
+    // The habit was written; the step is still listed.
+    expect(await planHabits(proposal.id)).toHaveLength(2);
+
+    const retry = await storage.addNextStepToPlan(proposal.id, target.id);
+    expect(retry).toMatchObject({ ok: true, action: undefined });
+    expect(await planHabits(proposal.id)).toHaveLength(2);
+    expect(
+      normalizeNextSteps(retry.persona?.nextSteps).map((item) => item.id),
+    ).not.toContain(target.id);
+  });
+
+  test("adding the same step twice in a row creates one habit", async () => {
+    const proposal = draft();
+    await storage.commitOnboardingPlan(proposal);
+    const target = normalizeNextSteps(
+      (await storage.getActivePersona())!.nextSteps,
+    )[0];
+    expect((await storage.addNextStepToPlan(proposal.id, target.id)).ok).toBe(
+      true,
+    );
+    expect((await storage.addNextStepToPlan(proposal.id, target.id)).ok).toBe(
+      false,
+    );
+    expect(await planHabits(proposal.id)).toHaveLength(2);
+  });
+
+  test("a milestone at 15 of 21 stays there after a next step is added", async () => {
+    const proposal = draft();
+    proposal.suggestions[0].elementalAction.frequency = [...WEEKDAY_ORDER];
+    await storage.commitOnboardingPlan(proposal);
+    const start = new Date();
+    start.setDate(start.getDate() - 30);
+    const [milestone] = await storage.getBenchmarks();
+    await storage.setBenchmarks([
+      { ...milestone, createdAt: start.toISOString() },
+    ]);
+    const [habit] = await storage.getElementalActions();
+    await storage.setElementalActions([
+      { ...habit, createdAt: start.toISOString() },
+    ]);
+    const logIndex = new Map<string, DailyLog>();
+    for (let back = 1; back <= 15; back++) {
+      const day = new Date();
+      day.setDate(day.getDate() - back);
+      const logDate = getLocalDateString(day);
+      logIndex.set(`${habit.id}|${logDate}`, {
+        id: `log-${back}`,
+        actionId: habit.id,
+        logDate,
+        status: true,
+        createdAt: day.toISOString(),
+      });
+    }
+    const [benchmark] = await storage.getBenchmarks();
+    const before = computeMilestoneProgress(
+      benchmark,
+      await storage.getElementalActions(),
+      logIndex,
+    );
+    expect(before.daysDone).toBe(15);
+
+    const target = normalizeNextSteps(
+      (await storage.getActivePersona())!.nextSteps,
+    )[0];
+    expect((await storage.addNextStepToPlan(proposal.id, target.id)).ok).toBe(
+      true,
+    );
+    const after = computeMilestoneProgress(
+      benchmark,
+      await storage.getElementalActions(),
+      logIndex,
+    );
+    expect(after.actions).toHaveLength(2);
+    expect(after.daysDone).toBe(15);
+    expect(after.target).toBe(21);
+  });
+});
+
+describe("self-made plans keep only steps that fit the resolution", () => {
+  test("generic starter leftovers are not stored as next steps", async () => {
+    const starterDraft = createStarterPlanDraft();
+    await storage.commitOnboardingPlan(starterDraft);
+    expect(await storage.getActivePersona()).not.toHaveProperty("nextSteps");
+    expect(await storage.getElementalActions()).toHaveLength(1);
+  });
+
+  test("topic starters from a chip or typed resolution are stored", async () => {
+    const topicDraft = withStarterResolution(
+      createStarterPlanDraft(),
+      "Read more",
+    );
+    await storage.commitOnboardingPlan(topicDraft);
+    expect(
+      normalizeNextSteps((await storage.getActivePersona())!.nextSteps).map(
+        (item) => item.title,
+      ),
+    ).toEqual(
+      STARTER_TOPICS.reading.benchmarks
+        .slice(1)
+        .map((item) => item.elementalAction.title),
+    );
+  });
+
+  test("a generic starter the person rewrote is kept", async () => {
+    const edited = createStarterPlanDraft();
+    edited.suggestions[1].elementalAction.title = "Call my sister";
+    await storage.commitOnboardingPlan(edited);
+    expect(
+      normalizeNextSteps((await storage.getActivePersona())!.nextSteps).map(
+        (item) => item.title,
+      ),
+    ).toEqual(["Call my sister"]);
+  });
+
+  test("a Coach-made plan keeps its other steps whatever they are called", async () => {
+    const coachDraft = createPlanDraft(
+      {
+        personaName: "Mover",
+        personaDescription: "",
+        benchmarks: STARTER_BENCHMARKS,
+      },
+      true,
+    );
+    await storage.commitOnboardingPlan(coachDraft);
+    expect(
+      normalizeNextSteps((await storage.getActivePersona())!.nextSteps),
+    ).toHaveLength(2);
+  });
+});
+
+describe("step suggestion errors", () => {
+  test("a monthly limit gets its own message, not a retry prompt", () => {
+    expect(nextStepErrorMessage(stepLimitError())).toBe(
+      "You have reached this month's limit for step suggestions. You can still add a habit yourself in Journey.",
+    );
+  });
+
+  test("an aborted wait reads as a timeout", () => {
+    const aborted = new Error("Aborted");
+    aborted.name = "AbortError";
+    expect(nextStepErrorMessage(aborted)).toBe(STEP_TIMEOUT_MESSAGE);
+  });
+
+  test("anything else says the plan was not changed", () => {
+    expect(nextStepErrorMessage(new Error("500"))).toBe(
+      STEP_UNAVAILABLE_MESSAGE,
+    );
+    expect(nextStepErrorMessage("nope")).toBe(STEP_UNAVAILABLE_MESSAGE);
   });
 });

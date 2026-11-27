@@ -934,6 +934,7 @@ export default function JourneyScreen() {
   };
 
   const [nextStepBusy, setNextStepBusy] = useState<string | null>(null);
+  const nextStepBusyRef = useRef(false);
   const [nextStepNotice, setNextStepNotice] = useState<{
     stepId: string;
     message: string;
@@ -941,7 +942,8 @@ export default function JourneyScreen() {
   // A refusal stays under the step it belongs to (a toast would be gone
   // before the person could act on it).
   const handleAddNextStep = (stepId: string) => {
-    if (nextStepBusy) return;
+    if (nextStepBusyRef.current) return;
+    nextStepBusyRef.current = true;
     setNextStepBusy(stepId);
     setNextStepNotice(null);
     const failed = "Couldn’t add that step. Try again.";
@@ -963,7 +965,10 @@ export default function JourneyScreen() {
         });
       })
       .catch(() => setNextStepNotice({ stepId, message: failed }))
-      .then(() => setNextStepBusy(null));
+      .then(() => {
+        nextStepBusyRef.current = false;
+        setNextStepBusy(null);
+      });
   };
   const handleDismissNextStep = (stepId: string) => {
     Haptics.selectionAsync();

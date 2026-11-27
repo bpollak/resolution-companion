@@ -70,14 +70,7 @@ import {
 } from "@/lib/daily-log";
 import { iapService } from "@/lib/iap";
 import { canDeleteMilestone } from "@/lib/plan-editing";
-import {
-  canAddNextStep,
-  milestoneForNextStep,
-  nextStepToAction,
-  normalizeNextSteps,
-  withNextStepSaved,
-  type NextStep,
-} from "@/lib/next-steps";
+import { normalizeNextSteps, type NextStep } from "@/lib/next-steps";
 import {
   createPrivateBackup,
   getPrivateBackupEnabled,
@@ -194,8 +187,11 @@ interface AppContextType {
     stepId: string,
   ) => Promise<{ ok: boolean; reason?: "habit_limit" | "no_milestone" }>;
   dismissNextStep: (stepId: string) => Promise<void>;
-  /** Stores a step on the active plan for later. */
-  saveNextStep: (step: NextStep) => Promise<void>;
+  /**
+   * Stores a step on the active plan for later and resolves to the stored
+   * step: the one already there when its title matches.
+   */
+  saveNextStep: (step: NextStep) => Promise<NextStep | null>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -652,7 +648,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       storage.getBenchmarks(),
     ]);
     if (!canDeleteMilestone(id, currentBenchmarks, currentActions)) {
-      throw new Error("Keep at least one action in this persona.");
+      throw new Error("Keep at least one habit in this plan.");
     }
     const actionIdsToDelete = currentActions
       .filter((a) => a.benchmarkId === id)
@@ -1429,60 +1425,59 @@ export function AppProvider({ children }: { children: ReactNode }) {
       prev.map((item) => (item.id === updated.id ? updated : item)),
     );
   }, []);
-  // These read the plan from storage rather than the closure, so they stay
+  // These go through storage rather than the closure, so they stay
   // dependency-free and a save followed at once by an add sees the save.
+  // Concurrent adds of one step (a double tap) share a single run.
+  const nextStepAddsInFlight = useRef(
+    new Map<
+      string,
+      Promise<{ ok: boolean; reason?: "habit_limit" | "no_milestone" }>
+    >(),
+  );
   const addNextStep = useCallback(
-    async (
+    (
       stepId: string,
     ): Promise<{ ok: boolean; reason?: "habit_limit" | "no_milestone" }> => {
-      const plan = await storage.getActivePersona();
-      if (!plan) return { ok: false };
-      const steps = normalizeNextSteps(plan.nextSteps);
-      const step = steps.find((item) => item.id === stepId);
-      if (!step) return { ok: false };
-      const [allBenchmarks, allActions] = await Promise.all([
-        storage.getBenchmarks(),
-        storage.getElementalActions(),
-      ]);
-      const planBenchmarks = allBenchmarks.filter(
-        (item) => item.personaId === plan.id,
-      );
-      const milestoneIds = new Set(planBenchmarks.map((item) => item.id));
-      const planActions = allActions.filter((item) =>
-        milestoneIds.has(item.benchmarkId),
-      );
-      const allowed = canAddNextStep(planActions.length);
-      if (!allowed.ok) return allowed;
-      const milestone = milestoneForNextStep(planBenchmarks);
-      if (!milestone) return { ok: false, reason: "no_milestone" };
-      const newAction = await storage.addElementalAction(
-        nextStepToAction(step, milestone.id),
-        plan.createdAt,
-      );
-      setActionsState((prev) => [...prev, newAction]);
-      applyPersonaUpdate(
-        await storage.setPersonaNextSteps(
-          plan.id,
-          steps.filter((item) => item.id !== stepId),
-        ),
-      );
-      track("next_step_added");
-      // Same refresh a foreground does, so the new habit's reminder does not
-      // wait for the next app open. A no-op while reminders are off.
-      const current = reminderStateRef.current;
-      const nextActions = [...planActions, newAction];
-      ensureReminderScheduled({
-        streakCount: computeStreak(nextActions, current.dailyLogs).current,
-        missedRun: computeLapse(nextActions, current.dailyLogs).missedDays,
-        personaName: plan.name,
-        monthlyConsistency: current.personaAlignment,
-        actions: nextActions,
-        dailyLogs: current.dailyLogs,
-        milestoneTitles: current.milestoneTitles,
-      }).catch(() => {});
-      return { ok: true };
+      const running = nextStepAddsInFlight.current.get(stepId);
+      if (running) return running;
+      const run = (async () => {
+        const plan = await storage.getActivePersona();
+        if (!plan) return { ok: false };
+        const result = await storage.addNextStepToPlan(plan.id, stepId);
+        if (!result.ok) return { ok: false, reason: result.reason };
+        applyPersonaUpdate(result.persona ?? null);
+        const newAction = result.action;
+        if (!newAction) {
+          // The habit was already written by an earlier attempt.
+          await refreshData();
+          return { ok: true };
+        }
+        setActionsState((prev) => [...prev, newAction]);
+        track("next_step_added");
+        // Same refresh a foreground does, so the new habit's reminder does
+        // not wait for the next app open. A no-op while reminders are off.
+        const current = reminderStateRef.current;
+        const nextActions = [...current.actions, newAction];
+        ensureReminderScheduled({
+          streakCount: computeStreak(nextActions, current.dailyLogs).current,
+          missedRun: computeLapse(nextActions, current.dailyLogs).missedDays,
+          personaName: plan.name,
+          monthlyConsistency: current.personaAlignment,
+          actions: nextActions,
+          dailyLogs: current.dailyLogs,
+          milestoneTitles: current.milestoneTitles,
+        }).catch(() => {});
+        return { ok: true };
+      })();
+      nextStepAddsInFlight.current.set(stepId, run);
+      const clear = () => {
+        if (nextStepAddsInFlight.current.get(stepId) === run)
+          nextStepAddsInFlight.current.delete(stepId);
+      };
+      run.then(clear, clear);
+      return run;
     },
-    [applyPersonaUpdate],
+    [applyPersonaUpdate, refreshData],
   );
   const dismissNextStep = useCallback(
     async (stepId: string) => {
@@ -1500,17 +1495,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     [applyPersonaUpdate],
   );
-  /** Keeps a step Coach proposed so "Not now" does not lose it. */
+  /**
+   * Keeps a step Coach proposed so "Not now" does not lose it. Resolves to
+   * the step as stored (the earlier one when its title was already saved).
+   */
   const saveNextStep = useCallback(
-    async (step: NextStep) => {
+    async (step: NextStep): Promise<NextStep | null> => {
       const plan = await storage.getActivePersona();
-      if (!plan) return;
-      applyPersonaUpdate(
-        await storage.setPersonaNextSteps(
-          plan.id,
-          withNextStepSaved(normalizeNextSteps(plan.nextSteps), step),
-        ),
-      );
+      if (!plan) return null;
+      const result = await storage.saveNextStep(plan.id, step);
+      if (!result) return null;
+      applyPersonaUpdate(result.persona);
+      return result.saved;
     },
     [applyPersonaUpdate],
   );

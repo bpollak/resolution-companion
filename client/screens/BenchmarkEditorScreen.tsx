@@ -24,11 +24,10 @@ import {
 } from "@/lib/progress";
 import { logger } from "@/lib/logger";
 import { withAlpha } from "@/lib/color";
-import { canDeleteMilestone } from "@/lib/plan-editing";
+import { canDeleteMilestone, HABIT_LIMIT } from "@/lib/plan-editing";
 import { MILESTONE_HINT, MILESTONE_PLACEHOLDER } from "@/lib/copy";
 
 const MIN_ACTIONS_PER_PERSONA = 1;
-const MAX_ACTIONS_PER_PERSONA = 5;
 
 /** Relative presets keep the picker dependency-free and the tone gentle. */
 const TARGET_PRESETS: { key: string; label: string; addDays: number }[] = [
@@ -90,7 +89,7 @@ export default function BenchmarkEditorScreen() {
   ).length;
   const canDeleteBenchmark =
     !!benchmarkId && canDeleteMilestone(benchmarkId, benchmarks, actions);
-  const canAddAction = personaActionsCount < MAX_ACTIONS_PER_PERSONA;
+  const canAddAction = personaActionsCount < HABIT_LIMIT;
 
   React.useEffect(() => {
     if (
@@ -221,12 +220,12 @@ export default function BenchmarkEditorScreen() {
     if (!canAddAction) {
       if (Platform.OS === "web") {
         window.alert(
-          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} habits per plan.`,
+          `You can have a maximum of ${HABIT_LIMIT} habits per plan.`,
         );
       } else {
         Alert.alert(
           "Action Limit Reached",
-          `You can have a maximum of ${MAX_ACTIONS_PER_PERSONA} habits per plan.`,
+          `You can have a maximum of ${HABIT_LIMIT} habits per plan.`,
         );
       }
       return;
@@ -446,7 +445,7 @@ export default function BenchmarkEditorScreen() {
               <ThemedText
                 style={[styles.sectionLabel, { color: theme.textSecondary }]}
               >
-                Actions ({personaActionsCount}/{MAX_ACTIONS_PER_PERSONA})
+                Actions ({personaActionsCount}/{HABIT_LIMIT})
               </ThemedText>
               <Pressable
                 onPress={handleAddAction}

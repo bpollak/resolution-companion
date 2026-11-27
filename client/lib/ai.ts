@@ -14,7 +14,11 @@ import {
   coachFirstMessageInstruction,
   getOnboardingSystemPrompt,
 } from "@/lib/ai-prompts";
-import { parseNextStepProposal, type NextStep } from "@/lib/next-steps";
+import {
+  parseNextStepProposal,
+  stepLimitError,
+  type NextStep,
+} from "@/lib/next-steps";
 
 // The server keys its monthly AI usage quotas on this header; without it,
 // requests fall back to a shared per-IP bucket.
@@ -332,6 +336,7 @@ export async function proposeNextStep(
   context: {
     resolution: string;
     existingHabits: string[];
+    savedSteps?: string[];
     userMessage?: string;
   },
   signal?: AbortSignal,
@@ -346,10 +351,13 @@ export async function proposeNextStep(
       body: JSON.stringify({
         messages: [{ role: "user", content: buildNextStepRequest(context) }],
         extractionPrompt: NEXT_STEP_PROMPT,
+        // Counted on its own monthly quota, apart from plan extraction.
+        purpose: "next-step",
       }),
     },
     PLAN_EXTRACTION_TIMEOUT_MS,
   );
+  if (response.status === 429) throw stepLimitError();
   if (!response.ok) throw new Error("Coach could not suggest a step.");
   return parseNextStepProposal(await response.json());
 }
