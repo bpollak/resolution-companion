@@ -3,8 +3,10 @@ import * as Device from "expo-device";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getLocalDateString, weekdayName } from "@/lib/progress";
+import { isScheduledOn } from "@/lib/schedule-history";
 import { logger } from "@/lib/logger";
 import type { DailyLog, ElementalAction } from "@/lib/storage";
+import type { NotificationPermissionState } from "@/lib/reminder-switch";
 import {
   PENDING_NOTIFICATION_BUDGET,
   fitToBudget,
@@ -202,7 +204,7 @@ export function selectMarkAllDoneActions(
   return actions.filter(
     (action) =>
       (intended.size === 0 || intended.has(action.id)) &&
-      action.frequency.includes(weekday) &&
+      isScheduledOn(action, dateKey, weekday) &&
       getLocalDateString(new Date(action.createdAt)) <= dateKey,
   );
 }
@@ -411,7 +413,7 @@ export function getRemainingReminderActions(
   return actions.filter(
     (action) =>
       getLocalDateString(new Date(action.createdAt)) <= dateKey &&
-      action.frequency.includes(weekday) &&
+      isScheduledOn(action, dateKey, weekday) &&
       !completed.has(action.id),
   );
 }
@@ -934,6 +936,30 @@ export async function cancelDailyReminder(): Promise<void> {
   }
 }
 
+/**
+ * "Clear All Data": nothing this app scheduled may fire afterwards, and
+ * reminders already on the lock screen (which name habits) are removed.
+ * Turns the flag off first so a refresh queued behind this cannot bring
+ * the plan back before storage is cleared.
+ */
+export async function cancelAllScheduledNotifications(): Promise<void> {
+  if (Platform.OS === "web") {
+    return;
+  }
+
+  try {
+    await withReminderLock(async () => {
+      await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, "false");
+      await AsyncStorage.removeItem(REMINDER_MODE_KEY);
+      await cancelScheduled();
+      await Notifications.cancelAllScheduledNotificationsAsync();
+      await Notifications.dismissAllNotificationsAsync();
+    });
+  } catch (error) {
+    logger.error("Failed to cancel all notifications:", error);
+  }
+}
+
 const REMINDER_PRIMER_KEY = "reminder_primer_answer";
 
 export type ReminderPrimerState =
@@ -1154,6 +1180,45 @@ export async function areNotificationsEnabled(): Promise<boolean> {
     return enabled === "true";
   } catch {
     return false;
+  }
+}
+
+/**
+ * The system's answer, three ways. "denied" means the app can no longer
+ * ask and only the Settings app can turn reminders on; a failed lookup is
+ * "undetermined", never "denied", so nobody is sent to Settings by mistake.
+ */
+export async function getNotificationPermissionState(): Promise<NotificationPermissionState> {
+  if (Platform.OS === "web") {
+    return "undetermined";
+  }
+
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    return status === "granted"
+      ? "granted"
+      : status === "denied"
+        ? "denied"
+        : "undetermined";
+  } catch {
+    return "undetermined";
+  }
+}
+
+/**
+ * Cancels pending reminders without touching the person's preference, for
+ * when the plan they describe is gone (the only plan was deleted). A new
+ * plan schedules again on its own.
+ */
+export async function clearScheduledReminders(): Promise<void> {
+  if (Platform.OS === "web") {
+    return;
+  }
+
+  try {
+    await withReminderLock(() => cancelScheduled());
+  } catch (error) {
+    logger.error("Failed to clear scheduled reminders:", error);
   }
 }
 

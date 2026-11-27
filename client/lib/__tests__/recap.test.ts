@@ -9,6 +9,7 @@ import {
   getMonthKey,
   getPreviousMonthKey,
 } from "@/lib/recap";
+import { withFrequencyChange } from "@/lib/schedule-history";
 import type { ElementalAction, DailyLog, Persona } from "@/lib/storage";
 
 const persona: Persona = {
@@ -229,5 +230,39 @@ describe("buildYearRecap", () => {
     );
     expect(recap.votesCast).toBe(0);
     expect(recap.closingLine).toContain("still open");
+  });
+});
+
+describe("schedule history in recaps", () => {
+  it("removing a weekday keeps that weekday's past completions in the month", () => {
+    // June 2026 Mondays: 1, 8, 15, 22, 29. Tuesdays: 2, 9, 16, 23, 30.
+    const before = action("a", ["Monday", "Tuesday"]);
+    const dates = [
+      "2026-06-01",
+      "2026-06-02",
+      "2026-06-08",
+      "2026-06-09",
+      "2026-06-15",
+      "2026-06-16",
+    ];
+    const logs = dates.map((date) => log("a", date));
+    const baseline = buildMonthRecap([before], logs, persona, "2026-06", TODAY);
+    expect(baseline.votesCast).toBe(6);
+
+    const after = withFrequencyChange(before, ["Monday"], "2026-07-10");
+    const recap = buildMonthRecap([after], logs, persona, "2026-06", TODAY);
+    expect(recap).toEqual(baseline);
+  });
+
+  it("adding a weekday does not add missed days to an earlier month", () => {
+    const before = action("a", ["Monday"]);
+    const logs = ["2026-06-01", "2026-06-08", "2026-06-15", "2026-06-22"].map(
+      (date) => log("a", date),
+    );
+    const baseline = buildMonthRecap([before], logs, persona, "2026-06", TODAY);
+    const after = withFrequencyChange(before, ALL_DAYS, "2026-07-10");
+    expect(buildMonthRecap([after], logs, persona, "2026-06", TODAY)).toEqual(
+      baseline,
+    );
   });
 });

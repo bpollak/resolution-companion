@@ -55,7 +55,10 @@ export function getMonthProgressDisplay({
   planStartedAt,
   now = new Date(),
 }: {
-  actions: Pick<ElementalAction, "id" | "frequency" | "createdAt">[];
+  actions: Pick<
+    ElementalAction,
+    "id" | "frequency" | "createdAt" | "frequencyHistory"
+  >[];
   logIndex: Map<string, DailyLog>;
   planStartedAt?: string | null;
   now?: Date;

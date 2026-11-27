@@ -4,6 +4,7 @@ import type {
   ElementalAction,
 } from "@/lib/storage";
 import { getLocalDateString, weekdayName } from "@/lib/progress";
+import { isScheduledOn } from "@/lib/schedule-history";
 
 export type ActionRhythmCategory =
   | "working-well"
@@ -64,7 +65,7 @@ export function categorizeActionRhythms(
     while (cursor <= end) {
       const dateKey = getLocalDateString(cursor);
       const weekday = weekdayName(cursor);
-      if (dateKey >= created && action.frequency.includes(weekday)) {
+      if (dateKey >= created && isScheduledOn(action, dateKey, weekday)) {
         scheduled += 1;
         if (index.get(`${action.id}|${dateKey}`)?.status) completed += 1;
       }

@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import type { DailyLog, ElementalAction, Reflection } from "@/lib/storage";
 import { getLocalDateString, weekdayName } from "@/lib/progress";
+import { isScheduledOn } from "@/lib/schedule-history";
 
 // One-time free taste of coach memory: memory sells itself by demonstration,
 // not description. Set once a session has actually started with it in play.
@@ -124,7 +125,7 @@ export function buildCoachActionContext(
         const weekday = weekdayName(cursor);
         if (
           dateKey >= createdKey &&
-          action.frequency.includes(weekday) &&
+          isScheduledOn(action, dateKey, weekday) &&
           dateKey !== getLocalDateString(end)
         ) {
           scheduled++;

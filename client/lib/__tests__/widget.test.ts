@@ -256,6 +256,61 @@ describe("buildWidgetData", () => {
     ).toEqual([]);
   });
 
+  it("covers the first seven days of a plan that starts more than a week out", () => {
+    // Saved Dec 10 for a Jan 1 start. Seven days from today ends Dec 16, so
+    // the widget had no plan for January 1 and asked to be opened.
+    const start = new Date(2027, 0, 1).toISOString();
+    const data = buildWidgetData(
+      [
+        action("fri", ["Friday"], { createdAt: start }),
+        action("thu", ["Thursday"], { createdAt: start }),
+      ],
+      [],
+      { ...persona, createdAt: start },
+      new Date("2026-12-10T20:00:00"),
+      { streak: 0, shieldUsed: false },
+    );
+    const dates = data.dayPlans.map((day) => day.date);
+    expect(dates[0]).toBe("2026-12-10");
+    expect(dates[dates.length - 1]).toBe("2027-01-07");
+    // Contiguous, so the widget can tell a rest day from an unknown day
+    expect(dates).toHaveLength(29);
+    expect(new Set(dates).size).toBe(29);
+    expect(
+      data.dayPlans.find((day) => day.date === "2027-01-01")?.actions,
+    ).toMatchObject([{ id: "fri" }]);
+    expect(
+      data.dayPlans.find((day) => day.date === "2027-01-07")?.actions,
+    ).toMatchObject([{ id: "thu" }]);
+    // Nothing is scheduled before the plan starts
+    expect(
+      data.dayPlans
+        .filter((day) => day.date < "2027-01-01")
+        .every((day) => day.actions.length === 0),
+    ).toBe(true);
+  });
+
+  it("keeps seven days for a plan that has already started", () => {
+    const data = buildWidgetData(
+      [action("thu", ["Thursday"])],
+      [],
+      { ...persona, createdAt: "2026-07-14T09:00:00" },
+      THURSDAY,
+    );
+    expect(data.dayPlans).toHaveLength(7);
+  });
+
+  it("does not write an unbounded plan for a far-off or bad start date", () => {
+    const start = new Date(2030, 0, 1).toISOString();
+    const data = buildWidgetData(
+      [action("a", ["Friday"], { createdAt: start })],
+      [],
+      { ...persona, createdAt: start },
+      THURSDAY,
+    );
+    expect(data.dayPlans).toHaveLength(7);
+  });
+
   it("omits the plan start when the persona date cannot be parsed", () => {
     const data = buildWidgetData(
       [action("a", ["Thursday"])],
