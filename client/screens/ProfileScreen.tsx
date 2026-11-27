@@ -15,6 +15,7 @@ import {
   Platform,
   Switch,
   Linking,
+  AppState,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -51,7 +52,7 @@ import {
   scheduleDailyReminder,
   cancelDailyReminder,
   areNotificationsEnabled,
-  getNotificationPermissionStatus,
+  getNotificationPermissionState,
   getResolvedReminderTime,
   setUserReminderBucket,
   REMINDER_BUCKETS,
@@ -59,6 +60,11 @@ import {
   ResolvedReminderTime,
 } from "@/lib/notifications";
 import { computeStreak } from "@/lib/progress";
+import {
+  reminderSwitchDisplay,
+  type NotificationPermissionState,
+} from "@/lib/reminder-switch";
+import { planDeletionPrompt } from "@/lib/plan-editing";
 import { WRITE_REVIEW_URL } from "@/lib/review-ask";
 import { logger } from "@/lib/logger";
 import { getProfileSubscriptionCopy } from "@/lib/subscription";
@@ -287,7 +293,14 @@ export default function ProfileScreen() {
   } = useApp();
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-  const [hasPermission, setHasPermission] = useState(false);
+  const [permission, setPermission] =
+    useState<NotificationPermissionState>("undetermined");
+  // The stored flag is only the wish; with permission denied nothing fires,
+  // so the switch shows off and points to Settings.
+  const reminderSwitch = reminderSwitchDisplay({
+    enabled: notificationsEnabled,
+    permission,
+  });
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [reminderTime, setReminderTime] = useState<ResolvedReminderTime | null>(
     null,
@@ -469,16 +482,21 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     const checkNotificationStatus = async () => {
-      const [enabled, permission, resolvedTime] = await Promise.all([
+      const [enabled, permissionState, resolvedTime] = await Promise.all([
         areNotificationsEnabled(),
-        getNotificationPermissionStatus(),
+        getNotificationPermissionState(),
         getResolvedReminderTime(),
       ]);
       setNotificationsEnabled(enabled);
-      setHasPermission(permission);
+      setPermission(permissionState);
       setReminderTime(resolvedTime);
     };
     checkNotificationStatus();
+    // Permission changes in the Settings app while this screen stays open
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") checkNotificationStatus();
+    });
+    return () => subscription.remove();
   }, []);
 
   const handleSelectReminderBucket = async (bucket: ReminderBucket) => {
@@ -499,8 +517,9 @@ export default function ProfileScreen() {
 
     if (value) {
       const resolved = await getResolvedReminderTime();
-      // Give the user context before the OS permission prompt appears
-      if (!hasPermission) {
+      // Give the user context before the OS permission prompt appears.
+      // Once denied the OS will not ask again, so skip straight to Settings.
+      if (permission === "undetermined") {
         const proceed = await new Promise<boolean>((resolve) => {
           Alert.alert(
             "Daily Reminders",
@@ -529,11 +548,11 @@ export default function ProfileScreen() {
           actions: planActions,
         });
         setNotificationsEnabled(true);
-        setHasPermission(true);
+        setPermission("granted");
         setReminderTime(await getResolvedReminderTime());
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
-        setHasPermission(false);
+        setPermission(await getNotificationPermissionState());
         Alert.alert(
           "Permission Required",
           "Please enable notifications in your device settings to receive daily reminders.",
@@ -589,40 +608,25 @@ export default function ProfileScreen() {
     }
   };
 
+  // The only plan can be deleted too (free stays at one plan at a time, so
+  // this is how a free person starts over); it leaves the empty Today state.
   const handleDeletePersona = (id: string, name: string) => {
-    if (personas.length <= 1) {
-      if (Platform.OS === "web") {
-        window.alert(
-          "You need at least one plan. Create a new one before deleting this one.",
-        );
-      } else {
-        Alert.alert(
-          "Cannot Delete",
-          "You need at least one plan. Create a new one before deleting this one.",
-        );
-      }
-      return;
-    }
-
-    showAlert(
-      "Delete plan",
-      `Delete "${name}"? This also removes its milestones, habits, and history.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            await deletePersona(id);
-            if (Platform.OS !== "web") {
-              Haptics.notificationAsync(
-                Haptics.NotificationFeedbackType.Warning,
-              );
-            }
-          },
+    const isOnlyPlan = personas.length <= 1;
+    const prompt = planDeletionPrompt({ name, isOnlyPlan });
+    showAlert(prompt.title, prompt.message, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: prompt.confirmLabel,
+        style: "destructive",
+        onPress: async () => {
+          await deletePersona(id);
+          if (Platform.OS !== "web") {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          }
+          if (isOnlyPlan && navigation.canGoBack()) navigation.goBack();
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const handleClearData = () => {
@@ -873,7 +877,8 @@ export default function ProfileScreen() {
                       </View>
                       {isActive ? (
                         <Feather name="check" size={20} color={theme.accent} />
-                      ) : (
+                      ) : null}
+                      {!isActive || personas.length === 1 ? (
                         <Pressable
                           onPress={() => handleDeletePersona(p.id, p.name)}
                           hitSlop={14}
@@ -890,7 +895,7 @@ export default function ProfileScreen() {
                             color={theme.textSecondary}
                           />
                         </Pressable>
-                      )}
+                      ) : null}
                     </Pressable>
                   );
                 })}
@@ -941,9 +946,11 @@ export default function ProfileScreen() {
               subtitle={
                 Platform.OS === "web"
                   ? "Available on mobile"
-                  : notificationsEnabled
+                  : reminderSwitch.on
                     ? `On${reminderTime ? ` · ${reminderTime.label}` : ""}`
-                    : "Off"
+                    : reminderSwitch.hint
+                      ? `Off · ${reminderSwitch.hint}`
+                      : "Off"
               }
               onPress={() => setActivePanel("reminders")}
             />
@@ -1195,36 +1202,39 @@ export default function ProfileScreen() {
               >
                 {Platform.OS === "web"
                   ? "Available on mobile"
-                  : notificationsEnabled && reminderTime
+                  : reminderSwitch.on && reminderTime
                     ? `Personalized reminder at ${reminderTime.label}${
                         reminderTime.source === "routine"
                           ? ", based on your routine"
                           : ""
                       } · quiet once your day is done`
-                    : notificationsEnabled
+                    : reminderSwitch.on
                       ? "On"
-                      : "Off"}
+                      : reminderSwitch.hint
+                        ? `Off · ${reminderSwitch.hint}`
+                        : "Off"}
               </ThemedText>
             </View>
             <Switch
-              value={notificationsEnabled}
+              value={reminderSwitch.on}
               onValueChange={handleToggleNotifications}
               accessibilityRole="switch"
               accessibilityLabel="Daily reminders"
+              accessibilityHint={reminderSwitch.hint ?? undefined}
               accessibilityState={{
-                checked: notificationsEnabled,
+                checked: reminderSwitch.on,
                 disabled: Platform.OS === "web",
               }}
               trackColor={{
                 false: theme.backgroundSecondary,
                 true: theme.accent,
               }}
-              thumbColor={notificationsEnabled ? "#FFFFFF" : "#FFFFFF"}
+              thumbColor="#FFFFFF"
               disabled={Platform.OS === "web"}
             />
           </View>
 
-          {notificationsEnabled && Platform.OS !== "web" ? (
+          {reminderSwitch.on && Platform.OS !== "web" ? (
             <View
               style={[
                 styles.bucketRow,

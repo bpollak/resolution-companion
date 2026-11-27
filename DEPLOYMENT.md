@@ -22,6 +22,7 @@ Deploy the Express server (Dockerfile in repo root) and point
 | `AI_INTEGRATIONS_OPENAI_API_KEY`           | yes                | OpenAI key for chat/onboarding/reflection                                                                                                                                          |
 | `AI_MODEL`                                | no                 | Defaults to `gpt-6.1-terra`. Overrides must support Chat Completions, `reasoning_effort: low`, streaming, JSON object and strict JSON schema output. Update the privacy model disclosure with any override. |
 | `AI_INTEGRATIONS_OPENAI_BASE_URL`          | no                 | Optional OpenAI-compatible base URL                                                                                                                                                |
+| `AI_DAILY_REQUEST_CAP`                     | no                 | Daily AI budget breaker: total AI requests allowed per UTC day across all devices. Defaults to `20000`. See "Daily AI budget breaker" below.                                       |
 | `APPLE_ISSUER_ID`                          | yes (iOS)          | App Store Connect > Users and Access > Integrations > In-App Purchase keys                                                                                                         |
 | `APPLE_KEY_ID`                             | yes (iOS)          | Key ID of the In-App Purchase key                                                                                                                                                  |
 | `APPLE_PRIVATE_KEY`                        | yes (iOS)          | Contents of the .p8 key (newlines may be escaped as `\n`)                                                                                                                          |
@@ -63,7 +64,44 @@ them if they exist. All app data lives on-device.)
 The OpenAI-backed endpoints enforce server-side monthly quotas per device
 (free: 150 chat / 150 reflection / 20 extract requests; premium devices get
 10×). These are abuse ceilings above legitimate use — the user-visible free
-tier (10 check-ins/month) is still enforced in the client.
+tier (10 check-ins/month) is still enforced in the client. A request is
+charged only after its body passes validation, and the charge is returned when
+the provider call fails before any text reaches the client. A reply that
+arrived but was empty, cut off, or invalid is still charged, as is a request
+the client abandoned. Deleting a device's data deletes these counters too, as
+the privacy policy promises.
+
+### Daily AI budget breaker
+
+The per-device quotas do not bound the total. When the sum of today's
+`requests` in `ai_usage_daily` (UTC day, all endpoints and models) reaches
+`AI_DAILY_REQUEST_CAP` (default `20000`), every AI route (`/api/chat`,
+`/api/extract-persona`, `/api/reflection`, `/api/milestone-proposal`,
+`/api/plan-tune-up`) answers `503` with a `Retry-After` header (seconds until
+midnight UTC) and the message "Coaching is at capacity right now. Please try
+again later." Nothing else is affected: purchases, restore, telemetry, and the
+website keep working.
+
+- The total is read at most once every 30 seconds and held in memory, so the
+  breaker adds no database round trip to a normal request and can run up to 30
+  seconds of traffic past the cap before it trips.
+- If the count query fails, the breaker logs "AI budget check error" and lets
+  requests through (the last total read today still applies).
+- It resets on its own at midnight UTC. To reopen sooner, raise
+  `AI_DAILY_REQUEST_CAP` in Railway; the new value applies after the redeploy
+  that Railway runs for a variable change. An unset, non-numeric, zero, or
+  negative value means the default.
+- To see how close a day is, call `GET /api/telemetry/ai-usage?since=YYYY-MM-DD`
+  with the admin key and add up `requests` for the day.
+
+### Database and shutdown behavior
+
+The Postgres pool gives up on a connection after 5 seconds and sets a
+10 second statement timeout. Idle connection errors and unhandled promise
+rejections are logged and do not stop the server. On `SIGTERM` the server
+stops accepting connections, lets in-flight requests finish (up to 10
+seconds), closes the pool, and exits. Rows in `rate_limit_windows` older than
+one day are deleted in passing, at most once a minute.
 
 ## 2. App builds (EAS)
 
@@ -125,6 +163,15 @@ before running submit.
      `https://resolutioncompanion.com/terms`.
 5. App Store Server Notifications (V2):
    `https://resolutioncompanion.com/api/webhooks/apple`
+   The endpoint answers 403 for a payload whose signature does not verify,
+   503 when no database is configured, and 500 when a verified notification
+   could not be applied, so Apple retries instead of dropping the change. A
+   notification for an earlier period than the one stored is acknowledged
+   and ignored (REVOKE always applies). The stale check assumes the Billing
+   Grace Period is 16 days: if that setting is lengthened in App Store
+   Connect, update `APPLE_BILLING_GRACE_PERIOD_MS` in
+   `server/iap-validation.ts`, or GRACE_PERIOD_EXPIRED will be ignored and
+   access will end by date alone.
 6. Review notes: mention that no account/login is required, and that premium
    can be tested with a sandbox Apple account.
 

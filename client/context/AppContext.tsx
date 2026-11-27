@@ -31,6 +31,8 @@ import {
   ProgressSnapshot,
 } from "@/lib/progress";
 import {
+  cancelAllScheduledNotifications,
+  clearScheduledReminders,
   ensureReminderScheduled,
   enableDefaultPersonalizedReminders,
   getReminderPrimerState,
@@ -49,11 +51,14 @@ import { track, flushTelemetry } from "@/lib/telemetry";
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { syncWidgetData, consumePendingVotes } from "@/lib/widget";
 import { createTrailingDebounce } from "@/lib/debounce";
+import { msUntilNextLocalDay } from "@/lib/day-rollover";
+import { createSerialQueue } from "@/lib/serial-queue";
 import { unlockRewardsForMilestoneCount, Reward } from "@/lib/rewards";
 import { isHealthAvailable, initHealth, isHealthGoalMet } from "@/lib/health";
 import {
   resolveSubscriptionCheck,
   sameSubscription,
+  shouldCheckPastExpiry,
   type ServerSubscriptionStatus,
   type SubscriptionVerificationStatus,
 } from "@/lib/subscription";
@@ -202,6 +207,8 @@ const FREE_REFLECTION_LIMIT = 10;
 const MILESTONE_CELEBRATION_SEEN_KEY = "milestone_celebration_seen_ids";
 const HABIT_TIMES_BACKFILLED_KEY = "evolve_habit_times_backfilled";
 
+const enqueueMilestoneWrite = createSerialQueue();
+
 // try/catch lives in these module helpers, outside AppProvider: the React
 // Compiler skips the whole provider over conditional expressions in a try.
 function parseSeenIds(raw: string | null): string[] {
@@ -301,12 +308,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Derived from the persona-scoped state, so they can never drift from the
   // data they describe (state mirrors storage via refreshData + mutators).
   // Premium holds 2 streak shields — extra grace, earned the same way.
+  // The snapshot depends on "today" as much as on the data. Without the
+  // day key an app left in memory overnight kept yesterday's streak, lapse,
+  // and month score until the next check-off.
+  const [todayKey, setTodayKey] = useState(() =>
+    getLocalDateString(new Date()),
+  );
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const syncDay = () => {
+      // Same string on most calls, so React skips the re-render
+      setTodayKey(getLocalDateString(new Date()));
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(syncDay, msUntilNextLocalDay(new Date()));
+    };
+    syncDay();
+    // iOS pauses timers in the background; foregrounding checks the date
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") syncDay();
+    });
+    return () => {
+      if (timer) clearTimeout(timer);
+      subscription.remove();
+    };
+  }, []);
   const progressSnapshot = useMemo(
     () =>
       buildProgressSnapshot(actions, dailyLogs, benchmarks, {
         maxShields: subscription.isPremium ? 2 : 1,
+        dayKey: todayKey,
       }),
-    [actions, dailyLogs, benchmarks, subscription.isPremium],
+    [actions, dailyLogs, benchmarks, subscription.isPremium, todayKey],
   );
   const { momentumScore, personaAlignment } = progressSnapshot;
   const [monthlyReflectionCount, setMonthlyReflectionCount] = useState(0);
@@ -428,7 +460,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const store =
         Platform.OS !== "web"
           ? await iapService.checkCurrentEntitlements({
-              includePastExpiry: local.isPremium && local.plan !== "lifetime",
+              includePastExpiry: shouldCheckPastExpiry(local),
             })
           : null;
       const { subscription: next, status } = resolveSubscriptionCheck({
@@ -572,6 +604,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setActionsState([]);
       setDailyLogsState([]);
       await storage.deletePersona(id);
+      // With no plan left nothing refreshes the reminder plan, so reminders
+      // naming the deleted habits would keep firing for up to two weeks.
+      if ((await storage.getPersonas()).length === 0) {
+        await clearScheduledReminders();
+      }
       await refreshData();
     },
     [refreshData],
@@ -877,6 +914,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const clearAllData = useCallback(async () => {
     await setPrivateBackupEnabled(false);
+    // Before storage: the cancel reads the stored reminder ids
+    await cancelAllScheduledNotifications();
     await storage.clearAll();
     setHasOnboardedState(false);
     setPersonaState(null);
@@ -921,7 +960,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       milestoneFlipsInFlight.current.add(benchmark.id);
       track("milestone_complete");
-      (async () => {
+      // One at a time: each flip rewrites the stored milestone list, the
+      // seen list, and the reward list. Two milestones completing in the
+      // same pass ran side by side and the later write undid the earlier.
+      enqueueMilestoneWrite(async () => {
         const updated = await updateBenchmark(benchmark.id, {
           status: "completed",
         });
@@ -949,7 +991,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setMilestoneCelebration(
           updated ?? { ...benchmark, status: "completed" },
         );
-      })().catch((error) => {
+      }).catch((error) => {
         milestoneFlipsInFlight.current.delete(benchmark.id);
         logger.error("Failed to mark milestone completed:", error);
       });

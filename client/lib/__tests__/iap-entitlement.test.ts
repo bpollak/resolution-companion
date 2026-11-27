@@ -179,6 +179,31 @@ describe("current StoreKit entitlement verification", () => {
     expect(mockSyncIOS).toHaveBeenCalledTimes(1);
   });
 
+  it("an explicit restore reports a purchase it could not confirm", async () => {
+    // A paying person whose validation call failed: the restore must say
+    // "unconfirmed", never look like an empty account.
+    mockGetAvailablePurchases.mockResolvedValue([annualPurchase]);
+    global.fetch = jest.fn().mockRejectedValue(new Error("timeout"));
+
+    await expect(iapService.restoreEntitlements()).resolves.toEqual({
+      storeAvailable: true,
+      verificationCompleted: false,
+      purchases: [],
+    });
+    expect(mockSyncIOS).toHaveBeenCalledTimes(1);
+  });
+
+  it("an explicit restore reports a store it could not reach", async () => {
+    mockSyncIOS.mockRejectedValue(new Error("offline"));
+
+    await expect(iapService.restoreEntitlements()).resolves.toEqual({
+      storeAvailable: false,
+      verificationCompleted: false,
+      purchases: [],
+    });
+    await expect(iapService.restorePurchases()).resolves.toEqual([]);
+  });
+
   describe("billing grace period", () => {
     // The library's active list drops a subscription once its expiry date
     // passes, which is exactly the state of one in a billing grace period.

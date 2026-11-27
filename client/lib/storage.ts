@@ -1,7 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
 import { logger } from "@/lib/logger";
-import { computeMomentumScore } from "@/lib/progress";
+import { computeMomentumScore, getLocalDateString } from "@/lib/progress";
+import {
+  sanitizeFrequencyHistory,
+  withFrequencyChange,
+  type FrequencyHistoryEntry,
+} from "@/lib/schedule-history";
 import {
   approvePlan,
   planStartInstant,
@@ -34,6 +39,11 @@ const STORAGE_KEYS = {
   RECAP_COACH_LINES: "recapCoachLines",
 };
 
+const KEYS_KEPT_ON_CLEAR = new Set([
+  STORAGE_KEYS.DEVICE_ID,
+  "yearly_price_cohort_v1",
+]);
+
 export interface Persona {
   id: string;
   name: string;
@@ -62,6 +72,12 @@ export interface ElementalAction {
   benchmarkId: string;
   title: string;
   frequency: string[];
+  /**
+   * The days this habit was scheduled on before each edit, ascending by
+   * local date. Absent until the days are first changed; written only by
+   * the storage layer (see schedule-history.ts).
+   */
+  frequencyHistory?: FrequencyHistoryEntry[];
   anchorLink: string;
   kickstartVersion: string;
   createdAt: string;
@@ -179,6 +195,12 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
+// The free Coach quota follows the person's own calendar month. The UTC
+// month rolled it over at 4 PM Pacific on the last day of the month.
+function localMonthKey(now: Date = new Date()): string {
+  return getLocalDateString(now).slice(0, 7);
+}
+
 /** For optimistic UI paths that build the record before persisting it. */
 export function generateStorageId(): string {
   return generateId();
@@ -193,6 +215,44 @@ function safeParse<T>(value: string | null, fallback: T): T {
     logger.error("Failed to parse stored value, using fallback:", error);
     return fallback;
   }
+}
+
+/**
+ * Stored habits as read back from disk or an iCloud restore. A plan saved
+ * before schedule history existed has no `frequencyHistory` key and is
+ * returned untouched; a malformed history is dropped rather than trusted.
+ */
+function normalizeStoredActions(value: unknown): ElementalAction[] {
+  if (!Array.isArray(value)) return [];
+  return (value as ElementalAction[]).map((action) => {
+    if (!action || action.frequencyHistory === undefined) return action;
+    const { frequencyHistory, ...rest } = action;
+    const history = sanitizeFrequencyHistory(frequencyHistory);
+    return history ? { ...rest, frequencyHistory: history } : rest;
+  });
+}
+
+/**
+ * Merges an edit into a habit. A change of days is recorded as in force
+ * from today, so streaks, shields, and milestone counts keep reading past
+ * days by the schedule those days were lived under. Callers never write the
+ * history themselves: a stale copy from an edit screen would erase it.
+ */
+function applyActionUpdates(
+  current: ElementalAction,
+  updates: Partial<Omit<ElementalAction, "id" | "createdAt">>,
+): ElementalAction {
+  const rest = { ...updates };
+  delete rest.frequencyHistory;
+  const base =
+    rest.frequency !== undefined
+      ? withFrequencyChange(
+          current,
+          rest.frequency,
+          getLocalDateString(new Date()),
+        )
+      : current;
+  return { ...base, ...rest };
 }
 
 export const storage = {
@@ -534,7 +594,7 @@ export const storage = {
 
   async getElementalActions(): Promise<ElementalAction[]> {
     const value = await AsyncStorage.getItem(STORAGE_KEYS.ELEMENTAL_ACTIONS);
-    return safeParse<ElementalAction[]>(value, []);
+    return normalizeStoredActions(safeParse<unknown>(value, []));
   },
 
   async setElementalActions(actions: ElementalAction[]): Promise<void> {
@@ -572,7 +632,7 @@ export const storage = {
     const index = actions.findIndex((a) => a.id === id);
     if (index === -1) return null;
 
-    actions[index] = { ...actions[index], ...updates };
+    actions[index] = applyActionUpdates(actions[index], updates);
     await this.setElementalActions(actions);
     return actions[index];
   },
@@ -687,7 +747,7 @@ export const storage = {
       Object.assign(after, { [key]: changes[key] });
     }
     if (Object.keys(after).length === 0) return null;
-    const updated: ElementalAction = { ...current, ...after };
+    const updated = applyActionUpdates(current, after);
     actions[actionIndex] = updated;
     const adjustments = await this.getPlanAdjustments();
     const adjustment: PlanAdjustment = {
@@ -879,14 +939,18 @@ export const storage = {
     );
   },
 
+  // Removes every key in the app's store, not a list kept here: screens and
+  // other modules write their own keys (witness name, rewards, reminder
+  // settings, seen markers), and a list misses whatever is added next.
   // Keeps DEVICE_ID: server-side subscription records are keyed by it, so
   // wiping it would permanently orphan purchase restore after a data reset.
-  // Account deletion removes it explicitly via removeDeviceId().
+  // Account deletion removes it explicitly via removeDeviceId(). The price
+  // cohort is install identity too, not something the person entered.
   async clearAll(): Promise<void> {
-    const keys = Object.values(STORAGE_KEYS).filter(
-      (key) => key !== STORAGE_KEYS.DEVICE_ID,
+    const keys = (await AsyncStorage.getAllKeys()).filter(
+      (key) => !KEYS_KEPT_ON_CLEAR.has(key),
     );
-    await AsyncStorage.multiRemove(keys);
+    if (keys.length > 0) await AsyncStorage.multiRemove(keys);
   },
 
   async getSubscription(): Promise<Subscription> {
@@ -907,7 +971,7 @@ export const storage = {
   },
 
   async getMonthlyReflectionCount(): Promise<MonthlyReflectionCount> {
-    const currentMonth = new Date().toISOString().slice(0, 7);
+    const currentMonth = localMonthKey();
     const value = await AsyncStorage.getItem(
       STORAGE_KEYS.MONTHLY_REFLECTION_COUNT,
     );
@@ -917,7 +981,7 @@ export const storage = {
   },
 
   async incrementReflectionCount(): Promise<number> {
-    const currentMonth = new Date().toISOString().slice(0, 7);
+    const currentMonth = localMonthKey();
     const data = await this.getMonthlyReflectionCount();
     if (data.month !== currentMonth) {
       data.month = currentMonth;

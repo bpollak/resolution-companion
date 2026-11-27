@@ -1,4 +1,5 @@
 import { ElementalAction, DailyLog } from "@/lib/storage";
+import { isScheduledOn } from "@/lib/schedule-history";
 import {
   buildLogIndex,
   computeWeekStats,
@@ -150,10 +151,12 @@ export function computeCoachObservation(
   const todayLocal = new Date(today);
   todayLocal.setHours(0, 0, 0, 0);
   for (const weekday of WEEKDAY_ORDER) {
-    const scheduledActions = actions.filter((a) =>
+    // Only weekdays on the plan today are worth an observation; each past
+    // week below is then judged by the schedule in force that week.
+    const currentlyScheduled = actions.filter((a) =>
       a.frequency.includes(weekday),
     );
-    if (scheduledActions.length === 0) continue;
+    if (currentlyScheduled.length === 0) continue;
 
     const occurrence = new Date(todayLocal);
     occurrence.setDate(occurrence.getDate() - 1);
@@ -164,6 +167,9 @@ export function computeCoachObservation(
     let weeksHeld = 0;
     for (let weekBack = 0; weekBack < 6; weekBack++) {
       const dateStr = getLocalDateString(occurrence);
+      const scheduledActions = currentlyScheduled.filter((action) =>
+        isScheduledOn(action, dateStr, weekday),
+      );
       const allDone = scheduledActions.every((action) => {
         const created = getLocalDateString(new Date(action.createdAt));
         if (dateStr < created) return true; // action didn't exist yet

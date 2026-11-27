@@ -1,4 +1,5 @@
 import { ElementalAction, DailyLog, Persona } from "@/lib/storage";
+import { isScheduledOn } from "@/lib/schedule-history";
 import {
   buildLogIndex,
   computeStreak,
@@ -168,7 +169,7 @@ export function buildMonthRecap(
     let dayScheduled = 0;
     let dayCompleted = 0;
     for (const action of actions) {
-      if (!action.frequency.includes(dayOfWeek)) continue;
+      if (!isScheduledOn(action, dateStr, dayOfWeek)) continue;
       const log = logIndex.get(`${action.id}|${dateStr}`);
       const startDate = actionStartDates.get(action.id);
       if (startDate !== undefined && dateStr < startDate && !log?.status) {

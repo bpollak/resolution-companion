@@ -25,6 +25,7 @@ import {
   formatTargetCountdown,
   buildProgressSnapshot,
 } from "@/lib/progress";
+import { withFrequencyChange } from "@/lib/schedule-history";
 import type { Benchmark, ElementalAction, DailyLog } from "@/lib/storage";
 
 const DAILY = [
@@ -1176,5 +1177,168 @@ describe("backfilled completions before action creation", () => {
     const lapse = computeLapse([action], logs);
     expect(lapse.missedDays).toBe(2);
     expect(lapse.lastMissedDate).toBe("2026-07-11");
+  });
+});
+
+describe("schedule history: edits never rewrite past days", () => {
+  const MWF = ["Monday", "Wednesday", "Friday"];
+  // Wed Jun 24 start: Jun 24, 26, 29, Jul 1, 3 are the five scheduled days
+  const FIVE_DAYS = [
+    "2026-06-24",
+    "2026-06-26",
+    "2026-06-29",
+    "2026-07-01",
+    "2026-07-03",
+  ];
+
+  it("Mon/Wed/Fri widened to daily today keeps the streak, shield, and lapse", () => {
+    jest.setSystemTime(new Date(2026, 6, 6, 9, 0)); // Monday Jul 6
+    const before = makeAction(MWF, "2026-06-24T09:00:00");
+    const logs = logsFor(before, FIVE_DAYS);
+    const streakBefore = computeStreak([before], logs);
+    expect(streakBefore.current).toBe(5);
+
+    const after = withFrequencyChange(before, DAILY, "2026-07-06");
+    const streakAfter = computeStreak([after], logs);
+    expect(streakAfter).toEqual(streakBefore);
+    expect(streakAfter.shieldedDays).toEqual([]);
+    expect(computeLapse([after], logs).missedDays).toBe(0);
+    expect(computeMomentumScore([after], logs, 7)).toBe(
+      computeMomentumScore([before], logs, 7),
+    );
+    expect(computeWeeklyRecap([after], logs)).toEqual(
+      computeWeeklyRecap([before], logs),
+    );
+  });
+
+  it("a banked shield is not spent by widening the schedule", () => {
+    jest.setSystemTime(new Date(2026, 6, 6, 9, 0));
+    // Wed Jun 17 start: eight Mon/Wed/Fri days through Fri Jul 3
+    const before = makeAction(MWF, "2026-06-17T09:00:00");
+    const logs = logsFor(before, [
+      "2026-06-17",
+      "2026-06-19",
+      "2026-06-22",
+      ...FIVE_DAYS,
+    ]);
+    const after = withFrequencyChange(before, DAILY, "2026-07-06");
+    const streak = computeStreak([after], logs);
+    expect(streak.current).toBe(8);
+    expect(streak.shieldsAvailable).toBe(1);
+    expect(streak.shieldedDays).toEqual([]);
+  });
+
+  it("the new days count from the day of the change", () => {
+    jest.setSystemTime(new Date(2026, 6, 8, 9, 0)); // Wednesday Jul 8
+    const before = makeAction(MWF, "2026-06-24T09:00:00");
+    const after = withFrequencyChange(before, DAILY, "2026-07-06");
+    // Mon Jul 6 done, Tue Jul 7 (newly scheduled) missed
+    const logs = logsFor(after, [...FIVE_DAYS, "2026-07-06"]);
+    expect(computeLapse([after], logs).missedDays).toBe(1);
+    expect(computeStreak([after], logs).current).toBe(0);
+  });
+
+  it("removing a weekday keeps that weekday's past days in milestone and benchmark counts", () => {
+    jest.setSystemTime(new Date(2026, 6, 6, 9, 0));
+    const benchmark = makeBenchmark({ createdAt: "2026-06-24T09:00:00" });
+    const before = makeAction(MWF, "2026-06-24T09:00:00", {
+      benchmarkId: benchmark.id,
+    });
+    const logs = logsFor(before, FIVE_DAYS);
+    const after = withFrequencyChange(before, ["Monday"], "2026-07-06");
+    const index = buildLogIndex(logs);
+    expect(computeMilestoneProgress(benchmark, [after], index).daysDone).toBe(
+      5,
+    );
+    const [result] = computeBenchmarkProgress(
+      [benchmark],
+      [after],
+      index,
+      FIVE_DAYS,
+    );
+    expect(result.progress).toBe(100);
+  });
+
+  it("a milestone at 15/21 stays 15/21 after a second habit is added", () => {
+    jest.setSystemTime(new Date(2026, 6, 6, 9, 0)); // Monday Jul 6
+    const benchmark = makeBenchmark({ createdAt: "2026-06-21T09:00:00" });
+    const first = makeAction(DAILY, "2026-06-21T09:00:00", {
+      benchmarkId: benchmark.id,
+    });
+    // Jun 21 through Jul 5: fifteen completed days
+    const dates = Array.from({ length: 15 }, (_, i) =>
+      getLocalDateString(new Date(2026, 5, 21 + i)),
+    );
+    const logs = logsFor(first, dates);
+    const index = buildLogIndex(logs);
+    expect(computeMilestoneProgress(benchmark, [first], index).daysDone).toBe(
+      15,
+    );
+
+    const second = makeAction(DAILY, "2026-07-06T08:30:00", {
+      benchmarkId: benchmark.id,
+    });
+    const withSecond = computeMilestoneProgress(
+      benchmark,
+      [first, second],
+      index,
+    );
+    expect(withSecond.daysDone).toBe(15);
+    expect(withSecond.progress).toBe(71);
+  });
+
+  it("a habit added to a milestone counts from its own first day", () => {
+    jest.setSystemTime(new Date(2026, 6, 8, 9, 0)); // Wednesday Jul 8
+    const benchmark = makeBenchmark({ createdAt: "2026-07-01T09:00:00" });
+    const first = makeAction(DAILY, "2026-07-01T09:00:00", {
+      benchmarkId: benchmark.id,
+    });
+    const second = makeAction(DAILY, "2026-07-06T08:30:00", {
+      benchmarkId: benchmark.id,
+    });
+    const logs = [
+      // Jul 1-5 (first only), Jul 6 both, Jul 7 first only
+      ...logsFor(first, [
+        "2026-07-01",
+        "2026-07-02",
+        "2026-07-03",
+        "2026-07-04",
+        "2026-07-05",
+        "2026-07-06",
+        "2026-07-07",
+      ]),
+      ...logsFor(second, ["2026-07-06"]),
+    ];
+    const result = computeMilestoneProgress(
+      benchmark,
+      [first, second],
+      buildLogIndex(logs),
+    );
+    // Jul 7 needs both habits now, so it is not a full day
+    expect(result.daysDone).toBe(6);
+  });
+
+  it("a completed log before a habit's first day still counts for the milestone", () => {
+    jest.setSystemTime(new Date(2026, 6, 6, 9, 0));
+    const benchmark = makeBenchmark({ createdAt: "2026-07-01T09:00:00" });
+    const first = makeAction(DAILY, "2026-07-01T09:00:00", {
+      benchmarkId: benchmark.id,
+    });
+    const second = makeAction(DAILY, "2026-07-06T08:30:00", {
+      benchmarkId: benchmark.id,
+    });
+    const logs = [
+      ...logsFor(first, ["2026-07-04", "2026-07-05"]),
+      ...logsFor(second, ["2026-07-05"]), // backfilled
+    ];
+    const result = computeMilestoneProgress(
+      benchmark,
+      [first, second],
+      buildLogIndex(logs),
+    );
+    expect(result.daysDone).toBe(2);
+    expect(
+      result.actions.find((entry) => entry.action.id === second.id)?.daysDone,
+    ).toBe(1);
   });
 });

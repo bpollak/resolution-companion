@@ -1,5 +1,6 @@
 import type { ElementalAction } from "@/lib/storage";
 import { getLocalDateString, weekdayName } from "@/lib/progress";
+import { isScheduledOn } from "@/lib/schedule-history";
 
 export function tomorrowDateKey(now = new Date()): string {
   const tomorrow = new Date(
@@ -19,17 +20,17 @@ export function parseJourneyDate(value?: string): Date | null {
 }
 
 // Calendar history starts on the action's local creation day, including
-// a draft that was approved days after it was first written.
+// a draft that was approved days after it was first written. Past days read
+// the schedule that was in force then, so an edit never repaints them.
 export function actionIsScheduledOnDate(
-  action: Pick<ElementalAction, "frequency" | "createdAt">,
+  action: Pick<ElementalAction, "frequency" | "createdAt" | "frequencyHistory">,
   date: Date,
 ): boolean {
-  const weekday = weekdayName(date);
-  if (!action.frequency?.includes(weekday)) return false;
+  const dateKey = getLocalDateString(date);
+  if (!isScheduledOn(action, dateKey, weekdayName(date))) return false;
   const created = new Date(action.createdAt);
   return (
-    Number.isNaN(created.getTime()) ||
-    getLocalDateString(date) >= getLocalDateString(created)
+    Number.isNaN(created.getTime()) || dateKey >= getLocalDateString(created)
   );
 }
 
