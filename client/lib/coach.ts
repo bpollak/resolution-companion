@@ -96,6 +96,49 @@ export function buildRecentNotes(
   return lines.length > 0 ? lines.join("\n") : undefined;
 }
 
+/** Scheduled days a habit needs behind it before a tune-up means anything. */
+export const PLAN_ADJUSTMENT_MIN_SCHEDULED_DAYS = 7;
+
+/** Scheduled days from the habit's start through yesterday. */
+export function scheduledDaysOfHistory(
+  action: Pick<ElementalAction, "frequency" | "createdAt">,
+  today: Date = new Date(),
+  cap = 60,
+): number {
+  const created = new Date(action.createdAt);
+  if (Number.isNaN(created.getTime())) return 0;
+  const createdKey = getLocalDateString(created);
+  const cursor = new Date(today);
+  cursor.setHours(0, 0, 0, 0);
+  let count = 0;
+  // Walks back from yesterday; the cap bounds the loop for old plans.
+  for (let step = 0; step < 366 && count < cap; step++) {
+    cursor.setDate(cursor.getDate() - 1);
+    if (getLocalDateString(cursor) < createdKey) break;
+    if (action.frequency.includes(weekdayName(cursor))) count++;
+  }
+  return count;
+}
+
+/**
+ * "Adjust my plan" is offered only once a habit has a week of scheduled
+ * days behind it. Before that there is no pattern to adjust to, and the
+ * useful move is adding or starting a step, not tuning one.
+ */
+export function canOfferPlanAdjustment(
+  actions: readonly Pick<ElementalAction, "frequency" | "createdAt">[],
+  today: Date = new Date(),
+): boolean {
+  return actions.some(
+    (action) =>
+      scheduledDaysOfHistory(
+        action,
+        today,
+        PLAN_ADJUSTMENT_MIN_SCHEDULED_DAYS,
+      ) >= PLAN_ADJUSTMENT_MIN_SCHEDULED_DAYS,
+  );
+}
+
 /** Compact, action-level evidence for practical coaching suggestions. */
 export function buildCoachActionContext(
   actions: ElementalAction[],

@@ -34,15 +34,24 @@ import { AIConsentModal } from "@/components/AIConsentModal";
 import {
   getMonthlyContext,
   getReflectionResponse,
+  proposeNextStep,
   type AIMessage,
 } from "@/lib/ai";
+import { buildCoachPlanContext } from "@/lib/ai-prompts";
 import {
   buildCoachActionContext,
   buildPreviousSessionNotes,
   buildRecentNotes,
+  canOfferPlanAdjustment,
   getMemoryTasteUsed,
   markMemoryTasteUsed,
 } from "@/lib/coach";
+import {
+  HABIT_LIMIT_MESSAGE,
+  NO_MILESTONE_MESSAGE,
+  type NextStep,
+} from "@/lib/next-steps";
+import { scheduleLabel } from "@/lib/copy";
 import { createReplyLifecycle } from "@/lib/coach-reply";
 import {
   createTextStreamBuffer,
@@ -78,6 +87,15 @@ const PROMPTS = {
     "Help me review one win and one point of friction from last week.",
   "reflect-success": "Help me name what made today work.",
 } as const;
+
+// Not a chat prompt: it asks for one proposed habit and shows a preview.
+const NEXT_STEP_CHIP = "Help me add a next step";
+
+function nextStepErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.name === "AbortError")
+    return "That took too long. Your plan was not changed.";
+  return "Coach could not suggest a step right now. Your plan was not changed.";
+}
 
 function originLabel(origin: CoachEntryOrigin): string {
   if (origin === "journey-discovery") return "Journey discovery";
@@ -148,6 +166,8 @@ export default function CoachSheetScreen() {
     applyPlanAdjustment,
     dismissPlanAdjustment,
     reflections,
+    addNextStep,
+    saveNextStep,
   } = useApp();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
@@ -171,6 +191,10 @@ export default function CoachSheetScreen() {
   const [planSuggestion, setPlanSuggestion] =
     useState<PlanTuneUpSuggestion | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
+  const [stepProposal, setStepProposal] = useState<NextStep | null>(null);
+  const [stepBusy, setStepBusy] = useState(false);
+  // A quiet confirmation ("saved for later"), unlike planError.
+  const [stepNote, setStepNote] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [detentIndex, setDetentIndex] = useState(1);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -363,11 +387,38 @@ export default function CoachSheetScreen() {
   }, [params.origin, params.promptId, personaCreatedAt]);
   // The lobby is a single entry point now, so plan tune-ups must also be
   // reachable from a plain "direct" conversation
+  // ...and only once a habit has a week of scheduled days behind it: a
+  // newer plan has no pattern to tune, so it is offered a next step instead.
+  const adjustmentReady = useMemo(
+    () =>
+      canOfferPlanAdjustment(
+        params.actionId && selectedAction ? [selectedAction] : actions,
+      ),
+    [actions, params.actionId, selectedAction],
+  );
   const showPlanAdjustment =
-    params.origin === "lapse-recovery" ||
-    params.origin === "action" ||
-    params.origin === "direct" ||
-    params.promptId === "reduce-friction";
+    adjustmentReady &&
+    (params.origin === "lapse-recovery" ||
+      params.origin === "action" ||
+      params.origin === "direct" ||
+      params.promptId === "reduce-friction");
+
+  // Tells Coach which habit or milestone the sheet was opened from.
+  const planContext = useMemo(() => {
+    const originAction =
+      params.actionId && selectedAction ? selectedAction : null;
+    const originMilestone =
+      selectedBenchmark ??
+      (originAction
+        ? (benchmarks.find((item) => item.id === originAction.benchmarkId) ??
+          null)
+        : null);
+    return buildCoachPlanContext({
+      originHabit: originAction?.title,
+      originMilestone: originMilestone?.title,
+      milestoneTitles: benchmarks.map((item) => item.title),
+    });
+  }, [benchmarks, params.actionId, selectedAction, selectedBenchmark]);
 
   const weeklyContext = useMemo(() => {
     const { weeklyRecap, streak } = progressSnapshot;
@@ -482,6 +533,7 @@ export default function CoachSheetScreen() {
           },
           {
             actionContext: buildCoachActionContext(actions, dailyLogs),
+            planContext,
             coachTone: await getCoachTone(),
             weeklyContext:
               params.promptId === "review-week" ? weeklyContext : undefined,
@@ -537,6 +589,7 @@ export default function CoachSheetScreen() {
       params.promptId,
       persona,
       personaAlignment,
+      planContext,
       previousSessionNotes,
       recentNotes,
       subscription.isPremium,
@@ -598,6 +651,113 @@ export default function CoachSheetScreen() {
       abortRef.current = null;
       setIsLoading(false);
     }
+  };
+
+  // One proposed habit, previewed before anything is added. Costs one
+  // check-in, the same as a plan adjustment.
+  const requestNextStep = async (consentOverride = false) => {
+    if (!persona || abortRef.current || savingRef.current) return;
+    if (!aiConsent && !consentOverride) {
+      setPendingText("__next_step__");
+      setShowConsent(true);
+      return;
+    }
+    if (
+      !coachRequestAllowed({
+        isWeeklyReview: params.promptId === "review-week",
+        alreadyCounted: countedRef.current,
+        isPremium: subscription.isPremium,
+        hasFreeSession: canUseReflection(),
+        isPlanTuneUp: true,
+      })
+    ) {
+      navigation.navigate("Subscription", { source: "coach-limit" });
+      return;
+    }
+    setIsLoading(true);
+    setPlanError(null);
+    setStepNote(null);
+    setStepProposal(null);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const outcome = await settle(async () => {
+      const step = await proposeNextStep(
+        {
+          resolution: persona.resolution?.trim() || persona.name,
+          existingHabits: actions.map((action) => action.title),
+          userMessage: inputText.trim() || undefined,
+        },
+        controller.signal,
+      );
+      if (abortRef.current !== controller) return;
+      setStepProposal(step);
+      setInputText("");
+      track("coach_step_proposed");
+      await markCounted(true);
+    });
+    if (!outcome.ok && abortRef.current === controller) {
+      setPlanError(nextStepErrorMessage(outcome.error));
+    }
+    if (abortRef.current === controller) {
+      abortRef.current = null;
+      setIsLoading(false);
+    }
+  };
+
+  // Saved first, then added through the same path as Journey's Next steps,
+  // so a step that cannot be added yet is still kept.
+  const applyStep = async () => {
+    if (!stepProposal || stepBusy) return;
+    const step = stepProposal;
+    setStepBusy(true);
+    const outcome = await settle(async () => {
+      await saveNextStep(step);
+      return addNextStep(step.id);
+    });
+    setStepBusy(false);
+    if (!outcome.ok) {
+      setPlanError("Couldn’t add that step. Try again.");
+      return;
+    }
+    setStepProposal(null);
+    if (!outcome.value.ok) {
+      setPlanError(
+        `${
+          outcome.value.reason === "habit_limit"
+            ? HABIT_LIMIT_MESSAGE
+            : outcome.value.reason === "no_milestone"
+              ? NO_MILESTONE_MESSAGE
+              : "That step could not be added yet."
+        } It is saved under Next steps in Journey.`,
+      );
+      return;
+    }
+    track("coach_step_applied");
+    setMessages((previous) => [
+      ...previous,
+      {
+        id: `${Date.now()}-assistant`,
+        role: "assistant",
+        content: `Added to your plan: ${step.title}. The days are a suggestion, so change them in Journey if they do not fit.`,
+      },
+    ]);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
+      () => {},
+    );
+  };
+
+  const declineStep = async () => {
+    if (!stepProposal || stepBusy) return;
+    const step = stepProposal;
+    setStepBusy(true);
+    const outcome = await settle(() => saveNextStep(step));
+    setStepBusy(false);
+    setStepProposal(null);
+    setStepNote(
+      outcome.ok
+        ? "Saved for later. You will find it under Next steps in Journey."
+        : null,
+    );
   };
 
   const applySuggestion = async () => {
@@ -867,6 +1027,30 @@ export default function CoachSheetScreen() {
                     <ThemedText style={styles.chipText}>{prompt}</ThemedText>
                   </Pressable>
                 ))}
+                <Pressable
+                  onPress={() => requestNextStep()}
+                  disabled={isLoading || isSaving}
+                  accessibilityRole="button"
+                  accessibilityLabel={NEXT_STEP_CHIP}
+                  accessibilityHint="Coach suggests one habit. You see it before anything is added."
+                  accessibilityState={{ disabled: isLoading || isSaving }}
+                  hitSlop={4}
+                  pressRetentionOffset={12}
+                  style={({ pressed }) => [
+                    styles.chip,
+                    {
+                      borderColor: theme.accent,
+                      opacity: pressed ? 0.65 : 1,
+                    },
+                  ]}
+                >
+                  <Feather name="plus" size={15} color={theme.accent} />
+                  <ThemedText
+                    style={[styles.chipText, { color: theme.accent }]}
+                  >
+                    {NEXT_STEP_CHIP}
+                  </ThemedText>
+                </Pressable>
                 {showPlanAdjustment ? (
                   <Pressable
                     onPress={() => requestTuneUp()}
@@ -1062,8 +1246,118 @@ export default function CoachSheetScreen() {
                 </View>
               </View>
             ) : null}
+            {stepProposal ? (
+              <View
+                onLayout={() =>
+                  scrollRef.current?.scrollToEnd({ animated: true })
+                }
+                style={[
+                  styles.planCard,
+                  {
+                    borderColor: theme.accent,
+                    backgroundColor: isDark
+                      ? Colors.dark.backgroundDefault
+                      : Colors.light.backgroundDefault,
+                  },
+                ]}
+              >
+                <ThemedText
+                  style={[styles.planEyebrow, { color: theme.textSecondary }]}
+                >
+                  Suggested next step
+                </ThemedText>
+                <ThemedText style={styles.planTitle}>
+                  {stepProposal.title}
+                </ThemedText>
+                {stepProposal.why ? (
+                  <ThemedText style={styles.stepWhy}>
+                    {stepProposal.why}
+                  </ThemedText>
+                ) : null}
+                <View style={styles.diffRow}>
+                  <ThemedText
+                    style={[styles.diffLabel, { color: theme.textSecondary }]}
+                  >
+                    Days
+                  </ThemedText>
+                  <ThemedText style={styles.diffValue}>
+                    {scheduleLabel(stepProposal.frequency, "suggested")}
+                  </ThemedText>
+                </View>
+                {stepProposal.kickstart ? (
+                  <View style={styles.diffRow}>
+                    <ThemedText
+                      style={[styles.diffLabel, { color: theme.textSecondary }]}
+                    >
+                      2-minute version
+                    </ThemedText>
+                    <ThemedText style={styles.diffValue}>
+                      {stepProposal.kickstart}
+                    </ThemedText>
+                  </View>
+                ) : null}
+                <ThemedText
+                  style={[styles.rationale, { color: theme.textSecondary }]}
+                >
+                  Nothing is added until you tap Add. You can change the days
+                  afterward in Journey.
+                </ThemedText>
+                <View style={styles.planActions}>
+                  <Pressable
+                    onPress={declineStep}
+                    disabled={stepBusy}
+                    accessibilityRole="button"
+                    accessibilityLabel="Not now. Save this step for later."
+                    accessibilityState={{ disabled: stepBusy }}
+                    hitSlop={4}
+                    pressRetentionOffset={12}
+                    style={({ pressed }) => [
+                      styles.secondaryButton,
+                      { borderColor: theme.border, opacity: pressed ? 0.6 : 1 },
+                    ]}
+                  >
+                    <ThemedText style={styles.secondaryText}>
+                      Not now
+                    </ThemedText>
+                  </Pressable>
+                  <Pressable
+                    onPress={applyStep}
+                    disabled={stepBusy}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add this step to my plan"
+                    accessibilityState={{ disabled: stepBusy, busy: stepBusy }}
+                    hitSlop={4}
+                    pressRetentionOffset={12}
+                    style={({ pressed }) => [
+                      styles.applyButton,
+                      {
+                        backgroundColor: theme.accent,
+                        opacity: stepBusy ? 0.5 : pressed ? 0.75 : 1,
+                      },
+                    ]}
+                  >
+                    <ThemedText
+                      style={[styles.applyText, { color: theme.buttonText }]}
+                    >
+                      Add to my plan
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+            {stepNote ? (
+              <ThemedText
+                accessibilityLiveRegion="polite"
+                style={[styles.error, { color: theme.textSecondary }]}
+              >
+                {stepNote}
+              </ThemedText>
+            ) : null}
             {planError ? (
-              <ThemedText style={[styles.error, { color: theme.error }]}>
+              <ThemedText
+                accessibilityRole="alert"
+                style={[styles.error, { color: theme.error }]}
+              >
                 {planError}
               </ThemedText>
             ) : null}
@@ -1131,6 +1425,7 @@ export default function CoachSheetScreen() {
                 retryRef.current,
               );
             else if (pending === "__plan_tune_up__") requestTuneUp(true);
+            else if (pending === "__next_step__") requestNextStep(true);
             else if (pending) requestReply(pending);
           }}
         />
@@ -1187,6 +1482,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   planTitle: { ...Typography.headline, marginTop: Spacing.sm },
+  stepWhy: { ...Typography.body, marginTop: Spacing.sm },
   diffRow: { marginTop: Spacing.md },
   diffLabel: { ...Typography.caption, fontWeight: "600" },
   diffValues: { marginTop: Spacing.xs, gap: 2 },

@@ -5,7 +5,16 @@ import EventSource from "react-native-sse";
 import { normalizeCoachMilestoneProposal } from "@/lib/milestone-proposal";
 import { TYPEWRITER_DELAY_MS } from "@/lib/typewriter";
 import { tidyCoachText } from "@/lib/copy";
-import { EXTRACTION_PROMPT, getOnboardingSystemPrompt } from "@/lib/ai-prompts";
+import {
+  COACH_CAPABILITIES,
+  EXTRACTION_PROMPT,
+  NEXT_STEP_PROMPT,
+  asksForHelp,
+  buildNextStepRequest,
+  coachFirstMessageInstruction,
+  getOnboardingSystemPrompt,
+} from "@/lib/ai-prompts";
+import { parseNextStepProposal, type NextStep } from "@/lib/next-steps";
 
 // The server keys its monthly AI usage quotas on this header; without it,
 // requests fall back to a shared per-IP bucket.
@@ -315,6 +324,36 @@ export async function extractPersonaFromConversation(
   return response.json();
 }
 
+/**
+ * Asks Coach for one more step toward the resolution. Goes through the plan
+ * extraction route and its validation; the reply is reduced to one step.
+ */
+export async function proposeNextStep(
+  context: {
+    resolution: string;
+    existingHabits: string[];
+    userMessage?: string;
+  },
+  signal?: AbortSignal,
+): Promise<NextStep> {
+  const url = new URL("/api/extract-persona", getApiUrl());
+  const response = await fetchWithTimeout(
+    url.toString(),
+    {
+      method: "POST",
+      signal,
+      headers: await getAiHeaders(),
+      body: JSON.stringify({
+        messages: [{ role: "user", content: buildNextStepRequest(context) }],
+        extractionPrompt: NEXT_STEP_PROMPT,
+      }),
+    },
+    PLAN_EXTRACTION_TIMEOUT_MS,
+  );
+  if (!response.ok) throw new Error("Coach could not suggest a step.");
+  return parseNextStepProposal(await response.json());
+}
+
 export interface MonthlyContext {
   dayOfMonth: number;
   daysInMonth: number;
@@ -400,6 +439,11 @@ export interface ReflectionExtras {
   recentNotes?: string;
   /** Action-level evidence used to make suggestions concrete and feasible. */
   actionContext?: string;
+  /**
+   * The habit or milestone the sheet was opened from, and the plan's
+   * milestone titles (see buildCoachPlanContext).
+   */
+  planContext?: string;
   /**
    * True when a free user is getting their one-time taste of coach memory —
    * memory sells itself by demonstration, so the coach may mention (once,
@@ -552,9 +596,24 @@ LAST WEEK (their most recent complete Monday-Sunday week):
       ? "TONE: Be concise and candid. Name the pattern plainly and avoid cushioning every sentence, while remaining respectful and never harsh."
       : "TONE: Be warm, patient, and gently encouraging without becoming vague or overly cheerful.";
 
-  const firstMessageInstruction = isWeekly
-    ? `FIRST MESSAGE: Be brief (2-3 sentences max). This is a light weekly ritual with three beats you'll walk through one at a time: one win from last week, one point of friction, and one small bend for the coming week. Open by naming the exact reviewed date range, then ask for the win. Never use a calendar week number. ONE question only.`
-    : `FIRST MESSAGE: Be brief (2-3 sentences max). Anchor on how long they've been at their plan${justStarted ? ". They just started, so welcome them to their first days and celebrate showing up at all" : " and their consistency over that time"}. ${ctx.isAhead ? "Their consistency is strong, so celebrate it." : ctx.isBehind ? "They're struggling, so be encouraging and ask what's been challenging." : "They're building, so note the steady progress."} Ask ONE simple question about their experience. No lengthy explanations.`;
+  // A first message that asks for something gets help at once; the "ask
+  // about their experience" opener is only for a message that asks nothing.
+  const firstMessageInstruction = coachFirstMessageInstruction({
+    isWeekly: Boolean(isWeekly),
+    askedForHelp: asksForHelp(
+      messages.find((message) => message.role === "user")?.content,
+    ),
+    justStarted,
+    isAhead: ctx.isAhead,
+    isBehind: ctx.isBehind,
+  });
+
+  const planContext = extras?.planContext
+    ? `
+WHERE THIS CONVERSATION STARTED AND THEIR PLAN:
+${extras.planContext}
+`
+    : "";
 
   const continueInstruction = isWeekly
     ? `Continue the ritual: after their win, ask about friction; after friction, propose ONE small bend for next week (shrink an action, move its day, or lean on the 2-minute version) and confirm it with them. Then wrap warmly; the whole review should feel complete in about three exchanges. Keep responses to 2-3 sentences.`
@@ -562,7 +621,8 @@ LAST WEEK (their most recent complete Monday-Sunday week):
 
   const systemMessage: AIMessage = {
     role: "system",
-    content: `${roleLine} ${isWeekly ? weeklyProgressContext : progressContext}${identityContext}${memoryContext}${notesContext}${actionContext}
+    content: `${roleLine} ${isWeekly ? weeklyProgressContext : progressContext}${identityContext}${memoryContext}${notesContext}${actionContext}${planContext}
+${COACH_CAPABILITIES}
 
 COACHING METHOD (motivational interviewing, adapted; the user should leave feeling heard, not lectured):
 - Reflect before you direct: open with one short reflection of what they just said, in your own words, before anything else.

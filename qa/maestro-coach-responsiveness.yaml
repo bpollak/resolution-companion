@@ -70,3 +70,39 @@ appId: com.resolutioncompanion.app
     timeout: 10000
 - assertNotVisible: "You: .*shoes beside the door.*"
 - takeScreenshot: coach-session-isolated
+
+# Plan tuning never mutates until the field-level preview is explicitly
+# confirmed. Moved here from qa/maestro-coach-live.yaml in 1.7.0: the
+# "Adjust my plan" chip needs 7 scheduled days of history, which this seeded
+# plan has and a day-one plan does not.
+- scrollUntilVisible:
+    element:
+      text: "Request a previewed plan adjustment"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn: "Request a previewed plan adjustment"
+- scrollUntilVisible:
+    element:
+      text: "Preview changes"
+    direction: DOWN
+    timeout: 90000
+    centerElement: true
+- assertVisible: "Before:.*"
+- assertVisible: "After:.*"
+- assertVisible: "Keep current plan"
+- assertVisible: "Apply previewed plan changes"
+- tapOn: "Keep current plan"
+- assertNotVisible: "Preview changes"
+
+# Request a fresh recommendation and exercise the atomic apply path.
+- tapOn: "Request a previewed plan adjustment"
+- scrollUntilVisible:
+    element:
+      text: "Preview changes"
+    direction: DOWN
+    timeout: 90000
+    centerElement: true
+- tapOn: "Apply previewed plan changes"
+- assertNotVisible: "Preview changes"
+- tapOn: "Close Coach"

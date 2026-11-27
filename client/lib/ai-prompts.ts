@@ -97,3 +97,113 @@ RULES:
 - Actions must not overlap or double-count each other (two benchmarks must never be satisfied by the same behavior).
 - Kickstart versions must take under 2 minutes and be genuinely easier than the full action.
 - Write everything in the user's language and vocabulary where possible, so the plan feels like it came from their own words.`;
+
+// --- Coach sheet ---
+
+/** What Coach may claim about changing the plan. Shown to the model only. */
+export const COACH_CAPABILITIES = `WHAT YOU CAN AND CANNOT CHANGE:
+- You cannot change the plan from this chat. Never say you added, changed, moved, or removed a habit or milestone yourself.
+- Two buttons in this sheet can change it, each with a preview the person must approve first: "Help me add a next step" proposes one new habit, and "Adjust my plan" proposes a change to an existing habit's days, routine cue, or 2-minute version. "Adjust my plan" appears once a habit has about a week of history.
+- To add or edit a habit by hand, they open Journey, open a milestone, tap Edit, then Add.
+- If they want a change, describe it in words and point them to the right button or to Journey.`;
+
+/**
+ * True when the person's message asks for something. A request gets help in
+ * the first reply; only an open remark gets the "tell me more" opener.
+ */
+export function asksForHelp(message: string | undefined): boolean {
+  const text = (message ?? "").trim();
+  if (!text) return false;
+  return (
+    text.includes("?") ||
+    /\b(help|how (do|can|should) i|what (should|can|do) i|can you|could you|suggest|advice|ideas?|tips?|stuck|struggl\w*|break (it|this) down|next step|make (it|this) easier)\b/i.test(
+      text,
+    )
+  );
+}
+
+export function coachFirstMessageInstruction(input: {
+  isWeekly: boolean;
+  askedForHelp: boolean;
+  justStarted: boolean;
+  isAhead: boolean;
+  isBehind: boolean;
+}): string {
+  if (input.isWeekly)
+    return `FIRST MESSAGE: Be brief (2-3 sentences max). This is a light weekly ritual with three beats you'll walk through one at a time: one win from last week, one point of friction, and one small bend for the coming week. Open by naming the exact reviewed date range, then ask for the win. Never use a calendar week number. ONE question only.`;
+  if (input.askedForHelp)
+    return `FIRST MESSAGE: They asked for help, so help in this reply. Reflect their request in a few words, then give ONE concrete idea tied to their actual habit or plan. Keep it to 2-4 sentences. Do not open by asking about their experience and do not ask permission to help. You may end with one short question that checks whether the idea fits.`;
+  return `FIRST MESSAGE: Be brief (2-3 sentences max). Anchor on how long they've been at their plan${input.justStarted ? ". They just started, so welcome them to their first days and celebrate showing up at all" : " and their consistency over that time"}. ${input.isAhead ? "Their consistency is strong, so celebrate it." : input.isBehind ? "They're struggling, so be encouraging and ask what's been challenging." : "They're building, so note the steady progress."} Ask ONE simple question about their experience. No lengthy explanations.`;
+}
+
+const clip = (value: string, max: number) =>
+  value.replace(/\s+/g, " ").trim().slice(0, max);
+
+/**
+ * Where the sheet was opened from and the plan's milestones, so Coach talks
+ * about the habit the person was looking at rather than guessing.
+ */
+export function buildCoachPlanContext(input: {
+  originHabit?: string;
+  originMilestone?: string;
+  milestoneTitles: readonly string[];
+}): string | undefined {
+  const lines: string[] = [];
+  if (input.originHabit?.trim())
+    lines.push(
+      `- They opened Coach from this habit: "${clip(input.originHabit, 160)}". Assume their message is about it unless they say otherwise.`,
+    );
+  if (input.originMilestone?.trim())
+    lines.push(
+      `- ${input.originHabit?.trim() ? "It belongs to" : "They opened Coach from"} this milestone: "${clip(input.originMilestone, 160)}".`,
+    );
+  const titles = input.milestoneTitles
+    .map((title) => clip(title, 120))
+    .filter(Boolean)
+    .slice(0, 8);
+  if (titles.length > 0)
+    lines.push(
+      `- Milestones in their plan: ${titles.map((title) => `"${title}"`).join("; ")}.`,
+    );
+  return lines.length > 0 ? lines.join("\n") : undefined;
+}
+
+/**
+ * One-step proposal, sent through the plan extraction route. That route's
+ * schema requires three entries, so the model fills three and the app uses
+ * the first.
+ */
+export const NEXT_STEP_PROMPT = `The person already has a plan in this app and wants ONE next step toward their resolution. Their message gives the resolution, the habits already in the plan, and sometimes a request.
+
+Return ONLY valid JSON in the plan format the response schema requires: personaName, personaDescription, and exactly 3 benchmarks. The app uses ONLY benchmark 1 as the proposed step; benchmarks 2 and 3 are alternates.
+
+RULES:
+- Benchmark 1 is the single best next step: one small, repeatable habit that leads to the resolution and is clearly different from every habit already in the plan. If they made a request, follow it.
+- elementalAction.title is the habit itself, specific and verifiable, in plain words.
+- "why" is one sentence, at most 140 characters, on how this step leads to their resolution, using their words for the goal. Never promise an outcome and never invent facts about the person.
+- "scheduleSource" is always "suggested", because the person has not chosen days for this step. Suggest 2-4 weekdays using exact weekday names only.
+- kickstartVersion takes under 2 minutes and is genuinely easier than the full habit.
+- anchorLink is exactly "${NEUTRAL_CUE}" unless the person stated a routine or time in their message.
+- personaName is a short title for the resolution. personaDescription is one plain sentence about it.
+- Never suggest another app, notebook, spreadsheet, or notes file. Never use em dashes in any field.`;
+
+/** The person's side of the one-step request. */
+export function buildNextStepRequest(context: {
+  resolution: string;
+  existingHabits: readonly string[];
+  userMessage?: string;
+}): string {
+  const habits = context.existingHabits
+    .map((title) => clip(title, 160))
+    .filter(Boolean)
+    .slice(0, 5);
+  return [
+    `My resolution: ${clip(context.resolution, 200) || "not written down yet"}.`,
+    habits.length > 0
+      ? `Habits already in my plan: ${habits.map((title) => `"${title}"`).join("; ")}.`
+      : "I have no habits in my plan yet.",
+    context.userMessage?.trim()
+      ? `What I asked for: ${clip(context.userMessage, 400)}`
+      : "Suggest one next step I could add.",
+  ].join("\n");
+}

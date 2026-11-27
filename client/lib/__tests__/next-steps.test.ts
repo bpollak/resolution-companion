@@ -9,6 +9,7 @@ import {
   nextStepToAction,
   nextStepsFromDraft,
   normalizeNextSteps,
+  parseNextStepProposal,
   withNextStepSaved,
   type NextStep,
 } from "@/lib/next-steps";
@@ -261,6 +262,59 @@ describe("where and how a step is added", () => {
     expect(habit.kickstartVersion).toBe(
       "Do stretch for 5 minutes for 2 minutes",
     );
+  });
+});
+
+describe("parseNextStepProposal", () => {
+  const reply = (title: string, frequency: unknown = ["Tuesday"]) => ({
+    personaName: "Healthier",
+    personaDescription: "Feels better.",
+    benchmarks: [
+      {
+        title: "21 stair climbs",
+        why: "Stairs add movement without extra time.",
+        scheduleSource: "suggested",
+        elementalAction: {
+          title,
+          frequency,
+          kickstartVersion: "Climb one flight",
+          anchorLink: "At a time that fits",
+        },
+      },
+    ],
+  });
+
+  test("reads the proposed step as a Coach next step", () => {
+    expect(parseNextStepProposal(reply("Take the stairs"), "coach-1")).toEqual({
+      id: "coach-1",
+      title: "Take the stairs",
+      why: "Stairs add movement without extra time.",
+      frequency: ["Tuesday"],
+      kickstart: "Climb one flight",
+      cue: "At a time that fits",
+      source: "coach",
+    });
+  });
+
+  test("rejects an empty title", () => {
+    expect(() => parseNextStepProposal(reply("   "))).toThrow(
+      "did not return a step",
+    );
+  });
+
+  test("rejects a step with no usable days, and malformed replies", () => {
+    expect(() => parseNextStepProposal(reply("Take the stairs", []))).toThrow();
+    expect(() =>
+      parseNextStepProposal(reply("Take the stairs", "daily")),
+    ).toThrow();
+    for (const bad of [null, "text", {}, { benchmarks: "none" }])
+      expect(() => parseNextStepProposal(bad)).toThrow();
+  });
+
+  test("skips an unusable first entry and takes the next one", () => {
+    const data = reply("  ");
+    data.benchmarks.push(reply("Stretch for 5 minutes").benchmarks[0]);
+    expect(parseNextStepProposal(data).title).toBe("Stretch for 5 minutes");
   });
 });
 

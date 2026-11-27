@@ -67,13 +67,16 @@ appId: com.resolutioncompanion.app
 - extendedWaitUntil:
     visible: "What do you need help with?.*"
     timeout: 10000
-# The lobby has one primary entry; plan adjustment is a chip in the sheet.
+# The lobby has one primary entry; plan changes are chips in the sheet. On
+# this day-one plan that is "Help me add a next step"; "Adjust my plan" waits
+# for 7 scheduled days of history (1.7.0).
 - tapOn: "Start a conversation with Coach"
 - scrollUntilVisible:
     element:
-      text: "Request a previewed plan adjustment"
+      text: "Help me add a next step"
     direction: DOWN
     timeout: 15000
     centerElement: true
+- assertNotVisible: "Request a previewed plan adjustment"
 - takeScreenshot: ambient-coach-sheet
 - tapOn: "Close Coach"

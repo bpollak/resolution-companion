@@ -59,10 +59,11 @@ appId: com.resolutioncompanion.app
     timeout: 15000
 - assertVisible: ".*momentum.*"
 
-# Plan tuning may reuse the already-counted session, but never mutates until
-# the field-level preview is explicitly confirmed.
-# The lobby has one primary entry; plan adjustment is a chip in the sheet
-# (labelled "Request a previewed plan adjustment").
+# A plan change from Coach never mutates the plan until its preview is
+# explicitly confirmed. On this day-one plan the change on offer is a next
+# step: "Adjust my plan" waits for 7 scheduled days of history (1.7.0), and
+# its preview/keep/apply path is exercised on the seeded plan in
+# qa/maestro-coach-responsiveness.yaml.
 - scrollUntilVisible:
     element:
       text: "Start a conversation with Coach"
@@ -72,32 +73,36 @@ appId: com.resolutioncompanion.app
 - tapOn: "Start a conversation with Coach"
 - scrollUntilVisible:
     element:
-      text: "Request a previewed plan adjustment"
+      text: "Help me add a next step"
     direction: DOWN
     timeout: 15000
     centerElement: true
-- tapOn: "Request a previewed plan adjustment"
+- assertNotVisible: "Request a previewed plan adjustment"
+- tapOn: "Help me add a next step"
 - scrollUntilVisible:
     element:
-      text: "Preview changes"
+      text: "Suggested next step"
     direction: DOWN
     timeout: 90000
     centerElement: true
-- assertVisible: "Before:.*"
-- assertVisible: "After:.*"
-- assertVisible: "Keep current plan"
-- assertVisible: "Apply previewed plan changes"
-- tapOn: "Keep current plan"
-- assertNotVisible: "Preview changes"
+- assertVisible: "Suggested: .*"
+- assertVisible: "Not now. Save this step for later."
+- assertVisible: "Add this step to my plan"
+- tapOn: "Not now. Save this step for later."
+- assertNotVisible: "Suggested next step"
+- assertVisible: "Saved for later.*"
 
-# Request a fresh recommendation and exercise the atomic apply path.
-- tapOn: "Request a previewed plan adjustment"
+# Request a fresh step and exercise the apply path.
+- tapOn: "Help me add a next step"
 - scrollUntilVisible:
     element:
-      text: "Preview changes"
+      text: "Suggested next step"
     direction: DOWN
     timeout: 90000
     centerElement: true
-- tapOn: "Apply previewed plan changes"
-- assertNotVisible: "Preview changes"
+- tapOn: "Add this step to my plan"
+- assertNotVisible: "Suggested next step"
+- extendedWaitUntil:
+    visible: "AI coach: Added to your plan: .*"
+    timeout: 10000
 - tapOn: "Close Coach"

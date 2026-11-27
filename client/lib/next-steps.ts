@@ -117,6 +117,40 @@ export function nextStepsFromDraft(
   );
 }
 
+/**
+ * Reads Coach's one-step proposal from a plan-shaped reply: the first entry
+ * that could become a habit. Throws when there is none, so an empty title or
+ * a step with no valid days is never previewed.
+ */
+export function parseNextStepProposal(
+  data: unknown,
+  id = `coach-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+): NextStep {
+  const entries =
+    data && typeof data === "object"
+      ? (data as { benchmarks?: unknown }).benchmarks
+      : null;
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    if (!entry || typeof entry !== "object") continue;
+    const raw = entry as { why?: unknown; elementalAction?: unknown };
+    const habit =
+      raw.elementalAction && typeof raw.elementalAction === "object"
+        ? (raw.elementalAction as Record<string, unknown>)
+        : {};
+    const step = normalizeStep({
+      id,
+      title: habit.title,
+      why: raw.why,
+      frequency: habit.frequency,
+      kickstart: habit.kickstartVersion,
+      cue: habit.anchorLink,
+      source: "coach",
+    });
+    if (step) return step;
+  }
+  throw new Error("Coach did not return a step that can be added.");
+}
+
 export function canAddNextStep(
   actionCount: number,
 ): { ok: true } | { ok: false; reason: "habit_limit" } {
