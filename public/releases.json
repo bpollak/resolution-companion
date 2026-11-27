@@ -1,7 +1,7 @@
 [
   {
     "version": "1.7.0",
-    "status": "draft",
+    "status": "submitted",
     "title": "Find the steps toward your goal",
     "summary": "Coach now helps you see the steps toward your resolution, start with one, and add the next when you are ready.",
     "appStoreNotes": [
@@ -29,7 +29,8 @@
         "description": "Look back on what you did, with an edition for your first weeks.",
         "availability": "Available to everyone."
       }
-    ]
+    ],
+    "submittedAt": "2026-11-27"
   },
   {
     "version": "1.6.1",
