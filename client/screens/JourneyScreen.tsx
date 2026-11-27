@@ -31,6 +31,8 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { CompletionCheck } from "@/components/CompletionCheck";
 import { Toast } from "@/components/Toast";
 import { InsightsPanel } from "@/components/InsightsPanel";
+import { NextStepsCard } from "@/components/NextStepsCard";
+import { HABIT_LIMIT_MESSAGE, NO_MILESTONE_MESSAGE } from "@/lib/next-steps";
 import {
   JourneyFramingCard,
   RhythmStatusLine,
@@ -856,6 +858,9 @@ export default function JourneyScreen() {
     toggleDailyLog,
     canAddBenchmark,
     subscription,
+    nextSteps,
+    addNextStep,
+    dismissNextStep,
   } = useApp();
   // Journey stays mounted behind Today. Deferring the log-derived inputs
   // lets a Today check-off commit first (this screen re-renders with the
@@ -926,6 +931,46 @@ export default function JourneyScreen() {
       .catch(() => {
         showToast("Couldn’t update that habit. Try again.", "warning");
       });
+  };
+
+  const [nextStepBusy, setNextStepBusy] = useState<string | null>(null);
+  const [nextStepNotice, setNextStepNotice] = useState<{
+    stepId: string;
+    message: string;
+  } | null>(null);
+  // A refusal stays under the step it belongs to (a toast would be gone
+  // before the person could act on it).
+  const handleAddNextStep = (stepId: string) => {
+    if (nextStepBusy) return;
+    setNextStepBusy(stepId);
+    setNextStepNotice(null);
+    const failed = "Couldn’t add that step. Try again.";
+    return addNextStep(stepId)
+      .then((result) => {
+        if (result.ok) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          showToast("Added to your plan.", "success");
+          return;
+        }
+        setNextStepNotice({
+          stepId,
+          message:
+            result.reason === "habit_limit"
+              ? HABIT_LIMIT_MESSAGE
+              : result.reason === "no_milestone"
+                ? NO_MILESTONE_MESSAGE
+                : failed,
+        });
+      })
+      .catch(() => setNextStepNotice({ stepId, message: failed }))
+      .then(() => setNextStepBusy(null));
+  };
+  const handleDismissNextStep = (stepId: string) => {
+    Haptics.selectionAsync();
+    setNextStepNotice(null);
+    return dismissNextStep(stepId).catch(() => {
+      showToast("Couldn’t update your next steps. Try again.", "warning");
+    });
   };
 
   const personaBenchmarks = useMemo(() => {
@@ -1607,6 +1652,14 @@ export default function JourneyScreen() {
         }
         ListFooterComponent={
           <>
+            {/* Renders nothing for a plan with no next steps. */}
+            <NextStepsCard
+              steps={nextSteps}
+              onAdd={handleAddNextStep}
+              onDismiss={handleDismissNextStep}
+              busyStepId={nextStepBusy}
+              notice={nextStepNotice}
+            />
             {/* The rhythm card is a tune-up prompt, shown only when a habit is
                 worth simplifying; otherwise each milestone row carries its
                 rhythm status inline. */}

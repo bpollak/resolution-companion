@@ -12,6 +12,7 @@ import {
   upsertLogIn,
   type DailyLogCompletion,
 } from "@/lib/daily-log";
+import { normalizeNextSteps, type NextStep } from "@/lib/next-steps";
 
 const STORAGE_KEYS = {
   HAS_ONBOARDED: "hasOnboarded",
@@ -40,6 +41,11 @@ export interface Persona {
   createdAt: string;
   /** The resolution in the person's own words ("Lose 15 pounds"). */
   resolution?: string;
+  /**
+   * Steps toward the resolution not started yet. Absent on plans saved
+   * before 1.7.0; read through normalizeNextSteps, never directly.
+   */
+  nextSteps?: NextStep[];
 }
 
 export interface Benchmark {
@@ -330,6 +336,29 @@ export const storage = {
 
   async setPersonas(personas: Persona[]): Promise<void> {
     await AsyncStorage.setItem(STORAGE_KEYS.PERSONAS, JSON.stringify(personas));
+  },
+
+  /**
+   * Replaces a plan's next steps. An empty list removes the key, so the
+   * record matches a plan that never had any.
+   */
+  async setPersonaNextSteps(
+    personaId: string,
+    steps: NextStep[],
+  ): Promise<Persona | null> {
+    const personas = await this.getPersonas();
+    const index = personas.findIndex((item) => item.id === personaId);
+    if (index < 0) return null;
+    const { nextSteps: _previous, ...rest } = personas[index];
+    const valid = normalizeNextSteps(steps);
+    const updated: Persona =
+      valid.length > 0 ? { ...rest, nextSteps: valid } : rest;
+    personas[index] = updated;
+    await this.setPersonas(personas);
+    if ((await this.getActivePersonaId()) === personaId) {
+      await AsyncStorage.setItem(STORAGE_KEYS.PERSONA, JSON.stringify(updated));
+    }
+    return updated;
   },
 
   async addPersona(

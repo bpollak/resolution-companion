@@ -78,8 +78,8 @@ describe("persona plan extraction", () => {
   });
 
   it("requires the new keys in strict mode, as nullable", () => {
-    const item = personaPlanResponseFormat.json_schema.schema.properties
-      .benchmarks.items;
+    const item =
+      personaPlanResponseFormat.json_schema.schema.properties.benchmarks.items;
     expect(item.required).toEqual(
       expect.arrayContaining(["why", "scheduleSource"]),
     );

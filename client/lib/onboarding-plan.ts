@@ -2,6 +2,7 @@ import type { PersonaData } from "@/lib/ai";
 import type { Persona, Benchmark, ElementalAction } from "@/lib/storage";
 import { WEEKDAY_ORDER, sortWeekdays } from "@/lib/progress";
 import { withSuggestedReminderTime } from "@/lib/habit-reminders";
+import { draftStepId, nextStepsFromDraft } from "@/lib/next-steps";
 
 export const WHY_MAX_LENGTH = 140;
 
@@ -252,7 +253,14 @@ export function approvePlan(
 } {
   const issue = getPlanIssue(draft);
   if (issue) throw new Error(issue.message);
-  const persona = {
+  // The steps the person did not start with stay on the plan as next steps.
+  const nextSteps = nextStepsFromDraft(
+    draft,
+    draft.suggestions.flatMap((item, index) =>
+      item.selected ? [draftStepId(draft, index)] : [],
+    ),
+  );
+  const persona: Persona = {
     id: draft.id,
     createdAt: acceptedAt,
     name: draft.name.trim(),
@@ -260,6 +268,7 @@ export function approvePlan(
     ...(draft.resolution?.trim()
       ? { resolution: draft.resolution.trim() }
       : {}),
+    ...(nextSteps.length > 0 ? { nextSteps } : {}),
   };
   const benchmarks: Benchmark[] = [];
   const actions: ElementalAction[] = [];

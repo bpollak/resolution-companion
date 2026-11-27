@@ -5,10 +5,7 @@ import EventSource from "react-native-sse";
 import { normalizeCoachMilestoneProposal } from "@/lib/milestone-proposal";
 import { TYPEWRITER_DELAY_MS } from "@/lib/typewriter";
 import { tidyCoachText } from "@/lib/copy";
-import {
-  EXTRACTION_PROMPT,
-  getOnboardingSystemPrompt,
-} from "@/lib/ai-prompts";
+import { EXTRACTION_PROMPT, getOnboardingSystemPrompt } from "@/lib/ai-prompts";
 
 // The server keys its monthly AI usage quotas on this header; without it,
 // requests fall back to a shared per-IP bucket.

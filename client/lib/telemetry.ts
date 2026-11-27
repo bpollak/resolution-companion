@@ -74,6 +74,8 @@ export const TELEMETRY_EVENT_NAMES = [
   "paywall_viewed_insights",
   "paywall_viewed_year_recap",
   "client_error",
+  "next_step_added",
+  "next_step_dismissed",
 ] as const;
 
 export type TelemetryEvent = (typeof TELEMETRY_EVENT_NAMES)[number];
