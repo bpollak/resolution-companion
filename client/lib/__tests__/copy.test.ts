@@ -1,6 +1,12 @@
 import {
   ASK_COACH_TO_CHANGE,
+  GOAL_TO_STEPS_LINE,
   HIDE_MORE_STEPS,
+  MILESTONE_HINT,
+  MILESTONE_PLACEHOLDER,
+  PLAN_NAME_REQUIRED,
+  SELF_SETUP_STARTERS_LABEL,
+  WELCOME_STEPS,
   STEP_SAVED_FOR_LATER,
   moreStepsLabel,
   planReviewIntro,
@@ -76,6 +82,39 @@ describe("plan review copy", () => {
       STEP_SAVED_FOR_LATER,
     ]) {
       expect(text).not.toMatch(/persona|benchmark|vote|—/i);
+    }
+  });
+});
+
+describe("goal to steps framing", () => {
+  it("leads with the steps question", () => {
+    expect(GOAL_TO_STEPS_LINE).toBe(
+      "Know the goal but not the steps? Talk it through with Coach and leave with the first one.",
+    );
+  });
+
+  it("describes talking with Coach as finding the steps", () => {
+    expect(WELCOME_STEPS[0]).toEqual([
+      "Talk with Coach",
+      "Share the goal. Coach helps you find the steps.",
+    ]);
+    expect(WELCOME_STEPS).toHaveLength(2);
+  });
+
+  it("asks for a plan name in plain words", () => {
+    expect(PLAN_NAME_REQUIRED).toBe("Give this plan a name.");
+  });
+
+  it("uses none of the retired vocabulary and no em dashes", () => {
+    for (const text of [
+      GOAL_TO_STEPS_LINE,
+      ...WELCOME_STEPS.flat(),
+      PLAN_NAME_REQUIRED,
+      MILESTONE_HINT,
+      MILESTONE_PLACEHOLDER,
+      SELF_SETUP_STARTERS_LABEL,
+    ]) {
+      expect(text).not.toMatch(/persona|benchmark|future self|vote|—/i);
     }
   });
 });

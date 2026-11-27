@@ -42,7 +42,9 @@ import {
   approvalClearsCoachTranscript,
   createStarterPlanDraft,
   isSelfSetupDraft,
+  RESOLUTION_STARTERS,
 } from "@/lib/starter-plan";
+import { GOAL_TO_STEPS_LINE, WELCOME_STEPS } from "@/lib/copy";
 import { storage } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import { track } from "@/lib/telemetry";
@@ -54,19 +56,6 @@ interface ChatMessage {
   content: string;
 }
 type Stage = "welcome" | "chat" | "review";
-
-// One tap gets a New Year's user past the blank box; Coach narrows it down.
-const RESOLUTION_STARTERS = [
-  "Get fit",
-  "Lose weight",
-  "Save money",
-  "Read more",
-  "Sleep better",
-  "Less phone time",
-  "Stress less",
-  "Learn a skill",
-  "Something else",
-];
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
@@ -589,19 +578,10 @@ export default function OnboardingScreen() {
               What&rsquo;s your resolution?
             </ThemedText>
             <ThemedText style={{ color: theme.textSecondary }}>
-              Coach turns it into one small habit. You decide when it starts.
+              {GOAL_TO_STEPS_LINE}
             </ThemedText>
             <View style={styles.overview}>
-              {[
-                [
-                  "Talk with Coach",
-                  "Share your resolution and the days that fit.",
-                ],
-                [
-                  "Review your plan",
-                  "Check your habit and schedule. Start when it feels right.",
-                ],
-              ].map(([title, detail], index) => (
+              {WELCOME_STEPS.map(([title, detail], index) => (
                 <View key={title} style={styles.overviewStep}>
                   <View
                     style={[
@@ -695,7 +675,7 @@ export default function OnboardingScreen() {
           >
             {inputText.trim()
               ? "Send your message before previewing your plan."
-              : "Share your resolution and the days that fit. You’ll review the plan before it starts."}
+              : "Share the goal. Coach helps you find the steps, and you review the plan before it starts."}
           </ThemedText>
           <FlatList
             style={styles.scrollViewport}

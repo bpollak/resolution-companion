@@ -25,6 +25,7 @@ import {
 import { logger } from "@/lib/logger";
 import { withAlpha } from "@/lib/color";
 import { canDeleteMilestone } from "@/lib/plan-editing";
+import { MILESTONE_HINT, MILESTONE_PLACEHOLDER } from "@/lib/copy";
 
 const MIN_ACTIONS_PER_PERSONA = 1;
 const MAX_ACTIONS_PER_PERSONA = 5;
@@ -348,12 +349,12 @@ export default function BenchmarkEditorScreen() {
             ]}
             value={title}
             onChangeText={setTitle}
-            placeholder="e.g., Run a marathon, Write a book"
+            placeholder={MILESTONE_PLACEHOLDER}
             placeholderTextColor={theme.textSecondary}
             maxLength={100}
           />
           <ThemedText style={[styles.hint, { color: theme.textSecondary }]}>
-            A major milestone that defines your persona
+            {MILESTONE_HINT}
           </ThemedText>
         </View>
 

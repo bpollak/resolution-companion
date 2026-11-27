@@ -93,3 +93,24 @@ export const STEP_SAVED_FOR_LATER = "Saved for later in Journey";
 export function startWithHabitsLabel(count: number): string {
   return `Start with ${plural(count, "habit")}`;
 }
+
+// --- In-app framing: goal to steps ---
+
+/** Under "What's your resolution?" on empty Today and the welcome screen. */
+export const GOAL_TO_STEPS_LINE =
+  "Know the goal but not the steps? Talk it through with Coach and leave with the first one.";
+
+/** The two welcome steps, as [title, detail]. */
+export const WELCOME_STEPS: readonly (readonly [string, string])[] = [
+  ["Talk with Coach", "Share the goal. Coach helps you find the steps."],
+  [
+    "Review your plan",
+    "Check your habit and schedule. Start when it feels right.",
+  ],
+];
+
+export const PLAN_NAME_REQUIRED = "Give this plan a name.";
+export const MILESTONE_HINT = "A marker of progress toward your resolution.";
+export const MILESTONE_PLACEHOLDER = "e.g., 21 evening walks, 10 books read";
+export const SELF_SETUP_STARTERS_LABEL =
+  "Pick a starting point, or type your own resolution above.";

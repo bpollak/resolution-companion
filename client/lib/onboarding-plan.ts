@@ -3,6 +3,7 @@ import type { Persona, Benchmark, ElementalAction } from "@/lib/storage";
 import { WEEKDAY_ORDER, sortWeekdays } from "@/lib/progress";
 import { withSuggestedReminderTime } from "@/lib/habit-reminders";
 import { draftStepId, nextStepsFromDraft } from "@/lib/next-steps";
+import { PLAN_NAME_REQUIRED } from "@/lib/copy";
 
 export const WHY_MAX_LENGTH = 140;
 
@@ -130,8 +131,7 @@ export interface PlanIssue {
 }
 
 export function getPlanIssue(draft: OnboardingPlanDraft): PlanIssue | null {
-  if (!draft.name.trim())
-    return { field: "name", message: "Give your future self a name." };
+  if (!draft.name.trim()) return { field: "name", message: PLAN_NAME_REQUIRED };
   if (!draft.suggestions.some((item) => item.selected))
     return {
       field: "selection",

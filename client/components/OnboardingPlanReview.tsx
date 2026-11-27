@@ -30,7 +30,13 @@ import {
   planReviewIntro,
   scheduleLabel,
   startWithHabitsLabel,
+  SELF_SETUP_STARTERS_LABEL,
 } from "@/lib/copy";
+import {
+  isSelfSetupDraft,
+  SELF_SETUP_STARTERS,
+  withStarterResolution,
+} from "@/lib/starter-plan";
 
 export function OnboardingPlanReview({
   draft,
@@ -136,6 +142,18 @@ export function OnboardingPlanReview({
       )}
     </Pressable>
   );
+  const selfSetup = isSelfSetupDraft(draft);
+  // On a self-made plan the resolution picks which starter steps are shown,
+  // until the person edits them. Coach-made plans only take the text.
+  const fitStepsTo = (resolution: string) => {
+    const next = withStarterResolution(draft, resolution);
+    if (next.suggestions !== draft.suggestions) setEditing(null);
+    if (
+      next.suggestions !== draft.suggestions ||
+      next.resolution !== draft.resolution
+    )
+      onChange(next);
+  };
   const count = draft.suggestions.filter((item) => item.selected).length;
   const update = (
     index: number,
@@ -201,6 +219,9 @@ export function OnboardingPlanReview({
                   style={[inputStyle, styles.editField]}
                   editable={!saving}
                   maxLength={90}
+                  // Applied when typing ends, not per keystroke, so the
+                  // steps below do not change under the person's fingers.
+                  onEndEditing={(event) => fitStepsTo(event.nativeEvent.text)}
                 />
               ) : draft.resolution.trim() ? (
                 <ThemedText style={[styles.identityName, styles.editField]}>
@@ -221,10 +242,51 @@ export function OnboardingPlanReview({
                 editingResolution
                   ? "Done editing resolution"
                   : "Edit resolution",
-                () => setEditingResolution(!editingResolution),
+                () => {
+                  if (editingResolution) fitStepsTo(draft.resolution ?? "");
+                  setEditingResolution(!editingResolution);
+                },
                 editingResolution,
               )}
             </View>
+            {selfSetup && !draft.resolution.trim() && !editingResolution ? (
+              <>
+                <ThemedText style={{ color: theme.textSecondary }}>
+                  {SELF_SETUP_STARTERS_LABEL}
+                </ThemedText>
+                <View
+                  style={styles.starters}
+                  accessibilityLabel="Resolution ideas"
+                >
+                  {SELF_SETUP_STARTERS.map((starter) => (
+                    <Pressable
+                      key={starter}
+                      onPress={() => fitStepsTo(starter)}
+                      disabled={saving}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Use resolution: ${starter}`}
+                      accessibilityState={{ disabled: saving }}
+                      hitSlop={6}
+                      pressRetentionOffset={12}
+                      style={({ pressed }) => [
+                        styles.starter,
+                        {
+                          borderColor: theme.accent,
+                          backgroundColor: theme.backgroundSecondary,
+                          opacity: pressed ? 0.6 : 1,
+                        },
+                      ]}
+                    >
+                      <ThemedText
+                        style={{ color: theme.text, fontWeight: "600" }}
+                      >
+                        {starter}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            ) : null}
           </View>
         ) : null}
         <View style={styles.identity}>
@@ -669,6 +731,14 @@ export function OnboardingPlanReview({
 }
 const styles = StyleSheet.create({
   identity: { gap: Spacing.xs },
+  starters: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
+  starter: {
+    minHeight: 40,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    justifyContent: "center",
+  },
   startChoice: { flexDirection: "row", gap: Spacing.sm },
   startOption: {
     flex: 1,
